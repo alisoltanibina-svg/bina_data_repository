@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<!--
+  File: problem.html
+  Purpose: Province profile page that shows trends and topic breakdowns for a selected province.
+  Notes: Scripts and styles are linked below; UI text remains Persian.
+-->
+
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تحلیل و شناسایی مشکلات استانی</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="global.css">
+    <link rel="stylesheet" href="problem.css">
+    <script src="problem.js"></script>
+    <script src="auth.js" defer></script>
+</head>
+
+<!-- Page scrolls as one unit: first screen is the dashboard, second screen is empty -->
+<body class="problem-body" style="background-color: #ffffff;">
+
+    <section class="problem-screen-main" id="problem-screen-main">
+    <!-- Exact Top Banner with Hanging Icons -->
+    <div id="top-banner">
+        <div class="banner-right">
+            <div class="institution">
+                <img id="logo-img" src="assets/images/Logo.webp" alt="مرکز رصد بینا" style="height: 44px; width: auto; object-fit: contain; cursor: pointer;" onclick="window.location.href='index.html'">
+            </div>
+            <div class="banner-divider"></div>
+            <div class="project-texts">
+                <div class="project-main">دیده‌بان فرهنگ</div>
+                <div class="project-sub">سامانه راهبری زیست‌بوم فرهنگی تبلیغی ایران</div>
+
+                <!-- Hanging Navigation Icons -->
+                <div class="top-nav" role="navigation">
+                    <a href="index.html#atlas" id="btn-atlas" class="banner-btn hang-btn"><span class="btn-label">اطلس</span></a>
+                    <a href="explorer.html" id="btn-explorer" class="banner-btn hang-btn"><span class="btn-label">کاوشگر</span></a>
+                    <span id="btn-problem" class="banner-btn hang-btn is-current" aria-current="page"><span class="btn-label">نمایه</span></span>
+                </div>
+            </div>
+        </div>
+        <div class="banner-left">
+            <div class="user-box">
+                <div class="user-menu">
+                    <button type="button" class="user-circle" id="user-menu-btn" aria-haspopup="true" aria-expanded="false" aria-controls="user-menu-dropdown" title="حساب کاربری">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#fff;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                    </button>
+                    <div class="user-menu-dropdown" id="user-menu-dropdown" hidden>
+                        <button type="button" class="user-exit-btn" id="btn-logout">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                                <polyline points="16 17 21 12 16 7"></polyline>
+                                <line x1="21" y1="12" x2="9" y2="12"></line>
+                            </svg>
+                            <span>خروج</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="user-texts">
+                    <div class="user-name">علی سلطانی</div>
+                    <div class="user-role">مدیر استان زنجان</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main content area starts strictly below the 75px banner -->
+    <main class="problem-main flex-1 flex">
+        
+        <!-- Right workspace: charts + intuition card -->
+        <div class="problem-main-scroll flex-1 flex flex-col gap-3">
+            <div class="problem-charts-row flex flex-col lg:flex-row gap-4">
+                
+                <!-- THE MERGED RIGHT BOX (Polar Chart + Rank & Score) -->
+                <div class="flex-[1.2] bg-white rounded-3xl shadow-sm border p-4 relative flex flex-col min-w-0 min-h-0 overflow-hidden">
+                    <div id="polar-title-wrapper" style="margin-bottom: 0.5rem; border-right: 4px solid #3b82f6; padding-right: 12px; display: flex; align-items: center; gap: 10px; transition: border-color 0.6s ease;">
+                        <span style="font-size: 1rem; font-weight: bold; color: #374151;">استان:</span>
+                        <div class="province-picker" id="province-picker">
+                            <button type="button" class="province-select" id="province-select-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="province-select-menu">
+                                <span id="province-select-label">در حال بارگذاری...</span>
+                            </button>
+                            <ul class="province-select-menu" id="province-select-menu" role="listbox" hidden></ul>
+                        </div>
+                    </div>
+                    
+                    <!-- Inner Flex Layout for Merged Content -->
+                    <div class="flex-1 flex flex-col xl:flex-row w-full min-h-0 items-center gap-3">
+                        
+                        <!-- Polar Chart Section -->
+                        <div class="flex-1 relative w-full h-full flex justify-center items-center min-h-0">
+                            <canvas id="polarChart"></canvas>
+                        </div>
+
+                        <!-- Rank & Score Section -->
+                        <div class="w-full xl:w-[32%] flex flex-col gap-3 justify-center items-center xl:border-r border-gray-100 xl:pr-4">
+                            
+                            <div class="text-center w-full flex flex-col items-center justify-center">
+                                <span class="block text-gray-500 font-semibold mb-1 text-sm">رتبه استان</span>
+                                <div id="box-rank" class="w-full flex justify-center">
+                                    <div class="rank-badge" id="rank-badge">
+                                        <svg class="rank-ring-svg" viewBox="0 0 120 120" aria-hidden="true">
+                                            <circle class="rank-ring-track" cx="60" cy="60" r="50"></circle>
+                                            <circle class="rank-ring-arc" id="rank-ring-arc" cx="60" cy="60" r="50"></circle>
+                                        </svg>
+                                        <div class="rank-badge-core">
+                                            <span class="rank-number" id="rank-number">-</span>
+                                            <span class="rank-of">از ۳۱</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="w-full flex flex-col items-center justify-center">
+                                <span class="block text-gray-500 font-semibold mb-1 text-sm">امتیاز استان</span>
+                                <div class="relative h-20 w-full flex justify-center items-center">
+                                    <canvas id="doughnutChart"></canvas>
+                                    <div class="absolute top-[50%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 font-black text-xl" id="box-score">-</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- THE LEFT BOX (Scatterplot Matrix) -->
+                <div class="flex-[0.8] bg-white rounded-3xl shadow-sm border p-4 relative flex flex-col min-w-0 min-h-0 overflow-hidden">
+                    <h3 class="text-base font-bold text-gray-700 mb-2 border-r-4 border-emerald-500 pr-3">ماتریس وضعیت</h3>
+                    <div class="flex-1 relative w-full min-h-0 flex justify-center items-center">
+                        <div class="scatter-gradient-bg absolute inset-0 m-[8px] rounded-lg"></div>
+                        <canvas id="scatterChart" class="relative z-10"></canvas>
+                    </div>
+                </div>
+                
+            </div>
+
+            <!-- Intuition card for the topic selected in the left sidebar -->
+            <section class="topic-changes-panel bg-white rounded-3xl shadow-sm border p-3 flex flex-col">
+                <div class="topic-changes-header">
+                    <div>
+                        <h3 class="topic-changes-title">
+                            <i class="fa-solid fa-chart-line"></i>
+                            تغییر امتیاز نسبت به دوره قبل
+                        </h3>
+                        <p class="topic-changes-subtitle">برای موضوع انتخاب‌شده: هم تغییر نسبت به دوره قبل، هم فاصله امتیاز استان از میانگین کل کشور.</p>
+                    </div>
+                </div>
+                <div id="topic-changes-list" class="topic-changes-list">
+                    <div class="topic-change-empty is-visible" id="intuition-empty">در حال بارگذاری...</div>
+                    <div class="topic-change-row" id="intuition-card">
+                        <div class="change-row-head">
+                            <span class="change-topic" id="ic-topic"></span>
+                            <span class="change-pills">
+                                <span class="change-direction-label na" id="ic-dir-pill">
+                                    <i class="fa-solid fa-minus" id="ic-dir-icon"></i>
+                                    <span id="ic-dir-text">نامشخص</span>
+                                </span>
+                                <span class="change-gap-label na" id="ic-gap-pill">
+                                    <i class="fa-solid fa-minus" id="ic-gap-icon"></i>
+                                    <span id="ic-gap-text">بدون داده ملی</span>
+                                </span>
+                            </span>
+                        </div>
+                        <div class="change-lanes">
+                            <div class="change-lane na" id="ic-change-lane">
+                                <div class="lane-kicker"><i class="fa-solid fa-clock-rotate-left"></i> نسبت به دوره قبل</div>
+                                <div class="lane-hero na" id="ic-change-hero" dir="ltr">
+                                    <span class="lane-chevrons" aria-hidden="true" id="ic-change-chevrons">
+                                        <i class="fa-solid fa-minus"></i>
+                                        <i class="fa-solid fa-minus"></i>
+                                    </span>
+                                    <span class="lane-number" id="ic-change-num">—</span>
+                                    <span class="lane-unit">امتیاز</span>
+                                </div>
+                                <div class="lane-meter" dir="ltr">
+                                    <div class="meter-track">
+                                        <span class="meter-marker" id="ic-change-marker" style="left: 50%;"></span>
+                                    </div>
+                                    <div class="meter-labels"><span>کاهش</span><span>صفر</span><span>افزایش</span></div>
+                                </div>
+                                <div class="lane-meta">
+                                    <span class="lane-chip"><i class="fa-regular fa-calendar"></i> <span id="ic-change-prev-text"></span></span>
+                                    <span class="lane-chip"><i class="fa-solid fa-percent"></i> <span id="ic-change-pct-text"></span></span>
+                                </div>
+                            </div>
+                            <div class="change-lane na" id="ic-gap-lane">
+                                <div class="lane-kicker"><i class="fa-solid fa-scale-balanced"></i> فاصله از میانگین کل کشور</div>
+                                <div class="lane-hero na" id="ic-gap-hero" dir="ltr">
+                                    <span class="lane-chevrons" aria-hidden="true" id="ic-gap-chevrons">
+                                        <i class="fa-solid fa-minus"></i>
+                                        <i class="fa-solid fa-minus"></i>
+                                    </span>
+                                    <span class="lane-number" id="ic-gap-num">—</span>
+                                    <span class="lane-unit">امتیاز</span>
+                                </div>
+                                <div class="lane-meter" dir="ltr">
+                                    <div class="meter-track">
+                                        <span class="meter-marker" id="ic-gap-marker" style="left: 50%;"></span>
+                                    </div>
+                                    <div class="meter-labels"><span>پایین‌تر</span><span>میانگین کشور</span><span>بالاتر</span></div>
+                                </div>
+                                <div class="lane-meta">
+                                    <span class="lane-chip"><i class="fa-solid fa-globe"></i> <span id="ic-gap-nat-text"></span></span>
+                                    <span class="lane-chip"><i class="fa-solid fa-percent"></i> <span id="ic-gap-pct-text"></span></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Left Margin Sidebar (Topics Container) — moves with the page, no independent scroll -->
+        <div class="topics-sidebar w-[180px] flex-shrink-0 flex flex-col z-10">
+            <div class="topics-sidebar-scroll flex-1">
+                <div id="topics-container"></div>
+            </div>
+        </div>
+    </main>
+
+    <div class="read-more-cue" id="read-more-cue" aria-hidden="true">
+        <span class="read-more-arrow"><i class="fa-solid fa-chevron-down"></i></span>
+        <span class="read-more-text">درباره استان بیشتر بخوانید</span>
+    </div>
+    </section>
+
+    <section class="problem-screen-more" id="province-more" aria-label="درباره استان">
+        <div class="story-sticky">
+            <div class="story-province-name" id="story-province-name">
+                <span class="story-province-kicker">استان</span>
+                <span class="story-province-title" id="story-province-title"></span>
+            </div>
+            <div class="story-map-stage" id="story-map-stage">
+                <svg id="story-map-svg" viewBox="0 0 800 800" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+                    <g id="story-county-fills"></g>
+                    <g id="story-county-lines"></g>
+                    <g id="story-province-outline"></g>
+                    <g id="story-county-labels"></g>
+                </svg>
+            </div>
+            <aside class="story-pyramid" id="story-pyramid" aria-hidden="true">
+                <h3 class="story-pyramid-title" id="story-pyramid-title"></h3>
+                <div class="story-pyramid-body" id="story-pyramid-body">
+                    <div class="story-pyramid-year" id="story-pyramid-year"></div>
+                    <div class="story-pyramid-legend" dir="ltr">
+                        <span class="legend-male">مردان</span>
+                        <span class="legend-female">زنان</span>
+                    </div>
+                    <div class="story-pyramid-canvas-wrap">
+                        <canvas id="pyramidChart"></canvas>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </section>
+
+    <button type="button" id="btn-back-to-top" class="back-to-top-btn" aria-label="ابتدای صفحه">
+        <i class="fa-solid fa-arrow-up" aria-hidden="true"></i>
+        <span>ابتدای صفحه</span>
+    </button>
+</body>
+</html>

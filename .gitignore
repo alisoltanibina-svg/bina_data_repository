@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+*.pyo
+backend/__pycache__/
+
+benchmark_100_users_report.json
+benchmark_100_users_report_api_only.json
+benchmark_100_users_report_baseline.json
+benchmark_100_users_report_full.json
+
+backend/_storage_audit*.json
+backend/_api_hashes.json
+backend/_api_snapshots/
+
+data/
+assets/

@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<!--
+  File: log_in.html
+  Purpose: Simple login page with background branding. Expects a phone number for authentication.
+  Notes: Persian UI text retained; comment headers standardized for maintainability.
+-->
+
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ورود به سامانه</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;800&display=swap" rel="stylesheet">
+    
+    <style>
+            body { 
+                font-family: 'Vazirmatn', sans-serif; 
+                margin: 0;
+                height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                /* Background configuration */
+                background: url('assets/images/log_in.webp') no-repeat center center fixed;
+                background-size: cover;
+                background-color: #333333; /* Fallback color */
+            }
+
+        .login-branding-section {
+            flex: 1;
+            background-color: rgba(0, 0, 0, 0.05);
+            padding: 40px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-right: 1px solid rgba(0,0,0,0.1);
+        }
+
+        .input-field {
+            width: 100%;
+            background-color: #e5dfd3;
+            border: 1px solid #a3957a;
+            border-radius: 6px;
+            padding: 10px 15px;
+            font-size: 0.9rem;
+            color: #333;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .input-field:focus {
+            border-color: #4b5320;
+        }
+
+        .submit-btn {
+            background-color: #4b5320; /* Dark olive green */
+            color: #ffffff;
+            width: 100%;
+            border: none;
+            padding: 12px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .submit-btn:hover {
+            background-color: #3a4019;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="login-container">
+        
+        <!-- Form Section -->
+        <div class="login-form-section">
+            <h2 class="text-xl font-bold text-gray-800 mb-2">ورود با کد یک‌بار مصرف</h2>
+            <p class="text-sm text-gray-700 mb-8 leading-relaxed text-justify">جهت ورود به سامانه و دسترسی به خدمات، شماره موبایل خود را به همراه کد امنیتی وارد بفرمایید.</p>
+            
+            <form id="loginForm" onsubmit="handleLogin(event)">
+                <div class="mb-4">
+                    <input type="text" id="phone" class="input-field" placeholder="تلفن همراه" required autocomplete="off" dir="ltr" style="text-align: right;">
+                </div>
+                
+                <!-- CAPTCHA Placeholder matches the visual layout -->
+                <div class="mb-6 flex gap-4">
+                    <!-- Added id="captchaDisplay" and user-select: none to prevent easy copy-pasting -->
+                    <div id="captchaDisplay" class="bg-gray-200 border border-gray-400 w-1/2 flex items-center justify-center font-mono text-xl tracking-widest font-bold text-gray-600 rounded" style="text-decoration: line-through; user-select: none;">
+                        <!-- Generated randomly by JS -->
+                    </div>
+                    <input type="text" id="captcha" class="input-field w-1/2" placeholder="کد امنیتی" required>
+                </div>
+                
+                <button type="submit" class="submit-btn" id="submitBtn">ورود</button>
+            </form>
+            
+            <p id="errorMessage" class="text-red-700 text-sm mt-4 font-bold hidden"></p>
+        </div>
+
+
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://127.0.0.1:8000';
+        let currentCaptcha = "";
+
+        // Generate a random 5-digit number
+        function generateCaptcha() {
+            currentCaptcha = Math.floor(10000 + Math.random() * 90000).toString();
+            document.getElementById('captchaDisplay').innerText = currentCaptcha;
+        }
+
+        // Initialize CAPTCHA when the page loads
+        window.addEventListener('DOMContentLoaded', generateCaptcha);
+
+        async function handleLogin(event) {
+            event.preventDefault();
+            
+            const phoneInput = document.getElementById('phone').value;
+            const captchaInput = document.getElementById('captcha').value;
+            const errorElement = document.getElementById('errorMessage');
+            const submitBtn = document.getElementById('submitBtn');
+            
+            // Reset state
+            errorElement.classList.add('hidden');
+            
+            // Client-side CAPTCHA validation
+            if (captchaInput !== currentCaptcha) {
+                errorElement.innerText = "کد امنیتی وارد شده اشتباه است.";
+                errorElement.classList.remove('hidden');
+                generateCaptcha(); // Generate a new code on failure
+                document.getElementById('captcha').value = ""; // Clear the input field
+                return; // Stop the function here so it doesn't call the API
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.innerText = "در حال بررسی...";
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ phone: phoneInput })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.status === 'success') {
+                    // Store token securely in client session
+                    sessionStorage.setItem('dashboard_auth_token', data.token);
+                    // Execute redirection to the main dashboard
+                    window.location.href = data.redirect_url;
+                } else {
+                    errorElement.innerText = data.detail || "شماره موبایل در سیستم ثبت نشده است.";
+                    errorElement.classList.remove('hidden');
+                    generateCaptcha(); // Refresh CAPTCHA on failed login attempt
+                    document.getElementById('captcha').value = "";
+                }
+            } catch (error) {
+                console.error("API Error:", error);
+                errorElement.innerText = "خطا در ارتباط با سرور.";
+                errorElement.classList.remove('hidden');
+                generateCaptcha();
+                document.getElementById('captcha').value = "";
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerText = "ارسال کد";
+            }
+        }
+    </script>
+</body>
+</html>

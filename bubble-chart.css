@@ -1,0 +1,190 @@
+/*
+File: bubble-chart.css
+Purpose: Styles specific to the bubble-chart page, including slider styles and chart wrapper.
+Notes: Comments standardized to English; layout and visual rules left unchanged.
+*/
+
+@property --topic-accent {
+    syntax: '<color>';
+    inherits: true;
+    initial-value: #0078d7;
+}
+@property --banner-bg {
+    syntax: '<color>';
+    inherits: true;
+    initial-value: #0078d7;
+}
+:root {
+    --banner-bg: #0078d7;
+    --banner-gap: 16px;
+    --banner-side-gap: 16px;
+    --topic-accent: #0078d7;
+}
+
+body { font-family: 'Vazirmatn', sans-serif; background-color: #ffffff; position: relative; }
+
+.bubble-workspace {
+    margin-top: calc(75px + var(--banner-gap));
+    padding-top: 46px;
+}
+
+#top-banner {
+    position: absolute;
+    top: var(--banner-gap);
+    left: var(--banner-side-gap);
+    right: var(--banner-side-gap);
+    width: calc(100% - 2 * var(--banner-side-gap));
+    margin: 0;
+    height: 75px;
+    flex-shrink: 0;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 25px;
+    color: #ffffff;
+    z-index: 2000;
+    box-shadow: none;
+    border-radius: 12px;
+}
+#top-banner::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    background-color: var(--banner-bg);
+    z-index: -1;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.25);
+    transition: background-color 0.6s ease;
+}
+.banner-right { display: flex; align-items: center; gap: 20px; position: relative; }
+.banner-left { display: flex; align-items: center; }
+.institution { display:flex; align-items:center; gap:12px; }
+.banner-divider { width:1px; height:48px; background: rgba(255,255,255,0.18); margin: 0 14px; }
+.project-texts { display:flex; flex-direction:column; line-height:1.7; position: relative; }
+.project-main { font-weight:800; font-size:0.95rem; color:#fff; }
+.project-sub { font-size:0.8rem; color: rgba(255,255,255,0.95); }
+.top-nav { position: absolute; top: calc(40% + 37.5px); right: -200px; left: auto; display: flex; gap: 12px; z-index: -2; }
+.hang-btn { width:110px; height:38px; padding:6px 10px; border-radius:10px; box-shadow:0 6px 18px rgba(0,0,0,0.25); transform-origin: top center; }
+.hang-btn .btn-label { font-size:0.85rem; }
+.banner-btn {
+    height: 38px;
+    color: #333333;
+    background-color: #ffffff;
+    border: 1px solid #d1d5db;
+    border-bottom: 5px solid var(--topic-accent, #0078d7);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 800;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-decoration: none;
+    padding: 0 14px;
+    position: relative;
+    overflow: hidden;
+}
+.banner-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,0.1); background-color: #f3f4f6; }
+.banner-btn.is-current,
+.hang-btn.is-current {
+    background-color: var(--topic-accent, #0078d7);
+    color: #ffffff;
+    border-color: rgba(0,0,0,0.08);
+    border-bottom-color: rgba(0,0,0,0.25);
+    box-shadow: inset 0 2px 5px rgba(0,0,0,0.2);
+    transform: translateY(4px);
+}
+.banner-btn.is-current:hover,
+.hang-btn.is-current:hover {
+    background-color: var(--topic-accent, #0078d7);
+    color: #ffffff;
+    transform: translateY(4px);
+}
+.user-box { display:flex; align-items:center; gap:10px; padding-right:6px; flex-direction: row-reverse; }
+.user-menu { position: relative; flex-shrink: 0; }
+.user-circle {
+    width:44px; height:44px; border-radius:50%;
+    background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18);
+    display:flex; align-items:center; justify-content:center;
+    cursor: pointer; padding: 0; font: inherit; color: inherit;
+    appearance: none; -webkit-appearance: none;
+    transition: background 0.2s ease;
+}
+.user-circle:hover,
+.user-circle.is-open { background: rgba(255,255,255,0.24); }
+.user-menu-dropdown {
+    position: absolute; top: calc(100% + 10px); left: 0;
+    min-width: 132px; background: #ffffff; border: 1px solid #e5e7eb;
+    border-radius: 12px; box-shadow: 0 10px 28px rgba(0,0,0,0.18);
+    padding: 6px; z-index: 2300;
+}
+.user-menu-dropdown[hidden] { display: none; }
+.user-exit-btn {
+    display: flex; align-items: center; justify-content: flex-start; gap: 8px;
+    width: 100%; padding: 10px 12px; border: none; background: transparent;
+    color: #b91c1c; font-family: inherit; font-weight: 800; font-size: 0.9rem;
+    border-radius: 8px; cursor: pointer;
+}
+.user-exit-btn:hover { background: #fef2f2; }
+.user-texts { display:flex; flex-direction:column; line-height:1.5; text-align: left;}
+.user-name { font-weight:800; color:#fff; font-size:0.95rem; }
+.user-role { font-size:0.75rem; color: rgba(255,255,255,0.95); }
+
+#btn-back-explorer { width: auto; min-width: 110px; padding: 6px 14px; }
+
+.bubble-title-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.subtopic-select {
+    appearance: none;
+    -webkit-appearance: none;
+    height: 36px;
+    min-width: 180px;
+    max-width: min(420px, 70vw);
+    padding: 4px 12px 4px 28px;
+    border-radius: 10px;
+    background-color: #ffffff;
+    color: #111827;
+    border: 1px solid #d1d5db;
+    border-bottom: 4px solid var(--topic-accent, #0078d7);
+    font-family: inherit;
+    font-size: 0.95rem;
+    font-weight: 800;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    cursor: pointer;
+    outline: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23333333' d='M1.2 1.3L6 6.1l4.8-4.8'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: left 10px center;
+}
+.slider-control {
+    -webkit-appearance: none; 
+    width: 100%; 
+    height: 6px; 
+    border-radius: 5px;
+    background: #e5e7eb; 
+    outline: none; 
+    margin-top: 10px;
+    transition: all 0.15s ease-out;
+}
+.slider-control::-webkit-slider-thumb {
+    -webkit-appearance: none; 
+    appearance: none;
+    width: 18px; 
+    height: 18px; 
+    border-radius: 50%; 
+    background: #2563eb; 
+    cursor: pointer; 
+    transition: transform 0.2s ease, background-color 0.2s ease;
+    position: relative;
+    z-index: 10;
+}
+.slider-control::-webkit-slider-thumb:hover { transform: scale(1.3); background: #1d4ed8; }

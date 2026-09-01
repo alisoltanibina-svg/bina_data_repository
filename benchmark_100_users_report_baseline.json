@@ -1,0 +1,248 @@
+{
+  "generated_at": "2026-09-01T05:47:53.374189+00:00",
+  "concurrent_users": 100,
+  "wall_seconds": 8.549,
+  "throughput_rps": 128.68,
+  "session_ms": {
+    "min": 5878.4,
+    "mean": 7704.1,
+    "p50": 7939.1,
+    "p95": 8483.3,
+    "p99": 8516.3,
+    "max": 8516.8
+  },
+  "overall": {
+    "requests": 1100,
+    "ok": 1100,
+    "errors": 0,
+    "error_rate_pct": 0.0,
+    "bytes_total": 63709227,
+    "status_counts": {
+      "200": 1100
+    },
+    "latency_ms": {
+      "min": 3.3,
+      "mean": 700.4,
+      "p50": 371.8,
+      "p95": 2569.3,
+      "p99": 3880.0,
+      "max": 6099.5
+    },
+    "sample_errors": []
+  },
+  "endpoints": {
+    "API GET /api/bubble/init": {
+      "requests": 100,
+      "ok": 100,
+      "errors": 0,
+      "error_rate_pct": 0.0,
+      "bytes_total": 1689618,
+      "status_counts": {
+        "200": 100
+      },
+      "latency_ms": {
+        "min": 3.4,
+        "mean": 241.3,
+        "p50": 155.5,
+        "p95": 739.7,
+        "p99": 1309.5,
+        "max": 1486.0
+      },
+      "sample_errors": []
+    },
+    "API GET /api/explorer/indicator": {
+      "requests": 100,
+      "ok": 100,
+      "errors": 0,
+      "error_rate_pct": 0.0,
+      "bytes_total": 2929115,
+      "status_counts": {
+        "200": 100
+      },
+      "latency_ms": {
+        "min": 56.0,
+        "mean": 1121.3,
+        "p50": 857.8,
+        "p95": 2996.1,
+        "p99": 4310.0,
+        "max": 5391.5
+      },
+      "sample_errors": []
+    },
+    "API GET /api/explorer/indicator (2nd click)": {
+      "requests": 100,
+      "ok": 100,
+      "errors": 0,
+      "error_rate_pct": 0.0,
+      "bytes_total": 2868779,
+      "status_counts": {
+        "200": 100
+      },
+      "latency_ms": {
+        "min": 42.5,
+        "mean": 751.8,
+        "p50": 586.5,
+        "p95": 2157.8,
+        "p99": 2610.9,
+        "max": 3433.6
+      },
+      "sample_errors": []
+    },
+    "API GET /api/explorer/init": {
+      "requests": 100,
+      "ok": 100,
+      "errors": 0,
+      "error_rate_pct": 0.0,
+      "bytes_total": 934300,
+      "status_counts": {
+        "200": 100
+      },
+      "latency_ms": {
+        "min": 46.6,
+        "mean": 1390.4,
+        "p50": 996.5,
+        "p95": 3551.8,
+        "p99": 4138.1,
+        "max": 4371.0
+      },
+      "sample_errors": []
+    },
+    "API GET /api/init-atlas": {
+      "requests": 100,
+      "ok": 100,
+      "errors": 0,
+      "error_rate_pct": 0.0,
+      "bytes_total": 52688400,
+      "status_counts": {
+        "200": 100
+      },
+      "latency_ms": {
+        "min": 223.2,
+        "mean": 1624.3,
+        "p50": 1218.8,
+        "p95": 4070.8,
+        "p99": 4994.8,
+        "max": 6099.5
+      },
+      "sample_errors": []
+    },
+    "API GET /api/problem/data": {
+      "requests": 100,
+      "ok": 100,
+      "errors": 0,
+      "error_rate_pct": 0.0,
+      "bytes_total": 41137,
+      "status_counts": {
+        "200": 100
+      },
+      "latency_ms": {
+        "min": 16.3,
+        "mean": 562.1,
+        "p50": 336.0,
+        "p95": 1580.4,
+        "p99": 2635.2,
+        "max": 3810.9
+      },
+      "sample_errors": []
+    },
+    "API GET /api/problem/data (switch topic)": {
+      "requests": 100,
+      "ok": 100,
+      "errors": 0,
+      "error_rate_pct": 0.0,
+      "bytes_total": 41012,
+      "status_counts": {
+        "200": 100
+      },
+      "latency_ms": {
+        "min": 3.3,
+        "mean": 282.0,
+        "p50": 183.9,
+        "p95": 755.3,
+        "p99": 1190.8,
+        "max": 1293.2
+      },
+      "sample_errors": []
+    },
+    "API GET /api/problem/init": {
+      "requests": 100,
+      "ok": 100,
+      "errors": 0,
+      "error_rate_pct": 0.0,
+      "bytes_total": 1044444,
+      "status_counts": {
+        "200": 100
+      },
+      "latency_ms": {
+        "min": 46.7,
+        "mean": 635.6,
+        "p50": 496.7,
+        "p95": 1918.9,
+        "p99": 2364.2,
+        "max": 2656.2
+      },
+      "sample_errors": []
+    },
+    "API GET /api/problem/init (switch province)": {
+      "requests": 100,
+      "ok": 100,
+      "errors": 0,
+      "error_rate_pct": 0.0,
+      "bytes_total": 1033739,
+      "status_counts": {
+        "200": 100
+      },
+      "latency_ms": {
+        "min": 12.3,
+        "mean": 345.0,
+        "p50": 186.4,
+        "p95": 930.5,
+        "p99": 1828.3,
+        "max": 2417.1
+      },
+      "sample_errors": []
+    },
+    "API GET /api/problem/pyramid": {
+      "requests": 100,
+      "ok": 100,
+      "errors": 0,
+      "error_rate_pct": 0.0,
+      "bytes_total": 430083,
+      "status_counts": {
+        "200": 100
+      },
+      "latency_ms": {
+        "min": 39.7,
+        "mean": 515.0,
+        "p50": 367.7,
+        "p95": 1405.7,
+        "p99": 1949.8,
+        "max": 2195.7
+      },
+      "sample_errors": []
+    },
+    "API POST /api/auth/login": {
+      "requests": 100,
+      "ok": 100,
+      "errors": 0,
+      "error_rate_pct": 0.0,
+      "bytes_total": 8600,
+      "status_counts": {
+        "200": 100
+      },
+      "latency_ms": {
+        "min": 126.7,
+        "mean": 235.2,
+        "p50": 234.1,
+        "p95": 332.2,
+        "p99": 340.5,
+        "max": 347.2
+      },
+      "sample_errors": []
+    }
+  },
+  "api": "http://127.0.0.1:8000",
+  "frontend": null,
+  "include_frontend": false,
+  "timeout_s": 90.0
+}

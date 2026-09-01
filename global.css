@@ -1,0 +1,12 @@
+/*
+File: global.css
+Purpose: Shared global styles used by all pages (fonts, base background, and utility classes).
+Notes: Contains shared utilities such as lazy-bg and placeholders used for deferred background images.
+*/
+body { 
+    font-family: 'Vazirmatn', sans-serif; background: #f0f4f8;
+}
+
+/* Lazy image background utilities */
+.lazy-bg { background-size: cover; background-position: center; background-repeat: no-repeat; }
+.bg-placeholder { background-color: #f3f4f6; }

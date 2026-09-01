@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<!--
+  File: index.html
+  Purpose: Main dashboard page that contains the interactive map and topic index.
+  Notes: Comments in the project have been standardized to English; visible UI strings remain in Persian.
+-->
+
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نقشه تعاملی شاخص‌های ایران - نسخه داده‌های واقعی</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Vazirmatn Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Page CSS -->
+    <link rel="stylesheet" href="index.css">
+    <!-- Page Javascript -->
+    <script src="index.js" defer></script>
+    <script src="auth.js" defer></script>
+
+    <script>
+        // --- Authentication Check ---
+        if (!sessionStorage.getItem('dashboard_auth_token')) {
+            window.location.replace('log_in.html');
+        }
+    </script>
+</head>
+<body>
+
+    <!-- Header Banner -->
+    <div id="top-banner">
+        <div class="banner-right">
+            <!-- Requirement 2: Replace circular system title with Logo image -->
+            <div class="institution" aria-hidden="false">
+                <img id="logo-img" src="assets/images/Logo.webp" alt="مرکز رصد بینا" style="height: 44px; width: auto; object-fit: contain; cursor: pointer;">
+            </div>
+
+            <div class="banner-divider" aria-hidden="true"></div>
+
+            <div class="project-texts">
+                <div class="project-main">دیده‌بان فرهنگ</div>
+                <div class="project-sub">سامانه راهبری زیست‌بوم فرهنگی تبلیغی ایران</div>
+
+                <!-- Top navigation icons hung from the top edge -->
+                <div class="top-nav" role="navigation" aria-label="Top navigation">
+                    <a href="index.html#atlas" id="btn-atlas" class="banner-btn hang-btn" aria-label="اطلس"><span class="btn-label">اطلس</span></a>
+                    <a href="explorer.html?source=atlas" id="btn-explorer" class="banner-btn hang-btn"><span class="btn-label">کاوشگر</span></a>
+                    <button id="btn-problem" class="banner-btn hang-btn"><span class="btn-label">نمایه</span></button>
+                    <button id="btn-similar" class="banner-btn hang-btn"><span class="btn-label">گونه‌شناسی</span></button>
+                </div>
+            </div>
+        </div>
+
+        <div class="banner-left">
+            <!-- Requirement 4: Swap user profile order and add person icon -->
+            <div class="user-box" style="flex-direction: row-reverse;">
+                <div class="user-menu">
+                    <button type="button" class="user-circle" id="user-menu-btn" aria-haspopup="true" aria-expanded="false" aria-controls="user-menu-dropdown" title="حساب کاربری">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#fff;">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
+                    </button>
+                    <div class="user-menu-dropdown" id="user-menu-dropdown" hidden>
+                        <button type="button" class="user-exit-btn" id="btn-logout">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                                <polyline points="16 17 21 12 16 7"></polyline>
+                                <line x1="21" y1="12" x2="9" y2="12"></line>
+                            </svg>
+                            <span>خروج</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="user-texts" style="text-align: left;">
+                    <div class="user-name">علی سلطانی</div>
+                    <div class="user-role">مدیر استان زنجان</div>
+                </div>
+            </div>
+
+            <script>
+                // Instantly apply visibility before paint if routing directly to Atlas
+                if (window.location.hash === '#atlas') {
+                    document.getElementById('btn-explorer').href = "explorer.html?source=atlas";
+                }
+            </script>
+        </div>
+    </div>
+
+    <!-- Entry / Welcome Curtain View -->
+    <div id="entry-view-curtain" class="entry-curtain">
+        <script>
+            if (window.location.hash === '#atlas') {
+                const curtain = document.getElementById('entry-view-curtain');
+                curtain.classList.add('curtain-up');
+                curtain.style.transition = 'none'; // Prevent animation on initial load
+                setTimeout(() => curtain.style.transition = '', 50);
+            }
+        </script>
+        <div class="perspective-grid" aria-hidden="true">
+            <div class="perspective-grid-plane" id="perspective-grid-plane"></div>
+            <div class="perspective-grid-fade"></div>
+        </div>
+        <div class="entry-content-wrapper">
+            
+            <div class="entry-header-texts">
+                <h2 class="entry-main-title">راهبری زیست بوم فرهنگی تبلیغی ایران</h2>
+                <p class="entry-sub-title">درباره سامانه دیده‌بان فرهنگ بخوانید</p>
+            </div>
+
+            <div class="entry-search-container">
+                <div class="entry-search-box">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="search-icon"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    <input type="text" id="indicator-search" placeholder="جستجو کنید" autocomplete="off">
+                </div>
+                <ul id="search-suggestions" class="entry-suggestions"></ul>
+            </div>
+
+            <!-- <div class="entry-grid">
+                <div class="entry-info-box"><h3>محتوای سامانه</h3><div class="entry-info-row"><span>تعداد موضوع:</span> <strong>—</strong></div><div class="entry-info-row"><span>تعداد زیرموضوع:</span> <strong>—</strong></div><div class="entry-info-row"><span>تعداد شاخص:</span> <strong>—</strong></div></div>
+                <div class="entry-info-box"><h3>منابع داده</h3><div class="entry-info-row"><span>تعداد منابع:</span> <strong>—</strong></div><div class="entry-info-row"><span>نام منابع:</span> <strong>—</strong></div><div class="entry-info-row"><span>دسته‌بندی منابع:</span> <strong>—</strong></div></div>
+                <div class="entry-info-box"><h3>قابلیت امتیازدهی</h3><p class="entry-info-text">با امتیازدهی به شاخص‌ها، وزن اهمیت آن‌ها را تغییر دهید و امتیاز اختصاصی خود را برای هر زیرموضوع بسازید.</p></div>
+                <div class="entry-info-box"><h3>گونه‌شناسی استان‌ها</h3><p class="entry-info-text">یافتن استان‌های مشابه، بررسی پروفایل‌های متفاوت استانی و کشف الگوهای پنهان بین استان‌ها.</p></div>
+                <div class="entry-info-box"><h3>نمایه استان‌ها</h3><p class="entry-info-text">مشاهده رتبه‌بندی استان‌ها، تغییرات درصدی تاریخی و پروفایل اختصاصی هر استان.</p></div>
+                <div class="entry-info-box"><h3>پوشش زمانی</h3><div class="entry-info-row"><span>تعداد سال‌ها:</span> <strong>—</strong></div><div class="entry-info-row"><span>از سال:</span> <strong>—</strong></div><div class="entry-info-row"><span>تا سال:</span> <strong>—</strong></div></div>
+            </div> -->
+
+
+        </div>
+    </div>
+
+    <!-- Main Dashboard Content -->
+    <div id="main-content">
+        <!-- Right panel (Split into two cards) -->
+        <div id="right-panel">    
+            <!-- Top Panel: Title and Description -->
+            <div class="right-card right-card-top">
+                <div id="province-details"><p class="instruction">در حال بارگذاری اطلاعات...</p></div>
+            </div>
+
+            <!-- Bottom Panel: Charts -->
+            <div class="right-card right-card-bottom">
+                <div id="bottom-prov-header" style="width: 100%;"></div>
+                
+                <div id="chart-wrapper" style="width: 100%; height: 150px; margin-bottom: 5px; display: none;"><canvas id="rankingBarChart"></canvas></div>
+                <div id="trend-wrapper" style="width: 100%; height: 150px; margin-bottom: 5px; display: none;"><canvas id="trendChartPanel"></canvas></div>
+            </div>
+
+        </div>
+
+        <div id="center-column">
+            <div id="map"></div>
+            
+            <div id="floating-group-container">
+                <button id="btn-exit-focus" style="margin-bottom: 5px; background: #ef4444; color: white; border: none; border-radius: 5px; padding: 6px 12px; cursor: pointer; font-size: 0.8rem; width: 100%; font-family: inherit; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">خروج از نمای گونه‌شناسی ✖</button>
+                <div class="floating-box" id="floating-charts-box">
+                    <div class="chart-switcher">
+                        <button class="switcher-btn active" id="btn-tab-trend" onclick="switchGroupChartType('trend')">روند زمانی</button>
+                        <button class="switcher-btn" id="btn-tab-spider" onclick="switchGroupChartType('spider')">نقشه شاخص‌ها</button>
+                        <button class="switcher-btn" id="btn-tab-table" onclick="switchGroupChartType('table')">جدول خوشه‌ها</button>
+                    </div>
+                    <div id="group-charts-container"></div>
+                    <div id="group-table-container" style="display:none;"></div>
+                </div>
+            </div>
+
+            <div id="left-popup-panel">
+                <h3 id="left-popup-title">وضعیت شاخص‌ها</h3>
+                <div id="left-chart-container">
+                    <div class="y-tick" style="bottom: 0%;"><span>۰</span></div>
+                    <div class="y-tick" style="bottom: 25%;"><span>۲۵</span></div>
+                    <div class="y-tick" style="bottom: 50%;"><span>۵۰</span></div>
+                    <div class="y-tick" style="bottom: 75%;"><span>۷۵</span></div>
+                    <div class="y-tick" style="bottom: 100%;"><span>۱۰۰</span></div>
+                    <div id="left-chart-markers"></div>
+                </div>
+            </div>
+
+            <div id="map-legend">
+                <span class="legend-title" id="legend-title-text">طیف امتیاز شاخص</span>
+                <div class="legend-scale-wrapper">
+                    <div class="legend-scale-bar" id="legend-bar"><div id="score-pointer"><div id="pointer-label">۰</div></div></div>
+                    <!-- Requirement 11: Updated Persian Labels -->
+                    <div class="legend-labels"><span>بد</span><span>متوسط</span><span>خوب</span></div>
+                </div>
+            </div>
+            
+            <div id="bottom-panel"><ul class="index-list" id="index-list"></ul></div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const atlasBtn = document.getElementById('btn-atlas');
+            const entryCurtain = document.getElementById('entry-view-curtain');
+            const explorerBtn = document.getElementById('btn-explorer');
+            const btnSimilar = document.getElementById('btn-similar');
+            const btnProblem = document.getElementById('btn-problem');
+            const logoImg = document.getElementById('logo-img');
+
+            function setExplorerHrefByState() {
+                if (!explorerBtn) return;
+                const inAtlas = entryCurtain && entryCurtain.classList.contains('curtain-up');
+                explorerBtn.href = inAtlas ? "explorer.html?source=atlas" : "explorer.html?source=start";
+            }
+
+            function updateHeaderButtonsVisibility() {
+                const inAtlas = entryCurtain && entryCurtain.classList.contains('curtain-up');
+                // 'inline-flex' is used to preserve the flexbox alignment of the icons and text inside the buttons
+                if (btnSimilar) btnSimilar.style.display = inAtlas ? 'inline-flex' : 'none';
+                if (btnProblem) btnProblem.style.display = inAtlas ? 'inline-flex' : 'none';
+                if (atlasBtn) atlasBtn.classList.toggle('is-current', inAtlas);
+            }
+
+            updateHeaderButtonsVisibility();
+            setExplorerHrefByState();
+
+            if (atlasBtn) {
+                atlasBtn.addEventListener('click', () => {
+                    if (entryCurtain) entryCurtain.classList.add('curtain-up');
+                    setExplorerHrefByState();
+                    if (typeof clearSelection === 'function') clearSelection();
+                    updateHeaderButtonsVisibility();
+                });
+            }
+
+            if (logoImg) {
+                logoImg.addEventListener('click', () => {
+                    if (entryCurtain) entryCurtain.classList.remove('curtain-up');
+                    setExplorerHrefByState();
+                    updateHeaderButtonsVisibility();
+                    history.pushState("", document.title, window.location.pathname + window.location.search);
+                });
+            }
+
+            if (window.location.hash === '#atlas') {
+                if (entryCurtain) entryCurtain.classList.add('curtain-up');
+                if (explorerBtn) setExplorerHrefByState();
+                updateHeaderButtonsVisibility();
+            }
+
+            window.addEventListener('pageshow', function() { 
+                updateHeaderButtonsVisibility(); 
+                setExplorerHrefByState(); 
+            });
+        });
+    </script>
+</body>
+</html>

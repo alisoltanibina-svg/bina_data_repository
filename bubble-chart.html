@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<!--
+  File: bubble-chart.html
+  Purpose: Standalone page for the bubble-chart visualization. Loads Chart.js and related scripts.
+  Notes: UI is Persian; comments standardized for maintainers' clarity.
+-->
+
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نمودار حبابی شاخص‌ها</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="bubble-chart.css">
+    <script src="bubble-chart.js"></script>
+    <script src="auth.js" defer></script>
+    <link rel="stylesheet" href="global.css">
+
+</head>
+<body class="h-screen flex flex-col overflow-hidden bubble-body">
+
+    <div id="top-banner">
+        <div class="banner-right">
+            <div class="institution">
+                <img id="logo-img" src="assets/images/Logo.webp" alt="مرکز رصد بینا" style="height: 44px; width: auto; object-fit: contain; cursor: pointer;" onclick="window.location.href='index.html'">
+            </div>
+            <div class="banner-divider"></div>
+            <div class="project-texts">
+                <div class="project-main">دیده‌بان فرهنگ</div>
+                <div class="project-sub">سامانه راهبری زیست‌بوم فرهنگی تبلیغی ایران</div>
+                <div class="top-nav" role="navigation">
+                    <a href="index.html#atlas" id="btn-atlas" class="banner-btn hang-btn"><span class="btn-label">اطلس</span></a>
+                    <a href="#" id="btn-explorer" class="banner-btn hang-btn is-current" aria-current="page"><span class="btn-label">کاوشگر</span></a>
+                </div>
+            </div>
+        </div>
+        <div class="banner-left">
+            <div class="user-box">
+                <div class="user-menu">
+                    <button type="button" class="user-circle" id="user-menu-btn" aria-haspopup="true" aria-expanded="false" aria-controls="user-menu-dropdown" title="حساب کاربری">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#fff;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                    </button>
+                    <div class="user-menu-dropdown" id="user-menu-dropdown" hidden>
+                        <button type="button" class="user-exit-btn" id="btn-logout">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                                <polyline points="16 17 21 12 16 7"></polyline>
+                                <line x1="21" y1="12" x2="9" y2="12"></line>
+                            </svg>
+                            <span>خروج</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="user-texts">
+                    <div class="user-name">علی سلطانی</div>
+                    <div class="user-role">مدیر استان زنجان</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="bubble-workspace flex-1 flex flex-col min-h-0 overflow-hidden">
+    <header class="bg-white shadow-sm border-b px-6 py-4 flex justify-between items-center z-10 shrink-0">
+        <div>
+            <h1 class="text-xl font-bold text-gray-800 bubble-title-row" id="page-title">
+                <span>نمودار حبابی:</span>
+                <select id="subtopic-select" class="subtopic-select" aria-label="انتخاب زیرموضوع"></select>
+            </h1>
+            <p class="text-xs text-gray-500 mt-1" id="page-subtitle">در حال بارگذاری...</p>
+        </div>
+        <a href="explorer.html" id="btn-back-explorer" class="banner-btn hang-btn">
+            <span class="btn-label">بازگشت به انتخاب شاخص</span>
+        </a>
+    </header>
+
+    <div class="flex-1 flex overflow-hidden min-h-0">
+        <main class="flex-1 flex flex-col p-6 relative" id="chart-container">
+            <div id="plot-wrapper" class="flex-1 rounded-2xl shadow-sm border p-4 relative flex flex-col transition-colors duration-500">
+                <canvas id="bubbleChart"></canvas>
+            </div>
+        </main>
+
+        <aside class="w-80 bg-white border-r flex flex-col shrink-0 shadow-lg z-10 overflow-hidden">
+            <div class="p-5 border-b bg-blue-50/40 text-blue-900 shrink-0">
+                <h3 class="font-bold mb-2 text-blue-800 text-sm"><i class="fa-solid fa-circle-info ml-1"></i> راهنمای تعامل با نمودار</h3>
+                <p class="text-[13px] leading-relaxed text-justify">
+                    در این صفحه می‌توانید با تغییر وزن هر شاخص (از ۱- تا ۱+)، میزان تاثیر آن را بر امتیاز نهایی استان‌ها در نمودار حبابی شخصی‌سازی کنید. با حرکت دادن اسلایدرها، موقعیت حباب‌ها به‌صورت لحظه‌ای تغییر می‌کند.<br><br>
+                    <strong>توجه:</strong> تمامی محاسبات همیشه بر اساس آخرین و جدیدترین داده‌های منتشر شده برای هر شاخص انجام می‌شوند.
+                </p>
+            </div>
+
+            <div class="p-4 border-b bg-gray-50 shrink-0">
+                <h2 class="font-bold text-gray-800">وزن‌دهی شاخص‌ها</h2>
+                <p class="text-xs text-gray-500 mt-1">تاثیر هر شاخص را مانند محور X تنظیم کنید</p>
+            </div>
+            
+            <div class="p-5 flex flex-col gap-6 overflow-y-auto flex-1" id="indicators-list">
+            </div>
+        </aside>
+    </div>
+    </div>
+</body>
+</html>
