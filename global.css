@@ -3,10 +3,91 @@ File: global.css
 Purpose: Shared global styles used by all pages (fonts, base background, and utility classes).
 Notes: Contains shared utilities such as lazy-bg and placeholders used for deferred background images.
 */
+:root {
+    --vvh: 100vh;
+}
+@supports (height: 100dvh) {
+    :root { --vvh: 100dvh; }
+}
+
+html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
 body { 
     font-family: 'Vazirmatn', sans-serif; background: #f0f4f8;
+}
+
+.h-screen {
+    height: 100vh;
+    height: var(--vvh);
 }
 
 /* Lazy image background utilities */
 .lazy-bg { background-size: cover; background-position: center; background-repeat: no-repeat; }
 .bg-placeholder { background-color: #f3f4f6; }
+
+/* iPhone / Samsung device preview: keep the desktop design, fit the frame */
+@media (max-width: 767px) {
+    html, body {
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+    input, select, textarea {
+        font-size: 16px !important;
+    }
+    #top-banner {
+        height: auto;
+        min-height: 64px;
+        padding: 8px 10px;
+        padding-top: max(8px, env(safe-area-inset-top));
+        padding-left: max(10px, env(safe-area-inset-left));
+        padding-right: max(10px, env(safe-area-inset-right));
+        gap: 8px;
+        flex-wrap: wrap;
+        width: calc(100% - 16px) !important;
+        left: 8px !important;
+        right: 8px !important;
+    }
+    .project-sub,
+    .user-role {
+        display: none;
+    }
+    .banner-divider {
+        display: none;
+    }
+    .banner-right {
+        gap: 8px;
+        min-width: 0;
+        flex: 1 1 auto;
+    }
+    .project-main {
+        font-size: 0.8rem;
+    }
+    .top-nav {
+        position: static;
+        right: auto;
+        top: auto;
+        margin-top: 6px;
+        gap: 6px;
+        z-index: 1;
+        flex-wrap: wrap;
+    }
+    .hang-btn {
+        width: auto;
+        min-width: 64px;
+        height: 32px;
+        padding: 4px 8px;
+    }
+    .hang-btn .btn-label {
+        font-size: 0.75rem;
+    }
+    .user-circle {
+        width: 36px;
+        height: 36px;
+    }
+    #logo-img {
+        height: 32px !important;
+    }
+}

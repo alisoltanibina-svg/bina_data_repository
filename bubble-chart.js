@@ -9,6 +9,8 @@ Chart.register(ChartDataLabels);
 Chart.defaults.font.family = "'Vazirmatn', sans-serif";
 // Ensure charts render crisply on high-DPI / Retina displays
 Chart.defaults.devicePixelRatio = window.devicePixelRatio || 1;
+if (Chart.defaults.animation === false) Chart.defaults.animation = {};
+if (Chart.defaults.animation) Chart.defaults.animation.duration = 1000;
 
 // --- Authentication Check ---
 if (!sessionStorage.getItem('dashboard_auth_token')) {
@@ -142,6 +144,10 @@ async function init() {
             const bannerHex = data.colors.master_color || data.colors.upper_color || themeUpper;
             document.documentElement.style.setProperty('--banner-bg', bannerHex);
             document.documentElement.style.setProperty('--topic-accent', bannerHex);
+            try {
+                sessionStorage.setItem('themeBannerBg', bannerHex);
+                sessionStorage.setItem('themeTopicAccent', bannerHex);
+            } catch (e) {}
         }
         
         document.getElementById('plot-wrapper').style.backgroundColor = brightenColor(themeLower, 0.3); 

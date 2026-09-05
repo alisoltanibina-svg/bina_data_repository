@@ -14,10 +14,9 @@ Media        : assets/images/*.webp named after topic/subtopic labels
 
 Runtime
 -------
-  - WAL + busy timeout so concurrent readers do not stall each other
+  - Request connections open the snapshot read-only (no WAL/-shm/-wal sidecars)
   - Unique indexes / primary keys on natural keys (idempotent at startup)
-  - Request connections are query-only
-  - Result cache with single-flight fills, dropped when the DB file changes
+  - Result cache with single-flight fills, dropped when the .db file itself changes
 """
 
 from __future__ import annotations
@@ -26,6 +25,7 @@ import os
 import sqlite3
 import threading
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Callable, Iterator, TypeVar
 
 BASE_DIR = os.path.dirname(__file__)
@@ -84,33 +84,65 @@ def normalize_fa_name(s) -> str:
     )
 
 
+def resolve_catalog_name(raw: str | None, candidates) -> str | None:
+    """Map an API/user name onto a catalog value. Exact match, then normalized equality."""
+    text = (raw or "").strip()
+    if not text:
+        return None
+    names = list(candidates or [])
+    if text in names:
+        return text
+    wanted = normalize_fa_name(text)
+    if not wanted:
+        return None
+    for name in names:
+        if normalize_fa_name(name) == wanted:
+            return name
+    return None
+
+
+def _drop_db_sidecars() -> None:
+    """Remove SQLite lock files so folder watchers do not treat reads as edits."""
+    for suffix in ("-wal", "-shm", "-journal"):
+        try:
+            os.remove(DB_PATH + suffix)
+        except OSError:
+            pass
+
+
 def get_db_connection(*, readonly: bool = False) -> sqlite3.Connection:
-    """Open a sqlite3 connection with concurrency-friendly PRAGMAs."""
+    """Open a sqlite3 connection with concurrency-friendly PRAGMAs.
+
+    Reads use URI mode=ro and never enable WAL. WAL sidecars (-shm/-wal) change
+    on ordinary SELECTs; Live Server and uvicorn --reload then treat that as a
+    project-file change and reload the app/tab.
+    """
     if not os.path.isfile(DB_PATH):
         raise FileNotFoundError(f"Database not found: {DB_PATH}")
 
-    conn = sqlite3.connect(
-        DB_PATH,
-        timeout=30.0,
-        isolation_level=None,
-        check_same_thread=True,
-    )
+    if readonly:
+        conn = sqlite3.connect(
+            Path(DB_PATH).as_uri() + "?mode=ro",
+            uri=True,
+            timeout=30.0,
+            isolation_level=None,
+            check_same_thread=True,
+        )
+    else:
+        conn = sqlite3.connect(
+            DB_PATH,
+            timeout=30.0,
+            isolation_level=None,
+            check_same_thread=True,
+        )
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA busy_timeout = 8000")
     conn.execute("PRAGMA temp_store = MEMORY")
     conn.execute("PRAGMA cache_size = -65536")
     conn.execute("PRAGMA mmap_size = 268435456")
     conn.execute("PRAGMA foreign_keys = ON")
-    if readonly:
-        conn.execute("PRAGMA query_only = ON")
-    else:
-        try:
-            conn.execute("PRAGMA journal_mode = WAL")
-            conn.execute("PRAGMA synchronous = NORMAL")
-            conn.execute("PRAGMA wal_autocheckpoint = 1000")
-        except sqlite3.Error:
-            # Another connection may still hold DELETE-mode; serve without WAL.
-            pass
+    if not readonly:
+        conn.execute("PRAGMA synchronous = NORMAL")
     return conn
 
 
@@ -302,6 +334,15 @@ def ensure_runtime() -> None:
         _ensure_indexes(conn)
         conn.execute(f"PRAGMA user_version = {SCHEMA_USER_VERSION}")
         conn.execute("ANALYZE")
+        try:
+            conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        except sqlite3.Error:
+            pass
+        try:
+            conn.execute("PRAGMA journal_mode = DELETE")
+        except sqlite3.Error:
+            pass
+    _drop_db_sidecars()
 
 
 def fetch_latest_province_pop(conn: sqlite3.Connection) -> list[dict]:
@@ -363,16 +404,19 @@ class ResultCache:
         self._lock = threading.Lock()
         self._values: dict[str, object] = {}
         self._waiters: dict[str, threading.Event] = {}
-        self._stamp: tuple[float, ...] | None = None
+        self._stamp: tuple[float, int] | None = None
 
-    def _fingerprint(self) -> tuple[float, ...]:
-        parts = []
-        for suffix in ("", "-wal", "-shm"):
-            try:
-                parts.append(os.path.getmtime(self._db_path + suffix))
-            except OSError:
-                parts.append(0.0)
-        return tuple(parts)
+    def _fingerprint(self) -> tuple[float, int]:
+        # Only the snapshot file. -shm/-wal mtimes change on reads and would
+        # flush this cache on every request.
+        try:
+            st = os.stat(self._db_path)
+            return (st.st_mtime, st.st_size)
+        except OSError:
+            return (0.0, 0)
+
+    def fingerprint(self) -> tuple[float, int]:
+        return self._fingerprint()
 
     def get(self, key: str, factory: Callable[[], T]) -> T:
         stamp = self._fingerprint()

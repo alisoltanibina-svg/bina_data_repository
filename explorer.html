@@ -1,18 +1,21 @@
 <!DOCTYPE html>
 <!--
   File: explorer.html
-  Purpose: Explorer UI that lists topics and subtopic cards for entering the bubble-chart view.
+  Purpose: Explorer UI with a staggered topic-mosaic landing, then subtopic cards and indicator charts.
   Notes: Persists Persian UI text; this comment clarifies the role of the page for maintainers.
 -->
 
 <html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>کاوشگر داده - سامانه تصمیم‌ یار فرهنگی و اجتماعی</title>
+    <script src="force-motion.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.7/dist/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.7/dist/ScrollTrigger.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="explorer.css">
@@ -29,7 +32,7 @@
     <div id="top-banner">
         <div class="banner-right">
             <div class="institution">
-                <img id="logo-img" src="assets/images/Logo.webp" alt="مرکز رصد بینا" style="height: 44px; width: auto; object-fit: contain; cursor: pointer;" onclick="window.location.href='index.html'">
+                <img id="logo-img" src="assets/images/Logo.webp" alt="مرکز رصد بینا" style="height: 44px; width: auto; object-fit: contain; cursor: pointer;">
             </div>
             <div class="banner-divider"></div>
             <div class="project-texts">
@@ -89,7 +92,7 @@
                 const btnNavIcon = document.getElementById('btn-nav-icon');
                 
                 if (navSrc === 'start' || navSrc === 'search') {
-                    btnNavAtlas.href = "index.html";
+                    btnNavAtlas.href = "index.html?curtain=1";
                     btnNavText.innerText = 'بازگشت به صفحه اصلی';
                     btnNavIcon.className = 'fa-solid fa-home text-lg';
                 } else {
@@ -101,42 +104,22 @@
         </div>
     </header>
 
-    <!-- VIEW 1: TOPIC MOSAIC LANDING -->
-    <div id="view-landing" class="flex-1 overflow-y-auto relative fade-in mosaic-landing">
+    <!-- VIEW 1: STAGGERED TOPIC MOSAIC LANDING -->
+    <div id="view-landing" class="flex-1 overflow-y-auto relative mosaic-landing">
         <script>
             if (new URLSearchParams(window.location.search).has('indicator')) {
                 document.getElementById('view-landing').style.display = 'none';
             }
         </script>
-        <div class="mosaic-grid" id="mosaic-menu"></div>
-    </div>
-
-    <!-- VIEW 1B: HORIZONTAL SUBTOPICS MENU -->
-    <div id="view-subtopics" class="hidden flex-1 flex flex-col bg-gray-50 fade-in">
-        <script>
-            // Reveals Subtopic view instantly to match the hidden landing page above
-            const sq2 = new URLSearchParams(window.location.search);
-            if (sq2.has('openTopic') && !sq2.has('indicator')) {
-                document.getElementById('view-subtopics').classList.add('hidden');
-            }
-        </script>
-        <div class="p-6 shrink-0 flex items-center">
-            <button onclick="goBackToLanding()" class="text-gray-500 hover:text-gray-800 font-bold flex items-center gap-2 transition bg-white px-4 py-2 rounded-lg shadow-sm border">
-                <i class="fa-solid fa-arrow-right"></i> بازگشت به حوزه‌ها
-            </button>
-            <h2 id="subtopics-header" class="text-3xl font-extrabold text-gray-800 mr-6 border-r-4 border-blue-600 pr-4">نام حوزه</h2>
-        </div>
-        
-        <div id="subtopics-container" class="flex-1 flex items-start justify-center overflow-x-auto overflow-y-auto px-10 gap-6 custom-scrollbar pt-10 pb-20">
-        </div>
+        <div class="staggered-stage is-pending" id="mosaic-menu"></div>
     </div>
 
     <!-- VIEW 2: DASHBOARD & CHART -->
     <div id="view-dashboard" class="hidden flex-1 overflow-hidden flex bg-gray-50 fade-in">
         <main class="flex-1 flex flex-col p-6 overflow-y-auto custom-scrollbar">
             <div class="flex items-center justify-between mb-5">
-                <button id="btn-nav-subtopics" onclick="goBackToSubtopics()" class="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition shadow-sm flex items-center gap-2">
-                    <i class="fa-solid fa-arrow-right"></i> بازگشت به انتخاب شاخص
+                <button id="btn-nav-subtopics" onclick="goBackToLanding()" class="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition shadow-sm flex items-center gap-2">
+                    <i class="fa-solid fa-arrow-right"></i> بازگشت به حوزه‌ها
                 </button>
             </div>
 

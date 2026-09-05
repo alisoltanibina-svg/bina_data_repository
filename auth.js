@@ -9,10 +9,42 @@
         sessionStorage.removeItem('atlasSelectedTopic');
         sessionStorage.removeItem('atlasSelectedProvince');
         sessionStorage.removeItem('welcomeShown');
+        sessionStorage.removeItem('themeBannerBg');
+        sessionStorage.removeItem('themeTopicAccent');
+        sessionStorage.removeItem('atlasThemeBannerBg');
+        sessionStorage.removeItem('atlasThemeTopicAccent');
         window.location.replace('log_in.html');
     }
 
+    function isIndexPage() {
+        const name = (window.location.pathname.split('/').pop() || '').toLowerCase();
+        return name === '' || name === 'index.html';
+    }
+
+    function snapshotAppTheme() {
+        try {
+            const root = document.documentElement;
+            const inlineBg = root.style.getPropertyValue('--banner-bg').trim();
+            const inlineAc = root.style.getPropertyValue('--topic-accent').trim();
+            const cs = getComputedStyle(root);
+            const bg = inlineBg || cs.getPropertyValue('--banner-bg').trim();
+            const ac = inlineAc || cs.getPropertyValue('--topic-accent').trim();
+            if (bg) sessionStorage.setItem('themeBannerBg', bg);
+            if (ac) sessionStorage.setItem('themeTopicAccent', ac);
+        } catch (e) {}
+    }
+
+    function setupLogoHome() {
+        const logo = document.getElementById('logo-img');
+        if (!logo || isIndexPage()) return;
+        logo.addEventListener('click', function () {
+            snapshotAppTheme();
+            window.location.href = 'index.html?curtain=1';
+        });
+    }
+
     function setup() {
+        setupLogoHome();
         const btn = document.getElementById('user-menu-btn');
         const menu = document.getElementById('user-menu-dropdown');
         const logoutBtn = document.getElementById('btn-logout');

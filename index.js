@@ -15,6 +15,25 @@ const typologyFocusConfig = {
     focusOffset: 0.35
 };
 
+function initCurtainReveal() {
+    const root = document.getElementById('entry-view-curtain');
+    if (!root) return;
+    const items = root.querySelectorAll('.entry-reveal');
+    if (!items.length) return;
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('is-inview');
+                entry.target.classList.remove('is-leave');
+            } else {
+                entry.target.classList.remove('is-inview');
+                entry.target.classList.add('is-leave');
+            }
+        });
+    }, { root, threshold: 0.2, rootMargin: '0px 0px -6% 0px' });
+    items.forEach(el => observer.observe(el));
+}
+
 function initPerspectiveGrid() {
     const plane = document.getElementById('perspective-grid-plane');
     if (!plane || plane.childElementCount > 0) return;
@@ -29,8 +48,186 @@ function initPerspectiveGrid() {
     plane.appendChild(frag);
 }
 
+function isCompactMap() {
+    return window.matchMedia('(max-width: 767px)').matches;
+}
+
+function setMapSheet(sheet) {
+    const allowed = ['map', 'details', 'topics', 'groups'];
+    if (!allowed.includes(sheet)) sheet = 'map';
+    document.body.classList.remove('map-sheet-map', 'map-sheet-details', 'map-sheet-topics', 'map-sheet-groups');
+    if (!isCompactMap()) return;
+    document.body.classList.add('map-sheet-' + sheet);
+    document.querySelectorAll('#map-panel-dock .map-dock-btn').forEach(btn => {
+        btn.classList.toggle('is-active', btn.dataset.sheet === sheet);
+    });
+    requestAnimationFrame(() => {
+        try { if (map && typeof map.invalidateSize === 'function') map.invalidateSize(true); } catch (e) {}
+        try { refitMapView({ animate: false }); } catch (e) {}
+    });
+}
+
+function mapOverlayPadding() {
+    const mapEl = document.getElementById('map');
+    if (!mapEl) return { paddingTopLeft: [20, 80], paddingBottomRight: [20, 160] };
+    const mapRect = mapEl.getBoundingClientRect();
+
+    const inset = (el, side) => {
+        if (!el || el.hidden) return 0;
+        const style = window.getComputedStyle(el);
+        if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) return 0;
+        const box = el.getBoundingClientRect();
+        if (box.width < 4 || box.height < 4) return 0;
+        const overlaps = !(box.right < mapRect.left || box.left > mapRect.right || box.bottom < mapRect.top || box.top > mapRect.bottom);
+        if (!overlaps) return 0;
+        if (side === 'top') return Math.max(0, box.bottom - mapRect.top);
+        if (side === 'bottom') return Math.max(0, mapRect.bottom - box.top);
+        if (side === 'left') return Math.max(0, box.right - mapRect.left);
+        if (side === 'right') return Math.max(0, mapRect.right - box.left);
+        return 0;
+    };
+
+    let top = inset(document.getElementById('top-banner'), 'top');
+    let bottom = Math.max(
+        inset(document.getElementById('bottom-panel'), 'bottom'),
+        inset(document.getElementById('map-legend'), 'bottom'),
+        inset(document.getElementById('map-panel-dock'), 'bottom')
+    );
+    let left = 0;
+    let right = 0;
+
+    if (isCompactMap()) {
+        if (document.body.classList.contains('map-sheet-details')) {
+            bottom = Math.max(bottom, inset(document.getElementById('right-panel'), 'bottom'));
+        }
+        if (document.body.classList.contains('map-sheet-topics')) {
+            bottom = Math.max(bottom, inset(document.getElementById('left-popup-panel'), 'bottom'));
+        }
+        if (document.body.classList.contains('map-sheet-groups')) {
+            bottom = Math.max(bottom, inset(document.getElementById('floating-group-container'), 'bottom'));
+        }
+    } else {
+        left = inset(document.getElementById('left-popup-panel'), 'left');
+        const rp = document.getElementById('right-panel');
+        if (rp && rp.classList.contains('show-panel')) right = Math.max(right, inset(rp, 'right'));
+        const fg = document.getElementById('floating-group-container');
+        if (fg && fg.classList.contains('show-float')) right = Math.max(right, inset(fg, 'right'));
+    }
+
+    const maxX = Math.max(24, mapRect.width * 0.4);
+    const maxY = Math.max(24, mapRect.height * 0.4);
+    top = Math.min(Math.round(top + 8), maxY);
+    bottom = Math.min(Math.round(bottom + 8), maxY);
+    left = Math.min(Math.round(left + 8), maxX);
+    right = Math.min(Math.round(right + 8), maxX);
+
+    return {
+        paddingTopLeft: [left, top],
+        paddingBottomRight: [right, bottom]
+    };
+}
+
+function iranLayerBounds() {
+    if (geojsonLayer && typeof geojsonLayer.getBounds === 'function') {
+        const bounds = geojsonLayer.getBounds();
+        if (bounds && bounds.isValid && bounds.isValid()) return bounds;
+    }
+    return L.latLngBounds([[25.05, 44.05], [39.78, 63.33]]);
+}
+
+function selectedProvinceBounds() {
+    if (!selectedProvince || !geojsonLayer) return null;
+    let found = null;
+    geojsonLayer.eachLayer(layer => {
+        if (found) return;
+        if (layer.feature && layer.feature.properties.ProvincNam === selectedProvince) {
+            found = layer.getBounds();
+        }
+    });
+    return found && found.isValid() ? found : null;
+}
+
+function similarGroupBounds() {
+    if (!geojsonLayer || !similarProvinces.length) return null;
+    const group = L.latLngBounds();
+    geojsonLayer.eachLayer(layer => {
+        const name = layer.feature && layer.feature.properties.ProvincNam;
+        if (similarProvinces.includes(name)) group.extend(layer.getBounds());
+    });
+    return group.isValid() ? group : null;
+}
+
+const MAP_HOME_CENTER = [31.4279, 55.6880];
+const MAP_HOME_ZOOM = 4.8;
+const MAP_MAX_ZOOM = 5.2;
+
+function showIranView({ animate = false } = {}) {
+    if (!map) return;
+    map.invalidateSize(true);
+    if (isCompactMap()) {
+        fitMapTo(iranLayerBounds(), { animate, maxZoom: MAP_HOME_ZOOM, duration: 1.2 });
+        return;
+    }
+    if (animate) map.flyTo(MAP_HOME_CENTER, MAP_HOME_ZOOM, { duration: 1.6 });
+    else map.setView(MAP_HOME_CENTER, MAP_HOME_ZOOM, { animate: false });
+}
+
+function fitMapTo(bounds, { animate = false, maxZoom = MAP_MAX_ZOOM, duration = 1.6 } = {}) {
+    if (!map || !bounds) return;
+    map.invalidateSize(true);
+    const opts = { ...mapOverlayPadding(), maxZoom: Math.min(maxZoom, MAP_MAX_ZOOM) };
+    if (animate) map.flyToBounds(bounds, { ...opts, duration });
+    else map.fitBounds(bounds, opts);
+}
+
+function refitMapView({ animate = false } = {}) {
+    if (!map) return;
+    if (document.body.classList.contains('immersive-mode')) {
+        map.invalidateSize(true);
+        if (isCompactMap()) {
+            const group = similarGroupBounds();
+            if (group) fitMapTo(group, { animate, maxZoom: MAP_MAX_ZOOM });
+            else showIranView({ animate });
+            return;
+        }
+        if (animate) map.flyTo([32.4279, 62.6880], 5.5, { duration: 1.6 });
+        else map.setView([32.4279, 62.6880], Math.min(5.5, MAP_MAX_ZOOM), { animate: false });
+        return;
+    }
+    const province = selectedProvinceBounds();
+    if (province) {
+        fitMapTo(province, { animate, maxZoom: MAP_MAX_ZOOM });
+        return;
+    }
+    showIranView({ animate });
+}
+
+function bindMapPanelDock() {
+    const dock = document.getElementById('map-panel-dock');
+    if (!dock || dock.dataset.bound) return;
+    dock.dataset.bound = '1';
+    dock.addEventListener('click', (event) => {
+        const btn = event.target.closest('.map-dock-btn');
+        if (!btn || btn.hidden) return;
+        setMapSheet(btn.dataset.sheet);
+    });
+    const syncDock = () => {
+        if (!isCompactMap()) {
+            dock.hidden = true;
+            document.body.classList.remove('map-sheet-map', 'map-sheet-details', 'map-sheet-topics', 'map-sheet-groups');
+            return;
+        }
+        dock.hidden = false;
+        if (![...document.body.classList].some(name => name.startsWith('map-sheet-'))) setMapSheet('map');
+    };
+    window.addEventListener('resize', debounce(syncDock, 150));
+    syncDock();
+}
+
 window.addEventListener('DOMContentLoaded', () => {
     initPerspectiveGrid();
+    initCurtainReveal();
+    bindMapPanelDock();
     if (!sessionStorage.getItem('welcomeShown')) {
         const overlay = document.getElementById('welcome-overlay');
         if (overlay) {
@@ -45,6 +242,8 @@ Chart.defaults.color = '#333333';
 Chart.defaults.font.family = "'Vazirmatn', Tahoma, sans-serif";
 // Render crisp on high DPI displays
 Chart.defaults.devicePixelRatio = window.devicePixelRatio || 1;
+if (Chart.defaults.animation === false) Chart.defaults.animation = {};
+if (Chart.defaults.animation) Chart.defaults.animation.duration = 1000;
 
 // Simple debounce utility for resize/throttle
 function debounce(fn, wait) {
@@ -90,6 +289,13 @@ function initLazyBackgrounds(root = document) {
 }
 
 const API_BASE_URL = 'http://127.0.0.1:8000';
+
+function persistAppTheme(banner, accent) {
+    try {
+        if (banner) sessionStorage.setItem('themeBannerBg', banner);
+        if (accent) sessionStorage.setItem('themeTopicAccent', accent);
+    } catch (e) {}
+}
 
 function hexToRgb(hex) {
     let result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -271,14 +477,26 @@ async function loadAllData() {
         buildMapScoresLookup();
         buildProvincePopLookup(data.province_pop);
 
-        // CHANGE 2: Also restore the active topic state so it matches the province context
+        // Map state can restore the last Atlas topic, but home banner/overlay must
+        // keep the topic color from the page the user left via Logo.
+        const onHome = window.location.hash !== '#atlas';
+        const homeBg = sessionStorage.getItem('themeBannerBg');
+        const homeAc = sessionStorage.getItem('themeTopicAccent');
+        const keepHomeTheme = onHome && !!homeBg;
+
         let savedTopic = sessionStorage.getItem('atlasSelectedTopic');
-        if (window.location.hash === '#atlas' && savedTopic && topicsData.find(t => t.topic_name === savedTopic)) {
+        const savedTopicObj = savedTopic && topicsData.find(t => t.topic_name === savedTopic);
+        if (savedTopicObj) {
             currentIndex = savedTopic;
-            updateTopicColors(topicsData.find(t => t.topic_name === savedTopic));
+            updateTopicColors(savedTopicObj, { skipChrome: keepHomeTheme });
         } else if (topicsData.length > 0) {
             currentIndex = topicsData[0].topic_name;
-            updateTopicColors(topicsData[0]);
+            updateTopicColors(topicsData[0], { skipChrome: keepHomeTheme });
+        }
+
+        if (keepHomeTheme) {
+            document.documentElement.style.setProperty('--banner-bg', homeBg);
+            if (homeAc) document.documentElement.style.setProperty('--topic-accent', homeAc);
         }
         
         initUI();
@@ -297,7 +515,7 @@ async function loadAllData() {
     }
 }
 
-function updateTopicColors(tObj) {
+function updateTopicColors(tObj, options = {}) {
     if(tObj && tObj.lower_color && tObj.upper_color) {
         currentLowerRgb = hexToRgb(tObj.lower_color);
         currentUpperRgb = hexToRgb(tObj.upper_color);
@@ -305,6 +523,8 @@ function updateTopicColors(tObj) {
         currentLowerRgb = {r:230, g:240, b:255}; 
         currentUpperRgb = {r:0, g:120, b:215};
     }
+
+    if (options && options.skipChrome) return;
     
     // Define banner color using master_color (falling back to upper_color if missing)
     const bannerHex = (tObj && tObj.master_color) ? tObj.master_color : (tObj && tObj.upper_color) ? tObj.upper_color : '#0078d7';
@@ -323,6 +543,7 @@ function updateTopicColors(tObj) {
     // Inject the topic's master_color into the nav icons' bottom border
     const accentHex = (tObj && tObj.master_color) ? tObj.master_color : (tObj && tObj.upper_color) ? tObj.upper_color : '#0078d7';
     document.documentElement.style.setProperty('--topic-accent', accentHex);
+    persistAppTheme(gradient, accentHex);
 
     // Update back control to use the topic's upper color (if available)
     try {
@@ -376,6 +597,7 @@ function initUI() {
 
             if (selectedProvince) updateRightPanel(selectedProvince);
             else updateDefaultPanel();
+            if (isCompactMap()) setMapSheet(selectedProvince ? 'details' : 'map');
         };
         list.appendChild(li);
     });
@@ -414,9 +636,7 @@ function initUI() {
         map.doubleClickZoom.disable();
         map.touchZoom.disable();
         map.boxZoom.disable();
-        map.keyboard.disable(); 
-        const zoomControl = document.querySelector('.leaflet-control-zoom');
-        if (zoomControl) zoomControl.style.display = 'none';
+        map.keyboard.disable();
 
         let topicClusters = clustersData.filter(c => c.topic_name === currentIndex);
         let provMap = {};
@@ -437,16 +657,11 @@ function initUI() {
         const targetProvinces = allProvs.filter(p => p.cluster === selectedClusterGroup);
         similarProvinces = targetProvinces.map(p => p.name);
         
-        map.flyTo([32.4279, 62.6880], 5.5, { duration: 1.6 });
-        
-        let groupBounds = L.latLngBounds();
         geojsonLayer.eachLayer(layer => {
             let pName = layer.feature.properties.ProvincNam;
-            if(similarProvinces.includes(pName)) {
-                groupBounds.extend(layer.getBounds());
-                layer.bringToFront();
-            }
+            if(similarProvinces.includes(pName)) layer.bringToFront();
         });
+        map.flyTo([32.4279, 62.6880], 5.5, { duration: 1.6 });
 
         updateMapStyles();
 
@@ -479,6 +694,9 @@ function initUI() {
         let groupContainer = document.getElementById('floating-group-container');
         groupContainer.style.display = 'flex';
         setTimeout(() => { groupContainer.classList.add('show-float'); }, 50);
+        const groupsBtn = document.getElementById('map-dock-groups');
+        if (groupsBtn) groupsBtn.hidden = false;
+        if (isCompactMap()) setMapSheet('groups');
     });
 }
 
@@ -643,12 +861,13 @@ function restoreSelectedProvince(provName) {
     geojsonLayer.eachLayer(layer => {
         if (layer.feature.properties.ProvincNam === provName) {
             try { map.invalidateSize(true); } catch (e) {}
-            map.flyToBounds(layer.getBounds(), { maxZoom: 6.2, paddingTopLeft: [200, 50], paddingBottomRight: [50, 50], duration: 1.6 });
+            fitMapTo(layer.getBounds(), { animate: true, maxZoom: MAP_MAX_ZOOM, duration: 1.6 });
 
             const rp = document.getElementById('right-panel');
             if (rp) rp.classList.add('show-panel');
             updateRightPanel(provName);
             renderLeftFloatingPanel(provName);
+            if (isCompactMap()) setMapSheet('details');
         }
     });
     updateMapStyles();
@@ -671,6 +890,9 @@ function exitFocusMode() {
         document.getElementById('left-popup-panel').classList.remove('fade-out');
         document.getElementById('left-popup-panel').style.display = 'flex';
     }
+    const groupsBtn = document.getElementById('map-dock-groups');
+    if (groupsBtn) groupsBtn.hidden = true;
+    if (isCompactMap()) setMapSheet(selectedProvince ? 'details' : 'map');
     
     let groupContainer = document.getElementById('floating-group-container');
     groupContainer.classList.remove('show-float');
@@ -686,8 +908,6 @@ function exitFocusMode() {
     map.touchZoom.enable();
     map.boxZoom.enable();
     map.keyboard.enable();
-    const zoomControl = document.querySelector('.leaflet-control-zoom');
-    if (zoomControl) zoomControl.style.display = 'block';
 
     // If we were in immersive typology mode, restore the selected province using the shared smooth recovery
     if (wasImmersive && selectedProvince) {
@@ -696,11 +916,11 @@ function exitFocusMode() {
         // Fallback: existing behavior for non-typology exits (slightly closer zoom)
         geojsonLayer.eachLayer(layer => {
             if(layer.feature.properties.ProvincNam === selectedProvince) {
-                map.flyToBounds(layer.getBounds(), { maxZoom: 4.5, paddingTopLeft: [200, 50], paddingBottomRight: [50, 50], duration: 1.6 });
+                fitMapTo(layer.getBounds(), { animate: true, maxZoom: MAP_MAX_ZOOM, duration: 1.6 });
             }
         });
     } else {
-        map.flyTo([31.4279, 55.6880], 4.8, { duration: 1.6 }); 
+        refitMapView({ animate: true });
     }
 }
 
@@ -826,10 +1046,10 @@ function clearSelection() {
     updateMapStyles();
     map.closePopup();
     document.getElementById('left-popup-panel').style.display = 'none';
+    if (isCompactMap()) setMapSheet('map');
 
     setTimeout(() => {
-        map.invalidateSize(true);
-        map.flyTo([31.4279, 55.6880], 4.8, { duration: 1.6 }); 
+        refitMapView({ animate: true }); 
     }, 100);
 
     document.getElementById('province-details').style.display = 'block';
@@ -837,14 +1057,12 @@ function clearSelection() {
 }
 
 function initMap() {
-    map = L.map('map', { zoomSnap: 0.5, maxZoom: 5.2, zoomControl: false }).setView([31.4279, 55.6880], 4.8);
+    map = L.map('map', { zoomSnap: 0.5, maxZoom: MAP_MAX_ZOOM, zoomControl: false }).setView(MAP_HOME_CENTER, MAP_HOME_ZOOM);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         maxZoom: 19
     }).addTo(map);
-    
-    L.control.zoom({ position: 'bottomright' }).addTo(map);
-    
+
     map.on('click', clearSelection);
 }
 
@@ -925,10 +1143,11 @@ function renderMapData(geojsonData) {
 
                         map.invalidateSize(true);
                         const bounds = layer.getBounds();
-                        map.flyToBounds(bounds, { maxZoom: 6.2, paddingTopLeft: [200, 50], paddingBottomRight: [50, 50], duration: 1.6 });
+                        fitMapTo(bounds, { animate: true, maxZoom: MAP_MAX_ZOOM, duration: 1.6 });
 
                         updateRightPanel(provName);
-                        renderLeftFloatingPanel(provName); 
+                        renderLeftFloatingPanel(provName);
+                        if (isCompactMap()) setMapSheet('details'); 
                     }, 15);
                 });
             });
@@ -938,13 +1157,16 @@ function renderMapData(geojsonData) {
     updateMapStyles(); 
     updateDefaultPanel();
 
-
     // CHANGE 2: Automatic restoration upon returning from problem.html via #atlas route
     if (window.location.hash === '#atlas') {
         let savedProv = sessionStorage.getItem('atlasSelectedProvince');
         if (savedProv) {
             restoreSelectedProvince(savedProv);
+        } else {
+            refitMapView({ animate: false });
         }
+    } else {
+        refitMapView({ animate: false });
     }
 }
 
@@ -1066,10 +1288,12 @@ function updateRightPanel(provinceName) {
 // Responsive resize handling: keep maps and charts sized correctly across displays
 const onGlobalResize = debounce(() => {
     try { if (map && typeof map.invalidateSize === 'function') map.invalidateSize(true); } catch (e) {}
+    try { refitMapView({ animate: false }); } catch (e) {}
     try { if (rankingBarChart && typeof rankingBarChart.resize === 'function') rankingBarChart.resize(); } catch (e) {}
     try { if (trendChartInstance && typeof trendChartInstance.resize === 'function') trendChartInstance.resize(); } catch (e) {}
     try { if (groupChartsInstances && Array.isArray(groupChartsInstances)) groupChartsInstances.forEach(c => c && typeof c.resize === 'function' && c.resize()); } catch (e) {}
 }, 150);
 window.addEventListener('resize', onGlobalResize);
+if (window.visualViewport) window.visualViewport.addEventListener('resize', onGlobalResize);
 
 loadAllData();

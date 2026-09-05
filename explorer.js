@@ -1,6 +1,6 @@
 // File: explorer.js
 // Purpose: JavaScript for the Explorer (landing & subtopics) page.
-//   Provides UI logic for the diagonal landing, subtopic cards, indicator charts,
+//   Provides UI logic for the staggered mosaic landing, subtopic cards, indicator charts,
 //   lazy-loading of large background images, and search suggestions.
 // Notes: Comments standardized to English; Persian UI strings are not modified.
 
@@ -9,6 +9,8 @@ if (typeof ChartDataLabels !== 'undefined') Chart.register(ChartDataLabels);
 Chart.defaults.font.family = "'Vazirmatn', sans-serif";
 // Ensure crisp rendering on high-DPI devices
 Chart.defaults.devicePixelRatio = window.devicePixelRatio || 1;
+if (Chart.defaults.animation === false) Chart.defaults.animation = {};
+if (Chart.defaults.animation) Chart.defaults.animation.duration = 1000;
 
 // Debounce utility (local) for resize handling
 function debounceLocal(fn, wait) {
@@ -197,10 +199,17 @@ function topicAccent(topic) {
     return (row && (row.master_color || row.upper_color)) || '#0078d7';
 }
 
+const BUBBLE_BUILD_CARD = '__build_index__';
+
 function applyExplorerTheme(topic) {
-    const accent = topicAccent(topic);
+    if (!topic) return;
+    const accent = topic === BUBBLE_BUILD_CARD ? '#2176FF' : topicAccent(topic);
     document.documentElement.style.setProperty('--banner-bg', accent);
     document.documentElement.style.setProperty('--topic-accent', accent);
+    try {
+        sessionStorage.setItem('themeBannerBg', accent);
+        sessionStorage.setItem('themeTopicAccent', accent);
+    } catch (e) {}
 }
 
 function bubbleUrl(topic, subtopic) {
@@ -211,139 +220,352 @@ function countTopicIndicators(topic) {
     return Object.values(topicsHierarchy[topic] || {}).reduce((n, list) => n + (list ? list.length : 0), 0);
 }
 
-function renderMosaicMenu() {
-    const container = document.getElementById('mosaic-menu');
-    if (!container) return;
-    container.innerHTML = '';
+const TOPIC_ICONS = {
+    'معنویت و ارزش‌های دینی': 'fa-solid fa-mosque',
+    'زندگی خانوادگی': 'fa-solid fa-house-user',
+    'مصرف فرهنگی و رسانه‌ای': 'fa-solid fa-tv',
+    'همبستگی و سرمایه اجتماعی': 'fa-solid fa-handshake',
+    'دانش و سرمایه انسانی': 'fa-solid fa-graduation-cap',
+    'معیشت و فرهنگ اقتصادی': 'fa-solid fa-store',
+    'رفاه و عدالت اجتماعی': 'fa-solid fa-scale-balanced',
+    'مسائل اجتماعی': 'fa-solid fa-users',
+    'شاخص جامع فرهنگی اجتماعی': 'fa-solid fa-chart-pie'
+};
 
-    Object.keys(topicsHierarchy).forEach((topic) => {
-        const accent = topicAccent(topic);
-        const subtopics = topicsHierarchy[topic] || {};
-        const firstSub = Object.keys(subtopics)[0] || '';
-        const indCount = countTopicIndicators(topic);
+let mosaicAnimCtx = null;
+let mosaicRenderGen = 0;
+let mosaicLayoutKey = '';
+let flippedTopic = null;
 
-        const tile = document.createElement('article');
-        tile.className = 'mosaic-tile';
-        tile.dataset.topic = topic;
-        tile.style.setProperty('--topic-accent', accent);
+function mosaicTopics() {
+    return Object.keys(topicsHierarchy).filter(topic => {
+        const subs = topicsHierarchy[topic];
+        return subs && Object.keys(subs).length > 0;
+    });
+}
 
-        const listHtml = Object.keys(subtopics).map(sub => `
-            <div class="mosaic-sub">
-                <div class="mosaic-sub-head">
-                    <span class="mosaic-sub-name">${escapeHtml(sub)}</span>
+function topicTileSrc(topic) {
+    return encodeURI(`assets/images/${topic}-tile.webp`);
+}
+
+function topicIconClass(topic) {
+    return TOPIC_ICONS[topic] || 'fa-solid fa-layer-group';
+}
+
+function mosaicLayout() {
+    const w = window.innerWidth;
+    if (w < 720) return { cols: 2 };
+    if (w < 1100) return { cols: 3 };
+    return { cols: 4 };
+}
+
+function flipTextHtml(text, duration = 2.2, delay = 0, loop = true) {
+    const words = String(text).trim().split(/\s+/).filter(Boolean);
+    const total = Math.max(words.length, 1);
+    return `<div class="flip-text-wrapper" style="perspective:1000px">${words.map((word, i) => {
+        const sineValue = Math.sin((i / total) * (Math.PI / 2));
+        const calculatedDelay = sineValue * (duration * 0.25) + delay;
+        const safe = escapeHtml(word);
+        return `<span class="flip-char" data-char="${safe}" style="--flip-duration:${duration}s;--flip-delay:${calculatedDelay}s;--flip-iteration:${loop ? 'infinite' : '1'};transform-style:preserve-3d">${safe}</span>`;
+    }).join('')}</div>`;
+}
+
+function landingScroller() {
+    return document.getElementById('view-landing') || window;
+}
+
+function isLandingVisible() {
+    const el = document.getElementById('view-landing');
+    return !!(el && el.style.display !== 'none' && !el.classList.contains('hidden'));
+}
+
+function killMosaicAnimations() {
+    if (typeof gsap === 'undefined') return;
+    if (mosaicAnimCtx) {
+        mosaicAnimCtx.revert();
+        mosaicAnimCtx = null;
+    }
+    if (typeof ScrollTrigger !== 'undefined') {
+        ScrollTrigger.getAll().forEach(st => {
+            const trigger = st.trigger;
+            if (trigger && trigger.closest && trigger.closest('#mosaic-menu')) st.kill();
+        });
+    }
+}
+
+function waitForMosaicImages(root) {
+    const urls = new Set();
+    root.querySelectorAll('.grid__item-img').forEach(el => {
+        const bg = el.style.backgroundImage;
+        const m = bg && bg.match(/url\(["']?(.*?)["']?\)/);
+        if (m && m[1]) urls.add(m[1]);
+    });
+    if (urls.size === 0) return Promise.resolve();
+    return Promise.all([...urls].map(src => new Promise(resolve => {
+        const im = new Image();
+        im.onload = im.onerror = () => resolve();
+        im.src = src;
+    })));
+}
+
+function topicBackHtml(topic) {
+    const subtopics = topicsHierarchy[topic] || {};
+    const listHtml = Object.keys(subtopics).map(sub => `
+        <div class="mosaic-sub">
+            <div class="mosaic-sub-head">
+                <span class="mosaic-sub-name">${escapeHtml(sub)}</span>
+            </div>
+            ${subtopics[sub].map(ind => `
+                <button type="button" class="mosaic-ind" data-indicator="${escapeHtml(ind)}" data-topic="${escapeHtml(topic)}">
+                    <span class="mosaic-ind-dot"></span>
+                    <span>${escapeHtml(ind)}</span>
+                </button>
+            `).join('')}
+        </div>
+    `).join('');
+    return `
+        <div class="flip-back-head">
+            <h2>${escapeHtml(topic)}</h2>
+            <button type="button" class="flip-back-close" aria-label="بازگشت">
+                <i class="fa-solid fa-rotate-left"></i>
+            </button>
+        </div>
+        <div class="flip-back-list custom-scrollbar">${listHtml}</div>
+    `;
+}
+
+function topicFlipHtml(topic, index, cols) {
+    const icon = topicIconClass(topic);
+    const src = topicTileSrc(topic);
+    const accent = topicAccent(topic);
+    const col = index % cols;
+    const flipped = flippedTopic === topic ? ' is-flipped' : '';
+    return `
+        <article class="grid__item topic-flip${flipped}" data-col="${col}" data-topic="${escapeHtml(topic)}" role="button" tabindex="0" aria-expanded="${flipped ? 'true' : 'false'}" aria-label="${escapeHtml(topic)}" style="--topic-accent:${accent}">
+            <div class="topic-flip-inner">
+                <div class="topic-flip-front">
+                    <div class="grid__item-img" style="background-image: url('${src}')">
+                        <div class="grid__item-veil"></div>
+                        <div class="grid__item-copy">
+                            <i class="${icon} grid__item-icon" aria-hidden="true"></i>
+                            <span class="grid__item-name">${escapeHtml(topic)}</span>
+                        </div>
+                    </div>
                 </div>
-                ${subtopics[sub].map(ind => `
-                    <button type="button" class="mosaic-ind" data-indicator="${escapeHtml(ind)}" data-topic="${escapeHtml(topic)}">
-                        <span class="mosaic-ind-dot"></span>
-                        <span>${escapeHtml(ind)}</span>
-                    </button>
-                `).join('')}
+                <div class="topic-flip-back">${topicBackHtml(topic)}</div>
             </div>
-        `).join('');
+        </article>
+    `;
+}
 
-        const tileImg = encodeURI(`assets/images/${topic}-tile.webp`);
-
-        tile.innerHTML = `
-            <div class="mosaic-photo" style="background-image: url('${tileImg}')"></div>
-            <div class="mosaic-face">
-                <h2 class="mosaic-title">${escapeHtml(topic)}</h2>
-                <p class="mosaic-meta">${toFa(indCount)} شاخص</p>
-                <a class="mosaic-bubble-btn" href="${bubbleUrl(topic, firstSub)}">
-                    <i class="fa-solid fa-chart-pie"></i>
-                    ورود به نمودار حبابی
-                </a>
+function bubbleBuildCardHtml(index, cols) {
+    const col = index % cols;
+    const flipped = flippedTopic === BUBBLE_BUILD_CARD ? ' is-flipped' : '';
+    const accent = '#2176FF';
+    return `
+        <article class="grid__item topic-flip bubble-build-card${flipped}" data-col="${col}" data-topic="${BUBBLE_BUILD_CARD}" role="button" tabindex="0" aria-expanded="${flipped ? 'true' : 'false'}" aria-label="شاخص خودت را بساز" style="--topic-accent:${accent}">
+            <div class="topic-flip-inner">
+                <div class="topic-flip-front">
+                    <div class="grid__item-img" style="background-image: url('assets/images/bubble-chart-tile.jpg')">
+                        <div class="grid__item-veil"></div>
+                        <div class="grid__item-copy">
+                            <i class="fa-solid fa-chart-pie grid__item-icon" aria-hidden="true"></i>
+                            <span class="grid__item-name">شاخص خودت را بساز</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="topic-flip-back">
+                    <div class="flip-back-head">
+                        <h2>شاخص خودت را بساز</h2>
+                        <button type="button" class="flip-back-close" aria-label="بازگشت">
+                            <i class="fa-solid fa-rotate-left"></i>
+                        </button>
+                    </div>
+                    <div class="flip-back-list bubble-build-back">
+                        <p class="bubble-build-caption">شاخص خودت را بساز</p>
+                    </div>
+                </div>
             </div>
-            <div class="mosaic-list">
-                <div class="mosaic-list-scroll custom-scrollbar">${listHtml}</div>
-            </div>
-        `;
+        </article>
+    `;
+}
 
-        tile.addEventListener('mouseenter', () => applyExplorerTheme(topic));
-        tile.querySelectorAll('.mosaic-ind').forEach(btn => {
+function setTopicFlipped(topic, on) {
+    const cards = document.querySelectorAll('.topic-flip');
+    cards.forEach(card => {
+        const match = on && card.dataset.topic === topic;
+        card.classList.toggle('is-flipped', match);
+        card.setAttribute('aria-expanded', match ? 'true' : 'false');
+    });
+    flippedTopic = on ? topic : null;
+    if (on && topic) applyExplorerTheme(topic);
+}
+
+function bindMosaicInteractions(container) {
+    container.querySelectorAll('.topic-flip').forEach(card => {
+        const topic = card.dataset.topic;
+        const flip = () => {
+            const opening = !card.classList.contains('is-flipped');
+            setTopicFlipped(topic, opening);
+        };
+        card.addEventListener('mouseenter', () => applyExplorerTheme(topic));
+        card.addEventListener('click', (e) => {
+            if (e.target.closest('.mosaic-ind') || e.target.closest('.flip-back-close')) return;
+            flip();
+        });
+        card.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                flip();
+            }
+        });
+        const closeBtn = card.querySelector('.flip-back-close');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setTopicFlipped(topic, false);
+            });
+        }
+        card.querySelectorAll('.mosaic-ind').forEach(btn => {
             btn.addEventListener('click', (e) => {
+                e.preventDefault();
                 e.stopPropagation();
                 loadIndicator(btn.dataset.indicator, btn.dataset.topic);
             });
         });
-
-        container.appendChild(tile);
     });
+}
 
-    const firstTopic = Object.keys(topicsHierarchy)[0];
-    if (firstTopic) applyExplorerTheme(firstTopic);
+function initStaggeredAnimations(container) {
+    killMosaicAnimations();
+    if (typeof gsap === 'undefined' || !isLandingVisible()) {
+        container.classList.remove('is-pending');
+        return;
+    }
+
+    const scroller = landingScroller();
+    const gridItems = container.querySelectorAll('.grid__item');
+
+    if (typeof gsap.registerPlugin === 'function' && typeof ScrollTrigger !== 'undefined') {
+        gsap.registerPlugin(ScrollTrigger);
+    }
+
+    mosaicAnimCtx = gsap.context(() => {
+        gsap.set(gridItems, { yPercent: 450, autoAlpha: 0, force3d: true });
+        container.classList.remove('is-pending');
+
+        if (!gridItems.length) return;
+
+        const colCount = mosaicLayout().cols;
+        const middle = Math.floor(colCount / 2);
+        const columns = Array.from({ length: colCount }, () => []);
+        gridItems.forEach(item => {
+            const colAttr = item.getAttribute('data-col');
+            let columnIndex = colAttr !== null ? parseInt(colAttr, 10) : 0;
+            if (!Number.isFinite(columnIndex) || columnIndex < 0 || columnIndex >= colCount) {
+                columnIndex = 0;
+            }
+            columns[columnIndex].push(item);
+        });
+
+        const canScrub = typeof ScrollTrigger !== 'undefined';
+        const triggerEl = container.querySelector('.grid--full') || container;
+        columns.forEach((columnItems, columnIndex) => {
+            if (!columnItems.length) return;
+            const delayFactor = Math.abs(columnIndex - middle) * 0.2;
+            if (canScrub) {
+                gsap.timeline({
+                    scrollTrigger: {
+                        trigger: triggerEl,
+                        scroller,
+                        start: 'top bottom',
+                        end: 'center center',
+                        scrub: 1.5,
+                        invalidateOnRefresh: true
+                    }
+                }).fromTo(columnItems, {
+                    yPercent: 450,
+                    autoAlpha: 0
+                }, {
+                    yPercent: 0,
+                    autoAlpha: 1,
+                    delay: delayFactor,
+                    ease: 'sine.out',
+                    force3d: true
+                });
+            } else {
+                gsap.to(columnItems, {
+                    yPercent: 0,
+                    autoAlpha: 1,
+                    delay: delayFactor,
+                    duration: 1.2,
+                    ease: 'sine.out',
+                    force3d: true
+                });
+            }
+        });
+    }, container);
+
+    if (typeof ScrollTrigger !== 'undefined') {
+        requestAnimationFrame(() => ScrollTrigger.refresh());
+    }
+}
+
+function renderMosaicMenu() {
+    const container = document.getElementById('mosaic-menu');
+    if (!container) return;
+    const gen = ++mosaicRenderGen;
+
+    killMosaicAnimations();
+    const topics = mosaicTopics();
+    if (!topics.length) {
+        container.innerHTML = '';
+        return;
+    }
+
+    const layout = mosaicLayout();
+    mosaicLayoutKey = String(layout.cols);
+    const firstTopic = topics[0];
+    if (firstTopic) applyExplorerTheme(flippedTopic && topics.includes(flippedTopic) ? flippedTopic : firstTopic);
+
+    const topicCards = topics.map((topic, i) => topicFlipHtml(topic, i, layout.cols)).join('');
+    const buildCard = bubbleBuildCardHtml(topics.length, layout.cols);
+
+    container.className = 'staggered-stage is-pending';
+    container.innerHTML = `
+        <section class="stagger-hero">
+            <div class="stagger-title">${flipTextHtml('کاوشگر داده')}</div>
+            <div class="scroll-cue" aria-hidden="true">
+                <span class="scroll-cue-beam"></span>
+                <span class="scroll-cue-glow"></span>
+                <i class="fa-solid fa-chevron-down"></i>
+            </div>
+        </section>
+        <section class="w-full relative">
+            <div class="grid--full">${topicCards}${buildCard}</div>
+        </section>
+    `;
+
+    bindMosaicInteractions(container);
+    if (flippedTopic) setTopicFlipped(flippedTopic, true);
+
+    Promise.race([
+        waitForMosaicImages(container),
+        new Promise(resolve => setTimeout(resolve, 2500))
+    ]).then(() => {
+        if (gen !== mosaicRenderGen) return;
+        initStaggeredAnimations(container);
+    });
 }
 
 function expandMosaicTopic(topic) {
     const container = document.getElementById('mosaic-menu');
     if (!container) return;
-    const tile = Array.from(container.querySelectorAll('.mosaic-tile'))
-        .find(el => el.dataset.topic === topic);
-    if (tile) {
-        applyExplorerTheme(topic);
-        tile.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    }
-}
-
-function openSubtopics(topic) {
-    activeTopicGlob = topic;
-    document.getElementById('view-landing').style.display = 'none'; // Ensure explicit hide
-    document.getElementById('view-subtopics').classList.remove('hidden');
-    
-    let tcRow = topicsColorData.find(t => t.topic_name === topic);
-    let accentColor = tcRow && tcRow.upper_color ? tcRow.upper_color : '#0078d7';
-
     applyExplorerTheme(topic);
-    document.getElementById('subtopics-header').innerText = topic;
-    document.getElementById('subtopics-header').style.borderColor = accentColor;
-    
-    const container = document.getElementById('subtopics-container');
-    container.innerHTML = '';
-
-    Object.keys(topicsHierarchy[topic]).forEach(sub => {
-        // Appends the current active source so the Bubble Chart can carry it forward accurately
-        const targetUrl = `bubble-chart.html?topic=${encodeURIComponent(topic)}&subtopic=${encodeURIComponent(sub)}&source=${encodeURIComponent(window.explorerSource || 'atlas')}`;
-        const imagePath = `assets/images/${sub}.webp`;
-
-        const wrapper = document.createElement('div');
-        wrapper.className = 'flex flex-col items-center shrink-0 w-72';
-
-        const card = document.createElement('div');
-        card.className = 'subtopic-card w-full h-[60vh] min-h-[400px] rounded-2xl shadow-lg relative flex flex-col justify-end group transition-transform hover:scale-105 border-4 border-transparent dynamic-topic-card overflow-hidden';
-        // Defer heavy background images until in view
-        card.dataset.bg = imagePath;
-        card.classList.add('lazy-bg', 'bg-placeholder');
-        card.style.setProperty('--topic-color', accentColor);
-        
-        card.innerHTML = `
-            <div class="subtopic-overlay absolute inset-0 transition-opacity group-hover:opacity-80 dynamic-topic-overlay"></div>
-            <a href="${targetUrl}" class="absolute inset-0 z-0 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                <div class="text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 mb-20 shadow-lg border border-white/20 dynamic-topic-btn">
-                    <i class="fa-solid fa-chart-scatter"></i> ورود به نمودار حبابی
-                </div>
-            </a>
-        `;
-
-        const whiteBox = document.createElement('div');
-        whiteBox.className = 'w-full mt-[-1in] bg-white/95 backdrop-blur rounded-xl p-4 shadow-xl border border-gray-100 transition-transform hover:-translate-y-2 relative z-10';
-        whiteBox.innerHTML = `
-            <h4 class="font-black text-center text-gray-800 text-lg mb-3 border-b pb-2" style="border-color:${accentColor}">${sub}</h4>
-            <div class="flex flex-col gap-2 text-sm text-gray-600 max-h-40 overflow-y-auto custom-scrollbar pr-2">
-                ${topicsHierarchy[topic][sub].map(ind => `
-                    <button onclick="loadIndicator('${ind}', '${topic}')" class="w-full text-right flex items-center gap-2 hover:bg-gray-100 px-2 py-1.5 rounded transition">
-                        <div class="w-1.5 h-1.5 rounded-full shrink-0" style="background:${accentColor}"></div>
-                        <span class="font-medium text-right w-full">${ind}</span>
-                    </button>
-                `).join('')}
-            </div>
-        `;
-
-        wrapper.appendChild(card);
-        wrapper.appendChild(whiteBox);
-        container.appendChild(wrapper);
-    });
-
-    // After adding cards, initialize lazy loader for backgrounds inside the subtopics container
-    initLazyBackgrounds(container);
+    setTopicFlipped(topic, true);
+    const match = Array.from(container.querySelectorAll('.topic-flip')).find(el => el.dataset.topic === topic);
+    if (match) match.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
 
 async function loadIndicator(indicatorName, topicName) {
@@ -351,8 +573,8 @@ async function loadIndicator(indicatorName, topicName) {
     if (topicName) activeTopicGlob = topicName;
     if (activeTopicGlob) applyExplorerTheme(activeTopicGlob);
     
-    document.getElementById('view-landing').style.display = 'none'; // Force hide landing completely
-    document.getElementById('view-subtopics').classList.add('hidden');
+    killMosaicAnimations();
+    document.getElementById('view-landing').style.display = 'none';
     document.getElementById('view-dashboard').classList.remove('hidden');
     document.getElementById('indicator-title').innerText = indicatorName;
 
@@ -402,18 +624,20 @@ async function loadIndicator(indicatorName, topicName) {
 }
 
 function goBackToLanding() {
-    document.getElementById('view-subtopics').classList.add('hidden');
-    document.getElementById('view-landing').style.display = ''; // Restore explicitly hidden inline style
-    document.getElementById('view-landing').classList.remove('hidden');
+    document.getElementById('view-dashboard').classList.add('hidden');
+    document.getElementById('main-header').classList.add('hidden');
+    const landing = document.getElementById('view-landing');
+    landing.style.display = '';
+    landing.classList.remove('hidden');
+    flippedTopic = null;
+    landing.scrollTop = 0;
+    renderMosaicMenu();
+    landing.scrollTop = 0;
+    requestAnimationFrame(() => { landing.scrollTop = 0; });
 }
 
 function goBackToSubtopics() {
-    document.getElementById('view-dashboard').classList.add('hidden');
-    document.getElementById('main-header').classList.add('hidden');
-    document.getElementById('view-subtopics').classList.add('hidden');
-    document.getElementById('view-landing').style.display = '';
-    document.getElementById('view-landing').classList.remove('hidden');
-    if (activeTopicGlob) expandMosaicTopic(activeTopicGlob);
+    goBackToLanding();
 }
 
 function renderProvincesList() {
@@ -764,6 +988,14 @@ function getChartOptions() {
 const onExplorerResize = debounceLocal(() => {
     try { if (chartInstance && typeof chartInstance.resize === 'function') chartInstance.resize(); } catch (e) {}
     try { if (scatterProvinceChart && typeof scatterProvinceChart.resize === 'function') scatterProvinceChart.resize(); } catch (e) {}
+    const layout = mosaicLayout();
+    const nextKey = String(layout.cols);
+    if (isLandingVisible() && nextKey !== mosaicLayoutKey) {
+        mosaicLayoutKey = nextKey;
+        renderMosaicMenu();
+    } else if (typeof ScrollTrigger !== 'undefined') {
+        ScrollTrigger.refresh();
+    }
 }, 150);
 window.addEventListener('resize', onExplorerResize);
 

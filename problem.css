@@ -64,7 +64,9 @@ html {
 .problem-screen-main {
     position: relative;
     height: 100vh;
+    height: var(--vvh, 100dvh);
     min-height: 100vh;
+    min-height: var(--vvh, 100dvh);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -79,6 +81,7 @@ html {
     position: sticky;
     top: 0;
     height: 100vh;
+    height: var(--vvh, 100dvh);
     overflow: hidden;
     background-color: #ffffff;
 }
@@ -842,31 +845,6 @@ body.dashboard-ready .banner-btn {
     transition: border-color var(--ui-duration) ease, transform 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease;
 }
 
-@media (prefers-reduced-motion: reduce) {
-    :root { --ui-duration: 0.01s; }
-    body.dashboard-ready .rank-ring-arc,
-    body.dashboard-ready .rank-number,
-    body.dashboard-ready .meter-marker,
-    body.dashboard-ready .topic-change-row,
-    body.dashboard-ready .lane-number,
-    body.dashboard-ready .lane-chevrons,
-    body.dashboard-ready .change-direction-label,
-    body.dashboard-ready .change-gap-label,
-    body.dashboard-ready .change-topic,
-    body.dashboard-ready .lane-chip span,
-    body.dashboard-ready .topic-changes-title,
-    body.dashboard-ready .topic-changes-title i,
-    body.dashboard-ready #polar-title-wrapper,
-    body.dashboard-ready .banner-btn,
-    body.dashboard-ready #top-banner::before {
-        transition-duration: 0.01s !important;
-    }
-    .read-more-arrow {
-        animation: none;
-    }
-    html { scroll-behavior: auto; }
-}
-
 #top-banner { 
     position: absolute; 
     top: var(--banner-gap);
@@ -1025,3 +1003,15 @@ body.dashboard-ready .banner-btn {
 .user-texts { display:flex; flex-direction:column; line-height:1.5; text-align: left;}
 .user-name { font-weight:800; color:#fff; font-size:0.95rem; }
 .user-role { font-size:0.75rem; color: rgba(255,255,255,0.95); }
+
+@media (max-width: 767px) {
+    .problem-main { flex-direction: column; margin-top: 96px; }
+    .problem-main-scroll { padding: calc(var(--banner-gap) + 8px) 10px 8px 10px; }
+    .story-map-stage {
+        width: min(90vw, 620px);
+        left: 5%;
+        height: min(52vh, 420px);
+    }
+    .story-province-name { right: 16px; top: 16px; }
+    .back-to-top-btn { bottom: max(18px, env(safe-area-inset-bottom)); }
+}

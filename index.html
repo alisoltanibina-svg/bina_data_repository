@@ -8,8 +8,8 @@
 <html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>نقشه تعاملی شاخص‌های ایران - نسخه داده‌های واقعی</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>نقشه تعاملی شاخص‌های ایران</title>
     
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -17,7 +17,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Page CSS -->
     <link rel="stylesheet" href="index.css">
+    <link rel="stylesheet" href="global.css">
     <!-- Page Javascript -->
+    <script src="force-motion.js"></script>
     <script src="index.js" defer></script>
     <script src="auth.js" defer></script>
 
@@ -25,6 +27,20 @@
         // --- Authentication Check ---
         if (!sessionStorage.getItem('dashboard_auth_token')) {
             window.location.replace('log_in.html');
+        }
+        var hashAtlas = window.location.hash === '#atlas';
+        var curtainEnter = new URLSearchParams(window.location.search).get('curtain') === '1';
+        if (hashAtlas || curtainEnter) {
+            document.documentElement.classList.add('atlas-view');
+        }
+        // Restore the theme from the page the user just left (Logo), not the Atlas topic.
+        if (!hashAtlas) {
+            try {
+                var storedBg = sessionStorage.getItem('themeBannerBg');
+                var storedAc = sessionStorage.getItem('themeTopicAccent');
+                if (storedBg) document.documentElement.style.setProperty('--banner-bg', storedBg);
+                if (storedAc) document.documentElement.style.setProperty('--topic-accent', storedAc);
+            } catch (e) {}
         }
     </script>
 </head>
@@ -104,31 +120,116 @@
             <div class="perspective-grid-plane" id="perspective-grid-plane"></div>
             <div class="perspective-grid-fade"></div>
         </div>
-        <div class="entry-content-wrapper">
-            
-            <div class="entry-header-texts">
-                <h2 class="entry-main-title">راهبری زیست بوم فرهنگی تبلیغی ایران</h2>
-                <p class="entry-sub-title">درباره سامانه دیده‌بان فرهنگ بخوانید</p>
-            </div>
-
-            <div class="entry-search-container">
-                <div class="entry-search-box">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="search-icon"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                    <input type="text" id="indicator-search" placeholder="جستجو کنید" autocomplete="off">
+        <div class="entry-scroll">
+            <section class="entry-hero" id="entry-hero">
+                <div class="entry-header-texts entry-reveal">
+                    <h2 class="entry-main-title">راهبری زیست بوم فرهنگی تبلیغی ایران</h2>
                 </div>
-                <ul id="search-suggestions" class="entry-suggestions"></ul>
-            </div>
+                <div class="entry-search-container entry-reveal">
+                    <div class="entry-search-box">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="search-icon"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        <input type="text" id="indicator-search" placeholder="جستجو کنید" autocomplete="off">
+                    </div>
+                    <ul id="search-suggestions" class="entry-suggestions"></ul>
+                </div>
+                <div class="entry-scroll-cue entry-reveal" aria-hidden="true">
+                    <i></i>
+                </div>
+            </section>
 
-            <!-- <div class="entry-grid">
-                <div class="entry-info-box"><h3>محتوای سامانه</h3><div class="entry-info-row"><span>تعداد موضوع:</span> <strong>—</strong></div><div class="entry-info-row"><span>تعداد زیرموضوع:</span> <strong>—</strong></div><div class="entry-info-row"><span>تعداد شاخص:</span> <strong>—</strong></div></div>
-                <div class="entry-info-box"><h3>منابع داده</h3><div class="entry-info-row"><span>تعداد منابع:</span> <strong>—</strong></div><div class="entry-info-row"><span>نام منابع:</span> <strong>—</strong></div><div class="entry-info-row"><span>دسته‌بندی منابع:</span> <strong>—</strong></div></div>
-                <div class="entry-info-box"><h3>قابلیت امتیازدهی</h3><p class="entry-info-text">با امتیازدهی به شاخص‌ها، وزن اهمیت آن‌ها را تغییر دهید و امتیاز اختصاصی خود را برای هر زیرموضوع بسازید.</p></div>
-                <div class="entry-info-box"><h3>گونه‌شناسی استان‌ها</h3><p class="entry-info-text">یافتن استان‌های مشابه، بررسی پروفایل‌های متفاوت استانی و کشف الگوهای پنهان بین استان‌ها.</p></div>
-                <div class="entry-info-box"><h3>نمایه استان‌ها</h3><p class="entry-info-text">مشاهده رتبه‌بندی استان‌ها، تغییرات درصدی تاریخی و پروفایل اختصاصی هر استان.</p></div>
-                <div class="entry-info-box"><h3>پوشش زمانی</h3><div class="entry-info-row"><span>تعداد سال‌ها:</span> <strong>—</strong></div><div class="entry-info-row"><span>از سال:</span> <strong>—</strong></div><div class="entry-info-row"><span>تا سال:</span> <strong>—</strong></div></div>
-            </div> -->
+            <section class="entry-section" id="section-yearly-report">
+                <div class="entry-section-inner entry-section-split">
+                    <div class="entry-report-cover entry-reveal">
+                        <img src="assets/images/yearly_report.webp" alt="جلد گزارش سالانه نبض ایران ۱۴۰۵">
+                    </div>
+                    <div class="entry-section-copy entry-reveal">
+                        <p class="entry-kicker">انتشار جدید</p>
+                        <h3 class="entry-section-title">گزارش سالانه نبض ایران؛ ۱۴۰۵</h3>
+                        <p class="entry-section-text">نسخهٔ سالانهٔ رصد زیست‌بوم فرهنگی‌اجتماعی ایران. </p>
+                        <a class="entry-cta" id="btn-yearly-report" href="#" download>دریافت گزارش</a>
+                    </div>
+                </div>
+            </section>
 
+            <section class="entry-section" id="section-about">
+                <div class="entry-section-inner entry-section-split">
+                    <div class="entry-preview entry-preview-wide entry-reveal">
+                        <img src="assets/images/about_preview.webp" alt="نگاره‌ای خیالی از رصد زیست‌بوم فرهنگی ایران">
+                    </div>
+                    <div class="entry-section-copy entry-reveal">
+                        <p class="entry-kicker">معرفی</p>
+                        <h3 class="entry-section-title">درباره‌ی پروژه</h3>
+                        <p class="entry-section-text">دیده‌بان فرهنگ سامانهٔ تصمیم‌یار مرکز رصد بینا است؛ برای پایش شاخص‌های فرهنگی و اجتماعی استان‌ها، مقایسهٔ روندها و کمک به سیاست‌گذاری مبتنی بر داده.</p>
+                    </div>
+                </div>
+            </section>
 
+            <section class="entry-section" id="section-overview">
+                <div class="entry-section-inner entry-section-split">
+                    <div class="entry-preview entry-preview-wide entry-reveal">
+                        <img src="assets/images/overview_skeleton.webp" alt="اسکلت سامانه دیده‌بان فرهنگ: اطلس، کاوشگر، نمایه و گونه‌شناسی">
+                    </div>
+                    <div class="entry-section-copy entry-reveal">
+                        <p class="entry-kicker">سامانه</p>
+                        <h3 class="entry-section-title">نمای کلی</h3>
+                        <p class="entry-section-text">از یک ورودی، به اطلس استان‌ها، کاوشگر شاخص‌ها، نمایهٔ استانی و گونه‌شناسی می‌رسید. هر بخش همان دادهٔ رسمی را از زاویه‌ای دیگر نشان می‌دهد تا تصویر واحدی از وضعیت استان‌ها شکل بگیرد.</p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="entry-section" id="section-explorer">
+                <div class="entry-section-inner entry-section-split">
+                    <div class="entry-preview entry-preview-wide entry-reveal">
+                        <img src="assets/images/explorer_preview.webp" alt="پیش‌نمایش کاوشگر داده و موضوعات فرهنگی">
+                    </div>
+                    <div class="entry-section-copy entry-reveal">
+                        <p class="entry-kicker">ابزار</p>
+                        <h3 class="entry-section-title">کاوشگر داده</h3>
+                        <p class="entry-section-text">شاخص‌ها را بر اساس موضوع و زیرموضوع بگردید، روند استان‌ها را ببینید و وزن شاخص‌ها را در نمودار حبابی تغییر دهید.</p>
+                        <a class="entry-cta" href="explorer.html?source=start">ورود به کاوشگر</a>
+                    </div>
+                </div>
+            </section>
+
+            <section class="entry-section" id="section-atlas">
+                <div class="entry-section-inner entry-section-split">
+                    <div class="entry-preview entry-preview-wide entry-reveal">
+                        <img src="assets/images/atlas_preview.webp" alt="پیش‌نمایش نقشه تعاملی استان‌های ایران">
+                    </div>
+                    <div class="entry-section-copy entry-reveal">
+                        <p class="entry-kicker">ابزار</p>
+                        <h3 class="entry-section-title">نقشه تعاملی استان‌ها</h3>
+                        <p class="entry-section-text">نقشهٔ ایران را بر اساس موضوع رنگ‌آمیزی کنید، استان را انتخاب کنید و رتبه، روند و فاصله از میانگین ملی را ببینید.</p>
+                        <a class="entry-cta" id="btn-open-atlas" href="index.html#atlas">ورود به نقشه</a>
+                    </div>
+                </div>
+            </section>
+
+            <footer class="entry-footnote" id="entry-footnote">
+                <div class="entry-footnote-inner entry-reveal">
+                    <div class="entry-contact">
+                        <h3 class="entry-footnote-title">تماس با ما</h3>
+                        <p class="entry-contact-org">مرکز رصد بینا</p>
+                        <p><a href="tel:+982188946618">۰۲۱-۸۸۹۴۶۶۱۸</a></p>
+                        <p>تهران، میدان ولی عصر، خیابان پازند، بلوار کریم خان زند، پلاک ۲۷۶</p>
+                    </div>
+                    <div class="entry-social" aria-label="شبکه‌های اجتماعی">
+                        <a href="https://instagram.com/" target="_blank" rel="noopener noreferrer" title="اینستاگرام" aria-label="اینستاگرام">
+                            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="0.8" fill="currentColor" stroke="none"/></svg>
+                        </a>
+                        <a href="https://facebook.com/" target="_blank" rel="noopener noreferrer" title="فیسبوک" aria-label="فیسبوک">
+                            <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M14 9h3V6h-3c-1.7 0-3 1.3-3 3v2H9v3h2v7h3v-7h2.6l.4-3H14V9z"/></svg>
+                        </a>
+                        <a href="https://linkedin.com/" target="_blank" rel="noopener noreferrer" title="لینکدین" aria-label="لینکدین">
+                            <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M6.5 9H4v11h2.5V9zM5.2 4C4.3 4 3.5 4.8 3.5 5.7s.8 1.8 1.7 1.8 1.8-.8 1.8-1.8S6.2 4 5.2 4zM20 13.5c0-2.3-1.2-3.8-3.5-3.8-1.6 0-2.3.9-2.7 1.5V9.1H11V20h2.8v-6.1c0-1.6.8-2.2 1.8-2.2s1.6.6 1.6 2.1V20H20v-6.5z"/></svg>
+                        </a>
+                        <a href="mailto:info@bina.example" title="ایمیل" aria-label="ایمیل">
+                            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 7 9-7"/></svg>
+                        </a>
+                    </div>
+                    <img class="entry-footnote-logo" src="assets/images/Logo_foot.webp?v=3" alt="مرکز رصد بینا">
+                </div>
+            </footer>
         </div>
     </div>
 
@@ -187,6 +288,13 @@
                     <div class="legend-labels"><span>بد</span><span>متوسط</span><span>خوب</span></div>
                 </div>
             </div>
+
+            <div id="map-panel-dock" hidden>
+                <button type="button" class="map-dock-btn is-active" data-sheet="map">نقشه</button>
+                <button type="button" class="map-dock-btn" data-sheet="details">استان</button>
+                <button type="button" class="map-dock-btn" data-sheet="topics">شاخص‌ها</button>
+                <button type="button" class="map-dock-btn" id="map-dock-groups" data-sheet="groups" hidden>گونه</button>
+            </div>
             
             <div id="bottom-panel"><ul class="index-list" id="index-list"></ul></div>
         </div>
@@ -204,50 +312,127 @@
             const btnProblem = document.getElementById('btn-problem');
             const logoImg = document.getElementById('logo-img');
 
+            function isAtlasView() {
+                return document.documentElement.classList.contains('atlas-view');
+            }
+
+            function setAtlasView(on) {
+                document.documentElement.classList.toggle('atlas-view', on);
+                if (entryCurtain) entryCurtain.classList.toggle('curtain-up', on);
+                if (atlasBtn) atlasBtn.classList.toggle('is-current', on);
+                if (on) {
+                    updateHeaderButtonsVisibility();
+                    return;
+                }
+                const hideAtlasOnlyButtons = () => {
+                    if (btnSimilar) btnSimilar.style.display = 'none';
+                    if (btnProblem) btnProblem.style.display = 'none';
+                    if (atlasBtn) atlasBtn.classList.remove('is-current');
+                };
+                if (!entryCurtain) {
+                    hideAtlasOnlyButtons();
+                    return;
+                }
+                let finished = false;
+                const finish = (event) => {
+                    if (finished) return;
+                    if (event && event.target !== entryCurtain) return;
+                    if (event && event.propertyName && event.propertyName !== 'transform') return;
+                    finished = true;
+                    entryCurtain.removeEventListener('transitionend', finish);
+                    hideAtlasOnlyButtons();
+                };
+                entryCurtain.addEventListener('transitionend', finish);
+                setTimeout(finish, 1000);
+            }
+
             function setExplorerHrefByState() {
                 if (!explorerBtn) return;
-                const inAtlas = entryCurtain && entryCurtain.classList.contains('curtain-up');
-                explorerBtn.href = inAtlas ? "explorer.html?source=atlas" : "explorer.html?source=start";
+                explorerBtn.href = isAtlasView() ? "explorer.html?source=atlas" : "explorer.html?source=start";
             }
 
             function updateHeaderButtonsVisibility() {
-                const inAtlas = entryCurtain && entryCurtain.classList.contains('curtain-up');
+                const inAtlas = isAtlasView() && window.location.hash === '#atlas';
                 // 'inline-flex' is used to preserve the flexbox alignment of the icons and text inside the buttons
                 if (btnSimilar) btnSimilar.style.display = inAtlas ? 'inline-flex' : 'none';
                 if (btnProblem) btnProblem.style.display = inAtlas ? 'inline-flex' : 'none';
                 if (atlasBtn) atlasBtn.classList.toggle('is-current', inAtlas);
             }
 
-            updateHeaderButtonsVisibility();
+            function consumeCurtainEnter() {
+                const params = new URLSearchParams(window.location.search);
+                if (params.get('curtain') !== '1') return false;
+                params.delete('curtain');
+                const query = params.toString();
+                const next = window.location.pathname + (query ? '?' + query : '') + window.location.hash;
+                history.replaceState("", document.title, next);
+                return true;
+            }
+
+            const curtainEnter = consumeCurtainEnter() && window.location.hash !== '#atlas';
+
+            if (window.location.hash === '#atlas') {
+                setAtlasView(true);
+            } else if (curtainEnter) {
+                if (entryCurtain) entryCurtain.classList.add('curtain-up');
+                if (atlasBtn) atlasBtn.classList.remove('is-current');
+                if (btnSimilar) btnSimilar.style.display = 'none';
+                if (btnProblem) btnProblem.style.display = 'none';
+            } else {
+                updateHeaderButtonsVisibility();
+            }
+
             setExplorerHrefByState();
 
             if (atlasBtn) {
-                atlasBtn.addEventListener('click', () => {
-                    if (entryCurtain) entryCurtain.classList.add('curtain-up');
+                atlasBtn.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    if (window.location.hash !== '#atlas') {
+                        history.pushState("", document.title, window.location.pathname + window.location.search + '#atlas');
+                    }
+                    setAtlasView(true);
                     setExplorerHrefByState();
+                    if (typeof topicsData !== 'undefined' && typeof updateTopicColors === 'function' && typeof currentIndex !== 'undefined') {
+                        const topicObj = topicsData.find(t => t.topic_name === currentIndex);
+                        if (topicObj) updateTopicColors(topicObj);
+                    }
                     if (typeof clearSelection === 'function') clearSelection();
-                    updateHeaderButtonsVisibility();
                 });
             }
 
             if (logoImg) {
                 logoImg.addEventListener('click', () => {
-                    if (entryCurtain) entryCurtain.classList.remove('curtain-up');
+                    setAtlasView(false);
                     setExplorerHrefByState();
-                    updateHeaderButtonsVisibility();
                     history.pushState("", document.title, window.location.pathname + window.location.search);
+                    if (entryCurtain) entryCurtain.scrollTop = 0;
                 });
             }
 
-            if (window.location.hash === '#atlas') {
-                if (entryCurtain) entryCurtain.classList.add('curtain-up');
-                if (explorerBtn) setExplorerHrefByState();
-                updateHeaderButtonsVisibility();
+            const openAtlas = document.getElementById('btn-open-atlas');
+            if (openAtlas && atlasBtn) {
+                openAtlas.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    atlasBtn.click();
+                });
             }
 
-            window.addEventListener('pageshow', function() { 
-                updateHeaderButtonsVisibility(); 
-                setExplorerHrefByState(); 
+            if (curtainEnter) {
+                requestAnimationFrame(function () {
+                    requestAnimationFrame(function () {
+                        setAtlasView(false);
+                        setExplorerHrefByState();
+                    });
+                });
+            }
+
+            window.addEventListener('pageshow', function() {
+                if (window.location.hash === '#atlas') {
+                    updateHeaderButtonsVisibility();
+                } else if (atlasBtn) {
+                    atlasBtn.classList.remove('is-current');
+                }
+                setExplorerHrefByState();
             });
         });
     </script>

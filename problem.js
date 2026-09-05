@@ -8,6 +8,8 @@ Chart.defaults.font.family = "'Vazirmatn', sans-serif";
 Chart.defaults.locale = 'fa-IR';
 // Render charts sharply on high-DPI / Retina displays
 Chart.defaults.devicePixelRatio = window.devicePixelRatio || 1;
+if (Chart.defaults.animation === false) Chart.defaults.animation = {};
+if (Chart.defaults.animation) Chart.defaults.animation.duration = 1000;
 
 // Debounce helper for resize handling
 function debounceProblem(fn, wait) {
@@ -59,7 +61,8 @@ if (!sessionStorage.getItem('dashboard_auth_token')) {
 
 
 const API_BASE_URL = 'http://127.0.0.1:8000';
-const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Always animate; ignore Windows/browser prefers-reduced-motion.
+const prefersReducedMotion = false;
 const ANIM_MS = prefersReducedMotion ? 0 : 750;
 const CHART_ANIM = prefersReducedMotion
     ? { duration: 0 }
@@ -470,6 +473,10 @@ function applyTopicTheme(topicName) {
     const baseHex = topicObj.color || '#2563eb';
     document.documentElement.style.setProperty('--banner-bg', baseHex);
     document.documentElement.style.setProperty('--topic-accent', baseHex);
+    try {
+        sessionStorage.setItem('themeBannerBg', baseHex);
+        sessionStorage.setItem('themeTopicAccent', baseHex);
+    } catch (e) {}
     const titleWrapper = document.getElementById('polar-title-wrapper');
     if (titleWrapper) titleWrapper.style.borderRightColor = baseHex;
     return { topicObj, baseHex };
