@@ -15,10 +15,13 @@ import os
 from collections import defaultdict
 from contextlib import asynccontextmanager
 
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from backend.database import (
@@ -87,16 +90,8 @@ def _cors_origins() -> list[str]:
     raw = os.environ.get("CORS_ORIGINS", "").strip()
     if raw:
         return [origin.strip() for origin in raw.split(",") if origin.strip()]
-    return [
-        "http://127.0.0.1:8080",
-        "http://localhost:8080",
-        "http://127.0.0.1:5500",
-        "http://localhost:5500",
-        "http://127.0.0.1:8000",
-        "http://localhost:8000",
-        "http://127.0.0.1:8001",
-        "http://localhost:8001",
-    ]
+    # Local copies of this folder (any device, any path) must work without extra env.
+    return ["*"]
 
 
 def _expand_thread_pool(size: int | None = None) -> None:
@@ -137,10 +132,10 @@ app = FastAPI(lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins(),
-    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?$",
     allow_credentials=False,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["ETag"],
 )
 app.add_middleware(GZipMiddleware, minimum_size=500)
 
@@ -610,3 +605,11 @@ def verify_user_login(request: LoginRequest):
             headers={"Cache-Control": "no-store"},
         )
     raise HTTPException(status_code=401, detail="شماره تلفن ثبت نشده است")
+
+
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+app.mount(
+    "/",
+    StaticFiles(directory=str(_PROJECT_ROOT), html=True),
+    name="static",
+)

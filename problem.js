@@ -60,7 +60,7 @@ if (!sessionStorage.getItem('dashboard_auth_token')) {
 }
 
 
-const API_BASE_URL = 'http://127.0.0.1:8000';
+const API_BASE_URL = window.API_BASE_URL || (window.location.protocol + '//' + window.location.hostname + ':8000');
 // Always animate; ignore Windows/browser prefers-reduced-motion.
 const prefersReducedMotion = false;
 const ANIM_MS = prefersReducedMotion ? 0 : 750;

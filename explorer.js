@@ -147,7 +147,7 @@ function toFaFixed(num, digits = 2) {
     return toFa(Number(num).toFixed(digits));
 }
 
-const API_BASE_URL = 'http://127.0.0.1:8000';
+const API_BASE_URL = window.API_BASE_URL || (window.location.protocol + '//' + window.location.hostname + ':8000');
 
 async function loadExplorerData() {
     try {
