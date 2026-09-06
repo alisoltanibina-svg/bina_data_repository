@@ -54,11 +54,6 @@ function initLazyBackgrounds(root = document) {
     }
 }
 
-// --- Authentication Check ---
-if (!sessionStorage.getItem('dashboard_auth_token')) {
-    window.location.replace('log_in.html');
-}
-
 Chart.register({
     id: 'lineSweepPlugin',
     beforeDatasetDraw(chart, args) {

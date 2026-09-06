@@ -54,12 +54,6 @@ function initLazyBackgrounds(root = document) {
 }
 const urlParams = new URLSearchParams(window.location.search);
 
-// --- Authentication Check ---
-if (!sessionStorage.getItem('dashboard_auth_token')) {
-    window.location.replace('log_in.html');
-}
-
-
 const API_BASE_URL = window.API_BASE_URL || (window.location.protocol + '//' + window.location.hostname + ':8000');
 // Always animate; ignore Windows/browser prefers-reduced-motion.
 const prefersReducedMotion = false;

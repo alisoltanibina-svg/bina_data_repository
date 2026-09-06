@@ -1,7 +1,6 @@
 // File: auth.js
-// Purpose: Banner user-menu toggle and logout. Clears the session token and
-//   returns the client to log_in.html so phone number and security code must
-//   be entered again.
+// Purpose: Banner user-menu toggle and logout. Login is not required; خروج
+//   clears local session keys and returns to the curtain home.
 
 (function initUserLogoutMenu() {
     function logout() {
@@ -13,7 +12,7 @@
         sessionStorage.removeItem('themeTopicAccent');
         sessionStorage.removeItem('atlasThemeBannerBg');
         sessionStorage.removeItem('atlasThemeTopicAccent');
-        window.location.replace('log_in.html');
+        window.location.replace('index.html');
     }
 
     function isIndexPage() {

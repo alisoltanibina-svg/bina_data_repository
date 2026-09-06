@@ -224,9 +224,254 @@ function bindMapPanelDock() {
     syncDock();
 }
 
+function toFaDigits(value) {
+    return String(value).replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]);
+}
+
+function formatRaceValue(value) {
+    if (value == null || !isFinite(value)) return '';
+    const abs = Math.abs(value);
+    const digits = abs >= 100 ? 0 : abs >= 10 ? 1 : 2;
+    return toFaDigits(Number(value).toFixed(digits));
+}
+
+function lerpRace(a, b, t) {
+    if (a == null && b == null) return null;
+    if (a == null) return t > 0.12 ? b : null;
+    if (b == null) return t < 0.88 ? a : null;
+    return a + (b - a) * t;
+}
+
+function raceEase(t) {
+    return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+}
+
+function provinceBarColor(index, total) {
+    const hue = (index * 137.508) % 360;
+    return `hsl(${hue}, 62%, 56%)`;
+}
+
+function initCurtainRace() {
+    const section = document.getElementById('section-race');
+    const list = document.getElementById('race-list');
+    const yearEl = document.getElementById('race-year-num') || document.getElementById('race-year');
+    const titleEl = document.getElementById('race-title');
+    const kickerEl = document.getElementById('race-kicker');
+    if (!section || !list) return;
+
+    const YEAR_MS = 1500;
+    let rafId = 0;
+    let playing = false;
+    let visible = false;
+    const replayBtn = document.getElementById('race-replay');
+
+    fetch(`${API_BASE_URL}/api/curtain/race`, { cache: 'no-store' })
+        .then(res => {
+            if (!res.ok) throw new Error('race api ' + res.status);
+            return res.json();
+        })
+        .then(startRace)
+        .catch(err => {
+            console.error('Curtain race failed', err);
+            if (titleEl) titleEl.textContent = 'نمایش شاخص در دسترس نیست';
+        });
+
+    function startRace(data) {
+        const years = data.years || [];
+        const provinces = data.provinces || [];
+        const series = data.series || {};
+        if (years.length < 2 || !provinces.length) {
+            if (titleEl) titleEl.textContent = 'نمایش شاخص در دسترس نیست';
+            return;
+        }
+
+        if (kickerEl) kickerEl.textContent = data.topic_name || 'رصد شاخص';
+        if (titleEl) titleEl.textContent = data.indicator_name || '';
+        list.style.setProperty('--race-count', String(provinces.length));
+
+        const colors = {};
+        provinces.forEach((name, i) => {
+            colors[name] = provinceBarColor(i, provinces.length);
+        });
+
+        const rows = {};
+        provinces.forEach(name => {
+            const row = document.createElement('div');
+            row.className = 'race-row';
+            row.innerHTML =
+                '<div class="race-name"></div>' +
+                '<div class="race-track"><div class="race-grow"><div class="race-bar"></div><span class="race-val"></span></div></div>';
+            row.querySelector('.race-name').textContent = name;
+            row.querySelector('.race-bar').style.background = colors[name];
+            list.appendChild(row);
+            rows[name] = {
+                el: row,
+                grow: row.querySelector('.race-grow'),
+                bar: row.querySelector('.race-bar'),
+                val: row.querySelector('.race-val'),
+            };
+        });
+
+        const n = provinces.length;
+        const rowPct = 100 / n;
+        Object.values(rows).forEach(item => {
+            item.el.style.height = rowPct + '%';
+        });
+
+        let vmin = Infinity;
+        let vmax = -Infinity;
+        provinces.forEach(name => {
+            (series[name] || []).forEach(v => {
+                if (v == null || !isFinite(v)) return;
+                if (v < vmin) vmin = v;
+                if (v > vmax) vmax = v;
+            });
+        });
+        if (!isFinite(vmin) || !isFinite(vmax)) {
+            vmin = 0;
+            vmax = 1;
+        }
+        const vspan = vmax - vmin;
+
+        let lastYearShown = null;
+        let cycleStart = 0;
+        let pauseGap = 0;
+        let pausedAt = 0;
+        let finished = false;
+
+        function valuesAt(fromIdx, toIdx, t) {
+            const out = {};
+            provinces.forEach(name => {
+                const seq = series[name] || [];
+                out[name] = lerpRace(seq[fromIdx], seq[toIdx], t);
+            });
+            return out;
+        }
+
+        function barWidth(value) {
+            if (value == null || !isFinite(value)) return 0;
+            if (vspan <= 0) return 50;
+            return ((value - vmin) / vspan) * 100;
+        }
+
+        function paint(fromIdx, toIdx, t) {
+            const values = valuesAt(fromIdx, toIdx, t);
+            const ranked = provinces
+                .map(name => ({ name, value: values[name] }))
+                .sort((a, b) => {
+                    const av = a.value == null ? -Infinity : a.value;
+                    const bv = b.value == null ? -Infinity : b.value;
+                    return bv - av;
+                });
+            ranked.forEach((item, rank) => {
+                const row = rows[item.name];
+                if (!row) return;
+                const on = item.value != null && isFinite(item.value);
+                row.el.style.opacity = on ? '1' : '0';
+                row.el.style.transform = `translateY(${rank * 100}%)`;
+                row.grow.style.minWidth = on ? '2.8rem' : '0';
+                row.grow.style.width = on ? `${barWidth(item.value)}%` : '0%';
+                row.val.textContent = on ? formatRaceValue(item.value) : '';
+            });
+            const year = years[t < 1 ? fromIdx : toIdx];
+            if (yearEl && year !== lastYearShown) {
+                yearEl.textContent = toFaDigits(year);
+                lastYearShown = year;
+            }
+        }
+
+        function travelMs() {
+            return (years.length - 1) * YEAR_MS;
+        }
+
+        function finish() {
+            paint(years.length - 2, years.length - 1, 1);
+            finished = true;
+            pause();
+            if (replayBtn) replayBtn.classList.add('is-ready');
+        }
+
+        function replay() {
+            finished = false;
+            cycleStart = 0;
+            pauseGap = 0;
+            pausedAt = 0;
+            lastYearShown = null;
+            if (replayBtn) replayBtn.classList.remove('is-ready');
+            paint(0, 1, 0);
+            play();
+        }
+
+        function frame(now) {
+            if (!playing || finished) return;
+            const clock = now - pauseGap;
+            if (!cycleStart) cycleStart = clock;
+            const elapsed = clock - cycleStart;
+            const travel = travelMs();
+            if (elapsed >= travel) {
+                finish();
+                return;
+            }
+            const raw = elapsed / YEAR_MS;
+            const fromIdx = Math.min(years.length - 2, Math.floor(raw));
+            const local = raceEase(Math.min(1, raw - fromIdx));
+            paint(fromIdx, fromIdx + 1, local);
+            rafId = requestAnimationFrame(frame);
+        }
+
+        function play() {
+            if (playing) return;
+            if (pausedAt) {
+                pauseGap += performance.now() - pausedAt;
+                pausedAt = 0;
+            }
+            playing = true;
+            rafId = requestAnimationFrame(frame);
+        }
+
+        function pause() {
+            if (!playing) return;
+            playing = false;
+            pausedAt = performance.now();
+            if (rafId) cancelAnimationFrame(rafId);
+            rafId = 0;
+        }
+
+        function syncPlay() {
+            const atlasOff = !document.documentElement.classList.contains('atlas-view');
+            if (finished) return;
+            if (visible && atlasOff) play();
+            else pause();
+        }
+
+        const io = new IntersectionObserver((entries) => {
+            visible = entries.some(e => e.isIntersecting);
+            syncPlay();
+        }, { root: document.getElementById('entry-view-curtain'), threshold: 0.18 });
+        io.observe(section);
+
+        const curtain = document.getElementById('entry-view-curtain');
+        if (curtain) {
+            curtain.addEventListener('transitionend', syncPlay);
+        }
+
+        if (replayBtn) {
+            replayBtn.addEventListener('click', function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+                replay();
+            });
+        }
+
+        paint(0, 1, 0);
+        syncPlay();
+    }
+}
+
 window.addEventListener('DOMContentLoaded', () => {
     initPerspectiveGrid();
     initCurtainReveal();
+    initCurtainRace();
     bindMapPanelDock();
     if (!sessionStorage.getItem('welcomeShown')) {
         const overlay = document.getElementById('welcome-overlay');
@@ -403,6 +648,28 @@ function buildProvincePopLookup(rows) {
     });
 }
 
+function normalizeFaSearch(s) {
+    return String(s || '')
+        .replace(/ي/g, 'ی')
+        .replace(/ى/g, 'ی')
+        .replace(/ك/g, 'ک')
+        .replace(/[\u200c\s]+/g, '')
+        .trim();
+}
+
+function appendHighlightedName(el, title, query) {
+    const idx = title.indexOf(query);
+    if (idx < 0) {
+        el.textContent = title;
+        return;
+    }
+    el.appendChild(document.createTextNode(title.slice(0, idx)));
+    const mark = document.createElement('strong');
+    mark.textContent = title.slice(idx, idx + query.length);
+    el.appendChild(mark);
+    el.appendChild(document.createTextNode(title.slice(idx + query.length)));
+}
+
 function initIndicatorSearch() {
     fetch(`${API_BASE_URL}/api/explorer/init`)
         .then(r => r.json())
@@ -411,7 +678,11 @@ function initIndicatorSearch() {
             for (let topic in data.hierarchy) {
                 for (let subtopic in data.hierarchy[topic]) {
                     data.hierarchy[topic][subtopic].forEach(ind => {
-                        allIndicatorsList.push({ title: ind, topic: topic });
+                        allIndicatorsList.push({
+                            title: ind,
+                            topic: topic,
+                            key: normalizeFaSearch(ind),
+                        });
                     });
                 }
             }
@@ -429,7 +700,10 @@ function initIndicatorSearch() {
                         return;
                     }
 
-                    const matches = allIndicatorsList.filter(ind => ind.title.includes(query));
+                    const queryKey = normalizeFaSearch(query);
+                    const matches = allIndicatorsList.filter(ind =>
+                        (queryKey && ind.key.includes(queryKey)) || ind.title.includes(query)
+                    );
                     
                     if (matches.length === 0) {
                         const li = document.createElement('li');
@@ -440,8 +714,7 @@ function initIndicatorSearch() {
                     } else {
                         matches.forEach(match => {
                             const li = document.createElement('li');
-                            const regex = new RegExp(`(${query})`, "gi");
-                            li.innerHTML = match.title.replace(regex, "<strong style='color:#0078d7'>$1</strong>");
+                            appendHighlightedName(li, match.title, query);
                             
                             li.addEventListener('click', () => {
                                 window.location.href = `explorer.html?indicator=${encodeURIComponent(match.title)}&topic=${encodeURIComponent(match.topic)}&source=search`;

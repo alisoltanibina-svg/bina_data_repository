@@ -12,11 +12,6 @@ Chart.defaults.devicePixelRatio = window.devicePixelRatio || 1;
 if (Chart.defaults.animation === false) Chart.defaults.animation = {};
 if (Chart.defaults.animation) Chart.defaults.animation.duration = 1000;
 
-// --- Authentication Check ---
-if (!sessionStorage.getItem('dashboard_auth_token')) {
-    window.location.replace('log_in.html');
-}
-
 const urlParams = new URLSearchParams(window.location.search);
 const urlTopic = urlParams.get('topic');
 let urlSubtopic = urlParams.get('subtopic');

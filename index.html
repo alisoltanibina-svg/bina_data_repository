@@ -25,10 +25,6 @@
     <script src="auth.js" defer></script>
 
     <script>
-        // --- Authentication Check ---
-        if (!sessionStorage.getItem('dashboard_auth_token')) {
-            window.location.replace('log_in.html');
-        }
         var hashAtlas = window.location.hash === '#atlas';
         var curtainEnter = new URLSearchParams(window.location.search).get('curtain') === '1';
         if (hashAtlas || curtainEnter) {
@@ -94,7 +90,7 @@
                 </div>
                 <div class="user-texts" style="text-align: left;">
                     <div class="user-name">علی سلطانی</div>
-                    <div class="user-role">مدیر استان زنجان</div>
+                    <div class="user-role">پژوهشگر</div>
                 </div>
             </div>
 
@@ -135,6 +131,31 @@
                 </div>
                 <div class="entry-scroll-cue entry-reveal" aria-hidden="true">
                     <i></i>
+                </div>
+            </section>
+
+            <section class="entry-section" id="section-race">
+                <div class="entry-section-inner race-section-inner entry-reveal">
+                    <div class="race-head">
+                        <div class="race-head-copy">
+                            <p class="entry-kicker" id="race-kicker">رصد شاخص</p>
+                            <h3 class="entry-section-title" id="race-title">در حال بارگذاری…</h3>
+                            <button type="button" class="race-replay" id="race-replay" aria-label="پخش مجدد">
+                                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M3 12a9 9 0 1 0 3-6.7"/>
+                                    <polyline points="3 4 3 9 8 9"/>
+                                </svg>
+                                <span>پخش مجدد</span>
+                            </button>
+                        </div>
+                        <div class="race-year" id="race-year" aria-live="polite">
+                            <span class="race-year-label">سال</span>
+                            <span class="race-year-num" id="race-year-num"></span>
+                        </div>
+                    </div>
+                    <div class="race-stage" id="race-stage">
+                        <div class="race-list" id="race-list"></div>
+                    </div>
                 </div>
             </section>
 
@@ -207,6 +228,9 @@
             </section>
 
             <footer class="entry-footnote" id="entry-footnote">
+                <svg class="entry-footnote-edge" viewBox="0 0 1440 96" preserveAspectRatio="none" aria-hidden="true">
+                    <path fill="currentColor" d="M0,96 L0,72 C240,8 480,-16 720,8 C960,32 1200,8 1440,72 L1440,96 Z"/>
+                </svg>
                 <div class="entry-footnote-inner entry-reveal">
                     <div class="entry-contact">
                         <h3 class="entry-footnote-title">تماس با ما</h3>

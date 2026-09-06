@@ -10,6 +10,7 @@ File: index.css
     --hover-bg: #eef2f5;
     --banner-bg: #0078d7;
     --topic-accent: #0078d7;
+    --curtain-footer-tint: color-mix(in srgb, var(--topic-accent) 74%, #000 26%);
     --banner-gap: 16px;
     --banner-side-gap: 16px;
 }
@@ -169,8 +170,9 @@ html.atlas-view #entry-view-curtain,
 .entry-search-box .search-icon { width: 24px; height: 24px; color: #0078d7; margin-left: 10px; }
 .entry-search-box input { flex-grow: 1; border: none; outline: none; padding: 12px 0; font-size: 1.1rem; font-family: inherit; background: transparent; }
 
-.entry-suggestions { position: absolute; top: 100%; left: 0; right: 0; background: #fff; border-radius: 8px; margin-top: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); max-height: 250px; overflow-y: auto; z-index: 10; list-style: none; padding: 0; display: none; border: 1px solid var(--border-color); }
-.entry-suggestions li { padding: 12px 20px; cursor: pointer; border-bottom: 1px solid #eee; transition: background 0.2s; font-size: 1rem; }
+.entry-suggestions { position: absolute; top: 100%; left: 0; right: 0; background: #fff; color: #1e293b; border-radius: 8px; margin-top: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); max-height: 250px; overflow-y: auto; z-index: 10; list-style: none; padding: 0; display: none; border: 1px solid var(--border-color); }
+.entry-suggestions li { padding: 12px 20px; cursor: pointer; border-bottom: 1px solid #eee; transition: background 0.2s; font-size: 1rem; color: #1e293b; line-height: 1.7; text-align: right; white-space: normal; overflow-wrap: break-word; }
+.entry-suggestions li strong { color: #0078d7; font-weight: 800; }
 .entry-suggestions li:last-child { border-bottom: none; }
 .entry-suggestions li:hover { background: #f0f7ff; }
 
@@ -210,6 +212,144 @@ html.atlas-view #entry-view-curtain,
     position: relative;
     z-index: 1;
 }
+#section-race {
+    background: color-mix(in srgb, var(--topic-accent) 34%, rgba(8, 16, 28, 0.78));
+    min-height: var(--vvh, 100vh);
+    height: var(--vvh, 100vh);
+    padding: 64px 24px 36px;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+}
+.race-section-inner {
+    width: min(747px, 100%);
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+#section-race .entry-section-title {
+    margin: 0;
+    font-size: clamp(1.25rem, 2.4vw, 1.85rem);
+}
+.race-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 14px;
+    flex: 0 0 auto;
+}
+.race-head-copy { min-width: 0; flex: 1 1 auto; }
+.race-replay {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    min-height: 36px;
+    padding: 6px 14px;
+    border: 0;
+    border-radius: 10px;
+    background: #ffffff;
+    color: #0f172a;
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 800;
+    cursor: pointer;
+    pointer-events: auto;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+}
+.race-replay.is-ready { display: inline-flex; }
+.race-replay:hover { filter: brightness(0.96); }
+.race-year {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    flex: 0 0 auto;
+    color: #ffffff;
+    line-height: 1;
+    text-shadow: 0 2px 16px rgba(0, 0, 0, 0.35);
+}
+.race-year-label {
+    font-size: 0.8rem;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    opacity: 0.8;
+    margin-bottom: 2px;
+}
+.race-year-num {
+    font-size: clamp(2.6rem, 7vw, 4.4rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+    direction: ltr;
+}
+.race-stage {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+.race-list {
+    position: relative;
+    z-index: 1;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+}
+.race-row {
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    display: grid;
+    grid-template-columns: minmax(6.2rem, 8.6rem) minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    will-change: transform, opacity;
+}
+.race-name {
+    font-size: clamp(0.68rem, 1.15vw, 0.86rem);
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: right;
+    color: rgba(255, 255, 255, 0.94);
+}
+.race-track {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    height: 100%;
+}
+.race-grow {
+    display: flex;
+    align-items: center;
+    width: 0;
+    min-width: 0;
+    max-width: 100%;
+    height: 100%;
+}
+.race-bar {
+    flex: 1 1 auto;
+    height: 58%;
+    min-height: 7px;
+    max-height: 18px;
+    min-width: 2px;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+.race-val {
+    flex: 0 0 auto;
+    margin-inline-start: 8px;
+    font-size: clamp(0.68rem, 1.1vw, 0.84rem);
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    color: rgba(255, 255, 255, 0.92);
+    direction: ltr;
+}
 #section-yearly-report { background-color: rgba(11, 39, 68, 0.58); }
 #section-about { background-color: rgba(29, 78, 137, 0.58); }
 #section-overview { background-color: rgba(15, 111, 104, 0.58); }
@@ -217,6 +357,9 @@ html.atlas-view #entry-view-curtain,
 #section-atlas { background-color: rgba(28, 107, 60, 0.58); }
 .entry-section-inner {
     width: min(960px, 100%);
+}
+#section-race .race-section-inner {
+    width: min(747px, 100%);
 }
 .entry-section-split {
     display: flex;
@@ -303,15 +446,41 @@ html.atlas-view #entry-view-curtain,
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 40px 24px 32px;
+    margin-top: -96px;
+    padding: 132px 24px 48px;
     box-sizing: border-box;
     pointer-events: none;
     position: relative;
-    z-index: 1;
-    background: var(--banner-bg);
-    border-top: 1px solid rgba(255,255,255,0.18);
+    z-index: 2;
+    background: none;
+    border: 0;
+    overflow: visible;
+}
+.entry-footnote-edge {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    top: 0;
+    height: 96px;
+    color: var(--curtain-footer-tint);
+    pointer-events: none;
+    z-index: 0;
+    display: block;
+}
+.entry-footnote::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 72px;
+    bottom: 0;
+    background: var(--curtain-footer-tint);
+    pointer-events: none;
+    z-index: 0;
 }
 .entry-footnote-inner {
+    position: relative;
+    z-index: 1;
     width: min(960px, 100%);
     display: flex;
     flex-wrap: nowrap;
@@ -349,7 +518,7 @@ html.atlas-view #entry-view-curtain,
 }
 .entry-social a:hover { background: rgba(255,255,255,0.28); }
 .entry-footnote-logo {
-    height: 52px;
+    height: 85px;
     width: auto;
     object-fit: contain;
     flex: 0 0 auto;
@@ -373,6 +542,16 @@ html.atlas-view #entry-view-curtain,
     .entry-preview,
     .entry-preview-wide { width: min(100%, 520px); }
     .entry-section { min-height: auto; padding: 64px 18px; }
+    #section-race {
+        min-height: var(--vvh, 100vh);
+        height: auto;
+        padding: 56px 16px 28px;
+    }
+    .race-stage { min-height: 68vh; }
+    .race-name { white-space: nowrap; }
+    .entry-footnote { margin-top: -72px; padding-top: 110px; }
+    .entry-footnote-edge { height: 72px; }
+    .entry-footnote::before { top: 54px; }
     .entry-footnote-inner { flex-wrap: wrap; justify-content: space-between; }
 }
 
