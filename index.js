@@ -263,7 +263,6 @@ function initCurtainRace() {
     let rafId = 0;
     let playing = false;
     let visible = false;
-    const replayBtn = document.getElementById('race-replay');
 
     fetch(`${API_BASE_URL}/api/curtain/race`, { cache: 'no-store' })
         .then(res => {
@@ -337,7 +336,6 @@ function initCurtainRace() {
         let cycleStart = 0;
         let pauseGap = 0;
         let pausedAt = 0;
-        let finished = false;
 
         function valuesAt(fromIdx, toIdx, t) {
             const out = {};
@@ -384,34 +382,12 @@ function initCurtainRace() {
             return (years.length - 1) * YEAR_MS;
         }
 
-        function finish() {
-            paint(years.length - 2, years.length - 1, 1);
-            finished = true;
-            pause();
-            if (replayBtn) replayBtn.classList.add('is-ready');
-        }
-
-        function replay() {
-            finished = false;
-            cycleStart = 0;
-            pauseGap = 0;
-            pausedAt = 0;
-            lastYearShown = null;
-            if (replayBtn) replayBtn.classList.remove('is-ready');
-            paint(0, 1, 0);
-            play();
-        }
-
         function frame(now) {
-            if (!playing || finished) return;
+            if (!playing) return;
             const clock = now - pauseGap;
             if (!cycleStart) cycleStart = clock;
-            const elapsed = clock - cycleStart;
             const travel = travelMs();
-            if (elapsed >= travel) {
-                finish();
-                return;
-            }
+            const elapsed = (clock - cycleStart) % travel;
             const raw = elapsed / YEAR_MS;
             const fromIdx = Math.min(years.length - 2, Math.floor(raw));
             const local = raceEase(Math.min(1, raw - fromIdx));
@@ -439,7 +415,6 @@ function initCurtainRace() {
 
         function syncPlay() {
             const atlasOff = !document.documentElement.classList.contains('atlas-view');
-            if (finished) return;
             if (visible && atlasOff) play();
             else pause();
         }
@@ -453,14 +428,6 @@ function initCurtainRace() {
         const curtain = document.getElementById('entry-view-curtain');
         if (curtain) {
             curtain.addEventListener('transitionend', syncPlay);
-        }
-
-        if (replayBtn) {
-            replayBtn.addEventListener('click', function (event) {
-                event.preventDefault();
-                event.stopPropagation();
-                replay();
-            });
         }
 
         paint(0, 1, 0);

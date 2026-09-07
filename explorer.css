@@ -148,6 +148,11 @@ body { font-family: 'Vazirmatn', sans-serif; background-color: #f4f5f7; overflow
     background: #f4f5f7;
     min-height: 0;
     overflow-x: hidden;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+}
+#view-dashboard main {
+    overscroll-behavior: contain;
 }
 
 .staggered-stage {
@@ -155,7 +160,8 @@ body { font-family: 'Vazirmatn', sans-serif; background-color: #f4f5f7; overflow
     overflow: hidden;
     width: 100%;
 }
-.staggered-stage.is-pending .grid__item {
+.staggered-stage.is-pending .grid__item,
+.staggered-stage.is-pending .bubble-build-bar {
     opacity: 0;
 }
 
@@ -172,7 +178,7 @@ body { font-family: 'Vazirmatn', sans-serif; background-color: #f4f5f7; overflow
     display: flex;
     justify-content: center;
     align-items: center;
-    font-size: clamp(2.4rem, 10vw, 7rem);
+    font-size: clamp(2rem, 8vw, 5.4rem);
     line-height: 0.9;
     color: #111827;
     letter-spacing: 0;
@@ -292,8 +298,8 @@ body { font-family: 'Vazirmatn', sans-serif; background-color: #f4f5f7; overflow
 .grid--full {
     position: relative;
     width: 100%;
-    margin: 4vh 0 3vh;
-    padding: 1rem 1.25rem 2.5rem;
+    margin: 4vh 0 0;
+    padding: 1rem 1.25rem 1rem;
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
@@ -488,19 +494,36 @@ body { font-family: 'Vazirmatn', sans-serif; background-color: #f4f5f7; overflow
     flex-shrink: 0;
 }
 
-.bubble-build-back {
+.bubble-build-bar {
     display: flex;
     align-items: center;
     justify-content: center;
-    text-align: center;
-}
-.bubble-build-caption {
-    margin: 0;
-    font-size: 1.25rem;
+    gap: 12px;
+    margin: 0 1.25rem 2.5rem;
+    min-height: 68px;
+    height: 68px;
+    border-radius: 16px;
+    background: #2176FF;
+    color: #ffffff;
+    text-decoration: none;
+    font-family: inherit;
+    font-size: 1.05rem;
     font-weight: 800;
-    color: #111827;
-    text-align: center;
-    line-height: 1.8;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    transition: transform 0.35s ease, box-shadow 0.35s ease, filter 0.35s ease;
+}
+.bubble-build-bar i {
+    font-size: 1.15rem;
+}
+.bubble-build-bar:hover {
+    filter: brightness(1.06);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+    transform: translateY(-2px);
+}
+.bubble-build-bar:focus-visible {
+    outline: 2px solid #2176FF;
+    outline-offset: 3px;
 }
 
 .indicator-info-card {
@@ -513,7 +536,7 @@ body { font-family: 'Vazirmatn', sans-serif; background-color: #f4f5f7; overflow
         flex-basis: calc((100% - 2rem) / 3);
         width: calc((100% - 2rem) / 3);
     }
-    .stagger-title { font-size: clamp(2.2rem, 12vw, 5.5rem); }
+    .stagger-title { font-size: clamp(1.9rem, 10vw, 4.2rem); }
 }
 @media (max-width: 720px) {
     .grid--full {
@@ -526,8 +549,14 @@ body { font-family: 'Vazirmatn', sans-serif; background-color: #f4f5f7; overflow
         width: calc((100% - 10px) / 2);
     }
     .topic-flip { min-height: 240px; }
-    .stagger-title { font-size: clamp(1.8rem, 12vw, 3.4rem); }
-    .bubble-build-caption { font-size: 1.05rem; }
+    .stagger-title { font-size: clamp(1.6rem, 10vw, 2.8rem); }
+    .bubble-build-bar {
+        margin-left: 12px;
+        margin-right: 12px;
+        min-height: 56px;
+        height: 56px;
+        font-size: 0.95rem;
+    }
 }
 
 .fade-in { animation: fadeIn 0.4s ease-in-out forwards; }

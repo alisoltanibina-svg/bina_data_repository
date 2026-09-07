@@ -241,26 +241,6 @@ html.atlas-view #entry-view-curtain,
     flex: 0 0 auto;
 }
 .race-head-copy { min-width: 0; flex: 1 1 auto; }
-.race-replay {
-    display: none;
-    align-items: center;
-    gap: 8px;
-    margin-top: 10px;
-    min-height: 36px;
-    padding: 6px 14px;
-    border: 0;
-    border-radius: 10px;
-    background: #ffffff;
-    color: #0f172a;
-    font-family: inherit;
-    font-size: 0.85rem;
-    font-weight: 800;
-    cursor: pointer;
-    pointer-events: auto;
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
-}
-.race-replay.is-ready { display: inline-flex; }
-.race-replay:hover { filter: brightness(0.96); }
 .race-year {
     display: flex;
     flex-direction: column;
@@ -351,7 +331,7 @@ html.atlas-view #entry-view-curtain,
     direction: ltr;
 }
 #section-yearly-report { background-color: rgba(11, 39, 68, 0.58); }
-#section-about { background-color: rgba(29, 78, 137, 0.58); }
+#about { background-color: rgba(29, 78, 137, 0.58); }
 #section-overview { background-color: rgba(15, 111, 104, 0.58); }
 #section-explorer { background-color: rgba(44, 36, 112, 0.58); }
 #section-atlas { background-color: rgba(28, 107, 60, 0.58); }
@@ -386,6 +366,12 @@ html.atlas-view #entry-view-curtain,
     line-height: 1.9;
     color: rgba(255,255,255,0.92);
     text-align: justify;
+}
+#about .entry-section-text { margin-bottom: 18px; }
+.about-story-link {
+    pointer-events: auto;
+    position: relative;
+    z-index: 2;
 }
 .entry-section-text code {
     font-size: 0.82em;

@@ -194,11 +194,9 @@ function topicAccent(topic) {
     return (row && (row.master_color || row.upper_color)) || '#0078d7';
 }
 
-const BUBBLE_BUILD_CARD = '__build_index__';
-
 function applyExplorerTheme(topic) {
     if (!topic) return;
-    const accent = topic === BUBBLE_BUILD_CARD ? '#2176FF' : topicAccent(topic);
+    const accent = topicAccent(topic);
     document.documentElement.style.setProperty('--banner-bg', accent);
     document.documentElement.style.setProperty('--topic-accent', accent);
     try {
@@ -209,6 +207,15 @@ function applyExplorerTheme(topic) {
 
 function bubbleUrl(topic, subtopic) {
     return `bubble-chart.html?topic=${encodeURIComponent(topic)}&subtopic=${encodeURIComponent(subtopic)}&source=${encodeURIComponent(window.explorerSource || 'atlas')}`;
+}
+
+function firstBubbleHref() {
+    const topics = mosaicTopics();
+    for (const topic of topics) {
+        const subs = Object.keys(topicsHierarchy[topic] || {});
+        if (subs.length) return bubbleUrl(topic, subs[0]);
+    }
+    return `bubble-chart.html?source=${encodeURIComponent(window.explorerSource || 'atlas')}`;
 }
 
 function countTopicIndicators(topic) {
@@ -267,6 +274,82 @@ function flipTextHtml(text, duration = 2.2, delay = 0, loop = true) {
 
 function landingScroller() {
     return document.getElementById('view-landing') || window;
+}
+
+function attachSmoothWheel(scroller) {
+    if (!scroller || scroller === window || scroller.dataset.smoothScroll === '1') return;
+    scroller.dataset.smoothScroll = '1';
+
+    let current = scroller.scrollTop;
+    let target = scroller.scrollTop;
+    let raf = 0;
+    const ease = 0.16;
+
+    function maxScroll() {
+        return Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+    }
+
+    function tick() {
+        current += (target - current) * ease;
+        if (Math.abs(target - current) < 0.5) {
+            current = target;
+            scroller.scrollTop = current;
+            raf = 0;
+            return;
+        }
+        scroller.scrollTop = current;
+        raf = requestAnimationFrame(tick);
+    }
+
+    function run() {
+        if (!raf) raf = requestAnimationFrame(tick);
+    }
+
+    function clamp(y) {
+        return Math.max(0, Math.min(maxScroll(), y));
+    }
+
+    scroller.__smoothScrollTo = function (y) {
+        current = scroller.scrollTop;
+        target = clamp(y);
+        run();
+    };
+    scroller.__smoothJump = function (y) {
+        current = target = clamp(y);
+        scroller.scrollTop = current;
+        if (raf) {
+            cancelAnimationFrame(raf);
+            raf = 0;
+        }
+    };
+
+    scroller.addEventListener('wheel', function (e) {
+        if (e.ctrlKey || e.defaultPrevented) return;
+        const nested = e.target.closest('.flip-back-list, aside, [data-no-smooth-scroll]');
+        if (nested && nested !== scroller && nested.scrollHeight > nested.clientHeight + 2) {
+            const atTop = nested.scrollTop <= 0 && e.deltaY < 0;
+            const atBottom = nested.scrollTop + nested.clientHeight >= nested.scrollHeight - 2 && e.deltaY > 0;
+            if (!atTop && !atBottom) return;
+        }
+        e.preventDefault();
+        current = scroller.scrollTop;
+        let dy = e.deltaY;
+        if (e.deltaMode === 1) dy *= 28;
+        else if (e.deltaMode === 2) dy *= scroller.clientHeight * 0.85;
+        target = clamp(target + dy);
+        run();
+    }, { passive: false });
+
+    scroller.addEventListener('scroll', function () {
+        if (raf) return;
+        current = scroller.scrollTop;
+        target = scroller.scrollTop;
+    }, { passive: true });
+}
+
+function initExplorerSmoothScroll() {
+    attachSmoothWheel(document.getElementById('view-landing'));
+    attachSmoothWheel(document.querySelector('#view-dashboard main'));
 }
 
 function isLandingVisible() {
@@ -353,35 +436,12 @@ function topicFlipHtml(topic, index, cols) {
     `;
 }
 
-function bubbleBuildCardHtml(index, cols) {
-    const col = index % cols;
-    const flipped = flippedTopic === BUBBLE_BUILD_CARD ? ' is-flipped' : '';
-    const accent = '#2176FF';
+function bubbleBuildBarHtml() {
     return `
-        <article class="grid__item topic-flip bubble-build-card${flipped}" data-col="${col}" data-topic="${BUBBLE_BUILD_CARD}" role="button" tabindex="0" aria-expanded="${flipped ? 'true' : 'false'}" aria-label="شاخص خودت را بساز" style="--topic-accent:${accent}">
-            <div class="topic-flip-inner">
-                <div class="topic-flip-front">
-                    <div class="grid__item-img" style="background-image: url('assets/images/bubble-chart-tile.jpg')">
-                        <div class="grid__item-veil"></div>
-                        <div class="grid__item-copy">
-                            <i class="fa-solid fa-chart-pie grid__item-icon" aria-hidden="true"></i>
-                            <span class="grid__item-name">شاخص خودت را بساز</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="topic-flip-back">
-                    <div class="flip-back-head">
-                        <h2>شاخص خودت را بساز</h2>
-                        <button type="button" class="flip-back-close" aria-label="بازگشت">
-                            <i class="fa-solid fa-rotate-left"></i>
-                        </button>
-                    </div>
-                    <div class="flip-back-list bubble-build-back">
-                        <p class="bubble-build-caption">شاخص خودت را بساز</p>
-                    </div>
-                </div>
-            </div>
-        </article>
+        <a class="bubble-build-bar" href="${escapeHtml(firstBubbleHref())}">
+            <i class="fa-solid fa-chart-pie" aria-hidden="true"></i>
+            <span>شاخص خودت را بساز</span>
+        </a>
     `;
 }
 
@@ -448,6 +508,8 @@ function initStaggeredAnimations(container) {
 
     mosaicAnimCtx = gsap.context(() => {
         gsap.set(gridItems, { yPercent: 450, autoAlpha: 0, force3d: true });
+        const buildBar = container.querySelector('.bubble-build-bar');
+        if (buildBar) gsap.set(buildBar, { y: 36, autoAlpha: 0 });
         container.classList.remove('is-pending');
 
         if (!gridItems.length) return;
@@ -500,6 +562,15 @@ function initStaggeredAnimations(container) {
                 });
             }
         });
+        if (buildBar) {
+            gsap.to(buildBar, {
+                y: 0,
+                autoAlpha: 1,
+                delay: 0.35,
+                duration: 0.7,
+                ease: 'sine.out'
+            });
+        }
     }, container);
 
     if (typeof ScrollTrigger !== 'undefined') {
@@ -525,7 +596,7 @@ function renderMosaicMenu() {
     if (firstTopic) applyExplorerTheme(flippedTopic && topics.includes(flippedTopic) ? flippedTopic : firstTopic);
 
     const topicCards = topics.map((topic, i) => topicFlipHtml(topic, i, layout.cols)).join('');
-    const buildCard = bubbleBuildCardHtml(topics.length, layout.cols);
+    const buildBar = bubbleBuildBarHtml();
 
     container.className = 'staggered-stage is-pending';
     container.innerHTML = `
@@ -538,7 +609,8 @@ function renderMosaicMenu() {
             </div>
         </section>
         <section class="w-full relative">
-            <div class="grid--full">${topicCards}${buildCard}</div>
+            <div class="grid--full">${topicCards}</div>
+            ${buildBar}
         </section>
     `;
 
@@ -560,7 +632,14 @@ function expandMosaicTopic(topic) {
     applyExplorerTheme(topic);
     setTopicFlipped(topic, true);
     const match = Array.from(container.querySelectorAll('.topic-flip')).find(el => el.dataset.topic === topic);
-    if (match) match.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    if (!match) return;
+    const scroller = landingScroller();
+    if (scroller && typeof scroller.__smoothScrollTo === 'function') {
+        const top = match.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop - scroller.clientHeight * 0.22;
+        scroller.__smoothScrollTo(top);
+    } else {
+        match.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
 }
 
 async function loadIndicator(indicatorName, topicName) {
@@ -625,10 +704,15 @@ function goBackToLanding() {
     landing.style.display = '';
     landing.classList.remove('hidden');
     flippedTopic = null;
-    landing.scrollTop = 0;
+    if (typeof landing.__smoothJump === 'function') landing.__smoothJump(0);
+    else landing.scrollTop = 0;
     renderMosaicMenu();
-    landing.scrollTop = 0;
-    requestAnimationFrame(() => { landing.scrollTop = 0; });
+    if (typeof landing.__smoothJump === 'function') landing.__smoothJump(0);
+    else landing.scrollTop = 0;
+    requestAnimationFrame(() => {
+        if (typeof landing.__smoothJump === 'function') landing.__smoothJump(0);
+        else landing.scrollTop = 0;
+    });
 }
 
 function goBackToSubtopics() {
@@ -994,4 +1078,7 @@ const onExplorerResize = debounceLocal(() => {
 }, 150);
 window.addEventListener('resize', onExplorerResize);
 
-window.onload = () => { loadExplorerData(); };
+window.onload = () => {
+    initExplorerSmoothScroll();
+    loadExplorerData();
+};

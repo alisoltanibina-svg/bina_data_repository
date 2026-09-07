@@ -1,0 +1,692 @@
+/*
+File: revayat.css
+Purpose: Styles for the standalone architecture story page.
+*/
+
+:root {
+    --bg: #efe8dc;
+    --ink: #1b242e;
+    --muted: #6f675c;
+    --gold: #b08948;
+    --gold-2: #c9a56a;
+    --line: rgba(27, 36, 46, 0.12);
+    --card: rgba(255, 251, 245, 0.78);
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+    height: 100%;
+    overflow: hidden;
+}
+body {
+    font-family: "Noto Nastaliq Urdu", "Vazirmatn", Tahoma, serif;
+    background: var(--bg);
+    color: var(--ink);
+    position: relative;
+}
+
+.light-lines {
+    pointer-events: none;
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+}
+.light-lines svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+.ll-lines {
+    fill: var(--ink);
+    opacity: 0.08;
+}
+.ll-lights {
+    fill: var(--gold);
+    opacity: 0.88;
+}
+.ll-lights path {
+    transform-box: view-box;
+    transform-origin: 50% 50%;
+    will-change: transform;
+}
+
+.grain {
+    pointer-events: none;
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    opacity: 0.16;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+header {
+    position: fixed;
+    top: 0; right: 0; left: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 28px;
+    padding-top: max(20px, env(safe-area-inset-top));
+}
+header a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+}
+header .brand {
+    display: flex;
+    align-items: center;
+}
+header .brand img {
+    height: 44px;
+    width: auto;
+    object-fit: contain;
+    display: block;
+}
+
+.scene-title {
+    position: absolute;
+    top: max(88px, calc(env(safe-area-inset-top) + 68px));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 4;
+    margin: 0;
+    width: max-content;
+    max-width: calc(100% - 180px);
+    font-size: clamp(20px, 2.8vw, 28px);
+    font-weight: 600;
+    line-height: 2.2;
+    color: var(--ink);
+    pointer-events: none;
+}
+.scene-title-ghost {
+    visibility: hidden;
+    display: block;
+}
+.scene-title-typed {
+    position: absolute;
+    inset: 0;
+    text-align: start;
+    white-space: nowrap;
+}
+.scene-title-typed.is-typing::after {
+    content: "";
+    display: inline-block;
+    width: 1.5px;
+    height: 0.85em;
+    margin-inline-start: 3px;
+    background: var(--ink);
+    vertical-align: -0.08em;
+    animation: caret-blink 0.7s steps(1) infinite;
+}
+@keyframes caret-blink {
+    0%, 49% { opacity: 1; }
+    50%, 100% { opacity: 0; }
+}
+scene[data-step="0"].is-bridging .scene-title {
+    opacity: 0;
+    transition: opacity 1.4s var(--ease);
+}
+
+.rail {
+    position: fixed;
+    top: 50%;
+    right: 22px;
+    transform: translateY(-50%);
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.rail button {
+    width: 7px; height: 7px;
+    border-radius: 99px;
+    border: 0;
+    background: rgba(27, 36, 46, 0.22);
+    cursor: pointer;
+    padding: 0;
+    transition: height .45s var(--ease), background .3s ease;
+}
+.rail button[aria-current="true"] {
+    height: 22px;
+    background: var(--gold);
+}
+
+.nav-btns {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.nav-btn {
+    width: 42px; height: 42px;
+    border-radius: 99px;
+    border: 1px solid var(--line);
+    background: var(--card);
+    backdrop-filter: blur(10px);
+    cursor: pointer;
+    color: var(--ink);
+    display: grid;
+    place-items: center;
+    transition: transform .3s var(--ease), opacity .3s;
+}
+.nav-btn-prev {
+    position: fixed;
+    top: 72px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 21;
+}
+.nav-btn-prev:hover { transform: translateX(-50%) translateY(-3px); }
+#next:hover { transform: translateY(3px); }
+.nav-btn[hidden] { display: none; }
+.nav-btn svg { width: 16px; height: 16px; }
+
+.bridge {
+    position: fixed;
+    inset: 0;
+    z-index: 15;
+    pointer-events: none;
+}
+.bridge[hidden] { display: none !important; }
+.bridge-pearl {
+    position: fixed;
+    border-radius: 50%;
+    background: var(--gold);
+    transform: translate(-50%, -50%);
+    z-index: 16;
+    will-change: width, height;
+}
+.bridge-shard {
+    position: fixed;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 16;
+    will-change: left, top, width, height, background;
+}
+.bridge-card {
+    position: fixed;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    box-shadow: 0 10px 24px rgba(27, 36, 46, 0.08);
+    opacity: 0;
+    transform: scale(0.9);
+    transform-origin: center center;
+    z-index: 15;
+    pointer-events: none;
+}
+.bridge-morph {
+    position: fixed;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    box-shadow: 0 10px 24px rgba(27, 36, 46, 0.08);
+    overflow: hidden;
+    z-index: 16;
+    pointer-events: none;
+}
+.bridge-morph-dot {
+    position: absolute;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+}
+.bridge-line {
+    position: fixed;
+    height: 3px;
+    border-radius: 99px;
+    background: var(--line);
+    opacity: 0;
+    z-index: 15;
+    pointer-events: none;
+    overflow: hidden;
+}
+.bridge-line i {
+    position: absolute;
+    right: 0;
+    top: 0;
+    height: 100%;
+    background: var(--gold-2);
+    border-radius: 99px;
+}
+
+scene[data-step="0"].is-thread-out .thread-track,
+scene[data-step="0"].is-thread-out .thread-run,
+scene[data-step="0"].is-thread-out .thread-glow {
+    opacity: 0;
+    transition: opacity 0.4s var(--ease);
+}
+scene[data-step="0"].is-thread-out .thread-pearl {
+    opacity: 0;
+    transition: none;
+}
+
+#atoms.is-awaiting .dot {
+    opacity: 0 !important;
+    animation: none !important;
+}
+scene[data-step="1"].is-from-bridge .dot {
+    animation: none;
+    opacity: 1;
+}
+
+scene {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    padding: 88px 24px 96px;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+scene.is-on {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    z-index: 3;
+}
+scene.is-prep {
+    opacity: 0;
+    visibility: visible;
+    pointer-events: none;
+    z-index: 2;
+}
+
+.frame {
+    width: min(920px, 100%);
+    display: grid;
+    justify-items: center;
+    gap: 40px;
+}
+
+.stage {
+    width: min(520px, 86vw);
+    height: min(300px, 38vh);
+    position: relative;
+    display: grid;
+    place-items: center;
+}
+
+.copy { text-align: center; max-width: 28rem; }
+.kicker {
+    font-size: 19.5px;
+    color: var(--gold);
+    font-weight: 600;
+    margin-bottom: 16px;
+    line-height: 2;
+}
+.copy p {
+    font-size: clamp(16px, 2.1vw, 18px);
+    line-height: 2.25;
+    font-weight: 400;
+}
+.copy p + p {
+    margin-top: 8px;
+    color: var(--muted);
+    font-size: 16px;
+    font-weight: 400;
+}
+.copy p.copy-coda {
+    margin-top: 16px;
+    color: var(--ink);
+    font-size: 15px;
+    font-weight: 400;
+    line-height: 2.25;
+}
+
+.copy > * {
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 1.15s var(--ease), transform 1.15s var(--ease);
+}
+scene.is-on .copy > *:nth-child(1) { transition-delay: 0.15s; }
+scene.is-on .copy > *:nth-child(2) { transition-delay: 0.85s; }
+scene.is-on .copy > *:nth-child(3) { transition-delay: 1.55s; }
+scene.is-on .copy > *:nth-child(4) { transition-delay: 2.25s; }
+scene.is-on .copy > *:nth-child(5) { transition-delay: 2.95s; }
+scene.is-on .copy > *:nth-child(6) { transition-delay: 3.65s; }
+scene.is-on .copy > * {
+    opacity: 1;
+    transform: none;
+}
+scene[data-step="0"].is-on .copy > *:nth-child(1) { transition-delay: 1s; }
+scene[data-step="0"].is-on .copy > *:nth-child(2) { transition-delay: 1.75s; }
+scene[data-step="0"].is-on .copy > *:nth-child(3) { transition-delay: 2.5s; }
+scene.is-bridging .copy > * {
+    opacity: 0 !important;
+    transform: translateY(-6px) !important;
+    transition: opacity 1.4s var(--ease), transform 1.4s var(--ease) !important;
+    transition-delay: 0s !important;
+}
+scene.is-wait-copy .copy > * {
+    opacity: 0 !important;
+    transform: none !important;
+    transition: none !important;
+}
+
+.dot {
+    position: absolute;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--ink);
+    opacity: 0;
+}
+scene.is-on .dot { animation: rise .9s var(--ease) both; }
+
+.orb {
+    width: 88px; height: 88px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #f7efe2, var(--gold-2) 45%, #8d6b32);
+    box-shadow: 0 18px 40px rgba(176, 137, 72, 0.28);
+}
+scene.is-on .orb { animation: floaty 1s var(--ease) both, breathe 3.2s ease-in-out 1s infinite; }
+.iran-map {
+    width: min(480px, 92vw);
+    height: auto;
+    aspect-ratio: 280 / 210;
+    overflow: visible;
+}
+scene[data-step="8"] .stage {
+    width: min(520px, 92vw);
+    height: min(380px, 50vh);
+}
+scene.is-on .iran-map { animation: floaty 1s var(--ease) both; }
+
+.card-mini {
+    position: absolute;
+    width: 74px; height: 98px;
+    border-radius: 14px;
+    background: rgba(255,251,245,.92);
+    border: 1px solid var(--line);
+    box-shadow: 0 10px 24px rgba(27,36,46,.08);
+    overflow: hidden;
+}
+.card-mini em {
+    position: absolute;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--ink);
+    opacity: 1;
+}
+scene.is-on .card-mini { animation: floaty .8s var(--ease) both; }
+
+.spark,
+.benches { width: 280px; height: 90px; }
+scene.is-on .spark path,
+scene.is-on .arc-map .draw,
+scene.is-on .benches path {
+    stroke-dasharray: 280;
+    animation: draw 1.35s var(--ease) both;
+}
+.benches .rank {
+    font-family: "Noto Nastaliq Urdu", "Vazirmatn", Tahoma, serif;
+    font-weight: 600;
+    fill: var(--ink);
+    opacity: 0;
+}
+scene.is-on .benches .rank {
+    animation: rank-in 0.65s var(--ease) both;
+}
+scene.is-on .benches .rank-1 { animation-delay: 1.4s; }
+scene.is-on .benches .rank-2 { animation-delay: 1.55s; }
+scene.is-on .benches .rank-3 { animation-delay: 1.7s; }
+
+.matrix {
+    display: grid;
+    grid-template-columns: repeat(3, 42px);
+    gap: 8px;
+}
+.matrix b {
+    height: 42px;
+    border-radius: 8px;
+    background: #ddd4c5;
+    display: block;
+    transform: scale(.7);
+    opacity: 0;
+}
+scene.is-on .matrix b { animation: pop .55s var(--ease) both; }
+
+.thread-wrap {
+    width: 48px;
+    height: 196px;
+    flex: 0 0 196px;
+}
+.thread-svg {
+    display: block;
+    overflow: visible;
+}
+.thread-track {
+    stroke: var(--ink);
+    stroke-width: 2;
+    stroke-linecap: round;
+    opacity: 0.2;
+}
+.thread-run {
+    stroke: var(--gold);
+    stroke-width: 2.4;
+    stroke-linecap: round;
+    stroke-dasharray: 9 16;
+}
+.thread-glow {
+    fill: none;
+    stroke: #f7efe2;
+    stroke-width: 2.6;
+    stroke-linecap: round;
+    filter: drop-shadow(0 0 5px rgba(247, 239, 226, 0.9));
+}
+.thread-pearl {
+    fill: var(--gold);
+}
+
+.weight { width: 240px; display: grid; gap: 18px; }
+.weight .bar {
+    height: 3px;
+    background: var(--line);
+    border-radius: 99px;
+    position: relative;
+}
+.weight .bar i {
+    display: block;
+    position: absolute;
+    right: 0; top: 0;
+    height: 100%;
+    width: 0;
+    background: var(--gold-2);
+    border-radius: 99px;
+}
+.weight .bar span {
+    position: absolute;
+    top: 50%;
+    right: var(--w);
+    width: 13px; height: 13px;
+    border-radius: 50%;
+    background: var(--gold);
+    transform: translate(50%, -50%);
+    opacity: 0;
+}
+scene.is-on .weight .bar i { animation: fill-bar 1.1s var(--ease) both; }
+scene.is-on .weight .bar span { animation: knob-in .7s var(--ease) .25s both; }
+
+.cluster { position: relative; width: 280px; height: 200px; }
+.arc-map { width: 260px; height: 180px; }
+
+.pulse-num {
+    font-size: 88px;
+    font-weight: 600;
+    letter-spacing: -0.04em;
+    color: var(--ink);
+    line-height: 1;
+}
+scene.is-on .pulse-num { animation: floaty .8s var(--ease) both, pulse 2.4s ease-in-out 1s infinite; }
+
+footer-cta {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 16px;
+}
+footer-cta a {
+    text-decoration: none;
+    font-size: 14px;
+    line-height: 2;
+    color: var(--ink);
+    border: 1px solid var(--line);
+    padding: 6px 16px 10px;
+    border-radius: 999px;
+    background: var(--card);
+}
+
+@keyframes rise {
+    from { transform: translateY(16px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+@keyframes pop {
+    from { transform: scale(.6); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+@keyframes floaty {
+    from { transform: translateY(16px) scale(.96); opacity: 0; }
+    to { transform: translateY(0) scale(1); opacity: 1; }
+}
+@keyframes draw {
+    from { stroke-dashoffset: 280; }
+    to { stroke-dashoffset: 0; }
+}
+@keyframes rank-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+@keyframes grow-up {
+    from { transform: scaleY(0); opacity: 0; }
+    to { transform: scaleY(1); opacity: 1; }
+}
+@keyframes fill-bar {
+    from { width: 8%; }
+    to { width: var(--w); }
+}
+@keyframes knob-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+@keyframes breathe {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.04); }
+}
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .72; }
+}
+@media (max-width: 720px) {
+    .rail { right: 12px; }
+    .stage { height: 220px; }
+    scene[data-step="8"] .stage { height: min(260px, 40vh); }
+    .pulse-num { font-size: 64px; }
+    header { padding: 16px 16px; }
+}
+
+#rooms.is-awaiting .card-mini {
+    opacity: 0 !important;
+    animation: none !important;
+    transition: none !important;
+}
+scene[data-step="2"].is-from-rooms .card-mini {
+    animation: none;
+    opacity: 1;
+    transition: opacity 0.9s var(--ease);
+}
+#weights.is-awaiting {
+    opacity: 0 !important;
+}
+scene[data-step="3"].is-from-weights .weight .bar i {
+    animation: none;
+    width: var(--w);
+}
+scene[data-step="3"].is-from-weights .weight .bar span {
+    animation: none;
+    opacity: 1;
+}
+scene[data-step="4"].is-awaiting-arcs .arc-map {
+    opacity: 0;
+}
+scene[data-step="4"].is-on.is-from-arcs .arc-map .draw {
+    animation: none;
+    stroke-dasharray: none;
+}
+scene[data-step="5"].is-awaiting-spark .spark {
+    opacity: 0;
+}
+scene[data-step="5"].is-on.is-from-spark .spark path {
+    animation: none;
+    stroke-dasharray: none;
+}
+scene[data-step="6"].is-awaiting-benches .benches {
+    opacity: 0;
+}
+scene[data-step="6"].is-on.is-from-benches .benches path {
+    animation: none;
+    stroke-dasharray: none;
+}
+scene[data-step="6"].is-on.is-from-benches .benches .rank {
+    animation: none;
+    opacity: 1;
+}
+scene[data-step="7"].is-awaiting-matrix .matrix {
+    opacity: 0;
+}
+scene[data-step="7"].is-on.is-from-matrix .matrix b {
+    animation: none;
+    opacity: 1;
+    transform: none;
+}
+scene[data-step="8"].is-awaiting-iran .iran-map {
+    opacity: 0;
+    animation: none;
+}
+scene[data-step="8"].is-on.is-from-iran .iran-map {
+    animation: none;
+}
+
+.bridge-svg {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 16;
+    pointer-events: none;
+    overflow: visible;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    scene.is-on .dot,
+    scene.is-on .card-mini,
+    scene.is-on .spark path,
+    scene.is-on .arc-map .draw,
+    scene.is-on .benches path,
+    scene.is-on .benches .rank,
+    scene.is-on .matrix b,
+    scene.is-on .weight .bar i,
+    scene.is-on .weight .bar span,
+    scene.is-on .orb,
+    scene.is-on .iran-map,
+    scene.is-on .pulse-num,
+    .scene-title-typed.is-typing::after {
+        animation: none !important;
+    }
+    .weight .bar i { width: var(--w); }
+    .weight .bar span, .dot, .matrix b, .orb, .iran-map, .card-mini, .pulse-num, .benches .rank {
+        opacity: 1;
+        transform: none;
+    }
+}

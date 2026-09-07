@@ -13,7 +13,7 @@ if (Chart.defaults.animation === false) Chart.defaults.animation = {};
 if (Chart.defaults.animation) Chart.defaults.animation.duration = 1000;
 
 const urlParams = new URLSearchParams(window.location.search);
-const urlTopic = urlParams.get('topic');
+let urlTopic = urlParams.get('topic');
 let urlSubtopic = urlParams.get('subtopic');
 const urlSource = urlParams.get('source') || 'atlas'; 
 
@@ -113,7 +113,31 @@ async function fillSubtopicSelect() {
     }
 }
 
+async function resolveBubbleTopic() {
+    if (urlTopic && urlSubtopic) return;
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/explorer/init`);
+        const data = await res.json();
+        const hierarchy = data.hierarchy || {};
+        if (!urlTopic) {
+            urlTopic = Object.keys(hierarchy).find(t => hierarchy[t] && Object.keys(hierarchy[t]).length) || '';
+        }
+        if (urlTopic && !urlSubtopic) {
+            urlSubtopic = Object.keys(hierarchy[urlTopic] || {})[0] || '';
+        }
+        if (urlTopic && urlSubtopic) {
+            const next = new URL(window.location.href);
+            next.searchParams.set('topic', urlTopic);
+            next.searchParams.set('subtopic', urlSubtopic);
+            history.replaceState({}, '', next);
+        }
+    } catch (err) {
+        console.error('Error resolving bubble chart topic', err);
+    }
+}
+
 async function init() {
+    await resolveBubbleTopic();
     if(!urlTopic || !urlSubtopic) {
         alert("پارامترهای صفحه نامعتبر است!");
         return;
