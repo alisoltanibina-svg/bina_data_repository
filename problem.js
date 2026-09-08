@@ -993,6 +993,11 @@ let storyOutlinePaths = [];
 let storyCountyPaths = [];
 let storyCounties = [];
 let storyScrollRaf = 0;
+let storyMapInteractive = false;
+let selectedCountyIndex = -1;
+let hoveredCountyIndex = -1;
+let storyMapClicksBound = false;
+const COUNTY_SUBTITLE_SELECTED = 'تقسیمات سیاسی این شهرستان';
 
 function storyBBox(rings) {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -1020,7 +1025,8 @@ function projectLonLat(lon, lat, bbox) {
     const inner = STORY_SIZE - STORY_PAD * 2;
     const scale = Math.min(inner / dx, inner / dy);
     const ox = (STORY_SIZE - dx * scale) / 2;
-    const oy = (STORY_SIZE - dy * scale) / 2;
+    const leftoverY = STORY_SIZE - dy * scale;
+    const oy = leftoverY * 0.36;
     return [ox + (lon - minX) * scale, oy + (maxY - lat) * scale];
 }
 
@@ -1123,6 +1129,235 @@ function isLakeCounty(name) {
     return normalizeText(name).includes('دریاچه');
 }
 
+function countyPropNumber(props, key) {
+    if (!props) return null;
+    const n = Number(props[key]);
+    return isFinite(n) ? n : null;
+}
+
+function countyIndexFromEvent(event) {
+    const el = event.target && event.target.closest
+        ? event.target.closest('.story-county-fill, .story-county-label')
+        : null;
+    if (!el) return -1;
+    const idx = Number(el.dataset.countyIndex);
+    return isFinite(idx) ? idx : -1;
+}
+
+function countyTargetFromEvent(event) {
+    const t = event && event.target;
+    if (!t || typeof t.closest !== 'function') return null;
+    return t.closest('.story-county-fill, .story-county-label');
+}
+
+function paintCountyMarks() {
+    let frontLabel = null;
+    storyCounties.forEach((county, i) => {
+        const selected = i === selectedCountyIndex;
+        const hovered = storyMapInteractive && i === hoveredCountyIndex;
+        county.fillEls.forEach(el => {
+            el.classList.toggle('is-selected', selected);
+            el.classList.toggle('is-hover', hovered && !selected);
+        });
+        (county.pathEls || []).forEach(el => el.classList.toggle('is-selected', selected));
+        if (county.labelEl) {
+            county.labelEl.classList.toggle('is-selected', selected);
+            county.labelEl.classList.toggle('is-hover', hovered);
+            if (hovered) frontLabel = county.labelEl;
+        }
+    });
+    if (frontLabel && frontLabel.parentNode) frontLabel.parentNode.appendChild(frontLabel);
+}
+
+function setCountyStatValue(el, value) {
+    if (!el) return;
+    if (value === null || value === undefined || !isFinite(Number(value))) {
+        el.textContent = '—';
+        el.dataset.num = '';
+        return;
+    }
+    if (el.dataset.num === undefined || el.dataset.num === '') {
+        el.dataset.num = '0';
+    }
+    tweenNumber(el, Number(value), n => formatFaNum(n, 0));
+}
+
+function hideCountyPanel() {
+    const panel = document.getElementById('story-county-panel');
+    if (panel) {
+        panel.classList.remove('is-visible', 'has-county');
+        panel.setAttribute('aria-hidden', 'true');
+    }
+}
+
+function isCountyUiClick(target) {
+    return !!(target && target.closest && target.closest('#story-county-panel, #county-chip-list'));
+}
+
+function isCountyShapeClick(target) {
+    return !!(target && target.closest && target.closest('.story-county-fill, .story-county-label'));
+}
+
+function syncCountyChipState() {
+    const list = document.getElementById('county-chip-list');
+    if (!list) return;
+    list.querySelectorAll('.story-county-chip').forEach(btn => {
+        const on = Number(btn.dataset.countyIndex) === selectedCountyIndex;
+        btn.classList.toggle('is-active', on);
+        btn.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+}
+
+function populateCountyList() {
+    const list = document.getElementById('county-chip-list');
+    if (!list) return;
+    list.innerHTML = '';
+    const rows = storyCounties
+        .map((county, index) => ({ index, name: county.name || '' }))
+        .filter(row => row.name)
+        .sort((a, b) => a.name.localeCompare(b.name, 'fa'));
+    rows.forEach(row => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'story-county-chip';
+        btn.setAttribute('role', 'option');
+        btn.dataset.countyIndex = String(row.index);
+        btn.textContent = row.name;
+        list.appendChild(btn);
+    });
+    syncCountyChipState();
+}
+
+function bindCountyList() {
+    const list = document.getElementById('county-chip-list');
+    if (!list || list.dataset.bound) return;
+    list.dataset.bound = '1';
+
+    list.addEventListener('click', (event) => {
+        const btn = event.target.closest('.story-county-chip');
+        if (!btn) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const idx = Number(btn.dataset.countyIndex);
+        if (!isFinite(idx)) return;
+        selectCounty(idx, { toggle: false });
+    });
+}
+
+function syncCountyPanel() {
+    const panel = document.getElementById('story-county-panel');
+    const subtitle = document.getElementById('story-county-subtitle');
+    const county = (storyMapInteractive && selectedCountyIndex >= 0)
+        ? storyCounties[selectedCountyIndex]
+        : null;
+    if (!panel) return;
+
+    const titleEl = document.getElementById('story-county-title');
+    if (!county) {
+        hideCountyPanel();
+        if (titleEl) titleEl.textContent = '';
+        setCountyStatValue(document.getElementById('stat-bakhsh'), null);
+        setCountyStatValue(document.getElementById('stat-shahr'), null);
+        setCountyStatValue(document.getElementById('stat-dehestan'), null);
+        syncCountyChipState();
+        return;
+    }
+
+    panel.classList.add('is-visible', 'has-county');
+    panel.setAttribute('aria-hidden', 'false');
+    if (titleEl) titleEl.textContent = county.name || '';
+    if (subtitle) subtitle.textContent = COUNTY_SUBTITLE_SELECTED;
+    setCountyStatValue(document.getElementById('stat-bakhsh'), county.bakhsh);
+    setCountyStatValue(document.getElementById('stat-shahr'), county.shahr);
+    setCountyStatValue(document.getElementById('stat-dehestan'), county.dehestan);
+    syncCountyChipState();
+}
+
+function clearCountySelection() {
+    selectedCountyIndex = -1;
+    hoveredCountyIndex = -1;
+    paintCountyMarks();
+    syncCountyPanel();
+}
+
+function selectCounty(index, options) {
+    const allowToggle = !(options && options.toggle === false);
+    if (!storyMapInteractive || index < 0 || index >= storyCounties.length) {
+        clearCountySelection();
+        return;
+    }
+    if (allowToggle && selectedCountyIndex === index) {
+        clearCountySelection();
+        return;
+    }
+    selectedCountyIndex = index;
+    hoveredCountyIndex = -1;
+    paintCountyMarks();
+    syncCountyPanel();
+}
+
+function setStoryMapInteractive(on) {
+    const stage = document.getElementById('story-map-stage');
+    const next = !!on;
+    if (storyMapInteractive === next) return;
+    storyMapInteractive = next;
+    if (stage) stage.classList.toggle('is-interactive', storyMapInteractive);
+    if (!storyMapInteractive) {
+        hoveredCountyIndex = -1;
+        selectedCountyIndex = -1;
+        paintCountyMarks();
+    }
+    syncCountyPanel();
+}
+
+function bindStoryMapClicks() {
+    const svg = document.getElementById('story-map-svg');
+    const closeBtn = document.getElementById('story-county-close');
+    if (storyMapClicksBound) return;
+    storyMapClicksBound = true;
+    bindCountyList();
+
+    if (svg) {
+        svg.addEventListener('click', (event) => {
+            if (!storyMapInteractive) return;
+            const idx = countyIndexFromEvent(event);
+            if (idx >= 0) selectCounty(idx);
+        });
+        svg.addEventListener('pointerover', (event) => {
+            if (!storyMapInteractive) return;
+            const idx = countyIndexFromEvent(event);
+            if (idx < 0 || idx === hoveredCountyIndex) return;
+            hoveredCountyIndex = idx;
+            paintCountyMarks();
+        });
+        svg.addEventListener('pointerout', (event) => {
+            if (!storyMapInteractive) return;
+            const leavingTo = countyTargetFromEvent({ target: event.relatedTarget });
+            const next = leavingTo ? Number(leavingTo.dataset.countyIndex) : -1;
+            hoveredCountyIndex = (isFinite(next) && next >= 0) ? next : -1;
+            paintCountyMarks();
+        });
+    }
+
+    if (closeBtn) {
+        closeBtn.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            clearCountySelection();
+        });
+    }
+
+    document.addEventListener('click', (event) => {
+        const t = event.target;
+        if (!storyMapInteractive || selectedCountyIndex < 0) return;
+        if (isCountyUiClick(t) || isCountyShapeClick(t)) return;
+        clearCountySelection();
+    }, true);
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && selectedCountyIndex >= 0) clearCountySelection();
+    });
+}
+
 function findProvinceFeature(name) {
     if (!iranFeatures || !iranFeatures.length) return null;
     const n = normalizeText(name);
@@ -1176,6 +1411,12 @@ function rebuildStoryMap() {
     storyOutlinePaths = [];
     storyCountyPaths = [];
     storyCounties = [];
+    selectedCountyIndex = -1;
+    hoveredCountyIndex = -1;
+    storyMapInteractive = false;
+    const stage = document.getElementById('story-map-stage');
+    if (stage) stage.classList.remove('is-interactive');
+    hideCountyPanel();
 
     const feature = findProvinceFeature(urlProvince);
     if (!feature) {
@@ -1189,17 +1430,21 @@ function rebuildStoryMap() {
     if (shahrFeatures && shahrFeatures.length && provinceKey) {
         shahrFeatures.forEach(ft => {
             if (featureAdm1Name(ft) !== provinceKey) return;
+            const p = ft.properties || {};
+            const name = p.CityName || p.cityname || '';
+            if (isLakeCounty(name)) return;
             const rings = geomExteriorRings(ft.geometry);
             if (!rings.length) return;
             const c = ringAreaCentroid(rings[0]) || ringCentroid(rings[0]);
             if (!c) return;
-            const p = ft.properties || {};
             counties.push({
                 rings,
                 cy: c[1],
                 cx: c[0],
-                name: p.CityName || p.cityname || '',
-                isLake: isLakeCounty(p.CityName || p.cityname || '')
+                name: p['نام شهرستان'] || name,
+                bakhsh: countyPropNumber(p, 'تعداد بخش'),
+                shahr: countyPropNumber(p, 'تعداد شهر'),
+                dehestan: countyPropNumber(p, 'تعداد دهستان')
             });
         });
     }
@@ -1224,24 +1469,33 @@ function rebuildStoryMap() {
         counties.sort((a, b) => b.cy - a.cy || a.cx - b.cx);
         counties.forEach(county => {
             const fillEls = [];
+            const pathEls = [];
+            const countyIndex = storyCounties.length;
             county.rings.forEach(ring => {
                 const d = ringToPath(ring, bbox);
                 if (!d) return;
                 if (fillG) {
                     const fillEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
                     fillEl.setAttribute('d', d);
-                    fillEl.setAttribute('class', county.isLake ? 'story-county-fill is-lake' : 'story-county-fill');
+                    fillEl.setAttribute('class', 'story-county-fill');
+                    fillEl.dataset.countyIndex = String(countyIndex);
+                    fillEl.setAttribute('role', 'button');
+                    if (county.name) {
+                        fillEl.setAttribute('aria-label', county.name);
+                        fillEl.setAttribute('title', county.name);
+                    }
                     fillG.appendChild(fillEl);
                     fillEls.push(fillEl);
                 }
                 const el = document.createElementNS('http://www.w3.org/2000/svg', 'path');
                 el.setAttribute('d', d);
-                el.setAttribute('class', county.isLake ? 'story-county-path is-lake' : 'story-county-path');
+                el.setAttribute('class', 'story-county-path');
                 countyG.appendChild(el);
                 const length = el.getTotalLength();
                 el.style.strokeDasharray = String(length);
                 el.style.strokeDashoffset = String(length);
                 storyCountyPaths.push({ el, length });
+                pathEls.push(el);
             });
 
             let labelEl = null;
@@ -1252,18 +1506,28 @@ function rebuildStoryMap() {
                 const span = projectedRingSpan(mainRing, bbox);
                 const fontSize = Math.max(6, Math.min(9.5, Math.min(span.w, span.h) * 0.16));
                 labelEl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                labelEl.setAttribute('class', county.isLake ? 'story-county-label is-lake' : 'story-county-label');
+                labelEl.setAttribute('class', 'story-county-label');
                 labelEl.setAttribute('x', lx.toFixed(2));
                 labelEl.setAttribute('y', ly.toFixed(2));
                 labelEl.setAttribute('font-size', fontSize.toFixed(1));
+                labelEl.dataset.countyIndex = String(countyIndex);
                 labelEl.textContent = county.name;
                 labelG.appendChild(labelEl);
             }
 
-            storyCounties.push({ fillEls, labelEl });
+            storyCounties.push({
+                fillEls,
+                pathEls,
+                labelEl,
+                name: county.name,
+                bakhsh: county.bakhsh,
+                shahr: county.shahr,
+                dehestan: county.dehestan
+            });
         });
     }
 
+    populateCountyList();
     updateStoryProgress();
 }
 
@@ -1289,6 +1553,7 @@ function updateStoryProgress() {
         applyPathProgress(storyOutlinePaths, active ? 1 : 0);
         applyPathProgress(storyCountyPaths, active ? 1 : 0);
         applyCountyReveal(active ? 1 : 0);
+        setStoryMapInteractive(active);
         applyPyramidProgress(p, true);
         return;
     }
@@ -1299,6 +1564,7 @@ function updateStoryProgress() {
     applyPathProgress(storyOutlinePaths, outlineT);
     applyPathProgress(storyCountyPaths, countyT);
     applyCountyReveal(revealT);
+    setStoryMapInteractive(revealT >= 1);
     applyPyramidProgress(p, false);
 }
 
@@ -1336,6 +1602,7 @@ async function loadStoryGeo() {
 }
 
 function initStoryScroll() {
+    bindStoryMapClicks();
     window.addEventListener('scroll', onStoryScroll, { passive: true });
     window.addEventListener('resize', debounceProblem(() => {
         updateStoryProgress();

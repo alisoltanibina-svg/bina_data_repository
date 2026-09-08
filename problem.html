@@ -235,13 +235,55 @@
                 <span class="story-province-title" id="story-province-title"></span>
             </div>
             <div class="story-map-stage" id="story-map-stage">
-                <svg id="story-map-svg" viewBox="0 0 800 800" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+                <svg id="story-map-svg" viewBox="0 0 800 800" preserveAspectRatio="xMidYMid meet" role="group" aria-label="نقشه شهرستان‌های استان">
                     <g id="story-county-fills"></g>
                     <g id="story-county-lines"></g>
                     <g id="story-province-outline"></g>
                     <g id="story-county-labels"></g>
                 </svg>
             </div>
+            <aside class="story-county-panel" id="story-county-panel" aria-hidden="true">
+                <div class="story-county-panel-head">
+                    <div class="story-county-head-text">
+                        <span class="story-county-kicker">شهرستان</span>
+                        <h3 class="story-county-title" id="story-county-title"></h3>
+                        <p class="story-county-subtitle" id="story-county-subtitle">تقسیمات سیاسی این شهرستان</p>
+                    </div>
+                    <button type="button" class="story-county-close" id="story-county-close" aria-label="بستن کارت‌های شهرستان">
+                        <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                    </button>
+                </div>
+                <div class="story-county-list" id="county-chip-list" role="listbox" aria-label="شهرستان‌های استان"></div>
+                <div class="story-county-cards">
+                    <article class="story-county-card">
+                        <div class="story-county-card-icon" aria-hidden="true">
+                            <i class="fa-solid fa-sitemap"></i>
+                        </div>
+                        <div class="story-county-card-body">
+                            <span class="story-county-card-label">تعداد بخش</span>
+                            <span class="story-county-card-value" id="stat-bakhsh">—</span>
+                        </div>
+                    </article>
+                    <article class="story-county-card">
+                        <div class="story-county-card-icon" aria-hidden="true">
+                            <i class="fa-solid fa-city"></i>
+                        </div>
+                        <div class="story-county-card-body">
+                            <span class="story-county-card-label">تعداد شهر</span>
+                            <span class="story-county-card-value" id="stat-shahr">—</span>
+                        </div>
+                    </article>
+                    <article class="story-county-card">
+                        <div class="story-county-card-icon" aria-hidden="true">
+                            <i class="fa-solid fa-house-chimney"></i>
+                        </div>
+                        <div class="story-county-card-body">
+                            <span class="story-county-card-label">تعداد دهستان</span>
+                            <span class="story-county-card-value" id="stat-dehestan">—</span>
+                        </div>
+                    </article>
+                </div>
+            </aside>
             <aside class="story-pyramid" id="story-pyramid" aria-hidden="true">
                 <h3 class="story-pyramid-title" id="story-pyramid-title"></h3>
                 <div class="story-pyramid-body" id="story-pyramid-body">

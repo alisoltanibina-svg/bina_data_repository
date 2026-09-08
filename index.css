@@ -368,6 +368,7 @@ html.atlas-view #entry-view-curtain,
     text-align: justify;
 }
 #about .entry-section-text { margin-bottom: 18px; }
+#section-overview .entry-section-text { margin-bottom: 18px; }
 .about-story-link {
     pointer-events: auto;
     position: relative;
