@@ -18,7 +18,7 @@ File: index.css
 *, *::before, *::after { box-sizing: border-box; }
 
 body {
-    margin: 0; padding: 0; font-family: 'Vazirmatn', Tahoma, sans-serif;
+    margin: 0; padding: 0; font-family: 'PeydaFaNumWeb', Tahoma, sans-serif !important;
     display: flex; flex-direction: column; height: 100vh; height: var(--vvh, 100dvh);
     background-color: var(--bg-color); color: var(--text-color); overflow: hidden;
 }
@@ -852,7 +852,7 @@ body.immersive-mode #map { background: #dce5ec; }
 .heat-table th { background: #f0f0f0; padding: 8px 4px; color: #333; border: 1px solid #ddd; font-weight: bold; position: sticky; top: 0; z-index: 2; }
 .heat-table td { padding: 8px 4px; border: 1px solid #eee; font-weight: bold; }
 
-.leaflet-tooltip.custom-tooltip { background-color: rgba(255, 255, 255, 0.95); border: 1px solid #ccc; color: #333; border-radius: 6px; font-family: 'Vazirmatn', sans-serif; font-size: 14px; text-align: center; line-height: 1.6;}
+.leaflet-tooltip.custom-tooltip { background-color: rgba(255, 255, 255, 0.95); border: 1px solid #ccc; color: #333; border-radius: 6px; font-family: 'PeydaFaNumWeb', Tahoma, sans-serif !important; font-size: 14px; text-align: center; line-height: 1.6;}
 
 #map-panel-dock { display: none; }
 

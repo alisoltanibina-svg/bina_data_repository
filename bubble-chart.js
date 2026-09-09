@@ -6,7 +6,7 @@
 
 // -- Bubble chart initialization --
 Chart.register(ChartDataLabels);
-Chart.defaults.font.family = "'Vazirmatn', sans-serif";
+Chart.defaults.font.family = "'PeydaFaNumWeb', sans-serif";
 // Ensure charts render crisply on high-DPI / Retina displays
 Chart.defaults.devicePixelRatio = window.devicePixelRatio || 1;
 if (Chart.defaults.animation === false) Chart.defaults.animation = {};
@@ -298,7 +298,7 @@ function drawChart() {
                     align: 'center',
                     anchor: 'center',
                     textAlign: 'center',
-                    font: { family: 'Vazirmatn', size: 9, weight: 'bold' },
+                    font: { family: 'PeydaFaNumWeb', size: 9, weight: 'bold' },
                     formatter: (value) => {
                         let name = value.provName || '';
                         return name.includes(' ') ? name.split(' ') : name;
@@ -312,7 +312,7 @@ function drawChart() {
                 },
                 y: {
                     grid: { color: 'rgba(0,0,0,0.1)' },
-                    title: { display: true, text: 'امتیاز زیرحوزه (محاسبه شده)', font: { size: 14, family: 'Vazirmatn' } }
+                    title: { display: true, text: 'امتیاز زیرحوزه (محاسبه شده)', font: { size: 14, family: 'PeydaFaNumWeb' } }
                 }
             }
         }

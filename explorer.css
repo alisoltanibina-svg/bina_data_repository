@@ -20,7 +20,7 @@ Purpose: Styles for the Explorer page including the mosaic landing and indicator
     --topic-accent: #0078d7;
 }
 
-body { font-family: 'Vazirmatn', sans-serif; background-color: #f4f5f7; overflow-x: hidden; position: relative;}
+body { font-family: 'PeydaFaNumWeb', Tahoma, sans-serif !important; background-color: #f4f5f7; overflow-x: hidden; position: relative;}
 
 .explorer-workspace {
     flex: 1;

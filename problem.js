@@ -4,7 +4,7 @@
 //   page-level UI behaviors specific to the province profile view.
 // Notes: All comments have been standardized to English; visible UI labels remain Persian.
 
-Chart.defaults.font.family = "'Vazirmatn', sans-serif";
+Chart.defaults.font.family = "'PeydaFaNumWeb', sans-serif";
 Chart.defaults.locale = 'fa-IR';
 // Render charts sharply on high-DPI / Retina displays
 Chart.defaults.devicePixelRatio = window.devicePixelRatio || 1;
@@ -252,7 +252,7 @@ const polarCenterTextPlugin = {
         ctx.stroke();
 
         // Draw the province name centered on top of the white circle
-        ctx.font = "900 12px Vazirmatn";
+        ctx.font = "900 12px PeydaFaNumWeb";
         ctx.textBaseline = "middle";
         ctx.textAlign = "center";
         ctx.fillStyle = "#1f2937";
@@ -827,7 +827,7 @@ function drawPolarChart(labels, data, topicName) {
                         display: true,
                         centerPointLabels: true,
                         font: {
-                            family: "'Vazirmatn', sans-serif",
+                            family: "'PeydaFaNumWeb', sans-serif",
                             size: 11,
                             weight: 'bold'
                         },
@@ -838,8 +838,8 @@ function drawPolarChart(labels, data, topicName) {
             plugins: {
                 legend: { display: false },
                 tooltip: {
-                    titleFont: { family: 'Vazirmatn', size: 14 },
-                    bodyFont: { family: 'Vazirmatn', size: 14 },
+                    titleFont: { family: 'PeydaFaNumWeb', size: 14 },
+                    bodyFont: { family: 'PeydaFaNumWeb', size: 14 },
                     callbacks: {
                         title: function() { return ''; },
                         label: polarTooltipLabel
@@ -910,8 +910,8 @@ function drawScatterChart(scatterData) {
             plugins: {
                 legend: { display: false },
                 tooltip: {
-                    titleFont: { family: 'Vazirmatn', size: 14 },
-                    bodyFont: { family: 'Vazirmatn', size: 14 },
+                    titleFont: { family: 'PeydaFaNumWeb', size: 14 },
+                    bodyFont: { family: 'PeydaFaNumWeb', size: 14 },
                     callbacks: {
                         label: function(context) {
                             const pt = context.raw;
@@ -928,13 +928,13 @@ function drawScatterChart(scatterData) {
                         lineWidth: ctx => ctx.tick.value === 0 ? 2 : 1
                     },
                     ticks: {
-                        font: { family: "'Vazirmatn', sans-serif" },
+                        font: { family: "'PeydaFaNumWeb', sans-serif" },
                         callback: (v) => formatFaNum(v, 1)
                     },
                     title: {
                         display: true,
                         text: 'تغییرات نسبت به دوره قبل',
-                        font: { family: "'Vazirmatn', sans-serif", size: 12, weight: 'bold' },
+                        font: { family: "'PeydaFaNumWeb', sans-serif", size: 12, weight: 'bold' },
                         color: '#4b5563',
                         padding: { top: 6 }
                     }
@@ -946,13 +946,13 @@ function drawScatterChart(scatterData) {
                         lineWidth: ctx => ctx.tick.value === 0 ? 2 : 1
                     },
                     ticks: {
-                        font: { family: "'Vazirmatn', sans-serif" },
+                        font: { family: "'PeydaFaNumWeb', sans-serif" },
                         callback: (v) => formatFaNum(v, 1)
                     },
                     title: {
                         display: true,
                         text: 'فاصله از میانگین کل کشور',
-                        font: { family: "'Vazirmatn', sans-serif", size: 12, weight: 'bold' },
+                        font: { family: "'PeydaFaNumWeb', sans-serif", size: 12, weight: 'bold' },
                         color: '#4b5563',
                         padding: { bottom: 6 }
                     }
@@ -1707,8 +1707,8 @@ function ensurePyramidChart() {
             plugins: {
                 legend: { display: false },
                 tooltip: {
-                    titleFont: { family: 'Vazirmatn', size: 12 },
-                    bodyFont: { family: 'Vazirmatn', size: 12 },
+                    titleFont: { family: 'PeydaFaNumWeb', size: 12 },
+                    bodyFont: { family: 'PeydaFaNumWeb', size: 12 },
                     callbacks: {
                         label: function(ctx) {
                             return `${ctx.dataset.label}: ${formatFaNum(Math.abs(ctx.raw), 0)}`;
@@ -1722,7 +1722,7 @@ function ensurePyramidChart() {
                     max: pyramidMax,
                     stacked: true,
                     ticks: {
-                        font: { family: "'Vazirmatn', sans-serif", size: 10 },
+                        font: { family: "'PeydaFaNumWeb', sans-serif", size: 10 },
                         callback: (v) => formatFaNum(Math.abs(v), 0)
                     },
                     grid: {
@@ -1732,14 +1732,14 @@ function ensurePyramidChart() {
                     title: {
                         display: true,
                         text: 'جمعیت',
-                        font: { family: "'Vazirmatn', sans-serif", size: 11, weight: 'bold' },
+                        font: { family: "'PeydaFaNumWeb', sans-serif", size: 11, weight: 'bold' },
                         color: '#6b7280'
                     }
                 },
                 y: {
                     stacked: true,
                     ticks: {
-                        font: { family: "'Vazirmatn', sans-serif", size: 10, weight: '700' },
+                        font: { family: "'PeydaFaNumWeb', sans-serif", size: 10, weight: '700' },
                         color: '#374151'
                     },
                     grid: { display: false }

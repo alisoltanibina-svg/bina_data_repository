@@ -3,8 +3,12 @@ File: global.css
 Purpose: Shared global styles used by all pages (fonts, base background, and utility classes).
 Notes: Contains shared utilities such as lazy-bg and placeholders used for deferred background images.
 */
+@import url("assets/fonts/peyda.css");
+
 :root {
     --vvh: 100vh;
+    --font-sans: 'PeydaFaNumWeb', Tahoma, sans-serif;
+    --default-font-family: 'PeydaFaNumWeb', Tahoma, sans-serif;
 }
 @supports (height: 100dvh) {
     :root { --vvh: 100dvh; }
@@ -15,8 +19,28 @@ html {
     text-size-adjust: 100%;
 }
 
-body { 
-    font-family: 'Vazirmatn', sans-serif; background: #f0f4f8;
+html,
+body,
+button,
+input,
+select,
+textarea {
+    font-family: 'PeydaFaNumWeb', Tahoma, sans-serif !important;
+}
+
+body {
+    background: #f0f4f8;
+}
+
+/* Leaflet ships Helvetica/Arial on the map pane; keep Peyda there too. */
+.leaflet-container,
+.leaflet-popup,
+.leaflet-popup-content-wrapper,
+.leaflet-popup-content,
+.leaflet-tooltip,
+.leaflet-control,
+.leaflet-bar {
+    font-family: 'PeydaFaNumWeb', Tahoma, sans-serif !important;
 }
 
 .h-screen {

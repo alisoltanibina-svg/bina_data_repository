@@ -24,6 +24,7 @@ html {
     overflow-x: hidden;
     overflow-y: auto;
     background-color: #f4f5f7;
+    font-family: 'PeydaFaNumWeb', Tahoma, sans-serif !important;
 }
 
 .back-to-top-btn {
@@ -171,7 +172,7 @@ html {
 }
 #story-map-svg .story-county-label {
     fill: #166534;
-    font-family: 'Vazirmatn', sans-serif;
+    font-family: 'PeydaFaNumWeb', Tahoma, sans-serif !important;
     font-weight: 700;
     text-anchor: middle;
     dominant-baseline: middle;

@@ -6,7 +6,7 @@
 
 // -- Explorer page initialization --
 if (typeof ChartDataLabels !== 'undefined') Chart.register(ChartDataLabels);
-Chart.defaults.font.family = "'Vazirmatn', sans-serif";
+Chart.defaults.font.family = "'PeydaFaNumWeb', sans-serif";
 // Ensure crisp rendering on high-DPI devices
 Chart.defaults.devicePixelRatio = window.devicePixelRatio || 1;
 if (Chart.defaults.animation === false) Chart.defaults.animation = {};
@@ -867,7 +867,7 @@ function drawScatterProvince() {
                     anchor: 'center',
                     textAlign: 'center',
                     clip: false,
-                    font: { family: 'Vazirmatn', size: 8, weight: 'bold' },
+                    font: { family: 'PeydaFaNumWeb', size: 8, weight: 'bold' },
                     formatter: (value) => {
                         const name = (value && value.province) || '';
                         return name.includes(' ') ? name.split(' ') : name;
@@ -875,8 +875,8 @@ function drawScatterProvince() {
                 },
                 tooltip: {
                     rtl: true,
-                    titleFont: { family: 'Vazirmatn', size: 13 },
-                    bodyFont: { family: 'Vazirmatn', size: 13, weight: 'bold' },
+                    titleFont: { family: 'PeydaFaNumWeb', size: 13 },
+                    bodyFont: { family: 'PeydaFaNumWeb', size: 13, weight: 'bold' },
                     callbacks: {
                         title: (items) => (items[0] && items[0].raw && items[0].raw.province) || '',
                         label: (ctx) => `امتیاز: ${toFaFixed(ctx.parsed.y, 2)}`
@@ -892,13 +892,13 @@ function drawScatterProvince() {
                     title: {
                         display: true,
                         text: 'استان',
-                        font: { family: 'Vazirmatn', size: 12, weight: 'bold' },
+                        font: { family: 'PeydaFaNumWeb', size: 12, weight: 'bold' },
                         color: '#4b5563'
                     }
                 },
                 y: {
                     ticks: {
-                        font: { family: 'Vazirmatn' },
+                        font: { family: 'PeydaFaNumWeb' },
                         color: '#64748b',
                         callback: (v) => toFaFixed(v, 2)
                     },
@@ -906,7 +906,7 @@ function drawScatterProvince() {
                     title: {
                         display: true,
                         text: 'امتیاز',
-                        font: { family: 'Vazirmatn', size: 12, weight: 'bold' },
+                        font: { family: 'PeydaFaNumWeb', size: 12, weight: 'bold' },
                         color: '#4b5563'
                     }
                 }
@@ -1023,7 +1023,7 @@ function getChartOptions() {
             legend: { 
                 position: 'bottom', 
                 labels: { 
-                    font: { family: 'Vazirmatn', size: 13 }, 
+                    font: { family: 'PeydaFaNumWeb', size: 13 }, 
                     usePointStyle: false, 
                     boxWidth: 16,
                     boxHeight: 16,
@@ -1050,15 +1050,15 @@ function getChartOptions() {
                 }
             },
             tooltip: {
-                titleFont: { family: 'Vazirmatn', size: 14 }, bodyFont: { family: 'Vazirmatn', size: 13, weight: 'bold' }, rtl: true,
+                titleFont: { family: 'PeydaFaNumWeb', size: 14 }, bodyFont: { family: 'PeydaFaNumWeb', size: 13, weight: 'bold' }, rtl: true,
                 backgroundColor: 'rgba(255, 255, 255, 0.95)', titleColor: '#1f2937', bodyColor: '#1f2937',
                 borderColor: '#e5e7eb', borderWidth: 1, padding: 12, boxPadding: 6,
                 displayColors: true
             }
         },
         scales: {
-            x: { ticks: { font: { family: 'Vazirmatn' }, color: '#64748b' }, grid: { display: false } },
-            y: { ticks: { font: { family: 'Vazirmatn' }, color: '#64748b' }, grid: { color: '#e2e8f0', drawBorder: false }, border: { dash: [4, 4] } }
+            x: { ticks: { font: { family: 'PeydaFaNumWeb' }, color: '#64748b' }, grid: { display: false } },
+            y: { ticks: { font: { family: 'PeydaFaNumWeb' }, color: '#64748b' }, grid: { color: '#e2e8f0', drawBorder: false }, border: { dash: [4, 4] } }
         }
     };
 }

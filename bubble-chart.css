@@ -21,7 +21,7 @@ Notes: Comments standardized to English; layout and visual rules left unchanged.
     --topic-accent: #0078d7;
 }
 
-body { font-family: 'Vazirmatn', sans-serif; background-color: #ffffff; position: relative; }
+body { font-family: 'PeydaFaNumWeb', Tahoma, sans-serif !important; background-color: #ffffff; position: relative; }
 
 .bubble-workspace {
     margin-top: calc(75px + var(--banner-gap));

@@ -451,7 +451,7 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 Chart.defaults.color = '#333333'; 
-Chart.defaults.font.family = "'Vazirmatn', Tahoma, sans-serif";
+Chart.defaults.font.family = "'PeydaFaNumWeb', Tahoma, sans-serif";
 // Render crisp on high DPI displays
 Chart.defaults.devicePixelRatio = window.devicePixelRatio || 1;
 if (Chart.defaults.animation === false) Chart.defaults.animation = {};
@@ -1515,7 +1515,7 @@ function updateRightPanel(provinceName) {
             animation: false, 
             plugins: { 
                 legend: { display: false }, 
-                title: { display: true, text: 'روند زمانی', font: { family: 'Vazirmatn' }, color: '#333' } 
+                title: { display: true, text: 'روند زمانی', font: { family: 'PeydaFaNumWeb' }, color: '#333' } 
             },
             scales: {
                 x: { ticks: { font: { size: 10 }, color: '#555' }, grid: { display: false } },
