@@ -1,0 +1,5 @@
+# Dashboard API. Install: pip install -r requirements.txt
+# Then: python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+fastapi==0.141.1
+uvicorn==0.52.3
+pydantic==2.13.4

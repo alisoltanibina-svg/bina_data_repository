@@ -231,28 +231,26 @@ function updateWeight(indName, value) {
 }
 
 function calculateSubtopicScore(prov) {
-    let product = 1;
-    let activeCount = 0;
-
-    // Use prebuilt lookup for O(1) access instead of filtering the whole array repeatedly
     const provLookup = latestByProvInd[prov] || {};
+    let weightedLog = 0;
+    let absWeightSum = 0;
 
     indicators.forEach(ind => {
-        let weight = indicatorWeights[ind];
-        if (weight === 0) return;
+        const weight = Number(indicatorWeights[ind]);
+        if (!weight) return;
 
         const rec = provLookup[ind];
         if (!rec) return;
 
-        let val = rec.value !== undefined ? Number(rec.value) : 1;
+        const val = Number(rec.value);
+        if (!Number.isFinite(val) || val <= 0) return;
 
-        product *= (val * weight);
-        activeCount++;
+        weightedLog += weight * Math.log(val);
+        absWeightSum += Math.abs(weight);
     });
 
-    if (activeCount === 0) return 0;
-    let sign = product < 0 ? -1 : 1;
-    return sign * Math.pow(Math.abs(product), 1 / activeCount);
+    if (absWeightSum === 0) return 0;
+    return Math.exp(weightedLog / absWeightSum);
 }
 
 function getChartData() {
@@ -286,6 +284,7 @@ function drawChart() {
         options: {
             responsive: true, maintainAspectRatio: false,
             animation: { duration: 300, easing: 'easeOutQuad' },
+            layout: { padding: { top: 28, right: 28, bottom: 16, left: 12 } },
             plugins: {
                 legend: { display: false },
                 tooltip: {

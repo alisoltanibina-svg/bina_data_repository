@@ -989,6 +989,7 @@ const STORY_SIZE = 800;
 const STORY_PAD = 36;
 let iranFeatures = null;
 let shahrFeatures = null;
+let storyGeoPromise = null;
 let storyOutlinePaths = [];
 let storyCountyPaths = [];
 let storyCounties = [];
@@ -1576,7 +1577,17 @@ function updateBackToTopBtn() {
     btn.classList.toggle('is-visible', gone);
 }
 
+function maybeLoadStoryGeo() {
+    if (storyGeoPromise) return;
+    const more = document.getElementById('province-more');
+    if (!more) return;
+    if (more.getBoundingClientRect().top < window.innerHeight * 0.8) {
+        ensureStoryGeo();
+    }
+}
+
 function onStoryScroll() {
+    maybeLoadStoryGeo();
     if (storyScrollRaf) return;
     storyScrollRaf = requestAnimationFrame(() => {
         storyScrollRaf = 0;
@@ -1588,9 +1599,10 @@ function onStoryScroll() {
 async function loadStoryGeo() {
     try {
         const [iranRes, shahrRes] = await Promise.all([
-            fetch('data/iran.geojson'),
-            fetch('data/Shahrestan.geojson')
+            fetch('data/iran.geojson?v=c1'),
+            fetch('data/Shahrestan.geojson?v=c1')
         ]);
+        if (!iranRes.ok || !shahrRes.ok) throw new Error('GeoJSON not found');
         const iran = await iranRes.json();
         const shahr = await shahrRes.json();
         iranFeatures = iran.features || [];
@@ -1598,11 +1610,18 @@ async function loadStoryGeo() {
         rebuildStoryMap();
     } catch (err) {
         console.error('Error loading story map data:', err);
+        storyGeoPromise = null;
     }
+}
+
+function ensureStoryGeo() {
+    if (!storyGeoPromise) storyGeoPromise = loadStoryGeo();
+    return storyGeoPromise;
 }
 
 function initStoryScroll() {
     bindStoryMapClicks();
+    maybeLoadStoryGeo();
     window.addEventListener('scroll', onStoryScroll, { passive: true });
     window.addEventListener('resize', debounceProblem(() => {
         updateStoryProgress();
@@ -1827,7 +1846,6 @@ async function loadPyramidData() {
 
 window.onload = function() {
     initStoryScroll();
-    loadStoryGeo();
     loadPyramidData();
     initDashboard();
 };

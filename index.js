@@ -502,6 +502,58 @@ function initLazyBackgrounds(root = document) {
 
 const API_BASE_URL = window.API_BASE_URL || (window.location.protocol + '//' + window.location.hostname + ':8000');
 
+const atlasTrendCache = {};
+const atlasClusterCache = {};
+const atlasTopicTrendCache = {};
+let trendPanelFetchGen = 0;
+
+async function fetchJson(url) {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`API error: ${response.status}`);
+    return response.json();
+}
+
+async function fetchAtlasTrend(province, topic) {
+    const key = `${province}::${topic}`;
+    if (atlasTrendCache[key]) return atlasTrendCache[key];
+    const data = await fetchJson(
+        `${API_BASE_URL}/api/atlas/trend?province=${encodeURIComponent(province)}&topic=${encodeURIComponent(topic)}`
+    );
+    const series = data.series || [];
+    atlasTrendCache[key] = series;
+    return series;
+}
+
+async function fetchAtlasClusters(topic) {
+    if (atlasClusterCache[topic]) return atlasClusterCache[topic];
+    const data = await fetchJson(
+        `${API_BASE_URL}/api/atlas/clusters?topic=${encodeURIComponent(topic)}`
+    );
+    const rows = data.clusters || [];
+    atlasClusterCache[topic] = rows;
+    return rows;
+}
+
+async function fetchAtlasTopicTrends(topic) {
+    if (atlasTopicTrendCache[topic]) return atlasTopicTrendCache[topic];
+    const data = await fetchJson(
+        `${API_BASE_URL}/api/atlas/topic-trends?topic=${encodeURIComponent(topic)}`
+    );
+    const rows = data.trends || [];
+    atlasTopicTrendCache[topic] = rows;
+    const byProv = {};
+    rows.forEach(row => {
+        const prov = row.province_name;
+        if (!byProv[prov]) byProv[prov] = [];
+        byProv[prov].push({ year: row.year, index_score: row.index_score });
+    });
+    Object.keys(byProv).forEach(prov => {
+        const key = `${prov}::${topic}`;
+        if (!atlasTrendCache[key]) atlasTrendCache[key] = byProv[prov];
+    });
+    return rows;
+}
+
 function persistAppTheme(banner, accent) {
     try {
         if (banner) sessionStorage.setItem('themeBannerBg', banner);
@@ -711,9 +763,8 @@ async function loadAllData() {
         const data = await response.json();
         topicsData = data.topics || [];
         trendScoreData = data.trend_score || [];
-        clustersData = data.clusters || [];
+        clustersData = [];
 
-        // Latest year per topic from trend_score; latest year per province from province_pop
         buildMapScoresLookup();
         buildProvincePopLookup(data.province_pop);
 
@@ -743,7 +794,7 @@ async function loadAllData() {
         initLegend();
         initMap();
 
-        const geoRes = await fetch('data/iran.geojson');
+        const geoRes = await fetch('data/iran.geojson?v=c1');
         if (!geoRes.ok) throw new Error("GeoJSON not found");
         renderMapData(await geoRes.json());
 
@@ -858,9 +909,22 @@ function initUI() {
     });
 
     // SIMILAR PROVINCES - RIGHT PANEL & SWITCHER
-    document.getElementById('btn-similar').addEventListener('click', function(e) {
+    document.getElementById('btn-similar').addEventListener('click', async function(e) {
         if (!selectedProvince || !loadedGeoJSON) {
             e.preventDefault(); alert("لطفاً ابتدا یک استان را از روی نقشه انتخاب کنید."); return;
+        }
+
+        try {
+            const [topicClusters, topicTrends] = await Promise.all([
+                fetchAtlasClusters(currentIndex),
+                fetchAtlasTopicTrends(currentIndex)
+            ]);
+            clustersData = topicClusters;
+            atlasTopicTrendCache[currentIndex] = topicTrends;
+        } catch (err) {
+            console.error('Error loading typology data', err);
+            alert("خطا در بارگذاری داده‌های گونه‌شناسی.");
+            return;
         }
 
         document.body.classList.add('immersive-mode');
@@ -997,7 +1061,7 @@ function renderGroupCharts(targetProvinces) {
         const mapDataRow = (mapScoresLookup[p.name] && mapScoresLookup[p.name][currentIndex]) ? mapScoresLookup[p.name][currentIndex] : null;
         let rank = mapDataRow ? mapDataRow.province_rank : "-";
         
-        let pTrends = trendScoreData.filter(tr => tr.province_name === p.name && tr.topic_name === currentIndex);
+        let pTrends = (atlasTopicTrendCache[currentIndex] || []).filter(tr => tr.province_name === p.name);
         pTrends.sort((a, b) => Number(a.year) - Number(b.year));
         
         let changeHtml = '<span style="color:#666;">-</span>';
@@ -1491,38 +1555,41 @@ function updateRightPanel(provinceName) {
         }
     });
 
-    let pTrends = trendScoreData.filter(tr => tr.province_name === provinceName && tr.topic_name === currentIndex);
-    pTrends.sort((a, b) => Number(a.year) - Number(b.year));
-
-    if (trendChartInstance) { trendChartInstance.destroy(); }
+    if (trendChartInstance) { trendChartInstance.destroy(); trendChartInstance = null; }
     const tCanvas = document.getElementById('trendChartPanel');
-
-    trendChartInstance = new Chart(tCanvas, {
-        type: 'line',
-        data: {
-            labels: pTrends.map(tr => tr.year),
-            datasets: [{
-                label: 'روند زمانی',
-                data: pTrends.map(tr => Number(tr.index_score)),
-                borderColor: '#e11d48',
-                backgroundColor: 'rgba(225, 29, 72, 0.1)',
-                borderWidth: 2, fill: true,
-                pointBackgroundColor: '#e11d48', pointRadius: 4, tension: 0.3
-            }]
-        },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            animation: false, 
-            plugins: { 
-                legend: { display: false }, 
-                title: { display: true, text: 'روند زمانی', font: { family: 'PeydaFaNumWeb' }, color: '#333' } 
+    const panelGen = ++trendPanelFetchGen;
+    fetchAtlasTrend(provinceName, currentIndex).then(series => {
+        if (panelGen !== trendPanelFetchGen) return;
+        if (selectedProvince !== provinceName || currentIndex === "") return;
+        const pTrends = (series || []).slice().sort((a, b) => Number(a.year) - Number(b.year));
+        if (trendChartInstance) { trendChartInstance.destroy(); }
+        trendChartInstance = new Chart(tCanvas, {
+            type: 'line',
+            data: {
+                labels: pTrends.map(tr => tr.year),
+                datasets: [{
+                    label: 'روند زمانی',
+                    data: pTrends.map(tr => Number(tr.index_score)),
+                    borderColor: '#e11d48',
+                    backgroundColor: 'rgba(225, 29, 72, 0.1)',
+                    borderWidth: 2, fill: true,
+                    pointBackgroundColor: '#e11d48', pointRadius: 4, tension: 0.3
+                }]
             },
-            scales: {
-                x: { ticks: { font: { size: 10 }, color: '#555' }, grid: { display: false } },
-                y: { min: 0, max: 100, ticks: { font: { size: 10 }, color: '#555', stepSize: 25 }, grid: { color: 'rgba(0,0,0,0.08)' } }
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                animation: false,
+                plugins: {
+                    legend: { display: false },
+                    title: { display: true, text: 'روند زمانی', font: { family: 'PeydaFaNumWeb' }, color: '#333' }
+                },
+                scales: {
+                    x: { ticks: { font: { size: 10 }, color: '#555' }, grid: { display: false } },
+                    y: { min: 0, max: 100, ticks: { font: { size: 10 }, color: '#555', stepSize: 25 }, grid: { color: 'rgba(0,0,0,0.08)' } }
+                }
             }
-        }
-    });
+        });
+    }).catch(err => console.error('Error loading atlas trend', err));
 }
 
 // Responsive resize handling: keep maps and charts sized correctly across displays

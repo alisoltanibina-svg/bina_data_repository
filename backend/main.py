@@ -5,7 +5,8 @@
 #   at startup (safe to run repeatedly).
 # Notes: Atlas map snapshots come from the latest year of trend_score per topic.
 #   Province population comes from province_pop (latest year per province).
-#   Public deploy: set CORS_ORIGINS (comma-separated) and optional THREAD_POOL_SIZE.
+#   Static files: HTML/JS/CSS, assets/, and data/*.geojson only — not the SQLite file,
+#   backend source, or git. Public deploy: CORS_ORIGINS and optional THREAD_POOL_SIZE.
 
 from __future__ import annotations
 
@@ -21,9 +22,8 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
 
 from backend.database import (
     NATIONAL_NAME,
@@ -67,28 +67,96 @@ _MEDIA_SUFFIXES = {
     ".ico",
     ".woff",
     ".woff2",
+    ".ttf",
     ".geojson",
 }
 _CODE_SUFFIXES = {".js", ".css"}
 _HTML_SUFFIXES = {".html", ""}
+_PUBLIC_ROOT_SUFFIXES = _HTML_SUFFIXES | _CODE_SUFFIXES
+_PUBLIC_ASSET_SUFFIXES = _MEDIA_SUFFIXES | _CODE_SUFFIXES
+_BLOCKED_SUFFIXES = {
+    ".db",
+    ".sqlite",
+    ".sqlite3",
+    ".py",
+    ".pyc",
+    ".pyo",
+    ".pyd",
+    ".bat",
+    ".md",
+    ".env",
+}
+_BLOCKED_DIR_PREFIXES = (
+    "backend/",
+    ".git/",
+    ".vscode/",
+    "__pycache__/",
+)
+_BLOCKED_NAMES = {
+    ".gitignore",
+    ".gitconfig",
+    ".env",
+    "uvicorn.bat",
+}
+
+
+def _normalized_static_path(path: str) -> str | None:
+    """Return a slash-normalized relative path, or None if it escapes the root."""
+    relative = (path or "").split("?", 1)[0].replace("\\", "/").lstrip("/")
+    parts: list[str] = []
+    for part in relative.split("/"):
+        if part in ("", "."):
+            continue
+        if part == "..":
+            return None
+        parts.append(part)
+    return "/".join(parts)
+
+
+def _static_is_public(path: str) -> bool:
+    """Pages, assets, and GeoJSON only. Database, source, and git stay private."""
+    relative = _normalized_static_path(path)
+    if relative is None:
+        return False
+    if not relative:
+        return True
+
+    lower = relative.lower()
+    name = Path(lower).name
+    suffix = Path(lower).suffix
+
+    if any(lower == prefix.rstrip("/") or lower.startswith(prefix) for prefix in _BLOCKED_DIR_PREFIXES):
+        return False
+    if name in _BLOCKED_NAMES or name.startswith("benchmark_"):
+        return False
+    if suffix in _BLOCKED_SUFFIXES:
+        return False
+    if ".db-" in lower or lower.endswith(("-wal", "-shm", "-journal")):
+        return False
+
+    if lower.startswith("data/"):
+        return suffix == ".geojson"
+    if lower.startswith("assets/"):
+        return suffix in _PUBLIC_ASSET_SUFFIXES
+    return "/" not in lower and suffix in _PUBLIC_ROOT_SUFFIXES
 
 
 def _static_cache_control(path: str) -> str:
-    relative = (path or "").split("?", 1)[0].rstrip("/").lower()
-    suffix = Path(relative).suffix if relative else ".html"
+    relative = _normalized_static_path(path) or ""
+    suffix = Path(relative).suffix.lower() if relative else ".html"
     if suffix in _HTML_SUFFIXES:
         return _HTML_CACHE_CONTROL
     if suffix in _CODE_SUFFIXES:
         return _CODE_CACHE_CONTROL
     if suffix in _MEDIA_SUFFIXES:
         return _MEDIA_CACHE_CONTROL
-    if suffix in {".db", ".py"}:
-        return "no-store"
     return _CODE_CACHE_CONTROL
 
 
 class CachedStaticFiles(StaticFiles):
     async def get_response(self, path: str, scope):
+        if not _static_is_public(path):
+            return Response(status_code=404, content="Not Found")
         response = await super().get_response(path, scope)
         if response.status_code in (200, 304):
             response.headers["Cache-Control"] = _static_cache_control(path)
@@ -198,6 +266,7 @@ def _round_field(rows: list[dict], field: str) -> None:
 
 
 def _compute_atlas() -> dict:
+    """Latest-year scores for map coloring, plus topics and population. History is on demand."""
     with db_connection() as conn:
         topics = fetchall_dicts(
             conn,
@@ -206,29 +275,106 @@ def _compute_atlas() -> dict:
         )
         trend_score = fetchall_dicts(
             conn,
-            "SELECT province_name, year, topic_name, index_score, province_rank "
-            "FROM trend_score ORDER BY rowid",
-        )
-        clusters = fetchall_dicts(
-            conn,
-            "SELECT province_name, topic_name, subtopic_name, cluster_group, subtopic_score "
-            "FROM clusters ORDER BY rowid",
+            "SELECT t.province_name, t.year, t.topic_name, t.index_score, t.province_rank "
+            "FROM trend_score t "
+            "INNER JOIN ("
+            "    SELECT topic_name, MAX(year) AS year FROM trend_score GROUP BY topic_name"
+            ") latest ON t.topic_name = latest.topic_name AND t.year = latest.year "
+            "WHERE t.province_name != ? "
+            "ORDER BY t.topic_name, t.province_name",
+            (NATIONAL_NAME,),
         )
         province_pop = fetch_latest_province_pop(conn)
     _round_field(trend_score, "index_score")
-    _round_field(clusters, "subtopic_score")
     return {
         "topics": topics,
         "trend_score": trend_score,
-        "clusters": clusters,
         "province_pop": province_pop,
     }
 
 
 @app.get("/api/init-atlas")
 def get_atlas_data(request: Request):
-    """Provides the initial payload required by index.html"""
+    """Atlas bootstrap: topics, latest map scores, latest population."""
     return _cached_json("init-atlas", _compute_atlas, request)
+
+
+def _compute_atlas_trend(province: str, topic: str) -> dict:
+    provinces = get_cache().get("trend-provinces", _compute_trend_provinces)
+    topic_canon = resolve_catalog_name(topic, _topic_names()) or (topic or "").strip()
+    prov_canon = resolve_catalog_name(province, provinces) or (province or "").strip()
+    if not topic_canon or not prov_canon:
+        return {"province_name": prov_canon, "topic_name": topic_canon, "series": []}
+    with db_connection() as conn:
+        series = fetchall_dicts(
+            conn,
+            "SELECT year, index_score FROM trend_score "
+            "WHERE province_name = ? AND topic_name = ? ORDER BY year",
+            (prov_canon, topic_canon),
+        )
+    _round_field(series, "index_score")
+    return {"province_name": prov_canon, "topic_name": topic_canon, "series": series}
+
+
+@app.get("/api/atlas/trend")
+def get_atlas_trend(province: str, topic: str, request: Request):
+    """Full year series for one province and topic (right-panel trend chart)."""
+    return _cached_json(
+        f"atlas-trend::{_name_key(province, topic)}",
+        lambda: _compute_atlas_trend(province, topic),
+        request,
+    )
+
+
+def _compute_atlas_clusters(topic: str) -> dict:
+    topic_canon = resolve_catalog_name(topic, _topic_names()) or (topic or "").strip()
+    if not topic_canon:
+        return {"topic_name": topic_canon, "clusters": []}
+    with db_connection() as conn:
+        clusters = fetchall_dicts(
+            conn,
+            "SELECT province_name, topic_name, subtopic_name, cluster_group, subtopic_score "
+            "FROM clusters WHERE topic_name = ? ORDER BY province_name, subtopic_name",
+            (topic_canon,),
+        )
+    _round_field(clusters, "subtopic_score")
+    return {"topic_name": topic_canon, "clusters": clusters}
+
+
+@app.get("/api/atlas/clusters")
+def get_atlas_clusters(topic: str, request: Request):
+    """Cluster rows for گونه‌شناسی (one topic)."""
+    return _cached_json(
+        f"atlas-clusters::{_name_key(topic)}",
+        lambda: _compute_atlas_clusters(topic),
+        request,
+    )
+
+
+def _compute_atlas_topic_trends(topic: str) -> dict:
+    topic_canon = resolve_catalog_name(topic, _topic_names()) or (topic or "").strip()
+    if not topic_canon:
+        return {"topic_name": topic_canon, "trends": []}
+    with db_connection() as conn:
+        trends = fetchall_dicts(
+            conn,
+            "SELECT province_name, year, index_score FROM trend_score "
+            "WHERE topic_name = ? AND province_name != ? "
+            "ORDER BY province_name, year",
+            (topic_canon, NATIONAL_NAME),
+        )
+    _round_field(trends, "index_score")
+    return {"topic_name": topic_canon, "trends": trends}
+
+
+@app.get("/api/atlas/topic-trends")
+def get_atlas_topic_trends(topic: str, request: Request):
+    """All-province time series for one topic (گونه‌شناسی trend cards)."""
+    return _cached_json(
+        f"atlas-topic-trends::{_name_key(topic)}",
+        lambda: _compute_atlas_topic_trends(topic),
+        request,
+    )
 
 
 def _compute_explorer_init() -> dict:
@@ -734,32 +880,6 @@ def get_curtain_race():
         media_type=JSON_MEDIA,
         headers={"Cache-Control": "no-store", "Vary": "Accept-Encoding"},
     )
-
-
-class LoginRequest(BaseModel):
-    phone: str
-    # captcha: str (Reserved for future CAPTCHA implementation)
-
-
-@app.post("/api/auth/login")
-def verify_user_login(request: LoginRequest):
-    """Phone login. Unused by the UI for now; kept for a later explorer gate."""
-    with db_connection() as conn:
-        user = conn.execute(
-            "SELECT id, phone FROM users WHERE phone = ?",
-            (request.phone.strip(),),
-        ).fetchone()
-
-    if user:
-        return JSONResponse(
-            content={
-                "status": "success",
-                "token": "auth_token_simulated_string",
-                "redirect_url": "index.html",
-            },
-            headers={"Cache-Control": "no-store"},
-        )
-    raise HTTPException(status_code=401, detail="شماره تلفن ثبت نشده است")
 
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent

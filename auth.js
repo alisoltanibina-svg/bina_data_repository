@@ -4,7 +4,6 @@
 
 (function initUserLogoutMenu() {
     function logout() {
-        sessionStorage.removeItem('dashboard_auth_token');
         sessionStorage.removeItem('atlasSelectedTopic');
         sessionStorage.removeItem('atlasSelectedProvince');
         sessionStorage.removeItem('welcomeShown');

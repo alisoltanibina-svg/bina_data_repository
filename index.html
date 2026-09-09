@@ -16,12 +16,12 @@
     <!-- Peyda (Farsi numerals) -->
     <link rel="stylesheet" href="assets/fonts/peyda.css">
     <!-- Page CSS -->
+    <link rel="stylesheet" href="global.css?v=banner1">
     <link rel="stylesheet" href="index.css?v=peyda">
-    <link rel="stylesheet" href="global.css?v=peyda">
     <!-- Page Javascript -->
     <script src="force-motion.js"></script>
     <script src="config.js"></script>
-    <script src="index.js" defer></script>
+    <script src="index.js?v=atlas1" defer></script>
     <script src="auth.js" defer></script>
 
     <script>
@@ -44,64 +44,8 @@
 <body>
 
     <!-- Header Banner -->
-    <div id="top-banner">
-        <div class="banner-right">
-            <!-- Requirement 2: Replace circular system title with Logo image -->
-            <div class="institution" aria-hidden="false">
-                <img id="logo-img" src="assets/images/Logo.webp" alt="مرکز رصد بینا" style="height: 44px; width: auto; object-fit: contain; cursor: pointer;">
-            </div>
-
-            <div class="banner-divider" aria-hidden="true"></div>
-
-            <div class="project-texts">
-                <div class="project-main">دیده‌بان فرهنگ</div>
-                <div class="project-sub">سامانه راهبری زیست‌بوم فرهنگی تبلیغی ایران</div>
-
-                <!-- Top navigation icons hung from the top edge -->
-                <div class="top-nav" role="navigation" aria-label="Top navigation">
-                    <a href="index.html#atlas" id="btn-atlas" class="banner-btn hang-btn" aria-label="اطلس"><span class="btn-label">اطلس</span></a>
-                    <a href="explorer.html?source=atlas" id="btn-explorer" class="banner-btn hang-btn"><span class="btn-label">کاوشگر</span></a>
-                    <button id="btn-problem" class="banner-btn hang-btn"><span class="btn-label">نمایه</span></button>
-                    <button id="btn-similar" class="banner-btn hang-btn"><span class="btn-label">گونه‌شناسی</span></button>
-                </div>
-            </div>
-        </div>
-
-        <div class="banner-left">
-            <!-- Requirement 4: Swap user profile order and add person icon -->
-            <div class="user-box" style="flex-direction: row-reverse;">
-                <div class="user-menu">
-                    <button type="button" class="user-circle" id="user-menu-btn" aria-haspopup="true" aria-expanded="false" aria-controls="user-menu-dropdown" title="حساب کاربری">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#fff;">
-                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                            <circle cx="12" cy="7" r="4"></circle>
-                        </svg>
-                    </button>
-                    <div class="user-menu-dropdown" id="user-menu-dropdown" hidden>
-                        <button type="button" class="user-exit-btn" id="btn-logout">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                                <polyline points="16 17 21 12 16 7"></polyline>
-                                <line x1="21" y1="12" x2="9" y2="12"></line>
-                            </svg>
-                            <span>خروج</span>
-                        </button>
-                    </div>
-                </div>
-                <div class="user-texts" style="text-align: left;">
-                    <div class="user-name">علی سلطانی</div>
-                    <div class="user-role">پژوهشگر</div>
-                </div>
-            </div>
-
-            <script>
-                // Instantly apply visibility before paint if routing directly to Atlas
-                if (window.location.hash === '#atlas') {
-                    document.getElementById('btn-explorer').href = "explorer.html?source=atlas";
-                }
-            </script>
-        </div>
-    </div>
+    <div id="top-banner" data-page="index"></div>
+    <script src="banner.js"></script>
 
     <!-- Entry / Welcome Curtain View -->
     <div id="entry-view-curtain" class="entry-curtain">
@@ -161,7 +105,7 @@
                         <p class="entry-kicker">انتشار جدید</p>
                         <h3 class="entry-section-title">گزارش سالانه نبض ایران؛ ۱۴۰۵</h3>
                         <p class="entry-section-text">نسخهٔ سالانهٔ رصد زیست‌بوم فرهنگی‌اجتماعی ایران. </p>
-                        <a class="entry-cta" id="btn-yearly-report" href="#" download>دریافت گزارش</a>
+                        <button type="button" class="entry-cta" id="btn-yearly-report" disabled>دریافت گزارش</button>
                     </div>
                 </div>
             </section>
