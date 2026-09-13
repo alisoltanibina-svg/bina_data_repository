@@ -47,6 +47,7 @@ let chartObj = null;
 let themeUpper = '#2563eb';
 let themeLower = '#e2e8f0';
 let uniqueProvinces = [];
+let loadSeq = 0;
 
 // Lightweight lookup: latest value per province+indicator for fast access
 let latestByProvInd = {}; // { province: { indicator: { year, value } } }
@@ -99,7 +100,7 @@ async function fillSubtopicSelect() {
         select.onchange = () => {
             const sub = select.value;
             if (!sub || sub === urlSubtopic) return;
-            window.location.href = `bubble-chart.html?topic=${encodeURIComponent(urlTopic)}&subtopic=${encodeURIComponent(sub)}&source=${encodeURIComponent(urlSource)}`;
+            loadBubbleData(sub, { pushUrl: true });
         };
     } catch (err) {
         console.error('Error loading subtopics', err);
@@ -153,47 +154,88 @@ async function init() {
     if (backLink) backLink.href = explorerHref;
     if (explorerBtn) explorerBtn.href = explorerHref;
 
-    try {
-        const response = await fetch(`${API_BASE_URL}/api/bubble/init?topic=${encodeURIComponent(urlTopic)}&subtopic=${encodeURIComponent(urlSubtopic)}`);
-        const data = await response.json();
-        
-        if(data.colors) {
-            if(data.colors.upper_color) themeUpper = data.colors.upper_color;
-            if(data.colors.lower_color) themeLower = data.colors.lower_color;
-            const bannerHex = data.colors.master_color || data.colors.upper_color || themeUpper;
-            document.documentElement.style.setProperty('--banner-bg', bannerHex);
-            document.documentElement.style.setProperty('--topic-accent', bannerHex);
-            try {
-                sessionStorage.setItem('themeBannerBg', bannerHex);
-                sessionStorage.setItem('themeTopicAccent', bannerHex);
-            } catch (e) {}
-        }
-        
-        document.getElementById('plot-wrapper').style.backgroundColor = brightenColor(themeLower, 0.3); 
+    await loadBubbleData(urlSubtopic, { replaceUrl: true });
+}
 
-        rawData = data.scores;
-        
-        if(rawData.length === 0) {
+function applyBubbleTheme(colors) {
+    if (!colors) return;
+    if (colors.upper_color) themeUpper = colors.upper_color;
+    if (colors.lower_color) themeLower = colors.lower_color;
+    const bannerHex = colors.master_color || colors.upper_color || themeUpper;
+    document.documentElement.style.setProperty('--banner-bg', bannerHex);
+    document.documentElement.style.setProperty('--topic-accent', bannerHex);
+    try {
+        sessionStorage.setItem('themeBannerBg', bannerHex);
+        sessionStorage.setItem('themeTopicAccent', bannerHex);
+    } catch (e) {}
+}
+
+function syncBubbleUrl(replace) {
+    const next = new URL(window.location.href);
+    if (urlTopic) next.searchParams.set('topic', urlTopic);
+    if (urlSubtopic) next.searchParams.set('subtopic', urlSubtopic);
+    if (urlSource) next.searchParams.set('source', urlSource);
+    const state = { topic: urlTopic, subtopic: urlSubtopic };
+    if (replace) history.replaceState(state, '', next);
+    else history.pushState(state, '', next);
+}
+
+function refreshOrDrawChart() {
+    if (!chartObj) {
+        drawChart();
+        return;
+    }
+    chartObj.data.datasets[0].data = getChartData();
+    chartObj.data.datasets[0].backgroundColor = themeUpper + 'D9';
+    chartObj.data.datasets[0].borderColor = themeUpper;
+    if (chartObj.options.scales && chartObj.options.scales.x) {
+        chartObj.options.scales.x.max = uniqueProvinces.length;
+    }
+    chartObj.update();
+}
+
+async function loadBubbleData(subtopic, opts) {
+    opts = opts || {};
+    const sub = subtopic || urlSubtopic;
+    if (!urlTopic || !sub) return;
+    const seq = ++loadSeq;
+    const prevSub = urlSubtopic;
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/bubble/init?topic=${encodeURIComponent(urlTopic)}&subtopic=${encodeURIComponent(sub)}`);
+        if (seq !== loadSeq) return;
+        if (!response.ok) throw new Error('bubble api ' + response.status);
+        const data = await response.json();
+        if (seq !== loadSeq) return;
+
+        applyBubbleTheme(data.colors);
+        rawData = Array.isArray(data.scores) ? data.scores : [];
+        if (rawData.length === 0) {
             alert("داده‌ای برای این زیرحوزه یافت نشد.");
+            const select = document.getElementById('subtopic-select');
+            if (select) select.value = prevSub || '';
             return;
         }
 
-        // Precompute latest values so score calculation is fast in UI
+        urlSubtopic = sub;
+        if (opts.pushUrl) syncBubbleUrl(false);
+        else if (opts.replaceUrl) syncBubbleUrl(true);
+
+        const select = document.getElementById('subtopic-select');
+        if (select && select.value !== urlSubtopic) select.value = urlSubtopic;
+
         buildLatestLookup();
-
-        uniqueProvinces = data.provinces.sort();
-        indicators = data.indicators;
-
-        indicators.forEach(ind => {
-            indicatorWeights[ind] = 0; 
-        });
-
+        uniqueProvinces = (data.provinces || []).slice().sort();
+        indicators = data.indicators || [];
+        indicatorWeights = {};
+        indicators.forEach(ind => { indicatorWeights[ind] = 0; });
         buildSliders();
-        drawChart();
-
+        refreshOrDrawChart();
     } catch (err) {
+        if (seq !== loadSeq) return;
         console.error("Error Loading API Data:", err);
         alert("مشکل در ارتباط با سرور بک‌اند.");
+        const select = document.getElementById('subtopic-select');
+        if (select && prevSub) select.value = prevSub;
     }
 }
 
@@ -202,23 +244,17 @@ function buildSliders() {
     container.innerHTML = '';
     indicators.forEach(ind => {
         const div = document.createElement('div');
-        div.className = "flex flex-col";
-        div.innerHTML = `
-            <div class="flex justify-between items-center mb-2">
-                <span class="text-sm font-bold text-gray-700 truncate max-w-[200px]" title="${ind}">${ind}</span>
-                <span class="text-xs font-mono bg-white border border-gray-200 px-2 py-1 rounded w-10 text-center" id="val-${ind}">${indicatorWeights[ind]}</span>
-            </div>
-            <div class="relative w-full" dir="ltr">
-                <div class="absolute left-1/2 top-[14px] bottom-0 w-px h-2 bg-gray-400 -translate-x-1/2 z-0"></div>
-                <input type="range" class="slider-control relative z-10" min="-1" max="1" step="0.1" value="${indicatorWeights[ind]}" 
-                        oninput="updateWeight('${ind}', this.value)">
-                <div class="flex justify-between text-[11px] text-gray-400 mt-1 px-1 font-mono font-bold">
-                    <span>-1</span>
-                    <span>0</span>
-                    <span>1</span>
-                </div>
-            </div>
-        `;
+        div.className = 'bb-slider';
+        const safeId = 'val-' + ind;
+        div.innerHTML =
+            '<div class="bb-slider-head">' +
+                '<span class="bb-slider-name" title="' + ind.replace(/"/g, '&quot;') + '">' + ind + '</span>' +
+                '<span class="bb-slider-val" id="' + safeId + '">' + indicatorWeights[ind] + '</span>' +
+            '</div>' +
+            '<div class="bb-slider-track">' +
+                '<input type="range" class="slider-control" min="-1" max="1" step="0.1" value="' + indicatorWeights[ind] + '" oninput="updateWeight(\'' + ind.replace(/'/g, "\\'") + '\', this.value)">' +
+                '<div class="bb-slider-scale"><span>۱−</span><span>۰</span><span>۱+</span></div>' +
+            '</div>';
         container.appendChild(div);
     });
 }
@@ -297,7 +333,7 @@ function drawChart() {
                     align: 'center',
                     anchor: 'center',
                     textAlign: 'center',
-                    font: { family: 'PeydaFaNumWeb', size: 9, weight: 'bold' },
+                    font: { family: 'PeydaFaNumWeb', size: 9, weight: '600' },
                     formatter: (value) => {
                         let name = value.provName || '';
                         return name.includes(' ') ? name.split(' ') : name;
@@ -311,7 +347,7 @@ function drawChart() {
                 },
                 y: {
                     grid: { color: 'rgba(0,0,0,0.1)' },
-                    title: { display: true, text: 'امتیاز زیرحوزه (محاسبه شده)', font: { size: 14, family: 'PeydaFaNumWeb' } }
+                    title: { display: true, text: 'امتیاز زیرحوزه (محاسبه شده)', font: { size: 13, family: 'PeydaFaNumWeb', weight: '600' }, color: '#5c6570' }
                 }
             }
         }
@@ -338,5 +374,14 @@ const onResize = debounceLocal(() => {
     if (chartObj && typeof chartObj.resize === 'function') chartObj.resize();
 }, 150);
 window.addEventListener('resize', onResize);
+
+window.addEventListener('popstate', (event) => {
+    const params = new URLSearchParams(window.location.search);
+    const sub = (event.state && event.state.subtopic) || params.get('subtopic');
+    if (!sub || sub === urlSubtopic) return;
+    const select = document.getElementById('subtopic-select');
+    if (select) select.value = sub;
+    loadBubbleData(sub);
+});
 
 window.onload = init;

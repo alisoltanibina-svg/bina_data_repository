@@ -1,0 +1,776 @@
+/*
+  treat-v1.css
+  Reversible visual treatment for index.html (curtain + atlas).
+  Source of shape/density language: revayat. Peyda stays. Places and colors stay.
+
+  Restore:
+    1. Remove class "treat-v1" from <html> in index.html
+    2. Remove the <link> to this file
+  Original copies: _restore/index-before-treat/
+*/
+
+html.treat-v1 {
+    --treat-radius-room: 14px;
+    --treat-radius-pill: 999px;
+    --treat-line: rgba(27, 36, 46, 0.12);
+    --treat-line-on-color: rgba(255, 255, 255, 0.22);
+    --treat-shadow: 0 10px 24px rgba(27, 36, 46, 0.08);
+    --treat-ease: cubic-bezier(0.22, 1, 0.36, 1);
+    --treat-pearl: 7px;
+    --treat-strip: 118px;
+    --treat-legend-bar: 9px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Atmosphere: vertical light-lines + grain instead of the 3D grid     */
+/* ------------------------------------------------------------------ */
+
+html.treat-v1 .perspective-grid-plane {
+    opacity: 0;
+    pointer-events: none;
+}
+
+html.treat-v1 .perspective-grid {
+    background-image:
+        repeating-linear-gradient(
+            90deg,
+            transparent 0 68px,
+            rgba(255, 255, 255, 0.10) 68px 69.6px,
+            transparent 69.6px 124px,
+            rgba(255, 255, 255, 0.06) 124px 125px,
+            transparent 125px 198px,
+            rgba(255, 255, 255, 0.14) 198px 202.4px,
+            transparent 202.4px 268px,
+            rgba(255, 255, 255, 0.07) 268px 269.8px,
+            transparent 269.8px 340px
+        );
+}
+
+html.treat-v1 .perspective-grid::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    opacity: 0.14;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 220px 220px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Type: Peyda kept, revayat weights and air                           */
+/* ------------------------------------------------------------------ */
+
+html.treat-v1 .entry-main-title {
+    font-weight: 600;
+    line-height: 2;
+}
+
+html.treat-v1 .entry-kicker {
+    font-weight: 600;
+    letter-spacing: 0;
+    margin-bottom: 16px;
+    font-size: 0.95rem;
+}
+
+html.treat-v1 .entry-section-title,
+html.treat-v1 #section-race .entry-section-title {
+    font-weight: 600;
+    line-height: 2;
+}
+
+html.treat-v1 .entry-section-text {
+    font-weight: 400;
+    line-height: 2.05;
+}
+
+html.treat-v1 .entry-suggestions li strong,
+html.treat-v1 .entry-footnote-title,
+html.treat-v1 .entry-contact-org,
+html.treat-v1 .project-main,
+html.treat-v1 .user-name,
+html.treat-v1 .race-year-label,
+html.treat-v1 .race-year-num,
+html.treat-v1 .race-val,
+html.treat-v1 .legend-title,
+html.treat-v1 .index-item .index-item-text,
+html.treat-v1 .map-dock-btn,
+html.treat-v1 .panel-title {
+    font-weight: 600;
+}
+
+html.treat-v1 .race-name,
+html.treat-v1 .legend-labels,
+html.treat-v1 .entry-contact p,
+html.treat-v1 .entry-contact a {
+    font-weight: 400;
+}
+
+html.treat-v1 .race-year-label {
+    letter-spacing: 0;
+    opacity: 0.72;
+}
+
+html.treat-v1 .entry-section-text code {
+    border-radius: 8px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Motion                                                             */
+/* ------------------------------------------------------------------ */
+
+html.treat-v1 .entry-reveal {
+    transform: translate3d(0, 14px, 0);
+    transition: opacity 1.15s var(--treat-ease), transform 1.15s var(--treat-ease);
+}
+
+html.treat-v1 .entry-reveal.is-leave {
+    transform: translate3d(0, -8px, 0);
+}
+
+html.treat-v1 .entry-scroll-cue i {
+    width: 10px;
+    height: 10px;
+    border-right-width: 1.5px;
+    border-bottom-width: 1.5px;
+}
+
+html.treat-v1 .search-icon {
+    stroke-width: 1.7;
+}
+
+/* ------------------------------------------------------------------ */
+/* Curtain boxes: rooms (14px) and instruments (pills)                 */
+/* ------------------------------------------------------------------ */
+
+html.treat-v1 .entry-search-box {
+    border-width: 1px;
+    border-radius: var(--treat-radius-room);
+    padding: 8px 18px;
+    box-shadow: var(--treat-shadow);
+}
+
+html.treat-v1 .entry-search-box input {
+    padding: 12px 0 14px;
+}
+
+html.treat-v1 .entry-suggestions {
+    border-radius: var(--treat-radius-room);
+    border: 1px solid var(--treat-line);
+    box-shadow: var(--treat-shadow);
+    margin-top: 10px;
+}
+
+html.treat-v1 .entry-suggestions li {
+    padding: 14px 20px;
+    border-bottom-color: var(--treat-line);
+}
+
+html.treat-v1 .entry-suggestions li:hover {
+    background: rgba(27, 36, 46, 0.04);
+}
+
+html.treat-v1 .entry-cta {
+    border-radius: var(--treat-radius-pill);
+    font-weight: 600;
+    min-height: 42px;
+    padding: 8px 20px 10px;
+    border: 1px solid var(--treat-line);
+    box-shadow: var(--treat-shadow);
+}
+
+html.treat-v1 .entry-cta:hover {
+    filter: none;
+    transform: translateY(-3px);
+}
+
+html.treat-v1 .entry-report-cover img,
+html.treat-v1 .entry-preview img {
+    border-radius: var(--treat-radius-room);
+    box-shadow: var(--treat-shadow);
+    outline: 1px solid var(--treat-line-on-color);
+    outline-offset: -1px;
+}
+
+html.treat-v1 .entry-social a {
+    background: rgba(255, 255, 255, 0.14);
+    border: 1px solid var(--treat-line-on-color);
+}
+
+html.treat-v1 .entry-start-btn {
+    border-radius: var(--treat-radius-pill);
+    font-weight: 600;
+    box-shadow: var(--treat-shadow);
+}
+
+/* Race: 3px tracks + pearl knobs */
+html.treat-v1 .race-track,
+html.treat-v1 .race-grow,
+html.treat-v1 .race-bar {
+    overflow: visible;
+}
+
+html.treat-v1 .race-row {
+    gap: 12px;
+}
+
+html.treat-v1 .race-bar {
+    position: relative;
+    height: 3px;
+    min-height: 3px;
+    max-height: 3px;
+    border-radius: var(--treat-radius-pill);
+    box-shadow: none;
+}
+
+html.treat-v1 .race-grow {
+    gap: 12px;
+}
+
+html.treat-v1 .race-bar::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: inherit;
+    transform: translate(50%, -50%);
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.28);
+    pointer-events: none;
+}
+
+html.treat-v1 .race-val {
+    margin-inline-start: 10px;
+}
+
+html.treat-v1 .race-head {
+    margin-bottom: 22px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Banner + hanging nav (index page only)                              */
+/* ------------------------------------------------------------------ */
+
+html.treat-v1.atlas-view #top-banner {
+    border-radius: var(--treat-radius-room);
+}
+
+html.treat-v1.atlas-view #top-banner::before {
+    box-shadow: var(--treat-shadow);
+}
+
+html.treat-v1 #top-banner .project-main {
+    font-weight: 600;
+}
+
+html.treat-v1 #top-banner .top-nav {
+    gap: 16px;
+}
+
+html.treat-v1 #top-banner .banner-btn {
+    height: 38px;
+    color: #333333;
+    background-color: #ffffff;
+    border: 1px solid var(--treat-line);
+    border-bottom: 1px solid var(--treat-line);
+    border-radius: var(--treat-radius-pill);
+    font-weight: 600;
+    box-shadow: var(--treat-shadow);
+    overflow: visible;
+    padding: 0 16px 1px;
+}
+
+html.treat-v1 #top-banner .banner-btn .btn-label {
+    font-weight: 600;
+}
+
+html.treat-v1 #top-banner .hang-btn {
+    width: auto;
+    min-width: 4.6rem;
+    height: 38px;
+    padding: 6px 16px 7px;
+    border-radius: var(--treat-radius-pill);
+    box-shadow: var(--treat-shadow);
+}
+
+html.treat-v1 #top-banner .banner-btn:hover {
+    transform: translateY(-3px);
+    background-color: #ffffff;
+    box-shadow: var(--treat-shadow);
+}
+
+html.treat-v1 #top-banner .banner-btn.is-current,
+html.treat-v1 #top-banner .hang-btn.is-current {
+    background-color: var(--topic-accent, #0078d7);
+    color: #ffffff;
+    border-color: transparent;
+    border-bottom-color: transparent;
+    box-shadow: var(--treat-shadow);
+    transform: none;
+}
+
+html.treat-v1 #top-banner .banner-btn.is-current:hover,
+html.treat-v1 #top-banner .hang-btn.is-current:hover {
+    background-color: var(--topic-accent, #0078d7);
+    color: #ffffff;
+    transform: translateY(-3px);
+}
+
+html.treat-v1 #top-banner .user-menu-dropdown {
+    border-radius: var(--treat-radius-room);
+    border: 1px solid var(--treat-line);
+    box-shadow: var(--treat-shadow);
+}
+
+html.treat-v1 #top-banner .user-exit-btn {
+    font-weight: 600;
+    border-radius: var(--treat-radius-pill);
+}
+
+/* ------------------------------------------------------------------ */
+/* Atlas rooms: cards, panels, legend, tiles                           */
+/* ------------------------------------------------------------------ */
+
+html.treat-v1 .right-card {
+    border: 1px solid var(--treat-line);
+    border-left: 1px solid var(--treat-line);
+    border-radius: var(--treat-radius-room);
+    box-shadow: var(--treat-shadow);
+    background-color: rgba(255, 255, 255, 0.88);
+    background-image: radial-gradient(circle at 18px 18px, var(--topic-accent, #0078d7) 3.5px, transparent 4px);
+    backdrop-filter: blur(10px);
+    padding: 22px 20px 20px 28px;
+    position: relative;
+    overflow: visible;
+}
+
+html.treat-v1 .right-card::before {
+    content: none;
+}
+
+html.treat-v1 .right-card-top {
+    flex: 0 1 auto;
+    min-height: 0;
+    max-height: 42%;
+    overflow: hidden;
+}
+
+html.treat-v1 .right-card-bottom {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow: hidden;
+    margin-bottom: 0;
+    padding: 16px 18px 12px 24px;
+    border-radius: var(--treat-radius-room);
+    background-clip: padding-box;
+    transform: translateZ(0);
+    isolation: isolate;
+}
+
+html.treat-v1 #right-panel,
+html.treat-v1 #right-panel.show-panel {
+    gap: 8px;
+    bottom: calc(var(--treat-strip) + env(safe-area-inset-bottom, 0px));
+    min-height: 0;
+    overflow: hidden;
+}
+
+html.treat-v1 #bottom-prov-header {
+    width: 100%;
+}
+
+html.treat-v1 #bottom-prov-header {
+    flex-shrink: 0;
+}
+
+html.treat-v1 #bottom-prov-header > div {
+    border-bottom: 1px solid var(--treat-line) !important;
+    padding-bottom: 8px !important;
+    margin-bottom: 8px !important;
+}
+
+html.treat-v1 #bottom-prov-header h3 {
+    font-weight: 600 !important;
+}
+
+html.treat-v1 #bottom-prov-header > div > div {
+    border-radius: var(--treat-radius-pill) !important;
+    box-shadow: none !important;
+    font-weight: 600 !important;
+    border: 1px solid var(--treat-line) !important;
+    background: rgba(255, 255, 255, 0.64) !important;
+    padding: 4px 12px 5px !important;
+}
+
+html.treat-v1 #chart-wrapper,
+html.treat-v1 #trend-wrapper {
+    border-radius: 8px;
+    width: 100%;
+    min-height: 0;
+    margin-bottom: 4px !important;
+}
+
+html.treat-v1 #chart-wrapper {
+    height: auto !important;
+    flex: 1.15 1 0;
+    min-height: 0;
+}
+
+html.treat-v1 #trend-wrapper {
+    height: auto !important;
+    flex: 0.85 1 0;
+    min-height: 0;
+    margin-bottom: 0 !important;
+}
+
+html.treat-v1 .index-description-text {
+    border-radius: var(--treat-radius-room);
+    border: 1px solid var(--treat-line);
+    background: rgba(255, 255, 255, 0.64);
+    padding: 14px 16px;
+}
+
+html.treat-v1 #left-popup-panel {
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(10px);
+    border-radius: var(--treat-radius-room);
+    border: 1px solid var(--treat-line);
+    border-right: 1px solid var(--treat-line);
+    box-shadow: var(--treat-shadow);
+    padding: 20px 16px;
+    position: absolute;
+}
+
+html.treat-v1 #left-popup-panel::before {
+    content: "";
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: var(--treat-pearl);
+    height: var(--treat-pearl);
+    border-radius: 50%;
+    background: var(--topic-accent, #0078d7);
+}
+
+html.treat-v1 #left-popup-panel h3 {
+    font-weight: 600;
+}
+
+html.treat-v1 .floating-box {
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(10px);
+    border-radius: var(--treat-radius-room);
+    box-shadow: var(--treat-shadow);
+    border: 1px solid var(--treat-line);
+    padding: 18px 18px 16px;
+}
+
+html.treat-v1 #floating-group-container {
+    gap: 16px;
+}
+
+html.treat-v1 .chart-switcher {
+    background: transparent;
+    border: 1px solid var(--treat-line);
+    border-radius: var(--treat-radius-pill);
+    padding: 3px;
+}
+
+html.treat-v1 .switcher-btn {
+    border-radius: var(--treat-radius-pill);
+    font-weight: 600;
+    box-shadow: none;
+}
+
+html.treat-v1 .switcher-btn.active {
+    box-shadow: none;
+}
+
+html.treat-v1 .prov-card {
+    border-radius: var(--treat-radius-room);
+    border: 1px solid var(--treat-line);
+    background: rgba(255, 255, 255, 0.7);
+    padding: 14px 16px;
+}
+
+html.treat-v1 .prov-card-title {
+    font-weight: 600;
+}
+
+html.treat-v1 #btn-exit-focus {
+    border-radius: var(--treat-radius-pill) !important;
+    font-weight: 600 !important;
+    box-shadow: var(--treat-shadow) !important;
+    padding: 6px 16px 8px !important;
+}
+
+html.treat-v1 .topic-marker-dot {
+    width: var(--treat-pearl);
+    height: var(--treat-pearl);
+    border-width: 1.5px;
+    box-shadow: none;
+}
+
+html.treat-v1 .topic-marker-content {
+    border-radius: var(--treat-radius-pill);
+    border: 1px solid var(--treat-line);
+    box-shadow: var(--treat-shadow);
+    padding: 4px 8px;
+}
+
+html.treat-v1 .topic-marker-content span {
+    font-weight: 600;
+}
+
+html.treat-v1 .topic-marker-content::after {
+    border-radius: var(--treat-radius-room);
+    box-shadow: var(--treat-shadow);
+}
+
+html.treat-v1 .y-tick span {
+    font-weight: 600;
+}
+
+html.treat-v1 .leaflet-tooltip.custom-tooltip {
+    border-radius: var(--treat-radius-room);
+    border: 1px solid var(--treat-line);
+    box-shadow: var(--treat-shadow);
+}
+
+html.treat-v1 path.leaflet-interactive {
+    stroke-linejoin: round;
+}
+
+html.treat-v1 body.immersive-mode path.detached-province {
+    filter: drop-shadow(0 10px 24px rgba(27, 36, 46, 0.18)) !important;
+    stroke-width: 1.6px !important;
+}
+
+/* Legend: 9px pill track (3× the 3px treat track) */
+html.treat-v1 .legend-scale-bar {
+    height: var(--treat-legend-bar);
+    border: 0;
+    overflow: visible;
+    border-radius: var(--treat-radius-pill);
+}
+
+html.treat-v1 #score-pointer + .legend-segment {
+    border-radius: 99px 0 0 99px;
+}
+
+html.treat-v1 .legend-segment:last-child {
+    border-radius: 0 99px 99px 0;
+}
+
+html.treat-v1 .legend-labels {
+    margin-top: 10px;
+    font-weight: 600;
+}
+
+html.treat-v1 #score-pointer {
+    width: 22px;
+    height: 22px;
+    border: 1.5px solid #222;
+    box-shadow: var(--treat-shadow);
+}
+
+html.treat-v1 #pointer-label {
+    font-weight: 600;
+    font-size: 10px;
+}
+
+html.treat-v1 #map-legend {
+    padding: 8px 15px 12px;
+}
+
+/* Topic strip: floating 14px rooms, pearl instead of thick top bar */
+html.treat-v1 #bottom-panel {
+    padding: 0 15px 10px;
+    align-items: flex-end;
+}
+
+html.treat-v1 .index-list {
+    gap: 16px;
+    align-items: flex-end;
+}
+
+html.treat-v1 .index-item {
+    width: 108px;
+    height: 108px;
+    border-radius: var(--treat-radius-room);
+    border: 1px solid var(--treat-line);
+    border-bottom: 1px solid var(--treat-line);
+    box-shadow: var(--treat-shadow);
+    padding: 16px 12px 14px;
+    gap: 10px;
+    margin-bottom: 0;
+}
+
+html.treat-v1 .index-item .index-item-img {
+    border-radius: 8px;
+}
+
+html.treat-v1 .index-item:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--treat-shadow);
+}
+
+html.treat-v1 .index-item.active {
+    height: 88%;
+    border: 1px solid var(--treat-line);
+    border-top: 1px solid var(--treat-line);
+    transform: translateY(-3px);
+    box-shadow: var(--treat-shadow);
+}
+
+html.treat-v1 .index-item.active::before {
+    content: "";
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    width: var(--treat-pearl);
+    height: var(--treat-pearl);
+    border-radius: 50%;
+    background: var(--topic-accent, #0078d7);
+    transform: translateX(-50%);
+}
+
+html.treat-v1 #map-panel-dock {
+    border-radius: var(--treat-radius-room);
+    border: 1px solid var(--treat-line);
+    box-shadow: var(--treat-shadow);
+    background: rgba(255, 255, 255, 0.92);
+    gap: 6px;
+    padding: 4px;
+}
+
+html.treat-v1 .map-dock-btn {
+    border-radius: var(--treat-radius-pill);
+    font-weight: 600;
+}
+
+html.treat-v1 .heat-table th,
+html.treat-v1 .heat-table td {
+    font-weight: 600;
+}
+
+html.treat-v1 .entry-info-box {
+    border-radius: var(--treat-radius-room);
+    box-shadow: var(--treat-shadow);
+    border: 1px solid var(--treat-line);
+}
+
+html.treat-v1 .entry-info-box h3 {
+    font-weight: 600;
+    border-bottom: 1px solid var(--treat-line);
+}
+
+/* ------------------------------------------------------------------ */
+/* Mobile                                                             */
+/* ------------------------------------------------------------------ */
+
+@media (max-width: 767px) {
+    html.treat-v1 #top-banner .top-nav {
+        gap: 8px;
+    }
+
+    html.treat-v1 #top-banner .hang-btn {
+        min-width: 0;
+        height: 32px;
+        padding: 4px 12px 5px;
+    }
+
+    html.treat-v1 .index-list {
+        gap: 8px;
+    }
+
+    html.treat-v1 .index-item {
+        width: 72px;
+        height: 80px;
+        padding: 10px 6px 8px;
+        gap: 6px;
+        border-radius: var(--treat-radius-room);
+    }
+
+    html.treat-v1 .right-card {
+        padding: 16px 14px 14px 22px;
+        border-radius: var(--treat-radius-room);
+        border-left-width: 1px;
+    }
+
+    html.treat-v1 {
+        --treat-strip: 104px;
+    }
+
+    html.treat-v1 #right-panel,
+    html.treat-v1 #right-panel.show-panel,
+    html.treat-v1 body.map-sheet-details #right-panel.show-panel {
+        overflow: hidden;
+        gap: 8px;
+        min-height: 0;
+        bottom: calc(152px + env(safe-area-inset-bottom, 0px));
+    }
+
+    html.treat-v1 .right-card-top {
+        max-height: 38%;
+        overflow: hidden;
+    }
+
+    html.treat-v1 .right-card-bottom {
+        margin-bottom: 0;
+        flex: 1 1 0;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    html.treat-v1 #chart-wrapper,
+    html.treat-v1 #trend-wrapper {
+        height: auto !important;
+        min-height: 0;
+    }
+
+    html.treat-v1 #left-popup-panel,
+    html.treat-v1 body.map-sheet-topics #left-popup-panel {
+        border-right-width: 1px;
+        border-radius: var(--treat-radius-room);
+        padding: 14px 14px;
+    }
+
+    html.treat-v1 .map-dock-btn {
+        font-weight: 600;
+    }
+
+    html.treat-v1 .legend-scale-bar {
+        height: var(--treat-legend-bar);
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* Explorer banner only — page look lives in explorer.css               */
+/* ------------------------------------------------------------------ */
+
+html.treat-v1 body.explorer-body #top-banner {
+    border-radius: var(--treat-radius-room);
+}
+
+html.treat-v1 body.explorer-body #top-banner::before {
+    box-shadow: var(--treat-shadow);
+}
+
+html.treat-v1 body.problem-body #top-banner {
+    border-radius: var(--treat-radius-room);
+}
+
+html.treat-v1 body.problem-body #top-banner::before {
+    box-shadow: var(--treat-shadow);
+}
+
+html.treat-v1 body.bubble-body #top-banner {
+    border-radius: var(--treat-radius-room);
+}
+
+html.treat-v1 body.bubble-body #top-banner::before {
+    box-shadow: var(--treat-shadow);
+}

@@ -1,5 +1,5 @@
 // File: problem.js
-// Purpose: Province profile view scripts. Builds polar and doughnut charts,
+// Purpose: Province profile view scripts. Builds lollipop and doughnut charts,
 //   normalizes province names, loads data for a selected province, and manages
 //   page-level UI behaviors specific to the province profile view.
 // Notes: All comments have been standardized to English; visible UI labels remain Persian.
@@ -220,47 +220,6 @@ let topicChanges = [];
 let lastScatterData = [];
 let polarChart = null;
 let doughnutChart = null;
-
-const polarCenterTextPlugin = {
-    id: 'polarCenterText',
-    // Draw the center circle after datasets but BEFORE the tooltip is rendered.
-    // Using afterDatasetsDraw ensures the central white circle covers the chart segments
-    // while allowing tooltips (drawn later) to appear above it.
-    afterDatasetsDraw: function(chart, args, options) {
-        if(chart.config.type !== 'polarArea') return;
-        const radial = chart.scales && chart.scales.r;
-        if (!radial || typeof radial.getDistanceFromCenterForValue !== 'function') return;
-        let ctx = chart.ctx;
-        let x = radial.xCenter;
-        let y = radial.yCenter;
-        if (!isFinite(x) || !isFinite(y)) return;
-        
-        let innerRadius = radial.getDistanceFromCenterForValue(0);
-        if (!isFinite(innerRadius) || innerRadius < 0) innerRadius = 0;
-        
-        ctx.save();
-        
-        // Draw white filled circle to create the central badge area
-        ctx.beginPath();
-        ctx.arc(x, y, innerRadius, 0, 2 * Math.PI);
-        ctx.fillStyle = "rgba(255, 255, 255, 1)";
-        ctx.fill();
-        
-        // Thin stroke to separate the center from the rest
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = "#e5e7eb";
-        ctx.stroke();
-
-        // Draw the province name centered on top of the white circle
-        ctx.font = "900 12px PeydaFaNumWeb";
-        ctx.textBaseline = "middle";
-        ctx.textAlign = "center";
-        ctx.fillStyle = "#1f2937";
-        ctx.fillText(urlProvinceRaw, x, y); // Draw the display name
-        
-        ctx.restore();
-    }
-};
 
 function closeProvinceMenu() {
     const btn = document.getElementById('province-select-btn');
@@ -681,57 +640,10 @@ function uniquePolarSubtopics(rows) {
     return out;
 }
 
-function polarSliceCount(chart) {
-    const ds = chart && chart.data && Array.isArray(chart.data.datasets) ? chart.data.datasets[0] : null;
-    return ds && Array.isArray(ds.data) ? ds.data.length : 0;
-}
-
-function polarLayoutChanged(chart, labels, values) {
-    const prevLabels = (chart && chart.data && Array.isArray(chart.data.labels)) ? chart.data.labels : [];
-    if (prevLabels.length !== labels.length || polarSliceCount(chart) !== values.length) return true;
-    for (let i = 0; i < labels.length; i++) {
-        if (prevLabels[i] !== labels[i]) return true;
-    }
-    return false;
-}
-
-function polarSliceColors(baseColor, count) {
-    return Array.from({ length: count }, (_, i) => {
-        let alpha = 0.9 - (i * 0.12);
-        if (alpha < 0.35) alpha = 0.35;
-        return baseColor + Math.round(alpha * 255).toString(16).padStart(2, '0');
-    });
-}
-
-function polarTooltipLabel(context) {
-    try {
-        const dataIndex = context.dataIndex;
-        const ds = context.dataset || {};
-        let rawVal = undefined;
-
-        if (Array.isArray(ds.data) && dataIndex != null) {
-            rawVal = ds.data[dataIndex];
-        } else if (context.parsed !== undefined) {
-            rawVal = context.parsed;
-        } else {
-            rawVal = context.raw;
-        }
-
-        if (rawVal && typeof rawVal === 'object') {
-            rawVal = rawVal.r ?? rawVal.y ?? rawVal.value ?? rawVal;
-        }
-
-        let num = Number(rawVal);
-        if (!isFinite(num) || isNaN(num)) {
-            const fallback = Array.isArray(ds.data) && dataIndex != null ? ds.data[dataIndex] : context.parsed || context.raw;
-            num = Number(fallback);
-        }
-
-        if (!isFinite(num) || isNaN(num)) num = 0;
-        return formatFaNum(num, 1);
-    } catch (e) {
-        return formatFaNum(0, 0);
-    }
+function lollipopPct(value, min, max) {
+    const span = max - min;
+    if (span <= 0) return 50;
+    return Math.max(0, Math.min(100, ((value - min) / span) * 100));
 }
 
 function drawDoughnut(score, colorHex = '#2563eb') {
@@ -766,89 +678,35 @@ function drawDoughnut(score, colorHex = '#2563eb') {
 }
 
 function drawPolarChart(labels, data, topicName) {
-    const canvas = document.getElementById('polarChart');
-    if (!canvas) return;
-
-    let topicObj = uniqueTopics.find(t => t.name === topicName);
-    let baseColor = topicObj && topicObj.color ? topicObj.color : '#3b82f6';
-    const colors = polarSliceColors(baseColor, data.length);
-    const polarAnim = prefersReducedMotion
-        ? { duration: 0 }
-        : {
-            duration: ANIM_MS,
-            easing: 'easeOutQuart',
-            // PolarArea animates start/end angles by default. If an update
-            // (or a resize) lands while that rotation is still running, leftover
-            // arcs stay on the canvas and the bars look duplicated.
-            animateRotate: false,
-            animateScale: true
-        };
-
-    const existing = polarChart || chartOnCanvas(canvas);
-    // Same slice set: just retarget radii. Different topics have 3/4/5/8
-    // subtopics — Chart.js polarArea cannot morph that without ghost arcs.
-    if (existing && !polarLayoutChanged(existing, labels, data)) {
-        try { existing.stop(); } catch (e) {}
-        existing.data.labels = labels;
-        existing.data.datasets[0].data = data;
-        existing.data.datasets[0].backgroundColor = colors;
-        polarChart = existing;
-        existing.update(prefersReducedMotion ? 'none' : undefined);
-        return;
-    }
-
-    destroyChartInstance(existing);
+    const root = document.getElementById('polarChart');
+    if (!root) return;
     polarChart = null;
 
-    polarChart = new Chart(canvas.getContext('2d'), {
-        type: 'polarArea',
-        data: {
-            labels: labels,
-            datasets: [{
-                data: data,
-                backgroundColor: colors,
-                borderColor: '#ffffff',
-                borderWidth: 3,
-                hoverBorderWidth: 5,
-                spacing: 4
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            animation: polarAnim,
-            scales: {
-                r: {
-                    min: -40,
-                    max: 100,
-                    ticks: { display: false },
-                    grid: { color: 'rgba(0,0,0,0.05)' },
-                    pointLabels: {
-                        display: true,
-                        centerPointLabels: true,
-                        font: {
-                            family: "'PeydaFaNumWeb', sans-serif",
-                            size: 11,
-                            weight: 'bold'
-                        },
-                        color: '#4b5563'
-                    }
-                }
-            },
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    titleFont: { family: 'PeydaFaNumWeb', size: 14 },
-                    bodyFont: { family: 'PeydaFaNumWeb', size: 14 },
-                    callbacks: {
-                        title: function() { return ''; },
-                        label: polarTooltipLabel
-                    }
-                }
-            }
-        },
-        plugins: [polarCenterTextPlugin]
+    const topicObj = uniqueTopics.find(t => t.name === topicName);
+    const baseColor = (topicObj && topicObj.color) ? topicObj.color : '#0078d7';
+    const min = 0;
+    const max = 100;
+
+    const rows = labels.map((name, i) => {
+        const raw = Number(data[i]);
+        const val = isFinite(raw) ? raw : 0;
+        const pct = lollipopPct(val, min, max);
+        const pos = 100 - pct;
+        const edge = pos < 12 ? ' is-start' : (pos > 88 ? ' is-end' : '');
+        return (
+            '<div class="pr-lolli-row" title="' + escapeHtml(name) + ': ' + formatFaNum(val, 1) + '">' +
+                '<span class="pr-lolli-name">' + escapeHtml(name) + '</span>' +
+                '<div class="pr-lolli-track">' +
+                    '<span class="pr-lolli-stem" style="left:' + pos + '%;width:' + pct + '%;background:' + baseColor + '"></span>' +
+                    '<span class="pr-lolli-head' + edge + '" style="left:' + pos + '%">' +
+                        '<span class="pr-lolli-val">' + formatFaNum(val, 1) + '</span>' +
+                        '<span class="pr-lolli-dot" style="background:' + baseColor + '"></span>' +
+                    '</span>' +
+                '</div>' +
+            '</div>'
+        );
     });
+    root.innerHTML = rows.join('');
 }
 
 let scatterChart = null;
@@ -1704,14 +1562,14 @@ function ensurePyramidChart() {
                 {
                     label: 'مردان',
                     data: first.male,
-                    backgroundColor: 'rgba(37, 99, 235, 0.88)',
+                    backgroundColor: '#8fa0bf',
                     borderWidth: 0,
                     borderRadius: 3
                 },
                 {
                     label: 'زنان',
                     data: first.female,
-                    backgroundColor: 'rgba(219, 39, 119, 0.88)',
+                    backgroundColor: '#bf8fbb',
                     borderWidth: 0,
                     borderRadius: 3
                 }

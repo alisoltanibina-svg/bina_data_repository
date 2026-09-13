@@ -1,72 +1,56 @@
 <!DOCTYPE html>
 <!--
   File: bubble-chart.html
-  Purpose: Standalone page for the bubble-chart visualization. Loads Chart.js and related scripts.
-  Notes: UI is Persian; comments standardized for maintainers' clarity.
+  Purpose: Weighted bubble chart of provinces for a topic/subtopic.
+  Notes: Visible UI strings remain in Persian.
 -->
 
-<html lang="fa" dir="rtl">
+<html lang="fa" dir="rtl" class="treat-v1">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>نمودار حبابی شاخص‌ها</title>
     <link rel="stylesheet" href="assets/fonts/peyda.css">
     <script src="force-motion.js"></script>
-    <link rel="stylesheet" href="tw-lite.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="global.css?v=banner1">
-    <link rel="stylesheet" href="bubble-chart.css?v=chartfit">
+    <link rel="stylesheet" href="bubble-chart.css?v=bb2">
+    <link rel="stylesheet" href="treat-v1.css?v=9">
     <script src="config.js"></script>
     <script src="bubble-chart.js"></script>
     <script src="auth.js" defer></script>
-
 </head>
-<body class="h-screen flex flex-col overflow-hidden bubble-body">
+<body class="bubble-body">
 
     <div id="top-banner" data-page="bubble"></div>
     <script src="banner.js"></script>
 
-    <div class="bubble-workspace flex-1 flex flex-col min-h-0 overflow-hidden">
-    <header class="bg-white shadow-sm border-b px-6 py-4 flex justify-between items-center z-10 shrink-0">
-        <div>
-            <h1 class="text-xl font-bold text-gray-800 bubble-title-row" id="page-title">
-                <span>نمودار حبابی:</span>
+    <div class="bubble-workspace">
+        <header class="bb-intro">
+            <h1 class="bb-title" id="page-title">
+                <span>نمودار حبابی</span>
                 <select id="subtopic-select" class="subtopic-select" aria-label="انتخاب زیرموضوع"></select>
             </h1>
-            <p class="text-xs text-gray-500 mt-1" id="page-subtitle">در حال بارگذاری...</p>
+            <p class="bb-lead" id="page-subtitle">در حال بارگذاری...</p>
+            <p class="bb-help">وزن هر شاخص را از ۱− تا ۱+ عوض کنید تا ببینید استان‌ها روی نمودار چطور جابه‌جا می‌شوند. محاسبات همیشه روی آخرین دادهٔ منتشرشده است.</p>
+            <a href="explorer.html" id="btn-back-explorer" class="bb-back">بازگشت به انتخاب شاخص</a>
+        </header>
+
+        <div class="bb-body">
+            <main id="chart-container">
+                <div id="plot-wrapper">
+                    <canvas id="bubbleChart"></canvas>
+                </div>
+            </main>
+
+            <aside class="bb-rail" aria-label="وزن‌دهی شاخص‌ها">
+                <h2>وزن‌دهی شاخص‌ها</h2>
+                <p class="bb-rail-note">تاثیر هر شاخص را روی محور امتیاز تنظیم کنید</p>
+                <div class="bb-sliders" id="indicators-list"></div>
+            </aside>
         </div>
-        <a href="explorer.html" id="btn-back-explorer" class="banner-btn hang-btn">
-            <span class="btn-label">بازگشت به انتخاب شاخص</span>
-        </a>
-    </header>
-
-    <div class="flex-1 flex overflow-hidden min-h-0">
-        <main class="flex-1 flex flex-col p-6 relative" id="chart-container">
-            <div id="plot-wrapper" class="flex-1 min-h-0 rounded-2xl shadow-sm border p-4 relative flex flex-col transition-colors duration-500">
-                <canvas id="bubbleChart"></canvas>
-            </div>
-        </main>
-
-        <aside class="w-80 bg-white border-r flex flex-col shrink-0 shadow-lg z-10 overflow-hidden">
-            <div class="p-5 border-b bg-blue-50/40 text-blue-900 shrink-0">
-                <h3 class="font-bold mb-2 text-blue-800 text-sm"><i class="fa-solid fa-circle-info ml-1"></i> راهنمای تعامل با نمودار</h3>
-                <p class="text-[13px] leading-relaxed text-justify">
-                    در این صفحه می‌توانید با تغییر وزن هر شاخص (از ۱- تا ۱+)، میزان تاثیر آن را بر امتیاز نهایی استان‌ها در نمودار حبابی شخصی‌سازی کنید. با حرکت دادن اسلایدرها، موقعیت حباب‌ها به‌صورت لحظه‌ای تغییر می‌کند.<br><br>
-                    <strong>توجه:</strong> تمامی محاسبات همیشه بر اساس آخرین و جدیدترین داده‌های منتشر شده برای هر شاخص انجام می‌شوند.
-                </p>
-            </div>
-
-            <div class="p-4 border-b bg-gray-50 shrink-0">
-                <h2 class="font-bold text-gray-800">وزن‌دهی شاخص‌ها</h2>
-                <p class="text-xs text-gray-500 mt-1">تاثیر هر شاخص را مانند محور X تنظیم کنید</p>
-            </div>
-            
-            <div class="p-5 flex flex-col gap-6 overflow-y-auto flex-1" id="indicators-list">
-            </div>
-        </aside>
-    </div>
     </div>
 </body>
 </html>

@@ -257,7 +257,7 @@ function topicIconClass(topic) {
 function mosaicLayout() {
     const w = window.innerWidth;
     if (w < 720) return { cols: 2 };
-    if (w < 1100) return { cols: 3 };
+    if (w < 900) return { cols: 2 };
     return { cols: 4 };
 }
 
@@ -325,7 +325,7 @@ function attachSmoothWheel(scroller) {
 
     scroller.addEventListener('wheel', function (e) {
         if (e.ctrlKey || e.defaultPrevented) return;
-        const nested = e.target.closest('.flip-back-list, aside, [data-no-smooth-scroll]');
+        const nested = e.target.closest('.ex-room-sheet, .ex-prov-list, aside, [data-no-smooth-scroll]');
         if (nested && nested !== scroller && nested.scrollHeight > nested.clientHeight + 2) {
             const atTop = nested.scrollTop <= 0 && e.deltaY < 0;
             const atBottom = nested.scrollTop + nested.clientHeight >= nested.scrollHeight - 2 && e.deltaY > 0;
@@ -349,7 +349,6 @@ function attachSmoothWheel(scroller) {
 
 function initExplorerSmoothScroll() {
     attachSmoothWheel(document.getElementById('view-landing'));
-    attachSmoothWheel(document.querySelector('#view-dashboard main'));
 }
 
 function isLandingVisible() {
@@ -373,7 +372,7 @@ function killMosaicAnimations() {
 
 function waitForMosaicImages(root) {
     const urls = new Set();
-    root.querySelectorAll('.grid__item-img').forEach(el => {
+    root.querySelectorAll('.ex-room-visual').forEach(el => {
         const bg = el.style.backgroundImage;
         const m = bg && bg.match(/url\(["']?(.*?)["']?\)/);
         if (m && m[1]) urls.add(m[1]);
@@ -386,109 +385,200 @@ function waitForMosaicImages(root) {
     })));
 }
 
+function indexEmptyHtml() {
+    return `
+        <div class="ex-panel-empty">
+            <p class="ex-kicker">شاخص‌ها</p>
+            <p>موضوعی را از بالا انتخاب کنید</p>
+        </div>
+    `;
+}
+
 function topicBackHtml(topic) {
     const subtopics = topicsHierarchy[topic] || {};
     const listHtml = Object.keys(subtopics).map(sub => `
-        <div class="mosaic-sub">
-            <div class="mosaic-sub-head">
-                <span class="mosaic-sub-name">${escapeHtml(sub)}</span>
-            </div>
+        <div class="ex-sub">
+            <span class="ex-sub-name">${escapeHtml(sub)}</span>
+            <div class="ex-inds">
             ${subtopics[sub].map(ind => `
                 <button type="button" class="mosaic-ind" data-indicator="${escapeHtml(ind)}" data-topic="${escapeHtml(topic)}">
                     <span class="mosaic-ind-dot"></span>
                     <span>${escapeHtml(ind)}</span>
                 </button>
             `).join('')}
+            </div>
         </div>
     `).join('');
     return `
-        <div class="flip-back-head">
-            <h2>${escapeHtml(topic)}</h2>
-            <button type="button" class="flip-back-close" aria-label="بازگشت">
-                <i class="fa-solid fa-rotate-left"></i>
+        <div class="ex-sheet-head">
+            <h3>${escapeHtml(topic)}</h3>
+            <button type="button" class="ex-sheet-close" aria-label="بستن">
+                <i class="fa-solid fa-xmark"></i>
             </button>
         </div>
-        <div class="flip-back-list custom-scrollbar">${listHtml}</div>
+        ${listHtml}
     `;
 }
 
 function topicFlipHtml(topic, index, cols) {
-    const icon = topicIconClass(topic);
     const src = topicTileSrc(topic);
     const accent = topicAccent(topic);
     const col = index % cols;
-    const flipped = flippedTopic === topic ? ' is-flipped' : '';
+    const open = flippedTopic === topic ? ' is-open' : '';
+    const n = countTopicIndicators(topic);
     return `
-        <article class="grid__item topic-flip${flipped}" data-col="${col}" data-topic="${escapeHtml(topic)}" role="button" tabindex="0" aria-expanded="${flipped ? 'true' : 'false'}" aria-label="${escapeHtml(topic)}" style="--topic-accent:${accent}">
-            <div class="topic-flip-inner">
-                <div class="topic-flip-front">
-                    <div class="grid__item-img" style="background-image: url('${src}')">
-                        <div class="grid__item-veil"></div>
-                        <div class="grid__item-copy">
-                            <i class="${icon} grid__item-icon" aria-hidden="true"></i>
-                            <span class="grid__item-name">${escapeHtml(topic)}</span>
-                        </div>
+        <article class="ex-room${open}" data-col="${col}" data-topic="${escapeHtml(topic)}" style="--topic-accent:${accent}">
+            <button type="button" class="ex-room-face" aria-expanded="${open ? 'true' : 'false'}" aria-label="${escapeHtml(topic)}">
+                <div class="ex-room-visual" style="background-image: url('${src}')">
+                    <div class="ex-room-veil"></div>
+                </div>
+                <div class="ex-room-copy">
+                    <h2>${escapeHtml(topic)}</h2>
+                    <div class="ex-room-meta">
+                        <span class="ex-room-pearl" aria-hidden="true"></span>
+                        <span>${toFa(n)} شاخص</span>
                     </div>
                 </div>
-                <div class="topic-flip-back">${topicBackHtml(topic)}</div>
-            </div>
+            </button>
         </article>
     `;
 }
 
-function bubbleBuildBarHtml() {
+function bubblePreviewHtml() {
     return `
-        <a class="bubble-build-bar" href="${escapeHtml(firstBubbleHref())}">
-            <i class="fa-solid fa-chart-pie" aria-hidden="true"></i>
-            <span>شاخص خودت را بساز</span>
-        </a>
+        <section class="ex-panel ex-bubble-panel">
+            <div class="ex-panel-grain" aria-hidden="true"></div>
+            <div class="ex-bubbles" id="ex-bubbles">
+                <span class="ex-bubble-axis ex-bubble-axis-x"></span>
+                <span class="ex-bubble-axis ex-bubble-axis-y"></span>
+            </div>
+            <div class="ex-panel-copy">
+                <h3>نمودار حبابی</h3>
+                <p>وزن شاخص‌ها را عوض کنید و ببینید استان‌ها چطور جابه‌جا می‌شوند</p>
+                <a class="ex-build bubble-build-bar" href="${escapeHtml(firstBubbleHref())}">شاخص خودت را بساز</a>
+            </div>
+        </section>
     `;
 }
 
+const BUBBLE_PREVIEW = [
+    { name: 'تهران', x: 26, y: 40, s: 92 },
+    { name: 'مشهد', x: 48, y: 28, s: 70 },
+    { name: 'اصفهان', x: 66, y: 52, s: 62 },
+    { name: 'شیراز', x: 38, y: 66, s: 52 },
+    { name: 'تبریز', x: 16, y: 58, s: 48 },
+    { name: 'اهواز', x: 78, y: 36, s: 44 },
+    { name: 'قم', x: 56, y: 74, s: 36 },
+    { name: 'رشت', x: 72, y: 68, s: 40 }
+];
+
+function initBubblePreview(root) {
+    const stage = root.querySelector('#ex-bubbles');
+    if (!stage) return;
+    BUBBLE_PREVIEW.forEach((b, i) => {
+        const el = document.createElement('button');
+        el.type = 'button';
+        el.className = 'ex-bubble';
+        el.textContent = b.name;
+        el.style.left = b.x + '%';
+        el.style.top = b.y + '%';
+        el.style.width = b.s + 'px';
+        el.style.height = b.s + 'px';
+        el.style.marginLeft = -(b.s / 2) + 'px';
+        el.style.marginTop = -(b.s / 2) + 'px';
+        el.style.animationDelay = (-i * 0.4) + 's';
+        el.setAttribute('aria-label', b.name);
+        stage.appendChild(el);
+        bindBubbleDrag(el, stage);
+    });
+}
+
+function bindBubbleDrag(el, stage) {
+    let dragging = false;
+    let startX = 0;
+    let startY = 0;
+    let origLeft = 0;
+    let origTop = 0;
+
+    el.addEventListener('pointerdown', (e) => {
+        dragging = true;
+        el.setPointerCapture(e.pointerId);
+        el.style.animationPlayState = 'paused';
+        el.style.zIndex = '8';
+        const rect = stage.getBoundingClientRect();
+        const box = el.getBoundingClientRect();
+        startX = e.clientX;
+        startY = e.clientY;
+        origLeft = ((box.left + box.width / 2) - rect.left) / rect.width * 100;
+        origTop = ((box.top + box.height / 2) - rect.top) / rect.height * 100;
+    });
+    el.addEventListener('pointermove', (e) => {
+        if (!dragging) return;
+        const rect = stage.getBoundingClientRect();
+        const dx = (e.clientX - startX) / rect.width * 100;
+        const dy = (e.clientY - startY) / rect.height * 100;
+        const left = Math.max(8, Math.min(92, origLeft + dx));
+        const top = Math.max(10, Math.min(86, origTop + dy));
+        el.style.left = left + '%';
+        el.style.top = top + '%';
+    });
+    const stop = () => {
+        if (!dragging) return;
+        dragging = false;
+        el.style.animationPlayState = '';
+        el.style.zIndex = '';
+    };
+    el.addEventListener('pointerup', stop);
+    el.addEventListener('pointercancel', stop);
+}
+
+function fillIndexPanel(topic) {
+    const body = document.getElementById('ex-index-body');
+    if (!body) return;
+    if (!topic) {
+        body.innerHTML = indexEmptyHtml();
+        return;
+    }
+    body.innerHTML = topicBackHtml(topic);
+    const closeBtn = body.querySelector('.ex-sheet-close');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => setTopicFlipped(topic, false));
+    }
+    body.querySelectorAll('.mosaic-ind').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            loadIndicator(btn.dataset.indicator, btn.dataset.topic);
+        });
+    });
+}
+
 function setTopicFlipped(topic, on) {
-    const cards = document.querySelectorAll('.topic-flip');
+    const cards = document.querySelectorAll('.ex-room');
     cards.forEach(card => {
         const match = on && card.dataset.topic === topic;
-        card.classList.toggle('is-flipped', match);
-        card.setAttribute('aria-expanded', match ? 'true' : 'false');
+        card.classList.toggle('is-open', match);
+        const face = card.querySelector('.ex-room-face');
+        if (face) face.setAttribute('aria-expanded', match ? 'true' : 'false');
     });
     flippedTopic = on ? topic : null;
     if (on && topic) applyExplorerTheme(topic);
+    fillIndexPanel(on ? topic : null);
 }
 
 function bindMosaicInteractions(container) {
-    container.querySelectorAll('.topic-flip').forEach(card => {
+    container.querySelectorAll('.ex-room').forEach(card => {
         const topic = card.dataset.topic;
-        const flip = () => {
-            const opening = !card.classList.contains('is-flipped');
-            setTopicFlipped(topic, opening);
-        };
+        const face = card.querySelector('.ex-room-face');
         card.addEventListener('mouseenter', () => applyExplorerTheme(topic));
-        card.addEventListener('click', (e) => {
-            if (e.target.closest('.mosaic-ind') || e.target.closest('.flip-back-close')) return;
-            flip();
+        card.addEventListener('mouseleave', () => {
+            if (flippedTopic) applyExplorerTheme(flippedTopic);
         });
-        card.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                flip();
-            }
-        });
-        const closeBtn = card.querySelector('.flip-back-close');
-        if (closeBtn) {
-            closeBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setTopicFlipped(topic, false);
+        if (face) {
+            face.addEventListener('click', () => {
+                const opening = !card.classList.contains('is-open');
+                setTopicFlipped(topic, opening);
             });
         }
-        card.querySelectorAll('.mosaic-ind').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                loadIndicator(btn.dataset.indicator, btn.dataset.topic);
-            });
-        });
     });
 }
 
@@ -499,78 +589,41 @@ function initStaggeredAnimations(container) {
         return;
     }
 
-    const scroller = landingScroller();
-    const gridItems = container.querySelectorAll('.grid__item');
-
-    if (typeof gsap.registerPlugin === 'function' && typeof ScrollTrigger !== 'undefined') {
-        gsap.registerPlugin(ScrollTrigger);
-    }
+    const rooms = container.querySelectorAll('.ex-room');
+    const hero = container.querySelector('.ex-hero');
+    const panels = container.querySelectorAll('.ex-panel');
 
     mosaicAnimCtx = gsap.context(() => {
-        gsap.set(gridItems, { yPercent: 450, autoAlpha: 0, force3d: true });
-        const buildBar = container.querySelector('.bubble-build-bar');
-        if (buildBar) gsap.set(buildBar, { y: 36, autoAlpha: 0 });
+        if (hero) gsap.set(hero.children, { y: 14, autoAlpha: 0 });
+        gsap.set(rooms, { y: 18, autoAlpha: 0 });
+        gsap.set(panels, { y: 18, autoAlpha: 0 });
         container.classList.remove('is-pending');
 
-        if (!gridItems.length) return;
-
-        const colCount = mosaicLayout().cols;
-        const middle = Math.floor(colCount / 2);
-        const columns = Array.from({ length: colCount }, () => []);
-        gridItems.forEach(item => {
-            const colAttr = item.getAttribute('data-col');
-            let columnIndex = colAttr !== null ? parseInt(colAttr, 10) : 0;
-            if (!Number.isFinite(columnIndex) || columnIndex < 0 || columnIndex >= colCount) {
-                columnIndex = 0;
-            }
-            columns[columnIndex].push(item);
-        });
-
-        const canScrub = typeof ScrollTrigger !== 'undefined';
-        const triggerEl = container.querySelector('.grid--full') || container;
-        columns.forEach((columnItems, columnIndex) => {
-            if (!columnItems.length) return;
-            const delayFactor = Math.abs(columnIndex - middle) * 0.2;
-            if (canScrub) {
-                gsap.timeline({
-                    scrollTrigger: {
-                        trigger: triggerEl,
-                        scroller,
-                        start: 'top bottom',
-                        end: 'center center',
-                        scrub: 1.5,
-                        invalidateOnRefresh: true
-                    }
-                }).fromTo(columnItems, {
-                    yPercent: 450,
-                    autoAlpha: 0
-                }, {
-                    yPercent: 0,
-                    autoAlpha: 1,
-                    delay: delayFactor,
-                    ease: 'sine.out',
-                    force3d: true
-                });
-            } else {
-                gsap.to(columnItems, {
-                    yPercent: 0,
-                    autoAlpha: 1,
-                    delay: delayFactor,
-                    duration: 1.2,
-                    ease: 'sine.out',
-                    force3d: true
-                });
-            }
-        });
-        if (buildBar) {
-            gsap.to(buildBar, {
+        if (hero) {
+            gsap.to(hero.children, {
                 y: 0,
                 autoAlpha: 1,
-                delay: 0.35,
-                duration: 0.7,
-                ease: 'sine.out'
+                duration: 0.9,
+                stagger: 0.1,
+                ease: 'power2.out'
             });
         }
+        gsap.to(rooms, {
+            y: 0,
+            autoAlpha: 1,
+            duration: 0.85,
+            delay: 0.12,
+            stagger: 0.05,
+            ease: 'power2.out'
+        });
+        gsap.to(panels, {
+            y: 0,
+            autoAlpha: 1,
+            duration: 0.95,
+            delay: 0.28,
+            stagger: 0.12,
+            ease: 'power2.out'
+        });
     }, container);
 
     if (typeof ScrollTrigger !== 'undefined') {
@@ -596,25 +649,25 @@ function renderMosaicMenu() {
     if (firstTopic) applyExplorerTheme(flippedTopic && topics.includes(flippedTopic) ? flippedTopic : firstTopic);
 
     const topicCards = topics.map((topic, i) => topicFlipHtml(topic, i, layout.cols)).join('');
-    const buildBar = bubbleBuildBarHtml();
 
-    container.className = 'staggered-stage is-pending';
+    container.className = 'ex-stage is-pending';
     container.innerHTML = `
-        <section class="stagger-hero">
-            <div class="stagger-title">${flipTextHtml('کاوشگر داده')}</div>
-            <div class="scroll-cue" aria-hidden="true">
-                <span class="scroll-cue-beam"></span>
-                <span class="scroll-cue-glow"></span>
-                <i class="fa-solid fa-chevron-down"></i>
-            </div>
+        <section class="ex-hero">
+            <h1 class="ex-title">کاوشگر داده</h1>
+            <p class="ex-lead">برای دیدن شاخص‌ها یکی از زیرحوزه‌ها را انتخاب کنید</p>
         </section>
-        <section class="w-full relative">
-            <div class="grid--full">${topicCards}</div>
-            ${buildBar}
+        <section class="ex-bento">
+            <div class="ex-topics">${topicCards}</div>
+            <section class="ex-panel ex-index-panel" id="ex-index-panel">
+                <div class="ex-panel-grain" aria-hidden="true"></div>
+                <div class="ex-panel-body" id="ex-index-body">${indexEmptyHtml()}</div>
+            </section>
+            ${bubblePreviewHtml()}
         </section>
     `;
 
     bindMosaicInteractions(container);
+    initBubblePreview(container);
     if (flippedTopic) setTopicFlipped(flippedTopic, true);
 
     Promise.race([
@@ -631,7 +684,7 @@ function expandMosaicTopic(topic) {
     if (!container) return;
     applyExplorerTheme(topic);
     setTopicFlipped(topic, true);
-    const match = Array.from(container.querySelectorAll('.topic-flip')).find(el => el.dataset.topic === topic);
+    const match = Array.from(container.querySelectorAll('.ex-room')).find(el => el.dataset.topic === topic);
     if (!match) return;
     const scroller = landingScroller();
     if (scroller && typeof scroller.__smoothScrollTo === 'function') {
@@ -651,6 +704,8 @@ async function loadIndicator(indicatorName, topicName) {
     document.getElementById('view-landing').style.display = 'none';
     document.getElementById('view-dashboard').classList.remove('hidden');
     document.getElementById('indicator-title').innerText = indicatorName;
+    const topicKicker = document.getElementById('dash-topic-kicker');
+    if (topicKicker) topicKicker.textContent = topicName || activeTopicGlob || '';
 
     try {
         const response = await fetch(`${API_BASE_URL}/api/explorer/indicator?name=${encodeURIComponent(indicatorName)}`);
@@ -659,7 +714,7 @@ async function loadIndicator(indicatorName, topicName) {
         let srcName = data.description && data.description.source_name ? data.description.source_name : "مرکز آمار و مراجع رسمی";
         let narrative = data.description && data.description.description ? data.description.description : "توضیحات تکمیلی برای این شاخص در دسترس نیست.";
         
-        document.getElementById('indicator-source').innerHTML = ` منبع: ${srcName}`;
+        document.getElementById('indicator-source').textContent = `منبع: ${srcName}`;
         document.getElementById('insight-text').innerText = narrative;
 
         kscoreData = data.scores;
@@ -671,9 +726,9 @@ async function loadIndicator(indicatorName, topicName) {
         if (latestYearGlob == null && uniqueYears.length) latestYearGlob = uniqueYears[uniqueYears.length - 1];
 
         if(uniqueYears.length > 0) {
-            document.getElementById('indicator-period').innerHTML = ` دوره: ${toFa(uniqueYears[0])} - ${toFa(uniqueYears[uniqueYears.length-1])}`;
+            document.getElementById('indicator-period').textContent = `دوره: ${toFa(uniqueYears[0])} — ${toFa(uniqueYears[uniqueYears.length-1])}`;
         } else {
-            document.getElementById('indicator-period').innerHTML = ` دوره: نامشخص`;
+            document.getElementById('indicator-period').textContent = 'دوره: نامشخص';
         }
 
         if (chartInstance) {
@@ -724,7 +779,7 @@ function renderProvincesList() {
     container.innerHTML = '';
     provincesList.forEach(prov => {
         const div = document.createElement('div');
-        div.className = 'province-item flex items-center mb-2 px-2 py-2 rounded-lg hover:bg-blue-50 transition border border-transparent hover:border-blue-100';
+        div.className = 'province-item';
         
         const cb = document.createElement('input');
         cb.type = 'checkbox'; cb.id = `prov-${prov}`;
@@ -774,7 +829,7 @@ function clearAllProvinces() {
 }
 
 function setProvinceFilterEnabled(enabled) {
-    const aside = document.querySelector('#view-dashboard aside');
+    const aside = document.querySelector('#view-dashboard aside, .ex-prov-rail');
     if (aside) aside.classList.toggle('is-disabled', !enabled);
     document.querySelectorAll('.province-checkbox').forEach(cb => { cb.disabled = !enabled; });
     const search = document.getElementById('province-search');
@@ -801,9 +856,9 @@ function setChartMode(mode) {
     if (title) {
         if (currentChartMode === 'compare') {
             const yearTxt = latestYearGlob != null ? ` — سال ${toFa(latestYearGlob)}` : '';
-            title.innerHTML = `<i class="fa-solid fa-circle-dot text-blue-600"></i> مقایسه استانی آخرین سال${yearTxt}`;
+            title.textContent = `مقایسه استانی آخرین سال${yearTxt}`;
         } else {
-            title.innerHTML = `<i class="fa-solid fa-chart-line text-blue-600"></i> روند تغییرات زمانی شاخص`;
+            title.textContent = 'روند تغییرات زمانی شاخص';
         }
     }
     if (activeIndicatorGlob) refreshActiveChart();
