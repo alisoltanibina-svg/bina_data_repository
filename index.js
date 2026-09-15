@@ -15,8 +15,28 @@ const typologyFocusConfig = {
     focusOffset: 0.35
 };
 
+function curtainScroller() {
+    const curtain = document.getElementById('entry-view-curtain');
+    return (curtain && curtain.querySelector('.entry-scroll')) || curtain;
+}
+
+function initCurtainBannerOffset() {
+    const curtain = document.getElementById('entry-view-curtain');
+    const banner = document.getElementById('top-banner');
+    if (!curtain || !banner) return;
+    const sync = () => {
+        curtain.style.setProperty('--curtain-banner-h', `${banner.offsetHeight}px`);
+    };
+    sync();
+    if (typeof ResizeObserver !== 'undefined') {
+        new ResizeObserver(sync).observe(banner);
+    } else {
+        window.addEventListener('resize', sync);
+    }
+}
+
 function initCurtainReveal() {
-    const root = document.getElementById('entry-view-curtain');
+    const root = curtainScroller();
     if (!root) return;
     const items = root.querySelectorAll('.entry-reveal');
     if (!items.length) return;
@@ -422,7 +442,7 @@ function initCurtainRace() {
         const io = new IntersectionObserver((entries) => {
             visible = entries.some(e => e.isIntersecting);
             syncPlay();
-        }, { root: document.getElementById('entry-view-curtain'), threshold: 0.18 });
+        }, { root: curtainScroller(), threshold: 0.18 });
         io.observe(section);
 
         const curtain = document.getElementById('entry-view-curtain');
@@ -437,6 +457,7 @@ function initCurtainRace() {
 
 window.addEventListener('DOMContentLoaded', () => {
     initPerspectiveGrid();
+    initCurtainBannerOffset();
     initCurtainReveal();
     initCurtainRace();
     bindMapPanelDock();

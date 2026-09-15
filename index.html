@@ -17,13 +17,13 @@
     <link rel="stylesheet" href="assets/fonts/peyda.css">
     <!-- Page CSS -->
     <link rel="stylesheet" href="global.css?v=banner1">
-    <link rel="stylesheet" href="index.css?v=peyda">
+    <link rel="stylesheet" href="index.css?v=peyda2">
     <!-- Reversible revayat treatment. Restore: drop class treat-v1 and this link. -->
-    <link rel="stylesheet" href="treat-v1.css?v=9">
+    <link rel="stylesheet" href="treat-v1.css?v=11">
     <!-- Page Javascript -->
     <script src="force-motion.js"></script>
     <script src="config.js"></script>
-    <script src="index.js?v=atlas1" defer></script>
+    <script src="index.js?v=atlas2" defer></script>
     <script src="auth.js" defer></script>
 
     <script>
@@ -371,7 +371,11 @@
                     setAtlasView(false);
                     setExplorerHrefByState();
                     history.pushState("", document.title, window.location.pathname + window.location.search);
-                    if (entryCurtain) entryCurtain.scrollTop = 0;
+                    if (entryCurtain) {
+                        const scroller = entryCurtain.querySelector('.entry-scroll');
+                        if (scroller) scroller.scrollTop = 0;
+                        entryCurtain.scrollTop = 0;
+                    }
                 });
             }
 

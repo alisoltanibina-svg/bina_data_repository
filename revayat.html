@@ -4,7 +4,7 @@
   Purpose: Standalone Pinterest-style motion story of the measurement architecture.
   Notes: Abstract geometry only. Does not embed live product pages.
 -->
-<html lang="fa" dir="rtl">
+<html lang="fa" dir="rtl" class="revayat-dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -17,7 +17,9 @@
   <script src="revayat.js" defer></script>
 </head>
 <body>
-  <div class="light-lines" id="light-lines" aria-hidden="true">
+  <div class="story-scroll" id="story-scroll" aria-hidden="true"></div>
+  <div class="beam-reveal" aria-hidden="true">
+  <div class="light-lines" id="light-lines">
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" preserveAspectRatio="none">
       <g class="ll-lines">
         <rect x="1253.6" width="4.5" height="1080"/>
@@ -60,6 +62,13 @@
     </svg>
   </div>
   <div class="grain"></div>
+  </div>
+  <div class="hover-light" aria-hidden="true"></div>
+  <div class="ground" id="ground" aria-hidden="true">
+    <div class="ground-fill"></div>
+    <div class="ground-edge"></div>
+    <div class="ground-pad"></div>
+  </div>
   <header>
     <a class="brand" href="index.html">
       <img src="assets/images/Logo.webp" alt="مرکز رصد بینا" width="220" height="44">
@@ -74,28 +83,30 @@
 
   <div id="bridge" class="bridge" hidden></div>
   <nav class="rail" aria-label="گام‌های روایت"></nav>
-  <div class="nav-btns">
+  <div class="nav-btns" hidden>
     <button class="nav-btn" id="next" type="button" aria-label="گام بعد">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
         <path d="M6 9l6 6 6-6"/>
       </svg>
     </button>
   </div>
+  <div class="scroll-hint" aria-hidden="true">
+    <span>پیمایش کنید</span>
+    <i></i>
+  </div>
 
   <scene data-step="0">
-    <h1 class="scene-title" aria-label="پروژه دیده‌بان فرهنگ">
-      <span class="scene-title-ghost" aria-hidden="true">پروژه دیده‌بان فرهنگ</span>
-      <span class="scene-title-typed"></span>
-    </h1>
     <div class="frame">
+      <h1 class="scene-title" aria-label="پروژه دیده‌بان فرهنگ">
+        <span class="scene-title-ghost" aria-hidden="true">پروژه دیده‌بان فرهنگ</span>
+        <span class="scene-title-typed"></span>
+      </h1>
       <div class="stage" aria-hidden="true">
         <div class="thread-wrap">
-          <svg class="thread-svg" viewBox="0 0 48 196" width="48" height="196">
-            <line class="thread-track" x1="24" y1="12" x2="24" y2="170"/>
-            <line class="thread-run" x1="24" y1="12" x2="24" y2="170"/>
-            <line class="thread-glow" x1="24" y1="152" x2="24" y2="170"/>
-            <circle class="thread-pearl" cx="24" cy="170" r="18"/>
-          </svg>
+          <div class="pearl-cast"></div>
+          <div class="thread-pearl">
+            <canvas class="pearl-canvas" id="pearl-canvas" aria-hidden="true"></canvas>
+          </div>
         </div>
       </div>
       <div class="copy">
@@ -147,12 +158,24 @@
     <div class="frame">
       <div class="stage" aria-hidden="true">
         <svg class="arc-map" viewBox="0 0 260 180" fill="none">
-          <path class="draw" d="M40 110 C 80 20, 180 20, 220 110" stroke="#b08948" stroke-width="1.2"/>
-          <path class="draw" d="M70 130 C 110 60, 160 70, 200 128" stroke="#1b242e" stroke-width="1" opacity=".35"/>
-          <circle cx="40" cy="110" r="6" fill="#1b242e"/>
-          <circle cx="220" cy="110" r="6" fill="#b08948"/>
-          <circle cx="70" cy="130" r="4.5" fill="#1b242e" opacity=".45"/>
-          <circle cx="200" cy="128" r="4.5" fill="#b08948" opacity=".7"/>
+          <defs>
+            <radialGradient id="arc-ball-a" cx="32%" cy="28%" r="70%">
+              <stop offset="0%" stop-color="#f4f0ea"/>
+              <stop offset="55%" stop-color="#8c8578"/>
+              <stop offset="100%" stop-color="#2a2722"/>
+            </radialGradient>
+            <radialGradient id="arc-ball-b" cx="32%" cy="28%" r="70%">
+              <stop offset="0%" stop-color="#f7efe2"/>
+              <stop offset="45%" stop-color="#c9a56a"/>
+              <stop offset="100%" stop-color="#6e5124"/>
+            </radialGradient>
+          </defs>
+          <path class="draw" d="M40 110 C 80 20, 180 20, 220 110" stroke="#d4b07a" stroke-width="1.4"/>
+          <path class="draw" d="M70 130 C 110 60, 160 70, 200 128" stroke="#e8dfd2" stroke-width="1" opacity=".28"/>
+          <circle cx="40" cy="110" r="7" fill="url(#arc-ball-a)"/>
+          <circle cx="220" cy="110" r="7" fill="url(#arc-ball-b)"/>
+          <circle cx="70" cy="130" r="5" fill="url(#arc-ball-a)" opacity=".7"/>
+          <circle cx="200" cy="128" r="5" fill="url(#arc-ball-b)" opacity=".85"/>
         </svg>
       </div>
       <div class="copy">
@@ -168,8 +191,15 @@
     <div class="frame">
       <div class="stage" aria-hidden="true">
         <svg class="spark" viewBox="0 0 280 90" fill="none">
-          <path d="M8 62 C 40 62, 48 28, 86 40 S 130 78, 168 36 S 220 18, 272 48" stroke="#b08948" stroke-width="1.6"/>
-          <circle cx="272" cy="48" r="4" fill="#b08948"/>
+          <defs>
+            <radialGradient id="spark-ball" cx="32%" cy="28%" r="70%">
+              <stop offset="0%" stop-color="#f7efe2"/>
+              <stop offset="45%" stop-color="#c9a56a"/>
+              <stop offset="100%" stop-color="#6e5124"/>
+            </radialGradient>
+          </defs>
+          <path d="M8 62 C 40 62, 48 28, 86 40 S 130 78, 168 36 S 220 18, 272 48" stroke="#d4b07a" stroke-width="1.7"/>
+          <circle cx="272" cy="48" r="6" fill="url(#spark-ball)"/>
         </svg>
       </div>
       <div class="copy">
@@ -216,7 +246,7 @@
     <div class="frame">
       <div class="stage" aria-hidden="true">
         <svg class="iran-map" viewBox="0 0 280 210" fill="none">
-          <path d="M102.8 136.2 L97.1 138.1 L90.4 133.4 L90.3 138.1 L88.3 139.5 L85.6 138.2 L85.0 135.6 L80.9 132.5 L80.8 127.2 L77.7 127.3 L77.5 121.1 L79.5 116.5 L75.3 109.0 L64.8 102.4 L61.1 101.9 L60.5 99.8 L62.1 98.9 L53.9 89.5 L55.6 87.2 L54.2 83.4 L55.1 81.5 L57.4 82.3 L56.8 78.8 L59.4 75.3 L62.2 75.0 L60.3 67.8 L63.9 66.4 L53.5 64.0 L52.5 58.6 L50.6 58.2 L50.0 54.1 L48.0 53.4 L48.7 50.6 L45.3 44.9 L45.7 41.2 L41.6 39.2 L44.4 33.5 L42.5 32.6 L39.7 19.4 L43.7 18.8 L45.6 14.0 L54.4 24.5 L61.8 26.6 L65.7 26.1 L80.6 14.8 L84.6 19.3 L82.2 20.8 L84.3 24.2 L81.0 26.5 L87.3 32.3 L90.0 31.8 L92.2 42.2 L103.6 45.7 L108.9 52.0 L118.9 56.0 L143.5 51.5 L137.7 53.0 L143.5 53.3 L143.6 51.3 L142.3 46.2 L150.6 44.8 L151.9 41.2 L158.1 36.6 L167.5 36.7 L168.4 34.3 L171.9 33.9 L177.0 34.0 L178.1 37.9 L189.0 42.6 L193.3 41.6 L198.7 43.9 L200.1 48.0 L205.9 50.4 L209.2 55.6 L217.5 55.4 L218.4 62.1 L217.2 64.2 L219.0 69.7 L216.1 81.0 L213.4 82.5 L215.3 85.3 L212.8 85.1 L210.6 88.0 L212.3 94.5 L215.5 95.2 L211.7 99.9 L214.8 111.4 L214.6 120.2 L223.3 121.5 L224.7 125.6 L224.4 128.1 L214.7 139.8 L224.5 154.3 L234.8 158.6 L234.5 170.6 L238.8 170.5 L240.3 172.2 L238.8 177.7 L231.1 178.6 L228.6 182.1 L225.3 182.3 L224.7 188.2 L220.5 196.0 L212.0 193.4 L211.2 191.6 L210.5 193.4 L195.6 192.0 L193.1 190.1 L186.2 190.4 L177.5 187.6 L174.3 173.4 L172.1 171.9 L165.5 171.8 L160.3 173.8 L158.5 176.4 L149.7 179.4 L146.6 176.8 L140.4 177.1 L122.9 163.8 L116.2 162.7 L112.4 152.2 L110.1 151.0 L111.4 149.2 L108.7 148.5 L108.6 145.0 L103.2 138.9 Z" fill="#c9a56a" fill-opacity="0.28" stroke="#b08948" stroke-width="1.8" stroke-linejoin="round"/>
+          <path d="M102.8 136.2 L97.1 138.1 L90.4 133.4 L90.3 138.1 L88.3 139.5 L85.6 138.2 L85.0 135.6 L80.9 132.5 L80.8 127.2 L77.7 127.3 L77.5 121.1 L79.5 116.5 L75.3 109.0 L64.8 102.4 L61.1 101.9 L60.5 99.8 L62.1 98.9 L53.9 89.5 L55.6 87.2 L54.2 83.4 L55.1 81.5 L57.4 82.3 L56.8 78.8 L59.4 75.3 L62.2 75.0 L60.3 67.8 L63.9 66.4 L53.5 64.0 L52.5 58.6 L50.6 58.2 L50.0 54.1 L48.0 53.4 L48.7 50.6 L45.3 44.9 L45.7 41.2 L41.6 39.2 L44.4 33.5 L42.5 32.6 L39.7 19.4 L43.7 18.8 L45.6 14.0 L54.4 24.5 L61.8 26.6 L65.7 26.1 L80.6 14.8 L84.6 19.3 L82.2 20.8 L84.3 24.2 L81.0 26.5 L87.3 32.3 L90.0 31.8 L92.2 42.2 L103.6 45.7 L108.9 52.0 L118.9 56.0 L143.5 51.5 L137.7 53.0 L143.5 53.3 L143.6 51.3 L142.3 46.2 L150.6 44.8 L151.9 41.2 L158.1 36.6 L167.5 36.7 L168.4 34.3 L171.9 33.9 L177.0 34.0 L178.1 37.9 L189.0 42.6 L193.3 41.6 L198.7 43.9 L200.1 48.0 L205.9 50.4 L209.2 55.6 L217.5 55.4 L218.4 62.1 L217.2 64.2 L219.0 69.7 L216.1 81.0 L213.4 82.5 L215.3 85.3 L212.8 85.1 L210.6 88.0 L212.3 94.5 L215.5 95.2 L211.7 99.9 L214.8 111.4 L214.6 120.2 L223.3 121.5 L224.7 125.6 L224.4 128.1 L214.7 139.8 L224.5 154.3 L234.8 158.6 L234.5 170.6 L238.8 170.5 L240.3 172.2 L238.8 177.7 L231.1 178.6 L228.6 182.1 L225.3 182.3 L224.7 188.2 L220.5 196.0 L212.0 193.4 L211.2 191.6 L210.5 193.4 L195.6 192.0 L193.1 190.1 L186.2 190.4 L177.5 187.6 L174.3 173.4 L172.1 171.9 L165.5 171.8 L160.3 173.8 L158.5 176.4 L149.7 179.4 L146.6 176.8 L140.4 177.1 L122.9 163.8 L116.2 162.7 L112.4 152.2 L110.1 151.0 L111.4 149.2 L108.7 148.5 L108.6 145.0 L103.2 138.9 Z" fill="#c9a56a" fill-opacity="0.16" stroke="#d4b07a" stroke-width="1.8" stroke-linejoin="round"/>
         </svg>
       </div>
       <div class="copy">

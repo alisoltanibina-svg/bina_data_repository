@@ -145,7 +145,7 @@ html.treat-v1 .search-icon {
 
 html.treat-v1 .entry-search-box {
     border-width: 1px;
-    border-radius: var(--treat-radius-room);
+    border-radius: var(--treat-radius-pill);
     padding: 8px 18px;
     box-shadow: var(--treat-shadow);
 }
@@ -168,6 +168,77 @@ html.treat-v1 .entry-suggestions li {
 
 html.treat-v1 .entry-suggestions li:hover {
     background: rgba(27, 36, 46, 0.04);
+}
+
+/* Curtain scroller: starts below the banner; thumb is a hang-btn pill on a light-line */
+html.treat-v1 .entry-scroll::-webkit-scrollbar {
+    width: 12px;
+}
+
+html.treat-v1 .entry-scroll::-webkit-scrollbar-button {
+    display: none;
+    width: 0;
+    height: 0;
+}
+
+html.treat-v1 .entry-scroll::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+html.treat-v1 .entry-scroll::-webkit-scrollbar-track {
+    background:
+        linear-gradient(
+            to right,
+            transparent 0,
+            transparent 5px,
+            rgba(255, 255, 255, 0.22) 5px,
+            rgba(255, 255, 255, 0.22) 7px,
+            transparent 7px
+        );
+    border-radius: var(--treat-radius-pill);
+    margin-block: 12px;
+}
+
+html.treat-v1 .entry-scroll::-webkit-scrollbar-thumb {
+    background-color: #ffffff;
+    background-clip: padding-box;
+    border: 3px solid transparent;
+    border-radius: var(--treat-radius-pill);
+    box-shadow: var(--treat-shadow);
+    min-height: 38px;
+}
+
+html.treat-v1 .entry-scroll::-webkit-scrollbar-thumb:hover {
+    background-color: #ffffff;
+    background-clip: padding-box;
+    box-shadow: 0 10px 24px rgba(27, 36, 46, 0.16);
+}
+
+html.treat-v1 .entry-suggestions::-webkit-scrollbar {
+    width: 8px;
+}
+
+html.treat-v1 .entry-suggestions::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+html.treat-v1 .entry-suggestions::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--topic-accent, #0078d7) 55%, #ffffff);
+    border-radius: var(--treat-radius-pill);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+}
+
+@supports (-moz-appearance: none) {
+    html.treat-v1 .entry-scroll {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 255, 255, 0.72) rgba(255, 255, 255, 0.12);
+    }
+
+    html.treat-v1 .entry-suggestions {
+        scrollbar-width: thin;
+        scrollbar-color: color-mix(in srgb, var(--topic-accent, #0078d7) 55%, #ffffff) transparent;
+    }
 }
 
 html.treat-v1 .entry-cta {

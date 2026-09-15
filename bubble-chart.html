@@ -16,7 +16,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="global.css?v=banner1">
-    <link rel="stylesheet" href="bubble-chart.css?v=bb2">
+    <link rel="stylesheet" href="bubble-chart.css?v=bb4">
     <link rel="stylesheet" href="treat-v1.css?v=9">
     <script src="config.js"></script>
     <script src="bubble-chart.js"></script>
@@ -27,29 +27,47 @@
     <div id="top-banner" data-page="bubble"></div>
     <script src="banner.js"></script>
 
-    <div class="bubble-workspace">
-        <header class="bb-intro">
-            <h1 class="bb-title" id="page-title">
-                <span>نمودار حبابی</span>
-                <select id="subtopic-select" class="subtopic-select" aria-label="انتخاب زیرموضوع"></select>
-            </h1>
-            <p class="bb-lead" id="page-subtitle">در حال بارگذاری...</p>
-            <p class="bb-help">وزن هر شاخص را از ۱− تا ۱+ عوض کنید تا ببینید استان‌ها روی نمودار چطور جابه‌جا می‌شوند. محاسبات همیشه روی آخرین دادهٔ منتشرشده است.</p>
-            <a href="explorer.html" id="btn-back-explorer" class="bb-back">بازگشت به انتخاب شاخص</a>
-        </header>
-
-        <div class="bb-body">
-            <main id="chart-container">
-                <div id="plot-wrapper">
-                    <canvas id="bubbleChart"></canvas>
+    <div class="bb-deck" id="bb-deck">
+        <div class="bb-deck-track" id="bb-deck-track">
+            <section class="bb-picker" id="bb-picker" aria-label="انتخاب موضوع">
+                <div class="bb-preview-wrap">
+                    <div class="bb-preview" id="bb-preview" aria-hidden="false">
+                        <span class="bb-bubble-axis bb-bubble-axis-x"></span>
+                        <span class="bb-bubble-axis bb-bubble-axis-y"></span>
+                    </div>
                 </div>
-            </main>
+                <aside class="bb-topic-stack" id="bb-topic-stack" aria-label="موضوع‌ها"></aside>
+            </section>
 
-            <aside class="bb-rail" aria-label="وزن‌دهی شاخص‌ها">
-                <h2>وزن‌دهی شاخص‌ها</h2>
-                <p class="bb-rail-note">تاثیر هر شاخص را روی محور امتیاز تنظیم کنید</p>
-                <div class="bb-sliders" id="indicators-list"></div>
-            </aside>
+            <div class="bubble-workspace">
+                <header class="bb-intro">
+                    <h1 class="bb-title" id="page-title">
+                        <span>نمودار حبابی</span>
+                        <select id="subtopic-select" class="subtopic-select" aria-label="انتخاب زیرموضوع"></select>
+                    </h1>
+                    <p class="bb-lead" id="page-subtitle">در حال بارگذاری...</p>
+                    <p class="bb-help">وزن هر شاخص را از ۱− تا ۱+ عوض کنید تا ببینید استان‌ها روی نمودار چطور جابه‌جا می‌شوند. محاسبات همیشه روی آخرین دادهٔ منتشرشده است.</p>
+                </header>
+
+                <div class="bb-body">
+                    <main id="chart-container">
+                        <div id="plot-wrapper">
+                            <canvas id="bubbleChart"></canvas>
+                        </div>
+                    </main>
+
+                    <aside class="bb-rail" aria-label="وزن‌دهی شاخص‌ها">
+                        <h2>وزن‌دهی شاخص‌ها</h2>
+                        <p class="bb-rail-note">تاثیر هر شاخص را روی محور امتیاز تنظیم کنید</p>
+                        <div class="bb-sliders" id="indicators-list"></div>
+                    </aside>
+
+                    <button type="button" class="bb-back-picker" id="btn-back-picker" aria-label="بازگشت به انتخاب شاخص">
+                        <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+                        <span>بازگشت به انتخاب شاخص</span>
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 </body>

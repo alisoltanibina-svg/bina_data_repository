@@ -679,12 +679,14 @@ body.problem-body #top-banner .banner-btn {
     height: 8px;
     margin-top: -4px;
     border-radius: 99px;
+    transition: left 750ms var(--pr-ease), width 750ms var(--pr-ease), background-color 750ms var(--pr-ease);
 }
 .pr-lolli-head {
     position: absolute;
     top: 68%;
     transform: translate(-50%, -50%);
     z-index: 2;
+    transition: left 750ms var(--pr-ease);
 }
 .pr-lolli-dot {
     display: block;

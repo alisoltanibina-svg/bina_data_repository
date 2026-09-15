@@ -61,6 +61,10 @@ const ANIM_MS = prefersReducedMotion ? 0 : 750;
 const CHART_ANIM = prefersReducedMotion
     ? { duration: 0 }
     : { duration: ANIM_MS, easing: 'easeOutQuart' };
+const SCATTER_ANIM_MS = prefersReducedMotion ? 0 : 1200;
+const SCATTER_ANIM = prefersReducedMotion
+    ? { duration: 0 }
+    : { duration: SCATTER_ANIM_MS, easing: 'easeInOutCubic' };
 const runningTweens = new WeakMap();
 let dashboardReady = false;
 let updateSeq = 0;
@@ -677,6 +681,32 @@ function drawDoughnut(score, colorHex = '#2563eb') {
     });
 }
 
+function setLollipopRow(row, name, val, pct, pos, edge, baseColor, motion) {
+    const stem = row.querySelector('.pr-lolli-stem');
+    const head = row.querySelector('.pr-lolli-head');
+    const valEl = row.querySelector('.pr-lolli-val');
+    const dot = row.querySelector('.pr-lolli-dot');
+    row.title = name + ': ' + formatFaNum(val, 1);
+    if (stem) {
+        stem.style.left = pos + '%';
+        stem.style.width = pct + '%';
+        stem.style.background = baseColor;
+    }
+    if (head) {
+        head.style.left = pos + '%';
+        head.classList.toggle('is-start', edge.indexOf('is-start') !== -1);
+        head.classList.toggle('is-end', edge.indexOf('is-end') !== -1);
+    }
+    if (dot) dot.style.background = baseColor;
+    if (valEl) {
+        if (motion) tweenNumber(valEl, val, formatPlainScore);
+        else {
+            valEl.textContent = formatFaNum(val, 1);
+            valEl.dataset.num = String(val);
+        }
+    }
+}
+
 function drawPolarChart(labels, data, topicName) {
     const root = document.getElementById('polarChart');
     if (!root) return;
@@ -686,27 +716,67 @@ function drawPolarChart(labels, data, topicName) {
     const baseColor = (topicObj && topicObj.color) ? topicObj.color : '#0078d7';
     const min = 0;
     const max = 100;
+    const motion = dashboardReady && !prefersReducedMotion;
 
-    const rows = labels.map((name, i) => {
+    const items = labels.map((name, i) => {
         const raw = Number(data[i]);
         const val = isFinite(raw) ? raw : 0;
         const pct = lollipopPct(val, min, max);
         const pos = 100 - pct;
         const edge = pos < 12 ? ' is-start' : (pos > 88 ? ' is-end' : '');
+        return { name, val, pct, pos, edge };
+    });
+
+    const existing = root.querySelectorAll('.pr-lolli-row');
+    let reuse = existing.length === items.length && items.length > 0;
+    if (reuse) {
+        existing.forEach((row, i) => {
+            const nameEl = row.querySelector('.pr-lolli-name');
+            if (!nameEl || nameEl.textContent !== items[i].name) reuse = false;
+        });
+    }
+
+    if (reuse) {
+        existing.forEach((row, i) => {
+            const it = items[i];
+            setLollipopRow(row, it.name, it.val, it.pct, it.pos, it.edge, baseColor, motion);
+        });
+        return;
+    }
+
+    root.innerHTML = items.map((it) => {
+        const pct = motion ? 0 : it.pct;
+        const pos = motion ? 100 : it.pos;
+        const valShow = motion ? 0 : it.val;
+        const edge = motion ? '' : it.edge;
         return (
-            '<div class="pr-lolli-row" title="' + escapeHtml(name) + ': ' + formatFaNum(val, 1) + '">' +
-                '<span class="pr-lolli-name">' + escapeHtml(name) + '</span>' +
+            '<div class="pr-lolli-row" title="' + escapeHtml(it.name) + ': ' + formatFaNum(it.val, 1) + '">' +
+                '<span class="pr-lolli-name">' + escapeHtml(it.name) + '</span>' +
                 '<div class="pr-lolli-track">' +
                     '<span class="pr-lolli-stem" style="left:' + pos + '%;width:' + pct + '%;background:' + baseColor + '"></span>' +
                     '<span class="pr-lolli-head' + edge + '" style="left:' + pos + '%">' +
-                        '<span class="pr-lolli-val">' + formatFaNum(val, 1) + '</span>' +
+                        '<span class="pr-lolli-val">' + formatFaNum(valShow, 1) + '</span>' +
                         '<span class="pr-lolli-dot" style="background:' + baseColor + '"></span>' +
                     '</span>' +
                 '</div>' +
             '</div>'
         );
+    }).join('');
+
+    if (!motion) {
+        root.querySelectorAll('.pr-lolli-val').forEach((el, i) => {
+            el.dataset.num = String(items[i].val);
+        });
+        return;
+    }
+
+    void root.offsetWidth;
+    root.querySelectorAll('.pr-lolli-row').forEach((row, i) => {
+        const valEl = row.querySelector('.pr-lolli-val');
+        if (valEl) valEl.dataset.num = '0';
+        const it = items[i];
+        setLollipopRow(row, it.name, it.val, it.pct, it.pos, it.edge, baseColor, true);
     });
-    root.innerHTML = rows.join('');
 }
 
 let scatterChart = null;
@@ -744,7 +814,7 @@ function drawScatterChart(scatterData) {
         scatterChart.options.scales.x.max = limitX;
         scatterChart.options.scales.y.min = -limitY;
         scatterChart.options.scales.y.max = limitY;
-        refreshChart(scatterChart);
+        try { scatterChart.update(); } catch (e) {}
         return;
     }
 
@@ -763,7 +833,21 @@ function drawScatterChart(scatterData) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            animation: CHART_ANIM,
+            animation: SCATTER_ANIM,
+            animations: prefersReducedMotion ? false : {
+                numbers: {
+                    type: 'number',
+                    properties: ['x', 'y', 'borderWidth', 'radius'],
+                    duration: SCATTER_ANIM_MS,
+                    easing: 'easeInOutCubic'
+                },
+                colors: {
+                    type: 'color',
+                    properties: ['color', 'backgroundColor', 'borderColor'],
+                    duration: SCATTER_ANIM_MS,
+                    easing: 'easeInOutCubic'
+                }
+            },
             rtl: false,
             plugins: {
                 legend: { display: false },
@@ -825,11 +909,13 @@ function drawScatterChart(scatterData) {
 function resizeChartSafely(chart) {
     if (!chart || typeof chart.resize !== 'function') return;
     try {
+        const scatter = chart.canvas && chart.canvas.id === 'scatterChart';
         // Stop an in-flight polar animation, then paint at the current size.
         // A resize without update() left the first Tehran polar chart at scale 0.
-        if (typeof chart.stop === 'function') chart.stop();
+        // Scatter keeps its in-flight tween; stop()+update('none') snapped the points.
+        if (!scatter && typeof chart.stop === 'function') chart.stop();
         chart.resize();
-        if (typeof chart.update === 'function') chart.update('none');
+        if (!scatter && typeof chart.update === 'function') chart.update('none');
     } catch (e) {}
 }
 
