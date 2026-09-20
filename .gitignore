@@ -26,5 +26,6 @@ uvicorn.bat
 .gitconfig
 .lesshst
 .vscode/
+.grok/
 
 _restore
