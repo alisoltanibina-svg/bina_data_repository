@@ -58,8 +58,6 @@ function startSweep(chart) {
     sweepReq = requestAnimationFrame(animate);
 }
 
-let ktopicsData = [];
-let kdescData = [];
 let kscoreData = [];
 let topicsColorData = []; 
 let topicsHierarchy = {};
@@ -87,17 +85,7 @@ const provinceColorPalette = [
 ];
 let provinceColors = {};
 
-function toFa(num) {
-    if (num === null || num === undefined) return '';
-    return num.toString().replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]);
-}
-
-function toFaFixed(num, digits = 2) {
-    if (num === null || num === undefined || num === '' || !isFinite(Number(num))) return '';
-    return toFa(Number(num).toFixed(digits));
-}
-
-const API_BASE_URL = window.API_BASE_URL || (window.location.protocol + '//' + window.location.hostname + ':8000');
+const API_BASE_URL = window.API_BASE_URL;
 
 async function loadExplorerData() {
     try {
@@ -138,12 +126,6 @@ async function loadExplorerData() {
     }
 }
 
-function escapeHtml(str) {
-    return String(str ?? '').replace(/[&<>"']/g, ch => (
-        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]
-    ));
-}
-
 function topicAccent(topic) {
     const row = topicsColorData.find(t => t.topic_name === topic);
     return (row && (row.master_color || row.upper_color)) || '#0078d7';
@@ -177,18 +159,6 @@ function countTopicIndicators(topic) {
     return Object.values(topicsHierarchy[topic] || {}).reduce((n, list) => n + (list ? list.length : 0), 0);
 }
 
-const TOPIC_ICONS = {
-    'معنویت و ارزش‌های دینی': 'fa-solid fa-mosque',
-    'زندگی خانوادگی': 'fa-solid fa-house-user',
-    'مصرف فرهنگی و رسانه‌ای': 'fa-solid fa-tv',
-    'همبستگی و سرمایه اجتماعی': 'fa-solid fa-handshake',
-    'دانش و سرمایه انسانی': 'fa-solid fa-graduation-cap',
-    'معیشت و فرهنگ اقتصادی': 'fa-solid fa-store',
-    'رفاه و عدالت اجتماعی': 'fa-solid fa-scale-balanced',
-    'مسائل اجتماعی': 'fa-solid fa-users',
-    'شاخص جامع فرهنگی اجتماعی': 'fa-solid fa-chart-pie'
-};
-
 let mosaicAnimCtx = null;
 let mosaicRenderGen = 0;
 let mosaicLayoutKey = '';
@@ -205,26 +175,8 @@ function topicTileSrc(topic) {
     return encodeURI(`assets/images/${topic}-tile.webp`);
 }
 
-function topicIconClass(topic) {
-    return TOPIC_ICONS[topic] || 'fa-solid fa-layer-group';
-}
-
 function mosaicLayout() {
-    const w = window.innerWidth;
-    if (w < 720) return { cols: 2 };
-    if (w < 900) return { cols: 2 };
-    return { cols: 4 };
-}
-
-function flipTextHtml(text, duration = 2.2, delay = 0, loop = true) {
-    const words = String(text).trim().split(/\s+/).filter(Boolean);
-    const total = Math.max(words.length, 1);
-    return `<div class="flip-text-wrapper" style="perspective:1000px">${words.map((word, i) => {
-        const sineValue = Math.sin((i / total) * (Math.PI / 2));
-        const calculatedDelay = sineValue * (duration * 0.25) + delay;
-        const safe = escapeHtml(word);
-        return `<span class="flip-char" data-char="${safe}" style="--flip-duration:${duration}s;--flip-delay:${calculatedDelay}s;--flip-iteration:${loop ? 'infinite' : '1'};transform-style:preserve-3d">${safe}</span>`;
-    }).join('')}</div>`;
+    return { cols: window.innerWidth < 900 ? 2 : 4 };
 }
 
 function landingScroller() {
@@ -725,10 +677,6 @@ function goBackToLanding() {
     });
 }
 
-function goBackToSubtopics() {
-    goBackToLanding();
-}
-
 function renderProvincesList() {
     const container = document.getElementById('provinces-list');
     container.innerHTML = '';
@@ -738,7 +686,7 @@ function renderProvincesList() {
         
         const cb = document.createElement('input');
         cb.type = 'checkbox'; cb.id = `prov-${prov}`;
-        cb.className = 'w-5 h-5 rounded border-gray-300 focus:ring-0 cursor-pointer province-checkbox transition-colors';
+        cb.className = 'province-checkbox';
         cb.checked = activeDatasets.includes(prov);
         cb.style.accentColor = provinceColors[prov];
         

@@ -15,29 +15,7 @@ let topicsColorData = [];
 let pickerReady = false;
 let chartOpenedFromPicker = false; 
 
-function brightenColor(hex, percent) {
-    hex = hex.replace('#', '');
-    if (hex.length === 3) {
-        hex = hex.split('').map(c => c + c).join('');
-    }
-    let r = parseInt(hex.substring(0, 2), 16);
-    let g = parseInt(hex.substring(2, 4), 16);
-    let b = parseInt(hex.substring(4, 6), 16);
-    
-    r = Math.round(r + (255 - r) * percent);
-    g = Math.round(g + (255 - g) * percent);
-    b = Math.round(b + (255 - b) * percent);
-    
-    const toHex = (n) => {
-        const hexVal = n.toString(16);
-        return hexVal.length === 1 ? '0' + hexVal : hexVal;
-    };
-    
-    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
-}
-
-
-const API_BASE_URL = window.API_BASE_URL || (window.location.protocol + '//' + window.location.hostname + ':8000');
+const API_BASE_URL = window.API_BASE_URL;
 let rawData = [];
 let indicators = [];
 let indicatorWeights = {};
@@ -105,12 +83,6 @@ async function fillSubtopicSelect() {
             select.appendChild(opt);
         }
     }
-}
-
-function escapeHtml(str) {
-    return String(str ?? '').replace(/[&<>"']/g, ch => (
-        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]
-    ));
 }
 
 function pickerTopics() {
@@ -540,12 +512,6 @@ function drawChart() {
             }
         }
     });
-}
-
-function updateChartData() {
-    if(!chartObj) return;
-    chartObj.data.datasets[0].data = getChartData();
-    chartObj.update();
 }
 
 // Resize handler: keep chart crisp and responsive across displays

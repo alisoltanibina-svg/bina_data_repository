@@ -6,15 +6,6 @@
 //   remain in Persian and are intentionally left unchanged. This header was added to improve
 //   maintainability and readability.
 
-// -- Typology focus animation configuration --
-const typologyFocusConfig = {
-    animationDuration: '1.6s',  
-    transitionEasing: 'cubic-bezier(0.25, 1, 0.5, 1)',
-    focusScale: 1.15,           
-    neighborGap: 25,            
-    focusOffset: 0.35
-};
-
 function curtainScroller() {
     const curtain = document.getElementById('entry-view-curtain');
     return (curtain && curtain.querySelector('.entry-scroll')) || curtain;
@@ -244,15 +235,11 @@ function bindMapPanelDock() {
     syncDock();
 }
 
-function toFaDigits(value) {
-    return String(value).replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]);
-}
-
 function formatRaceValue(value) {
     if (value == null || !isFinite(value)) return '';
     const abs = Math.abs(value);
     const digits = abs >= 100 ? 0 : abs >= 10 ? 1 : 2;
-    return toFaDigits(Number(value).toFixed(digits));
+    return toFa(Number(value).toFixed(digits));
 }
 
 function lerpRace(a, b, t) {
@@ -393,7 +380,7 @@ function initCurtainRace() {
             });
             const year = years[t < 1 ? fromIdx : toIdx];
             if (yearEl && year !== lastYearShown) {
-                yearEl.textContent = toFaDigits(year);
+                yearEl.textContent = toFa(year);
                 lastYearShown = year;
             }
         }
@@ -476,7 +463,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
 applyChartDefaults();
 
-const API_BASE_URL = window.API_BASE_URL || (window.location.protocol + '//' + window.location.hostname + ':8000');
+const API_BASE_URL = window.API_BASE_URL;
 
 const atlasTrendCache = {};
 const atlasClusterCache = {};

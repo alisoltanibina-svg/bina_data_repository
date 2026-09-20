@@ -9,17 +9,11 @@ if (applyChartDefaults()) {
 }
 const urlParams = new URLSearchParams(window.location.search);
 
-const API_BASE_URL = window.API_BASE_URL || (window.location.protocol + '//' + window.location.hostname + ':8000');
-// Always animate; ignore Windows/browser prefers-reduced-motion.
-const prefersReducedMotion = false;
-const ANIM_MS = prefersReducedMotion ? 0 : 750;
-const CHART_ANIM = prefersReducedMotion
-    ? { duration: 0 }
-    : { duration: ANIM_MS, easing: 'easeOutQuart' };
-const SCATTER_ANIM_MS = prefersReducedMotion ? 0 : 1200;
-const SCATTER_ANIM = prefersReducedMotion
-    ? { duration: 0 }
-    : { duration: SCATTER_ANIM_MS, easing: 'easeInOutCubic' };
+const API_BASE_URL = window.API_BASE_URL;
+const ANIM_MS = 750;
+const CHART_ANIM = { duration: ANIM_MS, easing: 'easeOutQuart' };
+const SCATTER_ANIM_MS = 1200;
+const SCATTER_ANIM = { duration: SCATTER_ANIM_MS, easing: 'easeInOutCubic' };
 const runningTweens = new WeakMap();
 let dashboardReady = false;
 let updateSeq = 0;
@@ -68,18 +62,7 @@ function resolveProvinceName(raw, provinces) {
 function refreshChart(chart) {
     if (!chart) return;
     try { if (typeof chart.stop === 'function') chart.stop(); } catch (e) {}
-    chart.update(prefersReducedMotion ? 'none' : undefined);
-}
-
-function chartOnCanvas(canvas) {
-    if (!canvas || typeof Chart.getChart !== 'function') return null;
-    return Chart.getChart(canvas) || null;
-}
-
-function destroyChartInstance(chart) {
-    if (!chart) return;
-    try { if (typeof chart.stop === 'function') chart.stop(); } catch (e) {}
-    try { if (typeof chart.destroy === 'function') chart.destroy(); } catch (e) {}
+    chart.update();
 }
 
 function tweenNumber(el, toValue, formatter) {
@@ -95,7 +78,7 @@ function tweenNumber(el, toValue, formatter) {
     const from = hasFrom ? Number(el.dataset.num) : to;
     el.dataset.num = String(to);
 
-    if (!dashboardReady || prefersReducedMotion || !hasFrom || from === to) {
+    if (!dashboardReady || !hasFrom || from === to) {
         el.textContent = format(to);
         return;
     }
@@ -147,21 +130,14 @@ function replaceToneClass(el, tone, palette) {
     if (tone) el.classList.add(tone);
 }
 
-// NormalizeText: helper to clean Persian text, remove invisible characters, and normalize common spelling variants
 function normalizeText(str) {
     if (!str) return "";
-    let cleaned = str.toString()
-        .replace(/ي/g, "ی") 
-        .replace(/ك/g, "ک") 
-        .replace(/[\u200B-\u200D\uFEFF\r\n]/g, "") // Strips invisible characters
+    return str.toString()
+        .replace(/ي/g, "ی")
+        .replace(/ك/g, "ک")
+        .replace(/[\u200B-\u200D\uFEFF\r\n]/g, "")
         .replace(/^استان\s+/i, "")
         .trim();
-        
-    // // Normalize known variants of 'Alborz' province name to the canonical form
-    // if (cleaned.includes("لبرز") || cleaned.toLowerCase().includes("alborz")) {
-    //     return "البرز";
-    // }
-    return cleaned;
 }
 
 let urlProvinceRaw = urlParams.get('province') || "تهران";
@@ -449,12 +425,6 @@ async function updateDashboard(topicName) {
     }
 }
 
-function escapeHtml(str) {
-    return String(str ?? '').replace(/[&<>"']/g, ch => (
-        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]
-    ));
-}
-
 function formatFaNum(n, digits = 1) {
     if (n === null || n === undefined || n === '' || !isFinite(Number(n))) return '—';
     return Number(n).toLocaleString('fa-IR', {
@@ -671,7 +641,7 @@ function drawPolarChart(labels, data, topicName) {
     const baseColor = (topicObj && topicObj.color) ? topicObj.color : '#0078d7';
     const min = 0;
     const max = 100;
-    const motion = dashboardReady && !prefersReducedMotion;
+    const motion = dashboardReady;
 
     const items = labels.map((name, i) => {
         const raw = Number(data[i]);
@@ -789,7 +759,7 @@ function drawScatterChart(scatterData) {
             responsive: true,
             maintainAspectRatio: false,
             animation: SCATTER_ANIM,
-            animations: prefersReducedMotion ? false : {
+            animations: {
                 numbers: {
                     type: 'number',
                     properties: ['x', 'y', 'borderWidth', 'radius'],
@@ -992,32 +962,6 @@ function projectedRingSpan(ring, bbox) {
         if (y > maxY) maxY = y;
     });
     return { w: Math.max(0, maxX - minX), h: Math.max(0, maxY - minY) };
-}
-
-function pointInRing(x, y, ring) {
-    let inside = false;
-    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-        const xi = ring[i][0], yi = ring[i][1];
-        const xj = ring[j][0], yj = ring[j][1];
-        if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / ((yj - yi) || 1e-12) + xi)) {
-            inside = !inside;
-        }
-    }
-    return inside;
-}
-
-function pointInGeom(lon, lat, geom) {
-    if (!geom) return false;
-    const polys = geom.type === 'Polygon' ? [geom.coordinates]
-        : (geom.type === 'MultiPolygon' ? geom.coordinates : []);
-    return polys.some(poly => {
-        if (!poly || !poly[0]) return false;
-        if (!pointInRing(lon, lat, poly[0])) return false;
-        for (let h = 1; h < poly.length; h++) {
-            if (pointInRing(lon, lat, poly[h])) return false;
-        }
-        return true;
-    });
 }
 
 function featureAdm1Name(ft) {
@@ -1441,21 +1385,11 @@ function storySectionProgress() {
 function updateStoryProgress() {
     const nameEl = document.getElementById('story-province-name');
     const p = storySectionProgress();
-    const active = p >= -0.02;
 
     if (nameEl) {
-        const nameT = prefersReducedMotion ? (active ? 1 : 0) : Math.max(0, Math.min(1, p / 0.1));
+        const nameT = Math.max(0, Math.min(1, p / 0.1));
         nameEl.style.opacity = String(nameT);
         nameEl.style.transform = `translateY(${(1 - nameT) * 14}px)`;
-    }
-
-    if (prefersReducedMotion) {
-        applyPathProgress(storyOutlinePaths, active ? 1 : 0);
-        applyPathProgress(storyCountyPaths, active ? 1 : 0);
-        applyCountyReveal(active ? 1 : 0);
-        setStoryMapInteractive(active);
-        applyPyramidProgress(p, true);
-        return;
     }
 
     const outlineT = Math.max(0, Math.min(1, (p - 0.04) / 0.14));
@@ -1465,7 +1399,7 @@ function updateStoryProgress() {
     applyPathProgress(storyCountyPaths, countyT);
     applyCountyReveal(revealT);
     setStoryMapInteractive(revealT >= 1);
-    applyPyramidProgress(p, false);
+    applyPyramidProgress(p);
 }
 
 function updateBackToTopBtn() {
@@ -1529,7 +1463,7 @@ function initStoryScroll() {
     const topBtn = document.getElementById('btn-back-to-top');
     if (topBtn) {
         topBtn.addEventListener('click', () => {
-            window.scrollTo({ top: 0, behavior: prefersReducedMotion ? 'auto' : 'smooth' });
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         });
     }
     updateBackToTopBtn();
@@ -1668,7 +1602,7 @@ function ensurePyramidChart() {
     return pyramidChart;
 }
 
-function applyPyramidProgress(p, reduced) {
+function applyPyramidProgress(p) {
     const panel = document.getElementById('story-pyramid');
     const yearEl = document.getElementById('story-pyramid-year');
     const titleEl = document.getElementById('story-pyramid-title');
@@ -1683,12 +1617,8 @@ function applyPyramidProgress(p, reduced) {
         return;
     }
 
-    const titleT = reduced
-        ? (p >= 0.42 ? 1 : 0)
-        : Math.max(0, Math.min(1, (p - 0.42) / 0.06));
-    const chartT = reduced
-        ? (p >= 0.56 ? 1 : 0)
-        : Math.max(0, Math.min(1, (p - 0.56) / 0.05));
+    const titleT = Math.max(0, Math.min(1, (p - 0.42) / 0.06));
+    const chartT = Math.max(0, Math.min(1, (p - 0.56) / 0.05));
 
     if (titleEl) {
         const chars = Math.round(titleT * fullTitle.length);
@@ -1704,7 +1634,7 @@ function applyPyramidProgress(p, reduced) {
     const chart = ensurePyramidChart();
     if (!chart) return;
 
-    const yearT = reduced ? 0 : Math.max(0, Math.min(1, (p - 0.62) / 0.34));
+    const yearT = Math.max(0, Math.min(1, (p - 0.62) / 0.34));
     const frame = interpolatedPyramidSeries(yearT);
     chart.data.datasets[0].data = frame.male;
     chart.data.datasets[1].data = frame.female;

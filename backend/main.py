@@ -6,7 +6,8 @@
 # Notes: Atlas map snapshots come from the latest year of trend_score per topic.
 #   Province population comes from province_pop (latest year per province).
 #   Static files: HTML/JS/CSS, assets/, and data/*.geojson only — not the SQLite file,
-#   backend source, or git. Public deploy: CORS_ORIGINS and optional THREAD_POOL_SIZE.
+#   backend source, or git. Public deploy: CORS_ORIGINS, optional THREAD_POOL_SIZE,
+#   and RATE_LIMIT_* (see backend/ratelimit.py).
 
 from __future__ import annotations
 
@@ -38,6 +39,7 @@ from backend.database import (
     normalize_fa_name,
     resolve_catalog_name,
 )
+from backend.ratelimit import RateLimitMiddleware
 
 JSON_MEDIA = "application/json"
 # Data and assets change rarely. Browsers may reuse copies:
@@ -268,13 +270,23 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
+# Innermost first: 429s still pass through CORS, gzip, and security headers.
+app.add_middleware(RateLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins(),
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["ETag"],
+    expose_headers=[
+        "ETag",
+        "Retry-After",
+        "RateLimit",
+        "RateLimit-Policy",
+        "X-RateLimit-Limit",
+        "X-RateLimit-Remaining",
+        "X-RateLimit-Reset",
+    ],
 )
 app.add_middleware(GZipMiddleware, minimum_size=500)
 app.add_middleware(SecurityHeadersMiddleware)
