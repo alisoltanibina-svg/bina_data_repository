@@ -7,6 +7,30 @@ function escapeHtml(str) {
     ));
 }
 
+function cssUrl(path) {
+    return 'url(' + JSON.stringify(String(path || '')) + ')';
+}
+
+function hexToRgb(hex, fallback) {
+    const fb = fallback || { r: 0, g: 120, b: 215 };
+    if (!hex) return { r: fb.r, g: fb.g, b: fb.b };
+    let h = String(hex).trim().replace('#', '');
+    if (h.length === 3 && /^[a-f\d]{3}$/i.test(h)) {
+        h = h.split('').map(ch => ch + ch).join('');
+    }
+    if (!/^[a-f\d]{6}$/i.test(h)) return { r: fb.r, g: fb.g, b: fb.b };
+    return {
+        r: parseInt(h.slice(0, 2), 16),
+        g: parseInt(h.slice(2, 4), 16),
+        b: parseInt(h.slice(4, 6), 16)
+    };
+}
+
+function rgbaFromHex(hex, a, fallback) {
+    const c = hexToRgb(hex, fallback);
+    return `rgba(${c.r}, ${c.g}, ${c.b}, ${a})`;
+}
+
 function toFa(num) {
     if (num === null || num === undefined) return '';
     return String(num).replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]);
@@ -32,7 +56,7 @@ function initLazyBackgrounds(root) {
     function applyBg(el) {
         const url = el.dataset.bg;
         if (url) {
-            el.style.backgroundImage = `url('${url}')`;
+            el.style.backgroundImage = cssUrl(url);
             el.removeAttribute('data-bg');
             el.classList.remove('bg-placeholder');
         }

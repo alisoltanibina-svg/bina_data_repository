@@ -328,15 +328,13 @@ function topicBackHtml(topic) {
 }
 
 function topicFlipHtml(topic, index, cols) {
-    const src = topicTileSrc(topic);
-    const accent = topicAccent(topic);
     const col = index % cols;
     const open = flippedTopic === topic ? ' is-open' : '';
     const n = countTopicIndicators(topic);
     return `
-        <article class="ex-room${open}" data-col="${col}" data-topic="${escapeHtml(topic)}" style="--topic-accent:${accent}">
+        <article class="ex-room${open}" data-col="${col}" data-topic="${escapeHtml(topic)}">
             <button type="button" class="ex-room-face" aria-expanded="${open ? 'true' : 'false'}" aria-label="${escapeHtml(topic)}">
-                <div class="ex-room-visual" style="background-image: url('${src}')">
+                <div class="ex-room-visual">
                     <div class="ex-room-veil"></div>
                 </div>
                 <div class="ex-room-copy">
@@ -573,6 +571,13 @@ function renderMosaicMenu() {
         </section>
     `;
 
+    container.querySelectorAll('.ex-room').forEach(card => {
+        const topic = card.dataset.topic;
+        if (!topic) return;
+        card.style.setProperty('--topic-accent', topicAccent(topic));
+        const visual = card.querySelector('.ex-room-visual');
+        if (visual) visual.style.backgroundImage = cssUrl(topicTileSrc(topic));
+    });
     bindMosaicInteractions(container);
     initBubblePreview(container);
     if (flippedTopic) setTopicFlipped(flippedTopic, true);

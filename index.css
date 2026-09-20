@@ -153,10 +153,8 @@ html.atlas-view #entry-view-curtain,
     margin-top: 0;
     color: #ffffff;
     pointer-events: auto;
-    overflow-x: hidden;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
+    overflow: hidden;
+    overscroll-behavior: none;
 }
 .entry-hero {
     min-height: 100%;
@@ -597,9 +595,6 @@ body.immersive-mode path.detached-province { filter: drop-shadow(0 20px 30px rgb
 
 #left-popup-panel, #map-legend, #right-panel { transition: all 0.5s ease; }
 
-#btn-similar,
-#btn-problem { display: none; }
-
 .leaflet-control-zoom { display: none !important; }
 
 /* Requirement 5: Move back button UP onto the banner */
@@ -656,7 +651,34 @@ body.immersive-mode path.detached-province { filter: drop-shadow(0 20px 30px rgb
 
 .panel-title { font-size: 0.8rem; margin-top: 0; margin-bottom: 15px; text-align: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; width: 100%; font-weight: 700; color: var(--text-color); }
 .instruction { font-size: 0.90rem; color: #666; text-align: center; margin-top: 30px; line-height: 1.5; }
+.index-kicker { margin-top: 0; font-size: 0.75rem; color: #666; font-weight: bold; }
 .index-description-text { font-size: 0.70rem; line-height: 1.7; color: #444; text-align: justify; margin: 10px 0; padding: 10px; background: #f8fbff; border-radius: 8px; border: 1px solid #e0efff; }
+.prov-head-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 10px;
+    margin-bottom: 15px;
+}
+.prov-head-row h3 { margin: 0; color: #333; font-size: 0.75rem; font-weight: bold; }
+.prov-pop-pill {
+    display: inline-flex;
+    align-items: center;
+    background: #f4f7f6;
+    border: 1px solid #c1d5e0;
+    padding: 4px 10px;
+    border-radius: 15px;
+    color: #0078d7;
+    font-size: 0.75rem;
+    font-weight: bold;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+}
+.prov-pop-pill svg { width: 14px; height: 14px; margin-left: 4px; fill: #0078d7; }
+.prov-change-up { color: #059669; font-weight: bold; }
+.prov-change-down { color: #dc2626; font-weight: bold; }
+.prov-change-flat { color: #4b5563; font-weight: bold; }
 
 @keyframes fadeSlideIn { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: translateX(0); } }
 
@@ -718,7 +740,7 @@ body.immersive-mode #map { background: #dce5ec; }
 
 .topic-marker-dot { width: 16px; height: 16px; border-radius: 50%; background: #0078d7; border: 2px solid #fff; box-shadow: 0 0 4px rgba(0,0,0,0.4); flex-shrink: 0; }
 .topic-marker-content { display: flex; align-items: center; gap: 6px; background: #fff; padding: 3px 6px; border-radius: 20px; border: 1px solid #ddd; box-shadow: 0 2px 5px rgba(0,0,0,0.1); position: relative; cursor: pointer; }
-.topic-marker-content img { width: 29px; height: 29px; border-radius: 50%; object-fit: content; }
+.topic-marker-content img { width: 29px; height: 29px; border-radius: 50%; object-fit: cover; }
 .topic-marker-content span { font-size: 0.85rem; font-weight: bold; color: #333; margin: 0 4px; }
 .topic-marker-content::after { content: attr(data-topic-name); position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0, 0, 0, 0.85); color: #fff; padding: 5px 10px; border-radius: 6px; font-size: 0.85rem; font-weight: normal; white-space: nowrap; opacity: 0; visibility: hidden; transition: all 0.3s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.2); pointer-events: none; z-index: 10000; }
 .topic-marker.left-side .topic-marker-content::after, .topic-marker.right-side .topic-marker-content::after { left: 110%; right: auto; }
@@ -817,6 +839,8 @@ body.immersive-mode #map { background: #dce5ec; }
 .heat-table { width: 100%; border-collapse: collapse; margin-bottom: 0; font-size: 0.75rem; text-align: center; }
 .heat-table th { background: #f0f0f0; padding: 8px 4px; color: #333; border: 1px solid #ddd; font-weight: bold; position: sticky; top: 0; z-index: 2; }
 .heat-table td { padding: 8px 4px; border: 1px solid #eee; font-weight: bold; }
+.heat-table .heat-prov-col { width: 25%; }
+.heat-cell { color: #222; }
 
 .leaflet-tooltip.custom-tooltip { background-color: rgba(255, 255, 255, 0.95); border: 1px solid #ccc; color: #333; border-radius: 6px; font-family: 'PeydaFaNumWeb', Tahoma, sans-serif !important; font-size: 14px; text-align: center; line-height: 1.6;}
 

@@ -1,5 +1,10 @@
 # Dashboard API. Install: pip install -r requirements.txt
+# Set DATABASE_URL, then: alembic upgrade head
 # Then: python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 fastapi==0.141.1
 uvicorn==0.52.3
 pydantic==2.13.4
+pydantic-settings==2.11.0
+SQLAlchemy==2.0.43
+psycopg[binary]==3.2.10
+alembic==1.16.5

@@ -64,9 +64,9 @@ function isCompactMap() {
 }
 
 function setMapSheet(sheet) {
-    const allowed = ['map', 'details', 'topics', 'groups'];
+    const allowed = ['map', 'details', 'topics'];
     if (!allowed.includes(sheet)) sheet = 'map';
-    document.body.classList.remove('map-sheet-map', 'map-sheet-details', 'map-sheet-topics', 'map-sheet-groups');
+    document.body.classList.remove('map-sheet-map', 'map-sheet-details', 'map-sheet-topics');
     if (!isCompactMap()) return;
     document.body.classList.add('map-sheet-' + sheet);
     document.querySelectorAll('#map-panel-dock .map-dock-btn').forEach(btn => {
@@ -114,15 +114,10 @@ function mapOverlayPadding() {
         if (document.body.classList.contains('map-sheet-topics')) {
             bottom = Math.max(bottom, inset(document.getElementById('left-popup-panel'), 'bottom'));
         }
-        if (document.body.classList.contains('map-sheet-groups')) {
-            bottom = Math.max(bottom, inset(document.getElementById('floating-group-container'), 'bottom'));
-        }
     } else {
         left = inset(document.getElementById('left-popup-panel'), 'left');
         const rp = document.getElementById('right-panel');
         if (rp && rp.classList.contains('show-panel')) right = Math.max(right, inset(rp, 'right'));
-        const fg = document.getElementById('floating-group-container');
-        if (fg && fg.classList.contains('show-float')) right = Math.max(right, inset(fg, 'right'));
     }
 
     const maxX = Math.max(24, mapRect.width * 0.4);
@@ -158,16 +153,6 @@ function selectedProvinceBounds() {
     return found && found.isValid() ? found : null;
 }
 
-function similarGroupBounds() {
-    if (!geojsonLayer || !similarProvinces.length) return null;
-    const group = L.latLngBounds();
-    geojsonLayer.eachLayer(layer => {
-        const name = layer.feature && layer.feature.properties.ProvincNam;
-        if (similarProvinces.includes(name)) group.extend(layer.getBounds());
-    });
-    return group.isValid() ? group : null;
-}
-
 const MAP_HOME_CENTER = [31.4279, 55.6880];
 const MAP_HOME_ZOOM = 4.8;
 const MAP_MAX_ZOOM = 5.2;
@@ -193,18 +178,6 @@ function fitMapTo(bounds, { animate = false, maxZoom = MAP_MAX_ZOOM, duration = 
 
 function refitMapView({ animate = false } = {}) {
     if (!map) return;
-    if (document.body.classList.contains('immersive-mode')) {
-        map.invalidateSize(true);
-        if (isCompactMap()) {
-            const group = similarGroupBounds();
-            if (group) fitMapTo(group, { animate, maxZoom: MAP_MAX_ZOOM });
-            else showIranView({ animate });
-            return;
-        }
-        if (animate) map.flyTo([32.4279, 62.6880], 5.5, { duration: 1.6 });
-        else map.setView([32.4279, 62.6880], Math.min(5.5, MAP_MAX_ZOOM), { animate: false });
-        return;
-    }
     const province = selectedProvinceBounds();
     if (province) {
         fitMapTo(province, { animate, maxZoom: MAP_MAX_ZOOM });
@@ -225,7 +198,7 @@ function bindMapPanelDock() {
     const syncDock = () => {
         if (!isCompactMap()) {
             dock.hidden = true;
-            document.body.classList.remove('map-sheet-map', 'map-sheet-details', 'map-sheet-topics', 'map-sheet-groups');
+            document.body.classList.remove('map-sheet-map', 'map-sheet-details', 'map-sheet-topics');
             return;
         }
         dock.hidden = false;
@@ -235,222 +208,11 @@ function bindMapPanelDock() {
     syncDock();
 }
 
-function formatRaceValue(value) {
-    if (value == null || !isFinite(value)) return '';
-    const abs = Math.abs(value);
-    const digits = abs >= 100 ? 0 : abs >= 10 ? 1 : 2;
-    return toFa(Number(value).toFixed(digits));
-}
-
-function lerpRace(a, b, t) {
-    if (a == null && b == null) return null;
-    if (a == null) return t > 0.12 ? b : null;
-    if (b == null) return t < 0.88 ? a : null;
-    return a + (b - a) * t;
-}
-
-function raceEase(t) {
-    return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-}
-
-function provinceBarColor(index, total) {
-    const hue = (index * 137.508) % 360;
-    return `hsl(${hue}, 62%, 56%)`;
-}
-
-function initCurtainRace() {
-    const section = document.getElementById('section-race');
-    const list = document.getElementById('race-list');
-    const yearEl = document.getElementById('race-year-num') || document.getElementById('race-year');
-    const titleEl = document.getElementById('race-title');
-    const kickerEl = document.getElementById('race-kicker');
-    if (!section || !list) return;
-
-    const YEAR_MS = 1500;
-    let rafId = 0;
-    let playing = false;
-    let visible = false;
-
-    fetch(`${API_BASE_URL}/api/curtain/race`, { cache: 'no-store' })
-        .then(res => {
-            if (!res.ok) throw new Error('race api ' + res.status);
-            return res.json();
-        })
-        .then(startRace)
-        .catch(err => {
-            console.error('Curtain race failed', err);
-            if (titleEl) titleEl.textContent = 'نمایش شاخص در دسترس نیست';
-        });
-
-    function startRace(data) {
-        const years = data.years || [];
-        const provinces = data.provinces || [];
-        const series = data.series || {};
-        if (years.length < 2 || !provinces.length) {
-            if (titleEl) titleEl.textContent = 'نمایش شاخص در دسترس نیست';
-            return;
-        }
-
-        if (kickerEl) kickerEl.textContent = data.topic_name || 'رصد شاخص';
-        if (titleEl) titleEl.textContent = data.indicator_name || '';
-        list.style.setProperty('--race-count', String(provinces.length));
-
-        const colors = {};
-        provinces.forEach((name, i) => {
-            colors[name] = provinceBarColor(i, provinces.length);
-        });
-
-        const rows = {};
-        provinces.forEach(name => {
-            const row = document.createElement('div');
-            row.className = 'race-row';
-            row.innerHTML =
-                '<div class="race-name"></div>' +
-                '<div class="race-track"><div class="race-grow"><div class="race-bar"></div><span class="race-val"></span></div></div>';
-            row.querySelector('.race-name').textContent = name;
-            row.querySelector('.race-bar').style.background = colors[name];
-            list.appendChild(row);
-            rows[name] = {
-                el: row,
-                grow: row.querySelector('.race-grow'),
-                bar: row.querySelector('.race-bar'),
-                val: row.querySelector('.race-val'),
-            };
-        });
-
-        const n = provinces.length;
-        const rowPct = 100 / n;
-        Object.values(rows).forEach(item => {
-            item.el.style.height = rowPct + '%';
-        });
-
-        let vmin = Infinity;
-        let vmax = -Infinity;
-        provinces.forEach(name => {
-            (series[name] || []).forEach(v => {
-                if (v == null || !isFinite(v)) return;
-                if (v < vmin) vmin = v;
-                if (v > vmax) vmax = v;
-            });
-        });
-        if (!isFinite(vmin) || !isFinite(vmax)) {
-            vmin = 0;
-            vmax = 1;
-        }
-        const vspan = vmax - vmin;
-
-        let lastYearShown = null;
-        let cycleStart = 0;
-        let pauseGap = 0;
-        let pausedAt = 0;
-
-        function valuesAt(fromIdx, toIdx, t) {
-            const out = {};
-            provinces.forEach(name => {
-                const seq = series[name] || [];
-                out[name] = lerpRace(seq[fromIdx], seq[toIdx], t);
-            });
-            return out;
-        }
-
-        function barWidth(value) {
-            if (value == null || !isFinite(value)) return 0;
-            if (vspan <= 0) return 50;
-            return ((value - vmin) / vspan) * 100;
-        }
-
-        function paint(fromIdx, toIdx, t) {
-            const values = valuesAt(fromIdx, toIdx, t);
-            const ranked = provinces
-                .map(name => ({ name, value: values[name] }))
-                .sort((a, b) => {
-                    const av = a.value == null ? -Infinity : a.value;
-                    const bv = b.value == null ? -Infinity : b.value;
-                    return bv - av;
-                });
-            ranked.forEach((item, rank) => {
-                const row = rows[item.name];
-                if (!row) return;
-                const on = item.value != null && isFinite(item.value);
-                row.el.style.opacity = on ? '1' : '0';
-                row.el.style.transform = `translateY(${rank * 100}%)`;
-                row.grow.style.minWidth = on ? '2.8rem' : '0';
-                row.grow.style.width = on ? `${barWidth(item.value)}%` : '0%';
-                row.val.textContent = on ? formatRaceValue(item.value) : '';
-            });
-            const year = years[t < 1 ? fromIdx : toIdx];
-            if (yearEl && year !== lastYearShown) {
-                yearEl.textContent = toFa(year);
-                lastYearShown = year;
-            }
-        }
-
-        function travelMs() {
-            return (years.length - 1) * YEAR_MS;
-        }
-
-        function frame(now) {
-            if (!playing) return;
-            const clock = now - pauseGap;
-            if (!cycleStart) cycleStart = clock;
-            const travel = travelMs();
-            const elapsed = (clock - cycleStart) % travel;
-            const raw = elapsed / YEAR_MS;
-            const fromIdx = Math.min(years.length - 2, Math.floor(raw));
-            const local = raceEase(Math.min(1, raw - fromIdx));
-            paint(fromIdx, fromIdx + 1, local);
-            rafId = requestAnimationFrame(frame);
-        }
-
-        function play() {
-            if (playing) return;
-            if (pausedAt) {
-                pauseGap += performance.now() - pausedAt;
-                pausedAt = 0;
-            }
-            playing = true;
-            rafId = requestAnimationFrame(frame);
-        }
-
-        function pause() {
-            if (!playing) return;
-            playing = false;
-            pausedAt = performance.now();
-            if (rafId) cancelAnimationFrame(rafId);
-            rafId = 0;
-        }
-
-        function syncPlay() {
-            const atlasOff = !document.documentElement.classList.contains('atlas-view');
-            if (visible && atlasOff) play();
-            else pause();
-        }
-
-        const io = new IntersectionObserver((entries) => {
-            visible = entries.some(e => e.isIntersecting);
-            syncPlay();
-        }, { root: curtainScroller(), threshold: 0.18 });
-        io.observe(section);
-
-        const curtain = document.getElementById('entry-view-curtain');
-        if (curtain) {
-            curtain.addEventListener('transitionend', syncPlay);
-        }
-
-        paint(0, 1, 0);
-        syncPlay();
-    }
-}
-
 window.addEventListener('DOMContentLoaded', () => {
     initPerspectiveGrid();
     initCurtainBannerOffset();
     initCurtainReveal();
-    initCurtainRace();
     bindMapPanelDock();
-    document.querySelectorAll('#floating-charts-box .switcher-btn').forEach((btn) => {
-        btn.addEventListener('click', () => switchGroupChartType(btn.dataset.mode));
-    });
     if (!sessionStorage.getItem('welcomeShown')) {
         const overlay = document.getElementById('welcome-overlay');
         if (overlay) {
@@ -466,8 +228,6 @@ applyChartDefaults();
 const API_BASE_URL = window.API_BASE_URL;
 
 const atlasTrendCache = {};
-const atlasClusterCache = {};
-const atlasTopicTrendCache = {};
 let trendPanelFetchGen = 0;
 
 async function fetchJson(url) {
@@ -487,46 +247,11 @@ async function fetchAtlasTrend(province, topic) {
     return series;
 }
 
-async function fetchAtlasClusters(topic) {
-    if (atlasClusterCache[topic]) return atlasClusterCache[topic];
-    const data = await fetchJson(
-        `${API_BASE_URL}/api/atlas/clusters?topic=${encodeURIComponent(topic)}`
-    );
-    const rows = data.clusters || [];
-    atlasClusterCache[topic] = rows;
-    return rows;
-}
-
-async function fetchAtlasTopicTrends(topic) {
-    if (atlasTopicTrendCache[topic]) return atlasTopicTrendCache[topic];
-    const data = await fetchJson(
-        `${API_BASE_URL}/api/atlas/topic-trends?topic=${encodeURIComponent(topic)}`
-    );
-    const rows = data.trends || [];
-    atlasTopicTrendCache[topic] = rows;
-    const byProv = {};
-    rows.forEach(row => {
-        const prov = row.province_name;
-        if (!byProv[prov]) byProv[prov] = [];
-        byProv[prov].push({ year: row.year, index_score: row.index_score });
-    });
-    Object.keys(byProv).forEach(prov => {
-        const key = `${prov}::${topic}`;
-        if (!atlasTrendCache[key]) atlasTrendCache[key] = byProv[prov];
-    });
-    return rows;
-}
-
 function persistAppTheme(banner, accent) {
     try {
         if (banner) sessionStorage.setItem('themeBannerBg', banner);
         if (accent) sessionStorage.setItem('themeTopicAccent', accent);
     } catch (e) {}
-}
-
-function hexToRgb(hex) {
-    let result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result ? { r: parseInt(result[1], 16), g: parseInt(result[2], 16), b: parseInt(result[3], 16) } : {r:0, g:120, b:215};
 }
 
 function shadeRGB(colorObj, percent) {
@@ -569,7 +294,7 @@ function initLegend() {
     document.getElementById('legend-title-text').innerText = `${currentIndex}`;
 }
 
-let topicsData = []; let trendScoreData = []; let clustersData = []; 
+let topicsData = []; let trendScoreData = []; 
 
 // Latest-year trend_score rows, used wherever the map previously read map_scores
 let mapScoresLookup = {}; // mapScoresLookup[province_name] = { [topic_name]: row }
@@ -580,12 +305,9 @@ let currentIndex = "";
 let map, geojsonLayer;
 let rankingBarChart = null;
 let trendChartInstance = null;
-let groupChartsInstances = [];
 let loadedGeoJSON = null;
 let selectedProvince = null;
-let similarProvinces = []; 
 let leftPanelInitialized = false;
-let currentGroupChartMode = 'trend';
 
 function latestYearByKey(rows, keyName) {
     const latest = {};
@@ -726,7 +448,6 @@ async function loadAllData() {
         const data = await response.json();
         topicsData = data.topics || [];
         trendScoreData = data.trend_score || [];
-        clustersData = [];
 
         buildMapScoresLookup();
         buildProvincePopLookup(data.province_pop);
@@ -789,9 +510,6 @@ function updateTopicColors(tObj, options = {}) {
     let bannerStr = `rgb(${bannerRgb.r}, ${bannerRgb.g}, ${bannerRgb.b})`;
     const gradient = `linear-gradient(90deg, ${darkerRgb}, ${bannerStr})`;
     
-    // Apply gradient to banner inline style for immediate effect
-    // document.getElementById('top-banner').style.background = gradient;
-    // Also update the CSS variable so elements using var(--banner-bg) (entry curtain) match dynamically
     document.documentElement.style.setProperty('--banner-bg', gradient);
 
     // Inject the topic's master_color into the nav icons' bottom border
@@ -800,16 +518,13 @@ function updateTopicColors(tObj, options = {}) {
     persistAppTheme(gradient, accentHex);
 
     // Update back control to use the topic's upper color (if available)
-    try {
-        const upperHex = (tObj && (tObj.upper_color || tObj.color)) || '#0078d7';
-        function hexToRgba(hex, a) { const c = hexToRgb(hex); return `rgba(${c.r}, ${c.g}, ${c.b}, ${a})`; }
-        const btnEntry = document.getElementById('btn-back-entry');
-        if (btnEntry) {
-            btnEntry.style.background = upperHex;
-            btnEntry.style.borderColor = hexToRgba(upperHex, 0.85);
-            btnEntry.style.color = '#ffffff';
-        }
-    } catch(e) { /* fail silently */ }
+    const upperHex = (tObj && (tObj.upper_color || tObj.color)) || '#0078d7';
+    const btnEntry = document.getElementById('btn-back-entry');
+    if (btnEntry) {
+        btnEntry.style.background = upperHex;
+        btnEntry.style.borderColor = rgbaFromHex(upperHex, 0.85);
+        btnEntry.style.color = '#ffffff';
+    }
 }
 
 function getHeatmapColor(score) {
@@ -826,14 +541,15 @@ function initUI() {
         const li = document.createElement('li');
         li.className = 'index-item' + (t.topic_name === currentIndex ? ' active' : '');
         
-        let topicImgPath = `assets/images/تاپیک ${t.topic_name}.webp`;
-        // Defer background images via data-bg so we can lazy-load them with IntersectionObserver
-        li.innerHTML = `
-            <div class="index-item-img lazy-bg bg-placeholder" data-bg="${topicImgPath}"></div>
-            <span class="index-item-text">${t.topic_name}</span>
-        `;
+        const img = document.createElement('div');
+        img.className = 'index-item-img lazy-bg bg-placeholder';
+        img.dataset.bg = `assets/images/تاپیک ${t.topic_name}.webp`;
+        const label = document.createElement('span');
+        label.className = 'index-item-text';
+        label.textContent = t.topic_name;
+        li.append(img, label);
 
-        li.onclick = () => {
+        li.addEventListener('click', () => {
             document.querySelectorAll('.index-item').forEach(el => el.classList.remove('active'));
             li.classList.add('active');
             currentIndex = t.topic_name;
@@ -842,7 +558,6 @@ function initUI() {
             sessionStorage.setItem('atlasSelectedTopic', currentIndex);
             
             updateTopicColors(t);
-            similarProvinces = [];
             updateMapStyles();
             initLegend();
             updatePointer();
@@ -852,276 +567,13 @@ function initUI() {
             if (selectedProvince) updateRightPanel(selectedProvince);
             else updateDefaultPanel();
             if (isCompactMap()) setMapSheet(selectedProvince ? 'details' : 'map');
-        };
+        });
         list.appendChild(li);
     });
 
-    // Initialize lazy background loader for any newly added elements
     initLazyBackgrounds(list);
-
-    // Requirement 7: Refresh Button reloads the page
-    document.getElementById('btn-exit-focus').addEventListener('click', exitFocusMode);
-
-    document.getElementById('btn-problem').addEventListener('click', function(e) {
-        const province = selectedProvince || 'تهران';
-        if(currentIndex) {
-            window.location.href = `problem.html?province=${encodeURIComponent(province)}&topic=${encodeURIComponent(currentIndex)}`;
-        } else {
-            window.location.href = `problem.html?province=${encodeURIComponent(province)}`;
-        }
-    });
-
-    // SIMILAR PROVINCES - RIGHT PANEL & SWITCHER
-    document.getElementById('btn-similar').addEventListener('click', async function(e) {
-        if (!selectedProvince || !loadedGeoJSON) {
-            e.preventDefault();
-            showNotice("لطفاً ابتدا یک استان را از روی نقشه انتخاب کنید.", "info");
-            return;
-        }
-
-        try {
-            const [topicClusters, topicTrends] = await Promise.all([
-                fetchAtlasClusters(currentIndex),
-                fetchAtlasTopicTrends(currentIndex)
-            ]);
-            clustersData = topicClusters;
-            atlasTopicTrendCache[currentIndex] = topicTrends;
-        } catch (err) {
-            console.error('Error loading typology data', err);
-            showNotice("خطا در بارگذاری داده‌های گونه‌شناسی.");
-            return;
-        }
-
-        document.body.classList.add('immersive-mode');
-        document.getElementById('top-banner').classList.add('fade-out-collapse');
-        document.getElementById('bottom-panel').classList.add('fade-out-collapse');
-        
-        document.getElementById('left-popup-panel').classList.add('fade-out');
-        document.getElementById('map-legend').classList.add('fade-out');
-        document.getElementById('right-panel').classList.remove('show-panel');
-        document.getElementById('right-panel').classList.add('fade-out');
-
-        map.scrollWheelZoom.disable();
-        map.doubleClickZoom.disable();
-        map.touchZoom.disable();
-        map.boxZoom.disable();
-        map.keyboard.disable();
-
-        let topicClusters = clustersData.filter(c => c.topic_name === currentIndex);
-        let provMap = {};
-        topicClusters.forEach(row => {
-            if(!provMap[row.province_name]) provMap[row.province_name] = { cluster_group: row.cluster_group, subtopics: {} };
-            provMap[row.province_name].subtopics[row.subtopic_name] = Number(row.subtopic_score);
-        });
-
-        let allProvs = [];
-        Object.keys(provMap).forEach(pName => {
-            let scores = Object.values(provMap[pName].subtopics);
-            let avgScore = scores.length > 0 ? scores.reduce((a,b)=>a+b, 0) / scores.length : 0;
-            allProvs.push({ name: pName, cluster: provMap[pName].cluster_group, subtopics: provMap[pName].subtopics, score: avgScore });
-        });
-
-        const selProvData = allProvs.find(p => p.name === selectedProvince);
-        const selectedClusterGroup = selProvData ? selProvData.cluster : null;
-        const targetProvinces = allProvs.filter(p => p.cluster === selectedClusterGroup);
-        similarProvinces = targetProvinces.map(p => p.name);
-        
-        geojsonLayer.eachLayer(layer => {
-            let pName = layer.feature.properties.ProvincNam;
-            if(similarProvinces.includes(pName)) layer.bringToFront();
-        });
-        map.flyTo([32.4279, 62.6880], 5.5, { duration: 1.6 });
-
-        updateMapStyles();
-
-        let subtopicKeys = collectClusterSubtopics(targetProvinces);
-
-        let htmlContent = `
-            <table class="heat-table">
-                <thead><tr><th style="width: 25%;">استان</th>
-        `;
-        subtopicKeys.forEach(sk => htmlContent += `<th>${sk}</th>`);
-        htmlContent += `</tr></thead><tbody>`;
-        
-        targetProvinces.forEach(p => {
-            htmlContent += `<tr><td>${p.name} ${p.name === selectedProvince ? '★' : ''}</td>`;
-            subtopicKeys.forEach(sk => {
-                let val = p.subtopics[sk] !== undefined ? p.subtopics[sk] : 0;
-                let cellColor = getHeatmapColor(val);
-                let factor = val/100;
-                let textColor = '#222222';
-                htmlContent += `<td style="background: ${cellColor}; color: ${textColor};">${val}</td>`;
-            });
-            htmlContent += `</tr>`;
-        });
-        htmlContent += `</tbody></table>`;
-        
-        document.getElementById('group-table-container').innerHTML = htmlContent;
-
-        switchGroupChartType('trend');
-
-        let groupContainer = document.getElementById('floating-group-container');
-        groupContainer.style.display = 'flex';
-        setTimeout(() => { groupContainer.classList.add('show-float'); }, 50);
-        const groupsBtn = document.getElementById('map-dock-groups');
-        if (groupsBtn) groupsBtn.hidden = false;
-        if (isCompactMap()) setMapSheet('groups');
-    });
 }
 
-function switchGroupChartType(mode) {
-    currentGroupChartMode = mode;
-    document.getElementById('btn-tab-trend').classList.toggle('active', mode === 'trend');
-    document.getElementById('btn-tab-spider').classList.toggle('active', mode === 'spider');
-    document.getElementById('btn-tab-table').classList.toggle('active', mode === 'table');
-    
-    const chartsBox = document.getElementById('group-charts-container');
-    const tableBox = document.getElementById('group-table-container');
-
-    if (mode === 'table') {
-        chartsBox.style.display = 'none';
-        tableBox.style.display = 'block';
-    } else {
-        chartsBox.style.display = 'block';
-        tableBox.style.display = 'none';
-        
-        let topicClusters = clustersData.filter(c => c.topic_name === currentIndex);
-        let provMap = {};
-        topicClusters.forEach(row => {
-            if(!provMap[row.province_name]) provMap[row.province_name] = { cluster_group: row.cluster_group, subtopics: {} };
-            provMap[row.province_name].subtopics[row.subtopic_name] = Number(row.subtopic_score);
-        });
-        let allProvs = [];
-        Object.keys(provMap).forEach(pName => {
-            let scores = Object.values(provMap[pName].subtopics);
-            let avgScore = scores.length > 0 ? scores.reduce((a,b)=>a+b, 0) / scores.length : 0;
-            allProvs.push({ name: pName, cluster: provMap[pName].cluster_group, subtopics: provMap[pName].subtopics });
-        });
-        const selProvData = allProvs.find(p => p.name === selectedProvince);
-        const targetProvinces = allProvs.filter(p => p.cluster === (selProvData ? selProvData.cluster : null));
-        
-        renderGroupCharts(targetProvinces);
-    }
-}
-
-function collectClusterSubtopics(provinces) {
-    const keys = [];
-    (provinces || []).forEach(prov => {
-        Object.keys(prov.subtopics || {}).forEach(sk => {
-            if (!keys.includes(sk)) keys.push(sk);
-        });
-    });
-    return keys;
-}
-
-function renderGroupCharts(targetProvinces) {
-    groupChartsInstances.forEach(c => c.destroy());
-    groupChartsInstances = [];
-
-    let container = document.getElementById('group-charts-container');
-    container.innerHTML = '';
-    const spiderLabels = currentGroupChartMode === 'spider' ? collectClusterSubtopics(targetProvinces) : [];
-
-    targetProvinces.forEach(p => {
-        const mapDataRow = (mapScoresLookup[p.name] && mapScoresLookup[p.name][currentIndex]) ? mapScoresLookup[p.name][currentIndex] : null;
-        let rank = mapDataRow ? mapDataRow.province_rank : "-";
-        
-        let pTrends = (atlasTopicTrendCache[currentIndex] || []).filter(tr => tr.province_name === p.name);
-        pTrends.sort((a, b) => Number(a.year) - Number(b.year));
-        
-        let changeHtml = '<span style="color:#666;">-</span>';
-        if(pTrends.length >= 2) {
-            let currentScore = Number(pTrends[pTrends.length-1].index_score);
-            let prevScore = Number(pTrends[pTrends.length-2].index_score);
-            if(prevScore !== 0) {
-                let pct = ((currentScore - prevScore) / prevScore) * 100;
-                let color = pct > 0 ? '#059669' : (pct < 0 ? '#dc2626' : '#4b5563'); 
-                let iconSpan = pct > 0 ? '▲' : (pct < 0 ? '▼' : '−');
-                changeHtml = `<span style="color:${color}; font-weight:bold;" dir="ltr">${Math.abs(pct).toFixed(1)}% ${iconSpan}</span>`;
-            }
-        }
-
-        let card = document.createElement('div');
-        card.className = 'prov-card';
-        card.innerHTML = `
-            <div class="prov-card-header">
-                <span class="prov-card-title">${p.name} ${p.name === selectedProvince ? '★' : ''}</span>
-                <span class="prov-card-meta">رتبه: ${rank} | تغییرات گذشته: ${changeHtml}</span>
-            </div>
-            <div class="prov-chart-wrap">
-                <canvas id="group-chart-${p.name}"></canvas>
-            </div>
-        `;
-        container.appendChild(card);
-
-        const ctx = document.getElementById(`group-chart-${p.name}`).getContext('2d');
-        let upperStr = `rgba(${currentUpperRgb.r}, ${currentUpperRgb.g}, ${currentUpperRgb.b}`;
-
-        if (currentGroupChartMode === 'trend') {
-            let chart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: pTrends.map(tr => tr.year),
-                    datasets: [{
-                        data: pTrends.map(tr => Number(tr.index_score)),
-                        borderColor: p.name === selectedProvince ? '#e11d48' : upperStr + ', 1)',
-                        backgroundColor: p.name === selectedProvince ? 'rgba(225, 29, 72, 0.15)' : upperStr + ', 0.15)',
-                        borderWidth: 2, fill: true, pointRadius: 3, tension: 0.3
-                    }]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { display: false }, tooltip: { enabled: false } },
-                    scales: { 
-                        x: { ticks: { font: { size: 9 }, color: '#555' }, grid: { display: false } }, 
-                        y: { display: true, min: 0, max: 100, ticks: { font: { size: 8 }, stepSize: 50 } } 
-                    }
-                }
-            });
-            groupChartsInstances.push(chart);
-        } else {
-            const spiderData = spiderLabels.map(sk => {
-                const raw = p.subtopics && p.subtopics[sk];
-                const num = Number(raw);
-                return isFinite(num) ? num : 0;
-            });
-            const topicRow = topicsData.find(t => t.topic_name === currentIndex);
-            const pointColor = (topicRow && topicRow.upper_color) ? topicRow.upper_color : `rgba(${currentUpperRgb.r}, ${currentUpperRgb.g}, ${currentUpperRgb.b}, 1)`;
-
-            let chart = new Chart(ctx, {
-                type: 'radar',
-                data: {
-                    labels: spiderLabels,
-                    datasets: [{
-                        data: spiderData,
-                        pointBackgroundColor: pointColor,
-                        pointBorderColor: '#fff',
-                        pointRadius: 2,
-                        backgroundColor: p.name === selectedProvince ? 'rgba(225, 29, 72, 0.2)' : 'rgba(0, 120, 215, 0.2)',
-                        borderColor: p.name === selectedProvince ? '#e11d48' : 'rgba(0, 120, 215, 0.7)',
-                        borderWidth: 1.5
-                    }]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    scales: {
-                        r: {
-                            min: 0, max: 100,
-                            ticks: { display: false },
-                            pointLabels: { display: true, font: { size: 8 }, color: '#333' },
-                            grid: { color: 'rgba(0,0,0,0.1)' },
-                            angleLines: { color: 'rgba(0,0,0,0.1)' }
-                        }
-                    },
-                    plugins: { legend: { display: false }, tooltip: { enabled: false } }
-                }
-            });
-            groupChartsInstances.push(chart);
-        }
-    });
-}
-
-// Global helper: smoothly restore and highlight a province using consistent animation options
 function restoreSelectedProvince(provName) {
     if (!provName || !geojsonLayer) return;
     selectedProvince = provName;
@@ -1141,56 +593,6 @@ function restoreSelectedProvince(provName) {
     });
     updateMapStyles();
     updatePointer();
-}
-
-function exitFocusMode() {
-    // Detect whether we are exiting Typology (immersive-mode) so we can apply the province-recovery animation
-    const wasImmersive = document.body.classList.contains('immersive-mode');
-
-    document.body.classList.remove('immersive-mode');
-    
-    document.getElementById('top-banner').classList.remove('fade-out-collapse', 'fade-out');
-    document.getElementById('bottom-panel').classList.remove('fade-out-collapse', 'fade-out-bottom', 'fade-out');
-    
-    document.getElementById('map-legend').classList.remove('fade-out');
-    document.getElementById('right-panel').classList.remove('fade-out');
-    if (selectedProvince) {
-        document.getElementById('right-panel').classList.add('show-panel');
-        document.getElementById('left-popup-panel').classList.remove('fade-out');
-        document.getElementById('left-popup-panel').style.display = 'flex';
-    }
-    const groupsBtn = document.getElementById('map-dock-groups');
-    if (groupsBtn) groupsBtn.hidden = true;
-    if (isCompactMap()) setMapSheet(selectedProvince ? 'details' : 'map');
-    
-    let groupContainer = document.getElementById('floating-group-container');
-    groupContainer.classList.remove('show-float');
-    setTimeout(() => { groupContainer.style.display = 'none'; }, 500);
-    
-    groupChartsInstances.forEach(c => c.destroy());
-    groupChartsInstances = [];
-    similarProvinces = [];
-    updateMapStyles();
-
-    map.scrollWheelZoom.enable();
-    map.doubleClickZoom.enable();
-    map.touchZoom.enable();
-    map.boxZoom.enable();
-    map.keyboard.enable();
-
-    // If we were in immersive typology mode, restore the selected province using the shared smooth recovery
-    if (wasImmersive && selectedProvince) {
-        restoreSelectedProvince(selectedProvince);
-    } else if(selectedProvince && geojsonLayer) {
-        // Fallback: existing behavior for non-typology exits (slightly closer zoom)
-        geojsonLayer.eachLayer(layer => {
-            if(layer.feature.properties.ProvincNam === selectedProvince) {
-                fitMapTo(layer.getBounds(), { animate: true, maxZoom: MAP_MAX_ZOOM, duration: 1.6 });
-            }
-        });
-    } else {
-        refitMapView({ animate: true });
-    }
 }
 
 function updatePointer() {
@@ -1233,19 +635,28 @@ function renderLeftFloatingPanel(provinceName) {
             let markerId = 'left-marker-' + t.topic_name.replace(/\s+/g, '-');
             let imgPath = `assets/images/تاپیک ${t.topic_name}.webp`;
             
-            let marker = document.createElement('div');
+            const marker = document.createElement('div');
             marker.className = 'topic-marker ' + (isLeft ? 'left-side' : 'right-side');
             marker.id = markerId;
-            marker.style.bottom = `0%`; 
+            marker.style.bottom = '0%';
             marker.style.zIndex = 0;
-            
-            marker.innerHTML = `
-                <div class="topic-marker-dot" style="background: ${t.upper_color || '#0078d7'};"></div>
-                <div class="topic-marker-content" data-topic-name="${t.topic_name}">
-                    <img src="${imgPath}" alt="${t.topic_name}" onerror="this.style.display='none'" loading="lazy">
-                    <span class="marker-score-value">0</span>
-                </div>
-            `;
+
+            const dot = document.createElement('div');
+            dot.className = 'topic-marker-dot';
+            dot.style.background = t.upper_color || '#0078d7';
+            const content = document.createElement('div');
+            content.className = 'topic-marker-content';
+            content.dataset.topicName = t.topic_name;
+            const img = document.createElement('img');
+            img.src = imgPath;
+            img.alt = t.topic_name;
+            img.loading = 'lazy';
+            img.addEventListener('error', () => { img.hidden = true; });
+            const score = document.createElement('span');
+            score.className = 'marker-score-value';
+            score.textContent = '0';
+            content.append(img, score);
+            marker.append(dot, content);
             container.appendChild(marker);
         });
         leftPanelInitialized = true;
@@ -1310,8 +721,7 @@ function clearSelection() {
     sessionStorage.removeItem('atlasSelectedProvince');
     if (!selectedProvince) return;
     selectedProvince = null;
-    similarProvinces = [];
-    
+
     updateMapStyles();
     map.closePopup();
     document.getElementById('left-popup-panel').style.display = 'none';
@@ -1327,9 +737,13 @@ function clearSelection() {
 
 function initMap() {
     map = L.map('map', { zoomSnap: 0.5, maxZoom: MAP_MAX_ZOOM, zoomControl: false }).setView(MAP_HOME_CENTER, MAP_HOME_ZOOM);
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-        maxZoom: 19
+    // OSM tiles are often blocked in Iran. Google roadmap (Persian labels) is the stand-in.
+    // Transparent fallback so a missed tile does not show Leaflet's broken-image icon.
+    L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&hl=fa&x={x}&y={y}&z={z}', {
+        subdomains: ['0', '1', '2', '3'],
+        attribution: '&copy; Google',
+        maxZoom: 19,
+        errorTileUrl: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
     }).addTo(map);
 
     map.on('click', clearSelection);
@@ -1337,7 +751,6 @@ function initMap() {
 
 function updateMapStyles() {
     if (!geojsonLayer) return;
-    let isImmersive = document.body.classList.contains('immersive-mode');
 
     geojsonLayer.eachLayer(function (layer) {
         const provName = layer.feature.properties.ProvincNam || "استان ناشناخته";
@@ -1347,32 +760,19 @@ function updateMapStyles() {
 
         let fColor = getHeatmapColor(score);
         let fOpac = 0.85, bColor = "#ffffff", bWeight = 1.5;
-        let customClass = '';
 
-        if (isImmersive) {
-            if (similarProvinces.includes(provName)) {
-                customClass = 'detached-province';
-                fOpac = 0.95;
-                if (provName === selectedProvince) { fColor = "#e11d48"; bColor = "#9f1239"; bWeight = 2.5; } 
-                else { fColor = "#ffb74d"; bColor = "#ff9800"; bWeight = 2; }
-            } else {
-                customClass = 'hidden-province';
-                fOpac = 0.1; bWeight = 1.2; bColor = "#888888"; 
-            }
-        } else {
-            if (hoveredStageIndex !== null) {
-                let stageSize = 100 / (heatStages - 1);
-                let lowerBound = hoveredStageIndex * stageSize - (hoveredStageIndex === 0 ? 1 : 0.01);
-                let upperBound = (hoveredStageIndex + 1) * stageSize;
-                if (hoveredStageIndex === heatStages - 1) upperBound = 100.1;
-                if (score >= lowerBound && score <= upperBound) { fOpac = 0.95; bColor = "#000"; bWeight = 2.5; } 
-                else { fOpac = 0.15; bColor = "#ccc"; bWeight = 1; }
-            }
-
-            if (provName === selectedProvince) { fColor = "#e11d48"; fOpac = 0.9; } 
+        if (hoveredStageIndex !== null) {
+            let stageSize = 100 / (heatStages - 1);
+            let lowerBound = hoveredStageIndex * stageSize - (hoveredStageIndex === 0 ? 1 : 0.01);
+            let upperBound = (hoveredStageIndex + 1) * stageSize;
+            if (hoveredStageIndex === heatStages - 1) upperBound = 100.1;
+            if (score >= lowerBound && score <= upperBound) { fOpac = 0.95; bColor = "#000"; bWeight = 2.5; } 
+            else { fOpac = 0.15; bColor = "#ccc"; bWeight = 1; }
         }
 
-        layer.setStyle({ color: bColor, weight: bWeight, fillColor: fColor, fillOpacity: fOpac, className: customClass });
+        if (provName === selectedProvince) { fColor = "#e11d48"; fOpac = 0.9; }
+
+        layer.setStyle({ color: bColor, weight: bWeight, fillColor: fColor, fillOpacity: fOpac });
     });
 }
 
@@ -1385,7 +785,6 @@ function renderMapData(geojsonData) {
             layer.bindTooltip("", { sticky: true, className: 'custom-tooltip' });
             
             layer.on('mouseover', (e) => {
-                if (document.body.classList.contains('immersive-mode')) return;
                 e.target.setStyle({ fillOpacity: 0.95 }).bringToFront();
             });
             layer.on('mouseout', () => { updateMapStyles(); });
@@ -1405,9 +804,6 @@ function renderMapData(geojsonData) {
                 
                 requestAnimationFrame(() => {
                     setTimeout(() => {
-                        exitFocusMode(); 
-                        selectedProvince = provName; 
-                        
                         document.getElementById('right-panel').classList.add('show-panel');
 
                         map.invalidateSize(true);
@@ -1426,7 +822,6 @@ function renderMapData(geojsonData) {
     updateMapStyles(); 
     updateDefaultPanel();
 
-    // CHANGE 2: Automatic restoration upon returning from problem.html via #atlas route
     if (window.location.hash === '#atlas') {
         let savedProv = sessionStorage.getItem('atlasSelectedProvince');
         if (savedProv) {
@@ -1439,19 +834,26 @@ function renderMapData(geojsonData) {
     }
 }
 
-function updateDefaultPanel() {
-    let tObj = topicsData.find(t => t.topic_name === currentIndex);
-    let desc = tObj ? tObj.topic_description : "";
+function renderTopicDetails(desc) {
+    const host = document.getElementById('province-details');
+    if (!host) return;
+    host.replaceChildren();
+    const kicker = document.createElement('p');
+    kicker.className = 'index-kicker';
+    kicker.textContent = 'شاخص: ' + (currentIndex || '');
+    const box = document.createElement('div');
+    box.className = 'index-description-text';
+    box.textContent = desc || '';
+    host.append(kicker, box);
+}
 
-    document.getElementById('province-details').innerHTML = `
-        <p style="margin-top: 0; font-size: 0.75em; color: #666666; font-weight: bold;">شاخص: ${currentIndex}</p>
-        <div class="index-description-text">${desc}</div>
-    `;
+function updateDefaultPanel() {
+    const tObj = topicsData.find(t => t.topic_name === currentIndex);
+    renderTopicDetails(tObj ? tObj.topic_description : '');
 
     document.getElementById('chart-wrapper').style.display = 'none';
     document.getElementById('trend-wrapper').style.display = 'none';
 
-    // ADD THIS LINE: Hide the entire bottom card
     const bottomCard = document.querySelector('.right-card-bottom');
     if (bottomCard) bottomCard.style.display = 'none';
     
@@ -1463,31 +865,25 @@ function updateDefaultPanel() {
 function updateRightPanel(provinceName) {
     document.getElementById('right-panel').classList.add('show-panel');
 
-    // ADD THIS LINE: Show the bottom card (using 'flex' because of our CSS rules)
     const bottomCard = document.querySelector('.right-card-bottom');
     if (bottomCard) bottomCard.style.display = 'flex';
 
-    let tObj = topicsData.find(t => t.topic_name === currentIndex);
-    let desc = tObj ? tObj.topic_description : "";
-    let score = getProvinceScore(provinceName, currentIndex);
-    let pop = getProvincePop(provinceName);
+    const tObj = topicsData.find(t => t.topic_name === currentIndex);
+    renderTopicDetails(tObj ? tObj.topic_description : '');
+    const pop = getProvincePop(provinceName);
 
-    // 1. Top Panel: Only show the description (Identical to default panel, removing the "امتیاز" text entirely)
-    document.getElementById('province-details').innerHTML = `
-        <p style="margin-top: 0; font-size: 0.75rem; color: #666666; font-weight: bold;">شاخص: ${currentIndex}</p>
-        <div class="index-description-text">${desc}</div>
-    `;
-
-    // 2. Bottom Panel Header: Province Name + Population in one compact row (using flexbox space-between)
-    document.getElementById('bottom-prov-header').innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 15px;">
-            <h3 style="margin: 0; color: #333333; font-size: 0.75rem; font-weight: bold;">استان ${provinceName}</h3>
-            <div style="display:inline-flex; align-items:center; background:#f4f7f6; border:1px solid #c1d5e0; padding:4px 10px; border-radius:15px; color:#0078d7; font-size:0.75rem; font-weight:bold; box-shadow:0 2px 6px rgba(0,0,0,0.06);">
-                <svg style="width:14px;height:14px;margin-left:4px;fill:#0078d7;" viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
-                جمعیت: ${pop.toLocaleString('fa-IR')}
-            </div>
-        </div>
-    `;
+    const header = document.getElementById('bottom-prov-header');
+    header.replaceChildren();
+    const row = document.createElement('div');
+    row.className = 'prov-head-row';
+    const heading = document.createElement('h3');
+    heading.textContent = 'استان ' + provinceName;
+    const pill = document.createElement('div');
+    pill.className = 'prov-pop-pill';
+    pill.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>';
+    pill.append(' جمعیت: ' + pop.toLocaleString('fa-IR'));
+    row.append(heading, pill);
+    header.appendChild(row);
 
     document.getElementById('chart-wrapper').style.display = 'block';
     document.getElementById('trend-wrapper').style.display = 'block';
@@ -1563,7 +959,6 @@ const onGlobalResize = debounce(() => {
     try { refitMapView({ animate: false }); } catch (e) {}
     try { if (rankingBarChart && typeof rankingBarChart.resize === 'function') rankingBarChart.resize(); } catch (e) {}
     try { if (trendChartInstance && typeof trendChartInstance.resize === 'function') trendChartInstance.resize(); } catch (e) {}
-    try { if (groupChartsInstances && Array.isArray(groupChartsInstances)) groupChartsInstances.forEach(c => c && typeof c.resize === 'function' && c.resize()); } catch (e) {}
 }, 150);
 window.addEventListener('resize', onGlobalResize);
 if (window.visualViewport) window.visualViewport.addEventListener('resize', onGlobalResize);

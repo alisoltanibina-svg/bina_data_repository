@@ -185,14 +185,6 @@ body {
 .user-name { font-weight: 800; color: #fff; font-size: 0.95rem; }
 .user-role { font-size: 0.75rem; color: rgba(255,255,255,0.95); }
 
-#top-banner[data-page="explorer"] #btn-problem,
-#top-banner[data-page="explorer"] #btn-similar,
-#top-banner[data-page="bubble"] #btn-problem,
-#top-banner[data-page="bubble"] #btn-similar,
-#top-banner[data-page="problem"] #btn-similar {
-    display: none;
-}
-
 /* Lazy image background utilities */
 .lazy-bg { background-size: cover; background-position: center; background-repeat: no-repeat; }
 .bg-placeholder { background-color: #f3f4f6; }

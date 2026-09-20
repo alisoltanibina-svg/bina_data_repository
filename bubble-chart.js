@@ -401,28 +401,50 @@ async function loadBubbleData(subtopic, opts) {
 
 function buildSliders() {
     const container = document.getElementById('indicators-list');
-    container.innerHTML = '';
+    container.replaceChildren();
     indicators.forEach(ind => {
         const div = document.createElement('div');
         div.className = 'bb-slider';
-        const safeId = 'val-' + ind;
-        div.innerHTML =
-            '<div class="bb-slider-head">' +
-                '<span class="bb-slider-name" title="' + ind.replace(/"/g, '&quot;') + '">' + ind + '</span>' +
-                '<span class="bb-slider-val" id="' + safeId + '">' + indicatorWeights[ind] + '</span>' +
-            '</div>' +
-            '<div class="bb-slider-track">' +
-                '<input type="range" class="slider-control" min="-1" max="1" step="0.1" value="' + indicatorWeights[ind] + '" oninput="updateWeight(\'' + ind.replace(/'/g, "\\'") + '\', this.value)">' +
-                '<div class="bb-slider-scale"><span>۱−</span><span>۰</span><span>۱+</span></div>' +
-            '</div>';
+
+        const nameEl = document.createElement('span');
+        nameEl.className = 'bb-slider-name';
+        nameEl.title = ind;
+        nameEl.textContent = ind;
+        const valEl = document.createElement('span');
+        valEl.className = 'bb-slider-val';
+        valEl.textContent = String(indicatorWeights[ind]);
+        const head = document.createElement('div');
+        head.className = 'bb-slider-head';
+        head.append(nameEl, valEl);
+
+        const input = document.createElement('input');
+        input.type = 'range';
+        input.className = 'slider-control';
+        input.min = '-1';
+        input.max = '1';
+        input.step = '0.1';
+        input.value = String(indicatorWeights[ind]);
+        input.addEventListener('input', () => updateWeight(ind, input.value, valEl));
+
+        const scale = document.createElement('div');
+        scale.className = 'bb-slider-scale';
+        ['۱−', '۰', '۱+'].forEach(label => {
+            const span = document.createElement('span');
+            span.textContent = label;
+            scale.appendChild(span);
+        });
+        const track = document.createElement('div');
+        track.className = 'bb-slider-track';
+        track.append(input, scale);
+
+        div.append(head, track);
         container.appendChild(div);
     });
 }
 
-function updateWeight(indName, value) {
+function updateWeight(indName, value, valEl) {
     indicatorWeights[indName] = Number(value);
-    document.getElementById(`val-${indName}`).innerText = value;
-    // Use debounced update to avoid excessive redraws while dragging sliders
+    if (valEl) valEl.textContent = value;
     debouncedUpdateChart();
 }
 

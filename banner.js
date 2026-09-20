@@ -13,10 +13,6 @@
     const atlasCurrent = page === 'index' && hashAtlas ? ' is-current' : '';
     const explorerCurrent = (page === 'explorer' || page === 'bubble') ? ' is-current' : '';
 
-    const problemNav = page === 'problem'
-        ? '<span id="btn-problem" class="banner-btn hang-btn is-current" aria-current="page"><span class="btn-label">نمایه</span></span>'
-        : '<button type="button" id="btn-problem" class="banner-btn hang-btn"><span class="btn-label">نمایه</span></button>';
-
     root.innerHTML =
         '<div class="banner-right">' +
             '<div class="institution">' +
@@ -29,8 +25,6 @@
                 '<div class="top-nav" role="navigation" aria-label="Top navigation">' +
                     '<a href="index.html#atlas" id="btn-atlas" class="banner-btn hang-btn' + atlasCurrent + '"' + (atlasCurrent ? ' aria-current="page"' : '') + '><span class="btn-label">اطلس</span></a>' +
                     '<a href="' + explorerHref + '" id="btn-explorer" class="banner-btn hang-btn' + explorerCurrent + '"' + (explorerCurrent ? ' aria-current="page"' : '') + '><span class="btn-label">کاوشگر</span></a>' +
-                    problemNav +
-                    '<button type="button" id="btn-similar" class="banner-btn hang-btn"><span class="btn-label">گونه‌شناسی</span></button>' +
                 '</div>' +
             '</div>' +
         '</div>' +
