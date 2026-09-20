@@ -5,12 +5,6 @@
 // Notes: Comments standardized to English; UI text (Persian) is preserved.
 
 // -- Bubble chart initialization --
-Chart.register(ChartDataLabels);
-Chart.defaults.font.family = "'PeydaFaNumWeb', sans-serif";
-// Ensure charts render crisply on high-DPI / Retina displays
-Chart.defaults.devicePixelRatio = window.devicePixelRatio || 1;
-if (Chart.defaults.animation === false) Chart.defaults.animation = {};
-if (Chart.defaults.animation) Chart.defaults.animation.duration = 1000;
 
 const urlParams = new URLSearchParams(window.location.search);
 let urlTopic = urlParams.get('topic');
@@ -67,15 +61,6 @@ function buildLatestLookup() {
             latestByProvInd[prov][ind] = { year: yr, value: val };
         }
     });
-}
-
-// Simple debounce helper for UI responsiveness
-function debounce(fn, wait) {
-    let t;
-    return function(...args) {
-        clearTimeout(t);
-        t = setTimeout(() => fn.apply(this, args), wait);
-    };
 }
 
 // Debounced chart updater used by sliders (reduces redraw frequency)
@@ -413,7 +398,7 @@ async function loadBubbleData(subtopic, opts) {
         applyBubbleTheme(data.colors);
         rawData = Array.isArray(data.scores) ? data.scores : [];
         if (rawData.length === 0) {
-            alert("داده‌ای برای این زیرحوزه یافت نشد.");
+            showNotice("داده‌ای برای این زیرحوزه یافت نشد.", "info");
             const select = document.getElementById('subtopic-select');
             if (select) select.value = prevSub || '';
             return;
@@ -436,7 +421,7 @@ async function loadBubbleData(subtopic, opts) {
     } catch (err) {
         if (seq !== loadSeq) return;
         console.error("Error Loading API Data:", err);
-        alert("مشکل در ارتباط با سرور بک‌اند.");
+        showNotice("مشکل در ارتباط با سرور بک‌اند.");
         const select = document.getElementById('subtopic-select');
         if (select && prevSub) select.value = prevSub;
     }
@@ -563,17 +548,8 @@ function updateChartData() {
     chartObj.update();
 }
 
-// Debounce helper (if not already defined globally)
-function debounceLocal(fn, wait) {
-    let t;
-    return function(...args) {
-        clearTimeout(t);
-        t = setTimeout(() => fn.apply(this, args), wait);
-    };
-}
-
 // Resize handler: keep chart crisp and responsive across displays
-const onResize = debounceLocal(() => {
+const onResize = debounce(() => {
     if (chartObj && typeof chartObj.resize === 'function') chartObj.resize();
 }, 150);
 window.addEventListener('resize', onResize);
@@ -605,4 +581,9 @@ window.addEventListener('popstate', (event) => {
     loadBubbleData(sub);
 });
 
-window.onload = init;
+function startBubble() {
+    if (!applyChartDefaults()) showNotice('مشکل در بارگذاری نمودار.');
+    init();
+}
+
+onReady(startBubble);

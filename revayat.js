@@ -387,22 +387,27 @@ function fallOnFloor(el, fromX, toX, depth, lift0) {
 }
 
 function ensureWorld(pivotX, pivotY) {
+    const hy = pivotY || window.innerHeight;
     let view = document.getElementById("world-view");
-    if (view) return view;
-    view = document.createElement("div");
-    view.id = "world-view";
-    view.className = "world-view";
+    if (!view) {
+        view = document.createElement("div");
+        view.id = "world-view";
+        view.className = "world-view";
+        const stage = document.createElement("div");
+        stage.id = "world-stage";
+        stage.className = "world-stage";
+        const floor = document.createElement("div");
+        floor.id = "world-floor";
+        floor.className = "world-floor";
+        stage.appendChild(floor);
+        view.appendChild(stage);
+        document.body.appendChild(view);
+    }
     view.style.setProperty("--pivot-x", pivotX + "px");
-    view.style.setProperty("--pivot-y", pivotY + "px");
-    const stage = document.createElement("div");
-    stage.id = "world-stage";
-    stage.className = "world-stage";
-    const floor = document.createElement("div");
-    floor.id = "world-floor";
-    floor.className = "world-floor";
-    stage.appendChild(floor);
-    view.appendChild(stage);
-    document.body.appendChild(view);
+    view.style.setProperty("--pivot-y", hy + "px");
+    view.style.perspectiveOrigin = "50% " + hy + "px";
+    const floor = document.getElementById("world-floor");
+    if (floor) floor.style.bottom = Math.max(0, window.innerHeight - hy) + "px";
     return view;
 }
 
@@ -2173,19 +2178,19 @@ document.documentElement.classList.add("story-scroll-mode");
 
 (function bindStoryScrub() {
     const FROM = ["", "bridge", "rooms", "weights", "arcs", "spark", "benches", "matrix", "iran"];
-    const MARKS = [0, 0.43, 0.53, 0.62, 0.72, 0.81, 0.89, 0.955, 1];
+    const MARKS = [0, 0.54, 0.73, 0.82, 0.90, 0.95, 0.975, 0.992, 1];
     const P = {
-        drop: [0.00, 0.09],
-        zoom: [0.09, 0.17],
-        enter: [0.17, 0.31],
+        drop: [0.00, 0.04],
+        zoom: [0.04, 0.13],
+        enter: [0.13, 0.31],
         cam: [0.31, 0.43],
-        rooms: [0.46, 0.53],
-        weights: [0.55, 0.62],
-        arcs: [0.64, 0.72],
-        spark: [0.74, 0.81],
-        benches: [0.83, 0.89],
-        matrix: [0.91, 0.97],
-        iran: [0.98, 1]
+        rooms: [0.66, 0.73],
+        weights: [0.76, 0.82],
+        arcs: [0.85, 0.90],
+        spark: [0.92, 0.95],
+        benches: [0.96, 0.975],
+        matrix: [0.98, 0.992],
+        iran: [0.994, 1]
     };
 
     function clamp01(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
@@ -2433,16 +2438,15 @@ document.documentElement.classList.add("story-scroll-mode");
             presentRest(toI);
             return { setup: 1, body: 1, reveal: 1 };
         }
-        const setup = clamp01(t / 0.12);
-        const reveal = clamp01((t - 0.88) / 0.12);
-        const body = clamp01((t - 0.12) / 0.76);
+        const setup = clamp01(t / 0.10);
+        const body = clamp01((t - 0.08) / 0.62);
+        const reveal = clamp01((t - 0.48) / 0.34);
         clearSceneFlags();
         scenes[fromI].classList.add("is-on", "is-bridging");
         if (FROM[fromI]) scenes[fromI].classList.add("is-from-" + FROM[fromI]);
-        scenes[fromI].style.setProperty("--copy-on", String(1 - setup));
+        scenes[fromI].style.setProperty("--copy-on", fromI === 1 ? "0" : String(1 - setup));
         scenes[toI].classList.add("is-on");
         if (FROM[toI]) scenes[toI].classList.add("is-from-" + FROM[toI]);
-        if (reveal < 1) scenes[toI].classList.add("is-wait-copy");
         scenes[toI].style.setProperty("--copy-on", String(reveal));
         syncRail(t < 0.5 ? fromI : toI);
         return { setup: setup, body: easeOut(body), reveal: reveal };
@@ -2452,7 +2456,9 @@ document.documentElement.classList.add("story-scroll-mode");
         const c = caches[key];
         if (!c) return;
         if (c.root) c.root.style.display = "none";
-        (c.els || []).forEach((el) => { if (el) el.style.display = "none"; });
+        if (!c.owned) {
+            (c.els || []).forEach((el) => { if (el) el.style.display = "none"; });
+        }
         if (c.svg) c.svg.style.display = "none";
         if (activeMorph === key) activeMorph = "";
         const ov = overlay();
@@ -2477,6 +2483,7 @@ document.documentElement.classList.add("story-scroll-mode");
     }
 
     function hideAllMorphs() {
+        restoreRoomsOriginals();
         Object.keys(caches).forEach(hideCache);
         activeMorph = "";
         const ov = overlay();
@@ -2487,9 +2494,12 @@ document.documentElement.classList.add("story-scroll-mode");
     }
 
     function invalidateMorphs() {
+        restoreRoomsOriginals();
         Object.keys(caches).forEach((key) => {
             const c = caches[key];
-            (c.els || []).forEach((el) => { if (el && el.parentNode) el.parentNode.removeChild(el); });
+            if (!c.owned) {
+                (c.els || []).forEach((el) => { if (el && el.parentNode) el.parentNode.removeChild(el); });
+            }
             if (c.svg && c.svg.parentNode) c.svg.parentNode.removeChild(c.svg);
             if (c.root && c.root.parentNode) c.root.parentNode.removeChild(c.root);
             delete caches[key];
@@ -2523,7 +2533,7 @@ document.documentElement.classList.add("story-scroll-mode");
         if (!wrap) return;
         if (t <= 0) return;
         pinBall();
-        const y = pin.floor * easeOutBounce(t);
+        const y = pin.floor * (1 - (1 - t) * (1 - t));
         wrap.style.transform = "translate3d(0," + y + "px,0)";
         wrap.style.transformOrigin = "50% 100%";
         const cast = document.querySelector(".pearl-cast");
@@ -2606,7 +2616,6 @@ document.documentElement.classList.add("story-scroll-mode");
             const angle = i * GOLDEN;
             const destX = ox + radius * Math.cos(angle);
             const fromLeft = destX < ox;
-            const falling = i % 7 === 2;
             const el = makeMiniOrb(i % 5 === 0, i);
             el.style.width = orbSize + "px";
             el.style.height = orbSize + "px";
@@ -2616,9 +2625,8 @@ document.documentElement.classList.add("story-scroll-mode");
             enterMeta.push({
                 fromX: fromLeft ? -orbSize : w + orbSize,
                 destX: destX,
-                fromY: falling ? 80 + (i % 5) * 24 : groundY - orbSize / 2,
+                fromY: groundY - orbSize / 2,
                 destY: groundY - orbSize / 2,
-                falling: falling,
                 delay: (i % 12) * 0.035,
                 size: orbSize
             });
@@ -2641,8 +2649,7 @@ document.documentElement.classList.add("story-scroll-mode");
             const u = clamp01((t - m.delay) / Math.max(0.001, 1 - m.delay));
             const e = easeInOut(u);
             const x = lerp(m.fromX, m.destX, e);
-            let y = m.destY;
-            if (m.falling) y = lerp(m.fromY, m.destY, easeOutBounce(u));
+            const y = lerp(m.fromY, m.destY, e);
             el.style.opacity = u > 0 ? "1" : "0";
             el.style.left = x + "px";
             el.style.top = y + "px";
@@ -2657,7 +2664,7 @@ document.documentElement.classList.add("story-scroll-mode");
         }
     }
 
-    function applyCamera(t, present) {
+    function applyCamera(t, present, p) {
         const wrap = document.querySelector(".thread-wrap");
         const ov = overlay();
         const ground = document.getElementById("ground");
@@ -2668,78 +2675,102 @@ document.documentElement.classList.add("story-scroll-mode");
         const ox = live ? live.x : window.innerWidth / 2;
         const vw = window.innerWidth;
         const floorW = 6400;
-        const view = ensureWorld(ox, window.innerHeight);
+        let horizonY = pin.surfaceY || window.innerHeight;
+        if (!camReady) {
+            const probe = enterOrbs[0] || wrap;
+            if (probe) {
+                const pb = probe.getBoundingClientRect();
+                if (pb.height) horizonY = pb.top + pb.height;
+            } else if (ground) {
+                horizonY = ground.getBoundingClientRect().top;
+            }
+        }
+        const view = camReady
+            ? (document.getElementById("world-view") || ensureWorld(ox, horizonY))
+            : ensureWorld(ox, horizonY);
+        if (!view) return;
         view.style.visibility = "visible";
         view.style.opacity = "1";
         const floor = document.getElementById("world-floor");
-        const poseFront = { tilt: 88, s: 1, y: 0, z: 0 };
+        const poseFront = { tilt: 90, s: 1, y: 0, z: 0 };
         const poseTop = { tilt: 16, s: 1.55, y: -8, z: 16 };
-        const e = easeInOut(t);
+        const hold = 0.22;
+        const camT = t <= hold ? 0 : (t - hold) / (1 - hold);
+        const e = easeInOut(camT);
         const pose = {
             tilt: lerp(poseFront.tilt, poseTop.tilt, e),
             s: lerp(poseFront.s, poseTop.s, e),
             y: lerp(poseFront.y, poseTop.y, e),
             z: lerp(poseFront.z, poseTop.z, e)
         };
-        setWorldPose(view, pose);
-        const ballDepth = 160;
+        const nearDepth = 0;
         const pack = 190;
         const mainX = floorW / 2;
         if (!camReady && floor && wrap) {
-            adoptToFloor(wrap, floor, floorW, vw, ballDepth, worldBallSize);
+            setWorldPose(view, poseFront);
+            if (floor) floor.style.setProperty("--floor-fade", "0");
+            void view.offsetWidth;
+            adoptToFloor(wrap, floor, floorW, vw, nearDepth, worldBallSize);
             camActors = [{
                 el: wrap,
                 x0: parseFloat(wrap.style.left) || mainX,
-                d0: ballDepth,
+                d0: nearDepth,
                 x1: mainX,
-                d1: ballDepth + pack
+                d1: pack
             }];
             enterOrbs.forEach((el, i) => {
-                adoptToFloor(el, floor, floorW, vw, ballDepth, worldBallSize);
+                adoptToFloor(el, floor, floorW, vw, nearDepth, worldBallSize);
                 const startX = parseFloat(el.style.left);
                 const radius = Math.sqrt((i + 0.5) / enterOrbs.length) * pack;
                 const angle = i * GOLDEN;
                 camActors.push({
                     el: el,
                     x0: startX,
-                    d0: ballDepth,
+                    d0: nearDepth,
                     x1: mainX + radius * Math.cos(angle),
-                    d1: ballDepth + pack + radius * Math.sin(angle)
+                    d1: pack + radius * Math.sin(angle)
                 });
             });
             camReady = true;
             worldActors = [wrap].concat(enterOrbs);
             if (ov && !activeMorph) ov.hidden = true;
         }
+        setWorldPose(view, pose);
+        if (floor) floor.style.setProperty("--floor-fade", String(Math.min(1, camT * 1.35)));
         camActors.forEach((a) => {
             floorActor(a.el, lerp(a.x0, a.x1, e), lerp(a.d0, a.d1, e), 0);
         });
         if (ground) {
             ground.style.transition = "none";
-            ground.style.opacity = String(1 - t);
-            if (t >= 1) ground.classList.add("is-out");
+            ground.style.opacity = String(1 - camT);
+            if (camT >= 1) ground.classList.add("is-out");
             else ground.classList.remove("is-out");
         }
         const cast = document.querySelector(".pearl-cast");
         if (cast) cast.style.opacity = "0";
         if (!present) return;
-        document.body.classList.toggle("has-world-atoms", t > 0.55);
-        if (t > 0.55) {
-            if (atoms) atoms.classList.add("is-awaiting");
-            clearSceneFlags();
-            scenes[1].classList.add("is-on", "is-from-bridge");
-            scenes[1].style.setProperty("--copy-on", String(clamp01((t - 0.55) / 0.45)));
-            if (t < 0.72) scenes[1].classList.add("is-wait-copy");
-            document.body.classList.add("has-world-atoms");
-            if (atoms) atoms.classList.add("is-awaiting");
-            syncRail(1);
-        } else {
+        if (camT < 1) {
             clearSceneFlags();
             scenes[0].classList.add("is-on", "is-bridging");
             scenes[0].style.setProperty("--copy-on", "0");
-            document.body.classList.remove("has-world-atoms");
+            document.body.classList.toggle("has-world-atoms", camT > 0.55);
+            if (atoms) atoms.classList.toggle("is-awaiting", camT > 0.55);
             syncRail(0);
+            return;
         }
+        const restSpan = Math.max(0.001, P.rooms[0] - P.cam[1]);
+        const u = p == null ? 1 : clamp01((p - P.cam[1]) / restSpan);
+        let rest = 0;
+        if (u < 0.36) rest = u / 0.36;
+        else if (u < 0.70) rest = 1;
+        else if (u < 0.84) rest = 1 - (u - 0.70) / 0.14;
+        else rest = 0;
+        clearSceneFlags();
+        scenes[1].classList.add("is-on", "is-from-bridge");
+        scenes[1].style.setProperty("--copy-on", String(rest));
+        document.body.classList.add("has-world-atoms");
+        if (atoms) atoms.classList.add("is-awaiting");
+        syncRail(1);
     }
 
     function cloneCanvas(src) {
@@ -2774,29 +2805,112 @@ document.documentElement.classList.add("story-scroll-mode");
         return { x: b.left + b.width / 2, y: b.top + b.height / 2, w: b.width, h: b.height };
     }
 
+    function restoreRoomsOriginals() {
+        const c = caches.rooms;
+        if (!c || !c.owned) return;
+        const floor = document.getElementById("world-floor");
+        (c.els || []).forEach((el, i) => {
+            if (!el) return;
+            el.style.display = "";
+            el.style.opacity = "1";
+            el.style.position = "absolute";
+            el.style.right = "auto";
+            el.style.margin = "0";
+            el.style.transformOrigin = "50% 100%";
+            el.classList.add("world-ball");
+            const pose = c.floorPose && c.floorPose[i];
+            if (floor && pose) {
+                floorActor(el, pose.x, pose.d, 0);
+                floor.appendChild(el);
+            }
+        });
+        c.owned = false;
+    }
+
     function applyRooms(t) {
         const world = document.getElementById("world-view");
         if (t <= 0) {
+            restoreRoomsOriginals();
             hideCache("rooms");
             if (world) {
                 world.style.opacity = "1";
                 world.style.visibility = "visible";
             }
-            if (rooms) rooms.classList.remove("is-awaiting");
+            if (rooms) {
+                rooms.classList.remove("is-awaiting");
+                rooms.style.removeProperty("--rooms-draw");
+                rooms.style.removeProperty("--rooms-dots");
+            }
             return;
         }
         if (!caches.rooms) {
             const fromEls = worldActors.length ? worldActors : [...atoms.children];
             const from = fromEls.map(boxOf);
             const to = withPrep(2, () => [...rooms.querySelectorAll("em")].map(boxOf));
-            const els = fromEls.map((src, i) => {
-                const el = cloneCanvas(src);
-                el.style.width = from[i].w + "px";
-                el.style.height = from[i].h + "px";
-                overlay().appendChild(el);
-                return el;
+            const cardBoxes = withPrep(2, () => [...rooms.children].map((card) => card.getBoundingClientRect()));
+            const ov = overlay();
+            const floorPose = fromEls.map((el) => {
+                const a = camActors.find((c) => c.el === el);
+                return {
+                    x: a ? a.x1 : (parseFloat(el.style.left) || 0),
+                    d: a ? a.d1 : 0
+                };
             });
-            caches.rooms = { els: els, from: from, to: to };
+            const owned = worldActors.length > 0;
+            const els = fromEls.map((src, i) => {
+                if (!owned) {
+                    const clone = cloneCanvas(src);
+                    clone.style.width = from[i].w + "px";
+                    clone.style.height = from[i].h + "px";
+                    ov.appendChild(clone);
+                    return clone;
+                }
+                src.classList.remove("world-ball");
+                src.style.position = "fixed";
+                src.style.left = from[i].x + "px";
+                src.style.top = from[i].y + "px";
+                src.style.width = from[i].w + "px";
+                src.style.height = from[i].h + "px";
+                src.style.bottom = "auto";
+                src.style.right = "auto";
+                src.style.margin = "0";
+                src.style.transform = "translate(-50%, -50%)";
+                src.style.transformOrigin = "50% 50%";
+                src.style.zIndex = "17";
+                src.style.opacity = "1";
+                ov.appendChild(src);
+                return src;
+            });
+            const ns = "http://www.w3.org/2000/svg";
+            const svg = document.createElementNS(ns, "svg");
+            svg.setAttribute("class", "bridge-svg");
+            const strokes = cardBoxes.map((b) => {
+                const rx = 16;
+                const r = document.createElementNS(ns, "rect");
+                r.setAttribute("x", String(b.left));
+                r.setAttribute("y", String(b.top));
+                r.setAttribute("width", String(b.width));
+                r.setAttribute("height", String(b.height));
+                r.setAttribute("rx", String(rx));
+                r.setAttribute("ry", String(rx));
+                r.setAttribute("fill", "none");
+                r.setAttribute("stroke", "rgba(236, 226, 208, 0.55)");
+                r.setAttribute("stroke-width", "1.5");
+                r.setAttribute("stroke-linecap", "round");
+                r.setAttribute("stroke-linejoin", "round");
+                const rad = Math.min(rx, b.width / 2, b.height / 2);
+                const peri = Math.max(1, 2 * (b.width + b.height - 2 * rad) + 2 * Math.PI * rad);
+                r.setAttribute("stroke-dasharray", String(peri));
+                r.setAttribute("stroke-dashoffset", String(peri));
+                svg.appendChild(r);
+                return { el: r, peri: peri };
+            });
+            ov.appendChild(svg);
+            caches.rooms = { els: els, from: from, to: to, svg: svg, strokes: strokes, owned: owned, floorPose: floorPose };
+            if (world) {
+                world.style.opacity = "0";
+                world.style.visibility = "hidden";
+            }
         }
         activateMorph("rooms");
         const ph = presentMorph(1, 2, t);
@@ -2805,12 +2919,22 @@ document.documentElement.classList.add("story-scroll-mode");
             putBox(el, caches.rooms.from[i], caches.rooms.to[i] || caches.rooms.from[i], e);
             el.style.opacity = t >= 1 ? "0" : String(1 - ph.reveal);
         });
+        const draw = clamp01((e - 0.12) / 0.55);
+        const fill = clamp01((e - 0.72) / 0.22);
+        (caches.rooms.strokes || []).forEach((s) => {
+            s.el.setAttribute("stroke-dashoffset", String(s.peri * (1 - draw)));
+            s.el.style.opacity = String((1 - ph.reveal) * (draw > 0 ? 1 : 0));
+        });
+        if (caches.rooms.svg) caches.rooms.svg.style.opacity = String(1 - ph.reveal);
         if (world) {
-            const op = 1 - Math.max(ph.setup, e);
-            world.style.opacity = String(op);
-            world.style.visibility = op < 0.08 ? "hidden" : "visible";
+            world.style.opacity = "0";
+            world.style.visibility = "hidden";
         }
-        if (rooms) rooms.classList.toggle("is-awaiting", ph.reveal < 1);
+        if (rooms) {
+            rooms.classList.toggle("is-awaiting", fill <= 0);
+            rooms.style.setProperty("--rooms-draw", String(fill));
+            rooms.style.setProperty("--rooms-dots", String(ph.reveal));
+        }
         if (t < 1) document.body.classList.toggle("has-world-atoms", t < 0.45);
         if (t >= 1) {
             hideCache("rooms");
@@ -3562,7 +3686,11 @@ document.documentElement.classList.add("story-scroll-mode");
                 world.style.opacity = camReady ? "1" : "";
                 world.style.visibility = camReady ? "visible" : "";
             }
-            if (rooms) rooms.classList.remove("is-awaiting");
+            if (rooms) {
+                rooms.classList.remove("is-awaiting");
+                rooms.style.removeProperty("--rooms-draw");
+                rooms.style.removeProperty("--rooms-dots");
+            }
             if (weights) weights.classList.remove("is-awaiting");
             return;
         }
@@ -3615,9 +3743,15 @@ document.documentElement.classList.add("story-scroll-mode");
         if (tCam <= 0) {
             if (camReady) reverseCamera();
             if (!pin.on) pinBall();
-            applyDrop(tDrop);
-            applyZoom(tDrop >= 1 ? tZoom : 0);
-            applyEnter(tZoom >= 1 ? tEnter : 0);
+            if (tDrop < 1) {
+                if (zoomSurfaces) resetZoomSurfaces();
+                applyDrop(tDrop);
+                applyEnter(0);
+            } else {
+                applyDrop(1);
+                applyZoom(tZoom);
+                applyEnter(tZoom >= 1 ? tEnter : 0);
+            }
             if (tEnter >= 1 && tCam <= 0) {
                 clearSceneFlags();
                 scenes[0].classList.add("is-on", "is-bridging");
@@ -3631,7 +3765,7 @@ document.documentElement.classList.add("story-scroll-mode");
                 applyZoom(1);
                 applyEnter(1);
             }
-            applyCamera(tCam, p < P.rooms[0]);
+            applyCamera(tCam, p < P.rooms[0], p);
         }
 
         if (p >= P.rooms[0]) applyLater(p);

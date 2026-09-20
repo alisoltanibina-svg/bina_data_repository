@@ -24,6 +24,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from backend.database import (
     NATIONAL_NAME,
@@ -41,9 +42,8 @@ from backend.database import (
 JSON_MEDIA = "application/json"
 # Data and assets change rarely. Browsers may reuse copies:
 #   API JSON     — 1 hour fresh, then stale-while-revalidate for 7 days
-#   JS / CSS     — 1 day, then SWR 7 days
-#   images / GIS — 7 days, then SWR 30 days
-#   HTML         — always revalidate (small); 304 if unchanged
+#   HTML / JS / CSS / GeoJSON — always revalidate (small); 304 if unchanged
+#   images / fonts            — 7 days, then SWR 30 days
 # Hard refresh (Ctrl+F5) still bypasses this.
 _API_CACHE_CONTROL = (
     "public, max-age=3600, stale-while-revalidate=604800, stale-if-error=86400"
@@ -54,7 +54,6 @@ _CACHE_HEADERS = {
 }
 
 _HTML_CACHE_CONTROL = "public, max-age=0, must-revalidate"
-_CODE_CACHE_CONTROL = "public, max-age=86400, stale-while-revalidate=604800"
 _MEDIA_CACHE_CONTROL = "public, max-age=604800, stale-while-revalidate=2592000"
 
 _MEDIA_SUFFIXES = {
@@ -144,13 +143,11 @@ def _static_is_public(path: str) -> bool:
 def _static_cache_control(path: str) -> str:
     relative = _normalized_static_path(path) or ""
     suffix = Path(relative).suffix.lower() if relative else ".html"
-    if suffix in _HTML_SUFFIXES:
+    if suffix in _HTML_SUFFIXES or suffix in _CODE_SUFFIXES or suffix == ".geojson":
         return _HTML_CACHE_CONTROL
-    if suffix in _CODE_SUFFIXES:
-        return _CODE_CACHE_CONTROL
     if suffix in _MEDIA_SUFFIXES:
         return _MEDIA_CACHE_CONTROL
-    return _CODE_CACHE_CONTROL
+    return _HTML_CACHE_CONTROL
 
 
 class CachedStaticFiles(StaticFiles):
@@ -232,6 +229,7 @@ def _warm_cache() -> None:
     cache.get("subtopic-names", _compute_subtopic_names)
     cache.get("init-atlas", lambda: _json_bytes(_compute_atlas()))
     cache.get("explorer-init", lambda: _json_bytes(_compute_explorer_init()))
+    cache.get("race-indicators", _compute_race_indicator_names)
 
 
 def bootstrap() -> None:
@@ -246,7 +244,29 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(
+    title="دیده‌بان فرهنگ",
+    lifespan=lifespan,
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
+)
+
+_SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
+}
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        for name, value in _SECURITY_HEADERS.items():
+            response.headers.setdefault(name, value)
+        return response
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -257,6 +277,7 @@ app.add_middleware(
     expose_headers=["ETag"],
 )
 app.add_middleware(GZipMiddleware, minimum_size=500)
+app.add_middleware(SecurityHeadersMiddleware)
 
 
 def _round_field(rows: list[dict], field: str) -> None:
@@ -778,89 +799,72 @@ def get_province_pyramid(province: str, request: Request):
     )
 
 
-def _compute_curtain_race() -> dict:
-    """Pick a random indicator with more than 15 distinct years, then pack the race series."""
+def _compute_race_indicator_names() -> list[str]:
+    """Indicators with a long enough non-national time series for the curtain race."""
     with db_connection() as conn:
-        names = [
+        return [
             row[0]
             for row in conn.execute(
-                "SELECT DISTINCT indicator_name FROM kindicator_score "
-                "WHERE indicator_name IS NOT NULL AND TRIM(indicator_name) != ''"
+                "SELECT indicator_name FROM kindicator_score "
+                "WHERE indicator_name IS NOT NULL AND TRIM(indicator_name) != '' "
+                "AND province_name != ? AND value IS NOT NULL AND year IS NOT NULL "
+                "GROUP BY indicator_name "
+                "HAVING COUNT(DISTINCT year) > 15",
+                (NATIONAL_NAME,),
             )
         ]
-        if not names:
-            raise HTTPException(status_code=404, detail="شاخصی یافت نشد")
 
-        chosen = None
-        years: list[int] = []
-        rows: list[dict] = []
-        topic_row: dict = {}
-        colors = None
-        series: dict[str, list] = {}
-        provinces: list[str] = []
 
-        for _ in range(100):
-            candidate = random.choice(names)
-            year_n = conn.execute(
-                "SELECT COUNT(DISTINCT year) FROM kindicator_score WHERE indicator_name = ?",
-                (candidate,),
-            ).fetchone()[0]
-            if year_n is None or int(year_n) <= 10:
-                continue
-
-            years = [
-                int(row[0])
-                for row in conn.execute(
-                    "SELECT DISTINCT year FROM kindicator_score "
-                    "WHERE indicator_name = ? AND year IS NOT NULL ORDER BY year",
-                    (candidate,),
-                )
-            ]
-            rows = fetchall_dicts(
-                conn,
-                "SELECT province_name, year, value FROM kindicator_score "
-                "WHERE indicator_name = ? AND province_name != ? AND value IS NOT NULL "
-                "ORDER BY year, province_name",
-                (candidate, NATIONAL_NAME),
-            )
-            year_index = {year: idx for idx, year in enumerate(years)}
-            series = {}
-            for row in rows:
-                prov = row.get("province_name")
-                year = row.get("year")
-                if not prov or year is None or year not in year_index:
-                    continue
-                if prov not in series:
-                    series[prov] = [None] * len(years)
-                try:
-                    series[prov][year_index[int(year)]] = round(float(row["value"]), 2)
-                except (TypeError, ValueError):
-                    continue
-            provinces = [name for name, values in series.items() if any(v is not None for v in values)]
-            provinces.sort()
-            if not provinces or len(years) <= 15:
-                continue
-
-            chosen = candidate
-            topic_row = fetchone_dict(
-                conn,
-                "SELECT topic_name, subtopic_name FROM kindicator_score "
-                "WHERE indicator_name = ? LIMIT 1",
-                (chosen,),
-            ) or {}
-            if topic_row.get("topic_name"):
-                colors = fetchone_dict(
-                    conn,
-                    "SELECT master_color, lower_color, upper_color FROM topics WHERE topic_name = ?",
-                    (topic_row["topic_name"],),
-                )
-            break
-
-        if chosen is None:
-            raise HTTPException(status_code=404, detail="شاخص معتبری یافت نشد")
-
+def _pack_curtain_race(conn, candidate: str) -> dict | None:
+    years = [
+        int(row[0])
+        for row in conn.execute(
+            "SELECT DISTINCT year FROM kindicator_score "
+            "WHERE indicator_name = ? AND year IS NOT NULL ORDER BY year",
+            (candidate,),
+        )
+    ]
+    if len(years) <= 15:
+        return None
+    rows = fetchall_dicts(
+        conn,
+        "SELECT province_name, year, value FROM kindicator_score "
+        "WHERE indicator_name = ? AND province_name != ? AND value IS NOT NULL "
+        "ORDER BY year, province_name",
+        (candidate, NATIONAL_NAME),
+    )
+    year_index = {year: idx for idx, year in enumerate(years)}
+    series: dict[str, list] = {}
+    for row in rows:
+        prov = row.get("province_name")
+        year = row.get("year")
+        if not prov or year is None or year not in year_index:
+            continue
+        if prov not in series:
+            series[prov] = [None] * len(years)
+        try:
+            series[prov][year_index[int(year)]] = round(float(row["value"]), 2)
+        except (TypeError, ValueError):
+            continue
+    provinces = [name for name, values in series.items() if any(v is not None for v in values)]
+    provinces.sort()
+    if not provinces:
+        return None
+    topic_row = fetchone_dict(
+        conn,
+        "SELECT topic_name, subtopic_name FROM kindicator_score "
+        "WHERE indicator_name = ? LIMIT 1",
+        (candidate,),
+    ) or {}
+    colors = None
+    if topic_row.get("topic_name"):
+        colors = fetchone_dict(
+            conn,
+            "SELECT master_color, lower_color, upper_color FROM topics WHERE topic_name = ?",
+            (topic_row["topic_name"],),
+        )
     return {
-        "indicator_name": chosen,
+        "indicator_name": candidate,
         "topic_name": topic_row.get("topic_name") or "",
         "subtopic_name": topic_row.get("subtopic_name") or "",
         "master_color": (colors or {}).get("master_color"),
@@ -870,6 +874,21 @@ def _compute_curtain_race() -> dict:
         "provinces": provinces,
         "series": {name: series[name] for name in provinces},
     }
+
+
+def _compute_curtain_race() -> dict:
+    """Pick a random long-series indicator and pack the race payload."""
+    names = get_cache().get("race-indicators", _compute_race_indicator_names)
+    if not names:
+        raise HTTPException(status_code=404, detail="شاخصی یافت نشد")
+    order = list(names)
+    random.shuffle(order)
+    with db_connection() as conn:
+        for candidate in order[:8]:
+            packed = _pack_curtain_race(conn, candidate)
+            if packed:
+                return packed
+    raise HTTPException(status_code=404, detail="شاخص معتبری یافت نشد")
 
 
 @app.get("/api/curtain/race")

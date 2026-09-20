@@ -34,6 +34,31 @@ body {
     background: #f0f4f8;
 }
 
+#app-notice {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 4000;
+    max-width: min(440px, calc(100% - 32px));
+    padding: 12px 18px;
+    border-radius: 12px;
+    background: #1b242e;
+    color: #ffffff;
+    font-size: 0.9rem;
+    font-weight: 500;
+    line-height: 1.6;
+    text-align: center;
+    box-shadow: 0 10px 24px rgba(27, 36, 46, 0.18);
+    direction: rtl;
+}
+#app-notice[hidden] {
+    display: none !important;
+}
+#app-notice[data-kind="error"] {
+    background: #3f2a2a;
+}
+
 /* Leaflet ships Helvetica/Arial on the map pane; keep Peyda there too. */
 .leaflet-container,
 .leaflet-popup,

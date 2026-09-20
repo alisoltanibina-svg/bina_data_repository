@@ -9,21 +9,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>نقشه تعاملی شاخص‌های ایران</title>
+    <title>اطلس — دیده‌بان فرهنگ</title>
+    <link rel="icon" href="assets/images/Logo.webp" type="image/webp">
     
     <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous" />
     <!-- Peyda (Farsi numerals) -->
     <link rel="stylesheet" href="assets/fonts/peyda.css">
     <!-- Page CSS -->
-    <link rel="stylesheet" href="global.css?v=banner1">
-    <link rel="stylesheet" href="index.css?v=peyda2">
+    <link rel="stylesheet" href="global.css">
+    <link rel="stylesheet" href="index.css">
     <!-- Reversible revayat treatment. Restore: drop class treat-v1 and this link. -->
-    <link rel="stylesheet" href="treat-v1.css?v=11">
+    <link rel="stylesheet" href="treat-v1.css">
     <!-- Page Javascript -->
     <script src="force-motion.js"></script>
     <script src="config.js"></script>
-    <script src="index.js?v=atlas2" defer></script>
+    <script src="shared.js"></script>
+    <script src="index.js" defer></script>
     <script src="auth.js" defer></script>
 
     <script>
@@ -193,7 +195,7 @@
                             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 7 9-7"/></svg>
                         </a>
                     </div>
-                    <img class="entry-footnote-logo" src="assets/images/Logo_foot.webp?v=3" alt="مرکز رصد بینا">
+                    <img class="entry-footnote-logo" src="assets/images/Logo_foot.webp" alt="مرکز رصد بینا">
                 </div>
             </footer>
         </div>
@@ -222,12 +224,12 @@
             <div id="map"></div>
             
             <div id="floating-group-container">
-                <button id="btn-exit-focus" style="margin-bottom: 5px; background: #ef4444; color: white; border: none; border-radius: 5px; padding: 6px 12px; cursor: pointer; font-size: 0.8rem; width: 100%; font-family: inherit; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">خروج از نمای گونه‌شناسی ✖</button>
+                <button type="button" id="btn-exit-focus">خروج از نمای گونه‌شناسی ✖</button>
                 <div class="floating-box" id="floating-charts-box">
                     <div class="chart-switcher">
-                        <button class="switcher-btn active" id="btn-tab-trend" onclick="switchGroupChartType('trend')">روند زمانی</button>
-                        <button class="switcher-btn" id="btn-tab-spider" onclick="switchGroupChartType('spider')">نقشه شاخص‌ها</button>
-                        <button class="switcher-btn" id="btn-tab-table" onclick="switchGroupChartType('table')">جدول خوشه‌ها</button>
+                        <button type="button" class="switcher-btn active" id="btn-tab-trend" data-mode="trend">روند زمانی</button>
+                        <button type="button" class="switcher-btn" id="btn-tab-spider" data-mode="spider">نقشه شاخص‌ها</button>
+                        <button type="button" class="switcher-btn" id="btn-tab-table" data-mode="table">جدول خوشه‌ها</button>
                     </div>
                     <div id="group-charts-container"></div>
                     <div id="group-table-container" style="display:none;"></div>
@@ -266,8 +268,8 @@
         </div>
     </div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous"></script>
 
     <script>
         document.addEventListener("DOMContentLoaded", function() {

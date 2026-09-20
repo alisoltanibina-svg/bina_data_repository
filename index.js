@@ -461,6 +461,9 @@ window.addEventListener('DOMContentLoaded', () => {
     initCurtainReveal();
     initCurtainRace();
     bindMapPanelDock();
+    document.querySelectorAll('#floating-charts-box .switcher-btn').forEach((btn) => {
+        btn.addEventListener('click', () => switchGroupChartType(btn.dataset.mode));
+    });
     if (!sessionStorage.getItem('welcomeShown')) {
         const overlay = document.getElementById('welcome-overlay');
         if (overlay) {
@@ -471,55 +474,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-Chart.defaults.color = '#333333'; 
-Chart.defaults.font.family = "'PeydaFaNumWeb', Tahoma, sans-serif";
-// Render crisp on high DPI displays
-Chart.defaults.devicePixelRatio = window.devicePixelRatio || 1;
-if (Chart.defaults.animation === false) Chart.defaults.animation = {};
-if (Chart.defaults.animation) Chart.defaults.animation.duration = 1000;
-
-// Simple debounce utility for resize/throttle
-function debounce(fn, wait) {
-    let t;
-    return function(...args) {
-        clearTimeout(t);
-        t = setTimeout(() => fn.apply(this, args), wait);
-    };
-}
-
-// Lazy-background loader: defer setting background-image until element near viewport
-function initLazyBackgrounds(root = document) {
-    const lazyEls = Array.from(root.querySelectorAll('[data-bg]'));
-    if (lazyEls.length === 0) return;
-
-    if ('IntersectionObserver' in window) {
-        const io = new IntersectionObserver((entries, obs) => {
-            entries.forEach(entry => {
-                if (!entry.isIntersecting) return;
-                const el = entry.target;
-                const url = el.dataset.bg;
-                if (url) {
-                    el.style.backgroundImage = `url('${url}')`;
-                    el.removeAttribute('data-bg');
-                    el.classList.remove('bg-placeholder');
-                }
-                obs.unobserve(el);
-            });
-        }, { rootMargin: '200px 0px' });
-
-        lazyEls.forEach(el => io.observe(el));
-    } else {
-        // Fallback: eagerly load all
-        lazyEls.forEach(el => {
-            const url = el.dataset.bg;
-            if (url) {
-                el.style.backgroundImage = `url('${url}')`;
-                el.removeAttribute('data-bg');
-                el.classList.remove('bg-placeholder');
-            }
-        });
-    }
-}
+applyChartDefaults();
 
 const API_BASE_URL = window.API_BASE_URL || (window.location.protocol + '//' + window.location.hostname + ':8000');
 
@@ -815,7 +770,7 @@ async function loadAllData() {
         initLegend();
         initMap();
 
-        const geoRes = await fetch('data/iran.geojson?v=c1');
+        const geoRes = await fetch('data/iran.geojson');
         if (!geoRes.ok) throw new Error("GeoJSON not found");
         renderMapData(await geoRes.json());
 
@@ -823,7 +778,7 @@ async function loadAllData() {
 
     } catch (err) {
         console.error("Error connecting to FastAPI backend:", err);
-        alert("خطا در ارتباط با سرور بک‌اند.");
+        showNotice("خطا در ارتباط با سرور بک‌اند.");
     }
 }
 
@@ -932,7 +887,9 @@ function initUI() {
     // SIMILAR PROVINCES - RIGHT PANEL & SWITCHER
     document.getElementById('btn-similar').addEventListener('click', async function(e) {
         if (!selectedProvince || !loadedGeoJSON) {
-            e.preventDefault(); alert("لطفاً ابتدا یک استان را از روی نقشه انتخاب کنید."); return;
+            e.preventDefault();
+            showNotice("لطفاً ابتدا یک استان را از روی نقشه انتخاب کنید.", "info");
+            return;
         }
 
         try {
@@ -944,7 +901,7 @@ function initUI() {
             atlasTopicTrendCache[currentIndex] = topicTrends;
         } catch (err) {
             console.error('Error loading typology data', err);
-            alert("خطا در بارگذاری داده‌های گونه‌شناسی.");
+            showNotice("خطا در بارگذاری داده‌های گونه‌شناسی.");
             return;
         }
 

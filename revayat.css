@@ -250,10 +250,6 @@ scene[data-step="0"].is-bridging .scene-title {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
-    color: var(--muted);
-    font-size: 13px;
-    letter-spacing: 0.02em;
     pointer-events: none;
     opacity: 0;
     transition: opacity 0.6s var(--ease);
@@ -473,17 +469,14 @@ body.has-world-atoms scene[data-step="1"] .dot {
     visibility: hidden !important;
     animation: none !important;
 }
-body.has-world-atoms scene[data-step="1"].is-on {
-    place-items: end center;
-    padding-bottom: 108px;
-}
 body.has-world-atoms scene[data-step="1"] .stage {
     display: none;
 }
-body.has-world-atoms scene[data-step="1"] .copy {
-    position: relative;
+html.story-scroll-mode scene[data-step="1"].is-on {
     z-index: 20;
-    margin-top: 0;
+}
+body.has-world-atoms scene[data-step="1"] .copy {
+    z-index: 20;
 }
 
 scene {
@@ -515,10 +508,11 @@ scene.is-prep {
 }
 
 .frame {
-    width: min(920px, 100%);
+    width: min(1120px, 100%);
+    height: 100%;
+    position: relative;
     display: grid;
-    justify-items: center;
-    gap: 40px;
+    place-items: center;
 }
 
 .stage {
@@ -546,7 +540,59 @@ scene[data-step="0"] .stage {
     height: calc(var(--pearl-d) * 1.42);
 }
 
-.copy { text-align: center; max-width: 28rem; }
+.copy {
+    position: absolute;
+    z-index: 4;
+    text-align: right;
+    max-width: min(28rem, 46vw);
+    overflow: visible;
+    padding-bottom: 0.35em;
+}
+scene[data-step="0"] .copy {
+    left: 50%;
+    bottom: max(64px, 7vh);
+    transform: translateX(-50%);
+    text-align: center;
+    max-width: 28rem;
+}
+scene[data-step="1"] .copy {
+    right: max(12px, 2.5vw);
+    bottom: max(72px, 9vh);
+}
+scene[data-step="2"] .copy {
+    left: max(36px, 6vw);
+    top: 22%;
+}
+scene[data-step="3"] .copy {
+    right: max(36px, 6vw);
+    top: 20%;
+}
+scene[data-step="4"] .copy {
+    left: max(40px, 8vw);
+    bottom: 18%;
+}
+scene[data-step="5"] .copy {
+    right: max(40px, 8vw);
+    top: 24%;
+}
+scene[data-step="6"] .copy {
+    left: 50%;
+    top: max(96px, 14vh);
+    transform: translateX(-50%);
+    text-align: center;
+    max-width: 28rem;
+}
+scene[data-step="7"] .copy {
+    right: max(36px, 6vw);
+    bottom: 18%;
+}
+scene[data-step="8"] .copy {
+    left: 50%;
+    bottom: max(48px, 6vh);
+    transform: translateX(-50%);
+    text-align: center;
+    max-width: 32rem;
+}
 .kicker {
     font-size: 19.5px;
     color: var(--gold);
@@ -744,7 +790,7 @@ scene.is-on .matrix b { animation: pop .55s var(--ease) both; }
     z-index: 12;
     pointer-events: none;
     perspective: 1400px;
-    perspective-origin: 50% 100%;
+    perspective-origin: var(--pivot-x, 50%) var(--pivot-y, 100%);
     overflow: hidden;
 }
 .world-stage {
@@ -762,9 +808,15 @@ scene.is-on .matrix b { animation: pop .55s var(--ease) both; }
     width: 6400px;
     height: 4200px;
     margin-left: -3200px;
-    transform: rotateX(var(--floor-tilt, 76deg));
+    transform: rotateX(var(--floor-tilt, 90deg));
     transform-origin: 50% 100%;
     transform-style: preserve-3d;
+    --floor-fade: 0;
+}
+.world-floor::before {
+    content: "";
+    position: absolute;
+    inset: 0;
     background:
         linear-gradient(to top,
             rgba(18, 14, 12, 0.96) 0%,
@@ -772,6 +824,8 @@ scene.is-on .matrix b { animation: pop .55s var(--ease) both; }
             rgba(42, 36, 30, 0.42) 62%,
             rgba(48, 42, 36, 0.18) 100%);
     box-shadow: inset 0 -80px 160px rgba(0, 0, 0, 0.28);
+    opacity: var(--floor-fade, 1);
+    pointer-events: none;
 }
 .world-floor::after {
     content: "";
@@ -781,10 +835,11 @@ scene.is-on .matrix b { animation: pop .55s var(--ease) both; }
     bottom: 0;
     height: 1px;
     background: linear-gradient(to right, transparent, rgba(236, 226, 208, 0.28), transparent);
+    opacity: var(--floor-fade, 1);
 }
 .world-ball {
     position: absolute;
-    transform: rotateX(calc(-1 * var(--floor-tilt, 76deg))) translateZ(1px);
+    transform: rotateX(calc(-1 * var(--floor-tilt, 90deg))) translateZ(1px);
     transform-origin: 50% 100%;
     pointer-events: none;
 }
@@ -985,12 +1040,32 @@ footer-cta a {
     scene[data-step="8"] .stage { height: min(260px, 40vh); }
     .pulse-num { font-size: 64px; }
     header { padding: 16px 16px; }
+    .copy {
+        max-width: calc(100% - 48px);
+        left: 24px;
+        right: 24px;
+        transform: none;
+    }
+    scene[data-step="0"] .copy,
+    scene[data-step="6"] .copy,
+    scene[data-step="8"] .copy {
+        left: 24px;
+        right: 24px;
+        transform: none;
+        text-align: center;
+    }
 }
 
 #rooms.is-awaiting .card-mini {
     opacity: 0 !important;
     animation: none !important;
     transition: none !important;
+}
+html.story-scroll-mode #rooms:not(.is-awaiting) .card-mini {
+    opacity: var(--rooms-draw, 1);
+}
+html.story-scroll-mode #rooms em {
+    opacity: var(--rooms-dots, 0) !important;
 }
 scene[data-step="2"].is-from-rooms .card-mini {
     animation: none;
@@ -1063,8 +1138,8 @@ scene[data-step="8"].is-on.is-from-iran .iran-map {
 
 html.story-scroll-mode scene .copy > * {
     transition: none !important;
-    opacity: var(--copy-on, 0) !important;
     transform: none !important;
+    opacity: var(--copy-on, 0) !important;
 }
 html.story-scroll-mode scene.is-bridging:not([data-step="0"]) .stage {
     opacity: 0 !important;
@@ -1087,7 +1162,10 @@ html.story-scroll-mode scene.is-on .orb,
 html.story-scroll-mode scene.is-on .dot {
     animation: none !important;
 }
-html.story-scroll-mode scene[data-step="2"].is-on.is-from-rooms .card-mini,
+html.story-scroll-mode scene[data-step="2"].is-on.is-from-rooms .card-mini {
+    opacity: var(--rooms-draw, 1);
+    transform: none;
+}
 html.story-scroll-mode scene[data-step="3"].is-on.is-from-weights .weight .bar span,
 html.story-scroll-mode scene[data-step="6"].is-on.is-from-benches .benches .rank,
 html.story-scroll-mode scene[data-step="7"].is-on.is-from-matrix .matrix b,

@@ -9,16 +9,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>تحلیل و شناسایی مشکلات استانی</title>
+    <title>نمایه — دیده‌بان فرهنگ</title>
+    <link rel="icon" href="assets/images/Logo.webp" type="image/webp">
     <link rel="stylesheet" href="assets/fonts/peyda.css">
     <script src="force-motion.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="global.css?v=banner1">
-    <link rel="stylesheet" href="problem.css?v=pr3">
-    <link rel="stylesheet" href="treat-v1.css?v=8">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha384-iw3OoTErCYJJB9mCa8LNS2hbsQ7M3C0EpIsO/H5+EGAkPGc6rk+V8i04oW/K5xq0" crossorigin="anonymous">
+    <link rel="stylesheet" href="global.css">
+    <link rel="stylesheet" href="problem.css">
+    <link rel="stylesheet" href="treat-v1.css">
     <script src="config.js"></script>
-    <script src="problem.js"></script>
+    <script src="shared.js"></script>
+    <script src="problem.js" defer></script>
     <script src="auth.js" defer></script>
 </head>
 
@@ -31,13 +33,14 @@
     <!-- Main content area starts strictly below the 75px banner -->
     <main class="problem-main">
         <div class="problem-main-scroll">
+            <div class="pr-room pr-page1">
             <header class="pr-intro">
                 <p class="pr-kicker">نمایه</p>
                 <h1 class="pr-intro-title">وضعیت استان در یک نگاه</h1>
                 <p class="pr-intro-text">رتبه و امتیاز استان، ترکیب زیرموضوع‌های موضوع انتخاب‌شده، و جای استان در ماتریس وضعیت. موضوع را از نوار کناری عوض کنید. برای نقشهٔ شهرستان‌ها و هرم سنی، پایین بروید.</p>
             </header>
             <div class="problem-charts-row">
-                <section class="pr-room pr-polar">
+                <section class="pr-polar">
                     <div class="pr-room-head" id="polar-title-wrapper">
                         <span class="pr-kicker">استان</span>
                         <div class="province-picker" id="province-picker">
@@ -78,7 +81,7 @@
                     </div>
                 </section>
 
-                <section class="pr-room pr-scatter">
+                <section class="pr-scatter">
                     <h3 class="pr-room-title">ماتریس وضعیت</h3>
                     <div class="pr-scatter-plot">
                         <div class="scatter-gradient-bg"></div>
@@ -86,8 +89,9 @@
                     </div>
                 </section>
             </div>
+            </div>
 
-            <section class="topic-changes-panel pr-room">
+            <section class="topic-changes-panel">
                 <div class="topic-changes-header">
                     <div>
                         <h3 class="topic-changes-title">

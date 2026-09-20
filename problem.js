@@ -4,53 +4,8 @@
 //   page-level UI behaviors specific to the province profile view.
 // Notes: All comments have been standardized to English; visible UI labels remain Persian.
 
-Chart.defaults.font.family = "'PeydaFaNumWeb', sans-serif";
-Chart.defaults.locale = 'fa-IR';
-// Render charts sharply on high-DPI / Retina displays
-Chart.defaults.devicePixelRatio = window.devicePixelRatio || 1;
-if (Chart.defaults.animation === false) Chart.defaults.animation = {};
-if (Chart.defaults.animation) Chart.defaults.animation.duration = 1000;
-
-// Debounce helper for resize handling
-function debounceProblem(fn, wait) {
-    let t;
-    return function(...args) {
-        clearTimeout(t);
-        t = setTimeout(() => fn.apply(this, args), wait);
-    };
-}
-
-// Lazy-background loader for this page
-function initLazyBackgrounds(root = document) {
-    const lazyEls = Array.from(root.querySelectorAll('[data-bg]'));
-    if (lazyEls.length === 0) return;
-
-    if ('IntersectionObserver' in window) {
-        const io = new IntersectionObserver((entries, obs) => {
-            entries.forEach(entry => {
-                if (!entry.isIntersecting) return;
-                const el = entry.target;
-                const url = el.dataset.bg;
-                if (url) {
-                    el.style.backgroundImage = `url('${url}')`;
-                    el.removeAttribute('data-bg');
-                    el.classList.remove('bg-placeholder');
-                }
-                obs.unobserve(el);
-            });
-        }, { rootMargin: '200px 0px' });
-
-        lazyEls.forEach(el => io.observe(el));
-    } else {
-        lazyEls.forEach(el => {
-            const url = el.dataset.bg;
-            if (url) {
-                el.style.backgroundImage = `url('${url}')`;
-                el.removeAttribute('data-bg');
-                el.classList.remove('bg-placeholder');
-            }
-        });
-    }
+if (applyChartDefaults()) {
+    Chart.defaults.locale = 'fa-IR';
 }
 const urlParams = new URLSearchParams(window.location.search);
 
@@ -382,7 +337,7 @@ async function initDashboard() {
         
     } catch(e) {
         console.error(e);
-        alert("مشکل در دریافت داده‌ها از سرور");
+        showNotice("مشکل در دریافت داده‌ها از سرور");
     }
 }
 
@@ -920,7 +875,7 @@ function resizeChartSafely(chart) {
 }
 
 // Ensure charts resize smoothly when window size changes
-const onProblemResize = debounceProblem(() => {
+const onProblemResize = debounce(() => {
     resizeChartSafely(polarChart);
     resizeChartSafely(doughnutChart);
     resizeChartSafely(scatterChart);
@@ -1543,8 +1498,8 @@ function onStoryScroll() {
 async function loadStoryGeo() {
     try {
         const [iranRes, shahrRes] = await Promise.all([
-            fetch('data/iran.geojson?v=c1'),
-            fetch('data/Shahrestan.geojson?v=c1')
+            fetch('data/iran.geojson'),
+            fetch('data/Shahrestan.geojson')
         ]);
         if (!iranRes.ok || !shahrRes.ok) throw new Error('GeoJSON not found');
         const iran = await iranRes.json();
@@ -1567,7 +1522,7 @@ function initStoryScroll() {
     bindStoryMapClicks();
     maybeLoadStoryGeo();
     window.addEventListener('scroll', onStoryScroll, { passive: true });
-    window.addEventListener('resize', debounceProblem(() => {
+    window.addEventListener('resize', debounce(() => {
         updateStoryProgress();
         updateBackToTopBtn();
     }, 120));
@@ -1788,8 +1743,11 @@ async function loadPyramidData() {
     }
 }
 
-window.onload = function() {
+function startProblem() {
+    if (typeof Chart === 'undefined') showNotice('مشکل در بارگذاری نمودار.');
     initStoryScroll();
     loadPyramidData();
     initDashboard();
-};
+}
+
+onReady(startProblem);

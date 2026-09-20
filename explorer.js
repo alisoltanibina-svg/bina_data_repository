@@ -5,56 +5,10 @@
 // Notes: Comments standardized to English; Persian UI strings are not modified.
 
 // -- Explorer page initialization --
-if (typeof ChartDataLabels !== 'undefined') Chart.register(ChartDataLabels);
-Chart.defaults.font.family = "'PeydaFaNumWeb', sans-serif";
-// Ensure crisp rendering on high-DPI devices
-Chart.defaults.devicePixelRatio = window.devicePixelRatio || 1;
-if (Chart.defaults.animation === false) Chart.defaults.animation = {};
-if (Chart.defaults.animation) Chart.defaults.animation.duration = 1000;
-
-// Debounce utility (local) for resize handling
-function debounceLocal(fn, wait) {
-    let t;
-    return function(...args) {
-        clearTimeout(t);
-        t = setTimeout(() => fn.apply(this, args), wait);
-    };
-}
-
-// Lazy-background loader for this page
-function initLazyBackgrounds(root = document) {
-    const lazyEls = Array.from(root.querySelectorAll('[data-bg]'));
-    if (lazyEls.length === 0) return;
-
-    if ('IntersectionObserver' in window) {
-        const io = new IntersectionObserver((entries, obs) => {
-            entries.forEach(entry => {
-                if (!entry.isIntersecting) return;
-                const el = entry.target;
-                const url = el.dataset.bg;
-                if (url) {
-                    el.style.backgroundImage = `url('${url}')`;
-                    el.removeAttribute('data-bg');
-                    el.classList.remove('bg-placeholder');
-                }
-                obs.unobserve(el);
-            });
-        }, { rootMargin: '200px 0px' });
-
-        lazyEls.forEach(el => io.observe(el));
-    } else {
-        lazyEls.forEach(el => {
-            const url = el.dataset.bg;
-            if (url) {
-                el.style.backgroundImage = `url('${url}')`;
-                el.removeAttribute('data-bg');
-                el.classList.remove('bg-placeholder');
-            }
-        });
-    }
-}
-
-Chart.register({
+function registerExplorerChartPlugin() {
+    if (typeof Chart === 'undefined' || registerExplorerChartPlugin._done) return;
+    registerExplorerChartPlugin._done = true;
+    Chart.register({
     id: 'lineSweepPlugin',
     beforeDatasetDraw(chart, args) {
         const ds = chart.data.datasets[args.index];
@@ -73,7 +27,8 @@ Chart.register({
             chart.ctx.restore();
         }
     }
-});
+    });
+}
 
 let sweepReq = null;
 let sweepStartTime = null;
@@ -179,7 +134,7 @@ async function loadExplorerData() {
 
     } catch (err) {
         console.error("Error Loading API Data", err);
-        alert("مشکل در ارتباط با سرور.");
+        showNotice("مشکل در ارتباط با سرور.");
     }
 }
 
@@ -1119,7 +1074,7 @@ function getChartOptions() {
 }
 
 // Ensure charts resize smoothly across screen sizes
-const onExplorerResize = debounceLocal(() => {
+const onExplorerResize = debounce(() => {
     try { if (chartInstance && typeof chartInstance.resize === 'function') chartInstance.resize(); } catch (e) {}
     try { if (scatterProvinceChart && typeof scatterProvinceChart.resize === 'function') scatterProvinceChart.resize(); } catch (e) {}
     const layout = mosaicLayout();
@@ -1133,7 +1088,27 @@ const onExplorerResize = debounceLocal(() => {
 }, 150);
 window.addEventListener('resize', onExplorerResize);
 
-window.onload = () => {
+function bindExplorerChrome() {
+    const back = document.getElementById('btn-nav-subtopics');
+    if (back) back.addEventListener('click', goBackToLanding);
+    const trend = document.getElementById('btn-chart-trend');
+    if (trend) trend.addEventListener('click', () => setChartMode('trend'));
+    const compare = document.getElementById('btn-chart-compare');
+    if (compare) compare.addEventListener('click', () => setChartMode('compare'));
+    const search = document.getElementById('province-search');
+    if (search) search.addEventListener('input', filterProvinces);
+    const selectAll = document.getElementById('btn-select-all-provinces');
+    if (selectAll) selectAll.addEventListener('click', selectAllProvinces);
+    const clearAll = document.getElementById('btn-clear-all-provinces');
+    if (clearAll) clearAll.addEventListener('click', clearAllProvinces);
+}
+
+function startExplorer() {
+    if (applyChartDefaults()) registerExplorerChartPlugin();
+    else showNotice('مشکل در بارگذاری نمودار.');
+    bindExplorerChrome();
     initExplorerSmoothScroll();
     loadExplorerData();
-};
+}
+
+onReady(startExplorer);
