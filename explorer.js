@@ -134,10 +134,8 @@ function topicAccent(topic) {
 function applyExplorerTheme(topic) {
     if (!topic) return;
     const accent = topicAccent(topic);
-    document.documentElement.style.setProperty('--banner-bg', accent);
     document.documentElement.style.setProperty('--topic-accent', accent);
     try {
-        sessionStorage.setItem('themeBannerBg', accent);
         sessionStorage.setItem('themeTopicAccent', accent);
     } catch (e) {}
 }

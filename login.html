@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<!--
+  File: login.html
+  Purpose: Account login form. Wired to the server in a later step.
+  Notes: Visible UI strings remain in Persian.
+-->
+
+<html lang="fa" dir="rtl" class="treat-v1">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>ورود — دیده‌بان فرهنگ</title>
+    <link rel="icon" href="assets/images/Logo.webp" type="image/webp">
+    <link rel="stylesheet" href="assets/fonts/peyda.css">
+    <script src="force-motion.js"></script>
+    <link rel="stylesheet" href="global.css">
+    <link rel="stylesheet" href="register.css">
+    <link rel="stylesheet" href="treat-v1.css">
+    <script src="config.js"></script>
+    <script src="shared.js"></script>
+    <script src="login.js" defer></script>
+    <script src="auth.js" defer></script>
+</head>
+<body class="register-body">
+
+    <div id="top-banner" data-page="login"></div>
+    <script src="banner.js"></script>
+
+    <main class="register-workspace">
+        <section class="register-card">
+            <p class="register-kicker">حساب کاربری</p>
+            <h1>ورود به حساب</h1>
+            <p class="register-lead">با شماره موبایل و رمز عبور وارد شوید.</p>
+
+            <div class="register-demo" role="status">
+                ورود هنوز به سرور وصل نیست. این صفحه مسیر دکمهٔ پرده است.
+            </div>
+
+            <form id="login-form" novalidate>
+                <label class="register-field">
+                    <span>شماره موبایل</span>
+                    <input type="tel" id="phone" name="phone" inputmode="tel" dir="ltr" autocomplete="username" required maxlength="16" placeholder="09121234567">
+                    <em class="register-error" id="err-phone" hidden></em>
+                </label>
+                <label class="register-field">
+                    <span>رمز عبور</span>
+                    <input type="password" id="password" name="password" autocomplete="current-password" required minlength="8">
+                    <em class="register-error" id="err-password" hidden></em>
+                </label>
+                <button type="submit" class="register-submit" id="login-submit">ورود</button>
+            </form>
+
+            <p class="register-hint" style="margin-top: 16px;">
+                حساب ندارید؟
+                <a href="register.html">درخواست عضویت</a>
+            </p>
+        </section>
+    </main>
+
+</body>
+</html>

@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     )
 
     database_url: SecretStr
+    admin_phone: str = ""
+    admin_password: SecretStr = SecretStr("")
 
 
 def _require_postgres_url(url: str) -> str:

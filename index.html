@@ -34,12 +34,10 @@
         if (hashAtlas || curtainEnter) {
             document.documentElement.classList.add('atlas-view');
         }
-        // Restore the theme from the page the user just left (Logo), not the Atlas topic.
+        // Restore the accent from the page the user just left (Logo), not the Atlas topic.
         if (!hashAtlas) {
             try {
-                const storedBg = sessionStorage.getItem('themeBannerBg');
                 const storedAc = sessionStorage.getItem('themeTopicAccent');
-                if (storedBg) document.documentElement.style.setProperty('--banner-bg', storedBg);
                 if (storedAc) document.documentElement.style.setProperty('--topic-accent', storedAc);
             } catch (e) {}
         }
@@ -61,21 +59,32 @@
                 setTimeout(() => curtain.style.transition = '', 50);
             }
         </script>
-        <div class="perspective-grid" aria-hidden="true">
-            <div class="perspective-grid-plane" id="perspective-grid-plane"></div>
-            <div class="perspective-grid-fade"></div>
-        </div>
         <div class="entry-scroll">
             <section class="entry-hero" id="entry-hero">
                 <div class="entry-header-texts entry-reveal">
                     <h2 class="entry-main-title">راهبری زیست بوم فرهنگی تبلیغی ایران</h2>
                 </div>
-                <div class="entry-search-container entry-reveal">
-                    <div class="entry-search-box">
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="search-icon"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                        <input type="text" id="indicator-search" placeholder="جستجو کنید" autocomplete="off">
+                <div class="entry-launch entry-reveal">
+                    <a href="login.html" class="entry-login-btn" id="btn-open-login">
+                        <span class="entry-login-arrow" aria-hidden="true">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M5 12h14"></path>
+                                <path d="M13 6l6 6-6 6"></path>
+                            </svg>
+                        </span>
+                        <span>ورود به حساب کاربری</span>
+                    </a>
+                    <div class="entry-launch-row">
+                        <div class="entry-search-container">
+                            <div class="entry-search-box">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="search-icon"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                                <input type="text" id="indicator-search" placeholder="جستجوی شاخص" autocomplete="off">
+                            </div>
+                            <ul id="search-suggestions" class="entry-suggestions"></ul>
+                        </div>
+                        <span class="entry-launch-divider" aria-hidden="true"></span>
+                        <button type="button" class="entry-atlas-btn" id="btn-open-atlas">اطلس</button>
                     </div>
-                    <ul id="search-suggestions" class="entry-suggestions"></ul>
                 </div>
             </section>
         </div>

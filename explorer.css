@@ -8,14 +8,8 @@ Purpose: Explorer catalog landing and indicator desk, in the dashboard visual id
     inherits: true;
     initial-value: #0078d7;
 }
-@property --banner-bg {
-    syntax: '<color>';
-    inherits: true;
-    initial-value: #0078d7;
-}
 
 :root {
-    --banner-bg: #0078d7;
     --banner-gap: 16px;
     --banner-side-gap: 16px;
     --topic-accent: #0078d7;

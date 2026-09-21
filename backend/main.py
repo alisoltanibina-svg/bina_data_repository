@@ -271,6 +271,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 # Innermost first: 429s still pass through CORS, gzip, and security headers.
 app.add_middleware(RateLimitMiddleware)
+# برای آنلاین بودن از کامنت دربیاید
 # app.add_middleware(
 #     CORSMiddleware,
 #     allow_origins=_cors_origins(),
@@ -288,7 +289,7 @@ app.add_middleware(RateLimitMiddleware)
 #     ],
 # )
 
-
+# برای آفلاین بودن از کامنت دربیاید
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[

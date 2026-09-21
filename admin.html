@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<!--
+  File: admin.html
+  Purpose: Admin control panel for reviewing membership requests.
+  Notes: Visible UI strings remain in Persian. Data layer is mocked until auth APIs exist.
+-->
+
+<html lang="fa" dir="rtl" class="treat-v1">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>پذیرش درخواست‌ها — دیده‌بان فرهنگ</title>
+    <link rel="icon" href="assets/images/Logo.webp" type="image/webp">
+    <link rel="stylesheet" href="assets/fonts/peyda.css">
+    <script src="force-motion.js"></script>
+    <link rel="stylesheet" href="global.css">
+    <link rel="stylesheet" href="admin.css">
+    <link rel="stylesheet" href="treat-v1.css">
+    <script src="config.js"></script>
+    <script src="shared.js"></script>
+    <script src="membership-store.js"></script>
+    <script src="admin.js" defer></script>
+    <script src="auth.js" defer></script>
+</head>
+<body class="admin-body">
+
+    <div id="top-banner" data-page="admin"></div>
+    <script src="banner.js"></script>
+
+    <main class="admin-workspace">
+        <header class="admin-head">
+            <p class="admin-kicker">پنل مدیریت</p>
+            <h1>درخواست‌های عضویت</h1>
+            <p class="admin-lead">درخواست‌های ثبت‌نام را بررسی کنید. پذیرش، حساب را می‌سازد؛ رد، فقط پرونده را می‌بندد.</p>
+        </header>
+
+        <div class="admin-demo" role="status">
+            درخواست‌ها در همین مرورگر ذخیره می‌شوند. فرم عضویت: register.html
+        </div>
+
+        <section class="admin-stats" aria-label="خلاصه وضعیت">
+            <article class="admin-stat" data-stat="pending">
+                <p class="admin-stat-label">در انتظار</p>
+                <p class="admin-stat-value" id="stat-pending">۰</p>
+            </article>
+            <article class="admin-stat" data-stat="approved">
+                <p class="admin-stat-label">پذیرفته</p>
+                <p class="admin-stat-value" id="stat-approved">۰</p>
+            </article>
+            <article class="admin-stat" data-stat="rejected">
+                <p class="admin-stat-label">رد شده</p>
+                <p class="admin-stat-value" id="stat-rejected">۰</p>
+            </article>
+        </section>
+
+        <section class="admin-board">
+            <div class="admin-list-pane">
+                <div class="admin-toolbar">
+                    <div class="admin-tabs" role="tablist" aria-label="فیلتر وضعیت">
+                        <button type="button" class="admin-tab is-active" role="tab" aria-selected="true" data-filter="pending">در انتظار</button>
+                        <button type="button" class="admin-tab" role="tab" aria-selected="false" data-filter="approved">پذیرفته</button>
+                        <button type="button" class="admin-tab" role="tab" aria-selected="false" data-filter="rejected">رد شده</button>
+                        <button type="button" class="admin-tab" role="tab" aria-selected="false" data-filter="all">همه</button>
+                    </div>
+                    <div class="admin-filters" id="admin-filters">
+                        <label class="admin-filter">
+                            <span>نام</span>
+                            <input type="search" id="filter-first_name" data-filter-field="first_name" autocomplete="off">
+                        </label>
+                        <label class="admin-filter">
+                            <span>نام خانوادگی</span>
+                            <input type="search" id="filter-last_name" data-filter-field="last_name" autocomplete="off">
+                        </label>
+                        <label class="admin-filter">
+                            <span>شماره</span>
+                            <input type="search" id="filter-phone" data-filter-field="phone" dir="ltr" inputmode="tel" autocomplete="off">
+                        </label>
+                        <label class="admin-filter">
+                            <span>سمت</span>
+                            <input type="search" id="filter-role_title" data-filter-field="role_title" autocomplete="off">
+                        </label>
+                        <label class="admin-filter">
+                            <span>سازمان</span>
+                            <input type="search" id="filter-organization" data-filter-field="organization" autocomplete="off">
+                        </label>
+                        <button type="button" class="admin-btn admin-btn-ghost admin-filters-clear" id="admin-filters-clear" hidden>پاک کردن فیلتر</button>
+                    </div>
+                </div>
+
+                <div class="admin-table-wrap" id="admin-table-wrap">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">نام</th>
+                                <th scope="col">شماره</th>
+                                <th scope="col">سمت</th>
+                                <th scope="col">زمان</th>
+                                <th scope="col">وضعیت</th>
+                                <th scope="col"><span class="visually-hidden">اقدام</span></th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-tbody"></tbody>
+                    </table>
+                    <div class="admin-empty" id="admin-empty" hidden>
+                        <p class="admin-empty-title" id="admin-empty-title">درخواستی در این فهرست نیست</p>
+                        <p id="admin-empty-text">وقتی کسی فرم عضویت را بفرستد، اینجا دیده می‌شود.</p>
+                    </div>
+                </div>
+            </div>
+
+            <aside class="admin-detail" id="admin-detail" hidden>
+                <div class="admin-detail-inner">
+                    <div class="admin-detail-head">
+                        <p class="admin-kicker">پرونده</p>
+                        <button type="button" class="admin-icon-btn" id="admin-detail-close" aria-label="بستن پرونده">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+                                <path d="M18 6L6 18M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <h2 id="detail-name"></h2>
+                    <p class="admin-detail-status" id="detail-status-wrap"></p>
+                    <dl class="admin-fields">
+                        <div>
+                            <dt>نام</dt>
+                            <dd id="detail-first"></dd>
+                        </div>
+                        <div>
+                            <dt>نام خانوادگی</dt>
+                            <dd id="detail-last"></dd>
+                        </div>
+                        <div>
+                            <dt>شماره تماس</dt>
+                            <dd id="detail-phone" dir="ltr"></dd>
+                        </div>
+                        <div>
+                            <dt>سمت</dt>
+                            <dd id="detail-role"></dd>
+                        </div>
+                        <div>
+                            <dt>سازمان</dt>
+                            <dd id="detail-org"></dd>
+                        </div>
+                        <div>
+                            <dt>زمان ثبت</dt>
+                            <dd id="detail-when"></dd>
+                        </div>
+                        <div id="detail-note-row" hidden>
+                            <dt>یادداشت بررسی</dt>
+                            <dd id="detail-note"></dd>
+                        </div>
+                    </dl>
+                    <div class="admin-detail-actions" id="detail-actions"></div>
+                </div>
+            </aside>
+        </section>
+    </main>
+
+    <div class="admin-dialog-root" id="admin-dialog-root" hidden>
+        <div class="admin-dialog-backdrop" data-dialog-dismiss></div>
+        <div class="admin-dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title" aria-describedby="dialog-text">
+            <h2 id="dialog-title"></h2>
+            <p id="dialog-text"></p>
+            <label class="admin-note-field" id="dialog-note-wrap" hidden>
+                <span>یادداشت (اختیاری)</span>
+                <textarea id="dialog-note" rows="3" maxlength="280" placeholder="دلیل رد درخواست"></textarea>
+            </label>
+            <div class="admin-dialog-actions">
+                <button type="button" class="admin-btn admin-btn-ghost" id="dialog-cancel">انصراف</button>
+                <button type="button" class="admin-btn" id="dialog-confirm"></button>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

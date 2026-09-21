@@ -22,12 +22,9 @@
     function snapshotAppTheme() {
         try {
             const root = document.documentElement;
-            const inlineBg = root.style.getPropertyValue('--banner-bg').trim();
             const inlineAc = root.style.getPropertyValue('--topic-accent').trim();
             const cs = getComputedStyle(root);
-            const bg = inlineBg || cs.getPropertyValue('--banner-bg').trim();
             const ac = inlineAc || cs.getPropertyValue('--topic-accent').trim();
-            if (bg) sessionStorage.setItem('themeBannerBg', bg);
             if (ac) sessionStorage.setItem('themeTopicAccent', ac);
         } catch (e) {}
     }

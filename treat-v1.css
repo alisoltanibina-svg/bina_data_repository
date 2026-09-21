@@ -22,42 +22,6 @@ html.treat-v1 {
 }
 
 /* ------------------------------------------------------------------ */
-/* Atmosphere: vertical light-lines + grain instead of the 3D grid     */
-/* ------------------------------------------------------------------ */
-
-html.treat-v1 .perspective-grid-plane {
-    opacity: 0;
-    pointer-events: none;
-}
-
-html.treat-v1 .perspective-grid {
-    background-image:
-        repeating-linear-gradient(
-            90deg,
-            transparent 0 68px,
-            rgba(255, 255, 255, 0.10) 68px 69.6px,
-            transparent 69.6px 124px,
-            rgba(255, 255, 255, 0.06) 124px 125px,
-            transparent 125px 198px,
-            rgba(255, 255, 255, 0.14) 198px 202.4px,
-            transparent 202.4px 268px,
-            rgba(255, 255, 255, 0.07) 268px 269.8px,
-            transparent 269.8px 340px
-        );
-}
-
-html.treat-v1 .perspective-grid::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: 2;
-    pointer-events: none;
-    opacity: 0.14;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-    background-size: 220px 220px;
-}
-
-/* ------------------------------------------------------------------ */
 /* Type: Peyda kept, revayat weights and air                           */
 /* ------------------------------------------------------------------ */
 
@@ -143,15 +107,25 @@ html.treat-v1 .search-icon {
 /* Curtain boxes: rooms (14px) and instruments (pills)                 */
 /* ------------------------------------------------------------------ */
 
-html.treat-v1 .entry-search-box {
-    border-width: 1px;
-    border-radius: var(--treat-radius-pill);
-    padding: 8px 18px;
+html.treat-v1 .entry-launch {
+    border-radius: 24px;
     box-shadow: var(--treat-shadow);
 }
 
+html.treat-v1 .entry-login-btn,
+html.treat-v1 .entry-atlas-btn,
+html.treat-v1 .entry-search-box {
+    border-radius: var(--treat-radius-pill);
+    box-shadow: none;
+}
+
+html.treat-v1 .entry-search-box {
+    border: 0;
+    padding: 0 16px;
+}
+
 html.treat-v1 .entry-search-box input {
-    padding: 12px 0 14px;
+    padding: 0;
 }
 
 html.treat-v1 .entry-suggestions {
@@ -844,4 +818,26 @@ html.treat-v1 body.bubble-body #top-banner {
 
 html.treat-v1 body.bubble-body #top-banner::before {
     box-shadow: var(--treat-shadow);
+}
+
+html.treat-v1 body.admin-body #top-banner {
+    border-radius: var(--treat-radius-room);
+}
+
+html.treat-v1 body.admin-body #top-banner::before {
+    box-shadow: var(--treat-shadow);
+}
+
+html.treat-v1 body.register-body #top-banner {
+    border-radius: var(--treat-radius-room);
+}
+
+html.treat-v1 body.register-body #top-banner::before {
+    box-shadow: var(--treat-shadow);
+}
+
+html.treat-v1 .entry-login-btn:focus-visible,
+html.treat-v1 .entry-atlas-btn:focus-visible {
+    outline: 2px solid #1b242e;
+    outline-offset: 2px;
 }

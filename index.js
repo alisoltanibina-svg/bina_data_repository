@@ -45,20 +45,6 @@ function initCurtainReveal() {
     items.forEach(el => observer.observe(el));
 }
 
-function initPerspectiveGrid() {
-    const plane = document.getElementById('perspective-grid-plane');
-    if (!plane || plane.childElementCount > 0) return;
-    const size = Number(getComputedStyle(plane).getPropertyValue('--grid-size')) || 28;
-    const count = size * size;
-    const frag = document.createDocumentFragment();
-    for (let i = 0; i < count; i++) {
-        const tile = document.createElement('div');
-        tile.className = 'perspective-grid-tile';
-        frag.appendChild(tile);
-    }
-    plane.appendChild(frag);
-}
-
 function isCompactMap() {
     return window.matchMedia('(max-width: 767px)').matches;
 }
@@ -209,7 +195,6 @@ function bindMapPanelDock() {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-    initPerspectiveGrid();
     initCurtainBannerOffset();
     initCurtainReveal();
     bindMapPanelDock();
@@ -247,20 +232,10 @@ async function fetchAtlasTrend(province, topic) {
     return series;
 }
 
-function persistAppTheme(banner, accent) {
+function persistAppTheme(accent) {
     try {
-        if (banner) sessionStorage.setItem('themeBannerBg', banner);
         if (accent) sessionStorage.setItem('themeTopicAccent', accent);
     } catch (e) {}
-}
-
-function shadeRGB(colorObj, percent) {
-    let r = parseInt(colorObj.r * (100 + percent) / 100);
-    let g = parseInt(colorObj.g * (100 + percent) / 100);
-    let b = parseInt(colorObj.b * (100 + percent) / 100);
-    r = r < 255 ? r : 255; g = g < 255 ? g : 255; b = b < 255 ? b : 255;
-    r = r > 0 ? r : 0; g = g > 0 ? g : 0; b = b > 0 ? b : 0;
-    return `rgb(${r}, ${g}, ${b})`;
 }
 
 function interpolateColor(c1, c2, factor) {
@@ -452,12 +427,11 @@ async function loadAllData() {
         buildMapScoresLookup();
         buildProvincePopLookup(data.province_pop);
 
-        // Map state can restore the last Atlas topic, but home banner/overlay must
-        // keep the topic color from the page the user left via Logo.
+        // Map state can restore the last Atlas topic, but home chrome must
+        // keep the topic accent from the page the user left via Logo.
         const onHome = window.location.hash !== '#atlas';
-        const homeBg = sessionStorage.getItem('themeBannerBg');
         const homeAc = sessionStorage.getItem('themeTopicAccent');
-        const keepHomeTheme = onHome && !!homeBg;
+        const keepHomeTheme = onHome && !!homeAc;
 
         let savedTopic = sessionStorage.getItem('atlasSelectedTopic');
         const savedTopicObj = savedTopic && topicsData.find(t => t.topic_name === savedTopic);
@@ -470,8 +444,7 @@ async function loadAllData() {
         }
 
         if (keepHomeTheme) {
-            document.documentElement.style.setProperty('--banner-bg', homeBg);
-            if (homeAc) document.documentElement.style.setProperty('--topic-accent', homeAc);
+            document.documentElement.style.setProperty('--topic-accent', homeAc);
         }
         
         initUI();
@@ -500,22 +473,10 @@ function updateTopicColors(tObj, options = {}) {
     }
 
     if (options && options.skipChrome) return;
-    
-    // Define banner color using master_color (falling back to upper_color if missing)
-    const bannerHex = (tObj && tObj.master_color) ? tObj.master_color : (tObj && tObj.upper_color) ? tObj.upper_color : '#0078d7';
-    const bannerRgb = hexToRgb(bannerHex);
-    
-    // Generate the gradient using the new master_color
-    let darkerRgb = shadeRGB(bannerRgb, -40);
-    let bannerStr = `rgb(${bannerRgb.r}, ${bannerRgb.g}, ${bannerRgb.b})`;
-    const gradient = `linear-gradient(90deg, ${darkerRgb}, ${bannerStr})`;
-    
-    document.documentElement.style.setProperty('--banner-bg', gradient);
 
-    // Inject the topic's master_color into the nav icons' bottom border
     const accentHex = (tObj && tObj.master_color) ? tObj.master_color : (tObj && tObj.upper_color) ? tObj.upper_color : '#0078d7';
     document.documentElement.style.setProperty('--topic-accent', accentHex);
-    persistAppTheme(gradient, accentHex);
+    persistAppTheme(accentHex);
 
     // Update back control to use the topic's upper color (if available)
     const upperHex = (tObj && (tObj.upper_color || tObj.color)) || '#0078d7';

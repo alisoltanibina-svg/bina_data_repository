@@ -8,7 +8,6 @@ File: index.css
     --border-color: #dddddd;
     --text-color: #333333;
     --hover-bg: #eef2f5;
-    --banner-bg: #0078d7;
     --topic-accent: #0078d7;
     --curtain-footer-tint: color-mix(in srgb, var(--topic-accent) 74%, #000 26%);
     --banner-gap: 16px;
@@ -46,7 +45,7 @@ body {
     align-items: center; 
     justify-content: space-between; 
     padding: 0 25px; 
-    color: #ffffff; 
+    color: var(--banner-fg, #6cbf43); 
     z-index: 2000; 
     box-shadow: none; 
     transition: top 0.9s cubic-bezier(0.22, 1, 0.36, 1), left 0.9s cubic-bezier(0.22, 1, 0.36, 1), right 0.9s cubic-bezier(0.22, 1, 0.36, 1), width 0.9s cubic-bezier(0.22, 1, 0.36, 1), border-radius 0.9s cubic-bezier(0.22, 1, 0.36, 1), background 0.6s ease; 
@@ -55,7 +54,7 @@ body {
 
 #top-banner::before {
     content: ''; position: absolute; inset: 0; border-radius: inherit;
-    background: var(--banner-bg); z-index: -1;
+    background: #ffffff; z-index: -1;
     box-shadow: none; transition: background 0.6s ease, box-shadow 0.9s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -73,7 +72,12 @@ html.atlas-view #top-banner::before {
 
 #entry-view-curtain {
     position: absolute; top: 0; left: 0; width: 100%; height: 100vh; height: var(--vvh, 100dvh);
-    background: var(--banner-bg); z-index: 1500;
+    background-color: #e9e6f6;
+    background-image: url("assets/images/bg_curtain.webp");
+    background-size: cover;
+    background-position: center bottom;
+    background-repeat: no-repeat;
+    z-index: 1500;
     transform: translate3d(0, 0, 0);
     will-change: transform;
     backface-visibility: hidden;
@@ -81,56 +85,7 @@ html.atlas-view #top-banner::before {
     display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start;
     overflow: hidden;
     padding: 0; border-radius: 0;
-    --fade-stop: var(--topic-accent, #0078d7);
     --curtain-banner-h: 75px;
-}
-
-.perspective-grid {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    z-index: 0;
-    overflow: hidden;
-    pointer-events: none;
-    perspective: 2000px;
-    border-radius: inherit;
-}
-
-.perspective-grid-plane {
-    --grid-size: 28;
-    position: absolute;
-    width: 80rem;
-    aspect-ratio: 1 / 1;
-    left: 50%;
-    top: 50%;
-    display: grid;
-    grid-template-columns: repeat(28, 1fr);
-    grid-template-rows: repeat(28, 1fr);
-    transform-origin: center center;
-    transform: translate(-50%, -50%) rotateX(30deg) rotateY(-5deg) rotateZ(20deg) scale(2);
-    pointer-events: auto;
-}
-
-.perspective-grid-tile {
-    min-width: 1px;
-    min-height: 1px;
-    border: 1px solid rgba(255, 255, 255, 0.28);
-    background: transparent;
-    transition: background-color 0.35s ease;
-}
-
-.perspective-grid-tile:hover {
-    background-color: rgba(255, 255, 255, 0.32);
-    transition-duration: 0s;
-}
-
-.perspective-grid-fade {
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    pointer-events: none;
-    background: radial-gradient(circle, transparent 25%, var(--fade-stop) 80%);
 }
 
 html.atlas-view #entry-view-curtain,
@@ -151,7 +106,7 @@ html.atlas-view #entry-view-curtain,
     z-index: 2;
     width: 100%;
     margin-top: 0;
-    color: #ffffff;
+    color: #2a2550;
     pointer-events: auto;
     overflow: hidden;
     overscroll-behavior: none;
@@ -168,12 +123,86 @@ html.atlas-view #entry-view-curtain,
     text-align: center;
 }
 .entry-header-texts { text-align: center; margin-bottom: 28px; }
-.entry-main-title { font-size: 2.2rem; font-weight: 800; color: #ffffff; margin: 0; }
+.entry-main-title { font-size: 2.2rem; font-weight: 800; color: #2a2550; margin: 0; }
 
-.entry-search-container { position: relative; width: 100%; max-width: 600px; margin-bottom: 0; pointer-events: auto; }
-.entry-search-box { display: flex; align-items: center; background: #fff; border: 2px solid #0078d7; border-radius: 10px; padding: 5px 15px; box-shadow: 0 8px 20px rgba(0,120,215,0.15); }
-.entry-search-box .search-icon { width: 24px; height: 24px; color: #0078d7; margin-left: 10px; }
-.entry-search-box input { flex-grow: 1; border: none; outline: none; padding: 12px 0; font-size: 1.1rem; font-family: inherit; background: transparent; }
+.entry-launch {
+    width: min(440px, 100%);
+    pointer-events: auto;
+    background: #ffffff;
+    border-radius: 24px;
+    padding: 16px;
+    box-shadow: 0 10px 28px rgba(27, 36, 46, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.entry-login-btn {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 48px;
+    padding: 0 52px 1px;
+    border-radius: 999px;
+    background: var(--banner-fg, #6cbf43);
+    color: #ffffff;
+    text-decoration: none;
+    font-size: 0.95rem;
+    font-weight: 600;
+    font-family: inherit;
+}
+.entry-login-btn:hover { filter: brightness(0.96); }
+.entry-login-btn:focus-visible,
+.entry-atlas-btn:focus-visible {
+    outline: 2px solid #1b242e;
+    outline-offset: 2px;
+}
+.entry-login-arrow {
+    position: absolute;
+    inset-inline-start: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #ffffff;
+    color: var(--banner-fg, #6cbf43);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.entry-launch-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+.entry-launch-divider {
+    width: 1px;
+    height: 28px;
+    flex-shrink: 0;
+    background: rgba(27, 36, 46, 0.12);
+}
+.entry-atlas-btn {
+    flex: 0 0 auto;
+    min-width: 5.6rem;
+    height: 48px;
+    padding: 0 18px 1px;
+    border: 0;
+    border-radius: 999px;
+    background: #eef0f4;
+    color: #1b242e;
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.entry-atlas-btn:hover { background: #e4e7ec; }
+.entry-search-container { position: relative; flex: 1 1 auto; min-width: 0; width: auto; max-width: none; margin-bottom: 0; pointer-events: auto; }
+.entry-search-box { display: flex; align-items: center; background: #eef0f4; border: 0; border-radius: 999px; padding: 0 16px; height: 48px; box-shadow: none; }
+.entry-search-box .search-icon { width: 20px; height: 20px; color: #8b949e; margin-left: 8px; flex-shrink: 0; }
+.entry-search-box input { flex-grow: 1; min-width: 0; border: none; outline: none; padding: 0; font-size: 0.95rem; font-family: inherit; background: transparent; color: #1b242e; }
+.entry-search-box input::placeholder { color: #8b949e; }
 
 .entry-suggestions { position: absolute; top: 100%; left: 0; right: 0; background: #fff; color: #1e293b; border-radius: 8px; margin-top: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); max-height: 250px; overflow-y: auto; z-index: 10; list-style: none; padding: 0; display: none; border: 1px solid var(--border-color); }
 .entry-suggestions li { padding: 12px 20px; cursor: pointer; border-bottom: 1px solid #eee; transition: background 0.2s; font-size: 1rem; color: #1e293b; line-height: 1.7; text-align: right; white-space: normal; overflow-wrap: break-word; }

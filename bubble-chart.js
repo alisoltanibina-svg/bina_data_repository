@@ -321,12 +321,10 @@ function applyBubbleTheme(colors) {
     if (!colors) return;
     if (colors.upper_color) themeUpper = colors.upper_color;
     if (colors.lower_color) themeLower = colors.lower_color;
-    const bannerHex = colors.master_color || colors.upper_color || themeUpper;
-    document.documentElement.style.setProperty('--banner-bg', bannerHex);
-    document.documentElement.style.setProperty('--topic-accent', bannerHex);
+    const accentHex = colors.master_color || colors.upper_color || themeUpper;
+    document.documentElement.style.setProperty('--topic-accent', accentHex);
     try {
-        sessionStorage.setItem('themeBannerBg', bannerHex);
-        sessionStorage.setItem('themeTopicAccent', bannerHex);
+        sessionStorage.setItem('themeTopicAccent', accentHex);
     } catch (e) {}
 }
 
