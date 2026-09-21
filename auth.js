@@ -1,9 +1,32 @@
 // File: auth.js
-// Purpose: Banner user-menu toggle and logout. Login is not required; خروج
-//   clears local session keys and returns to the curtain home.
+// Purpose: Banner user-menu, session profile, and logout through /api/auth.
 
 (function initUserLogoutMenu() {
-    function logout() {
+    function apiBase() {
+        return typeof API_BASE_URL === 'string' ? API_BASE_URL : '';
+    }
+
+    function displayName(profile) {
+        return [profile.first_name, profile.last_name].filter(Boolean).join(' ').trim();
+    }
+
+    function applyProfile(profile) {
+        const nameEl = document.querySelector('.user-name');
+        const roleEl = document.querySelector('.user-role');
+        if (!profile || !nameEl || !roleEl) return;
+        const name = displayName(profile);
+        if (name) nameEl.textContent = name;
+        roleEl.textContent = profile.role_title || (profile.is_admin ? 'مدیر' : roleEl.textContent);
+    }
+
+    function loadProfile() {
+        fetch(apiBase() + '/api/auth/me', { credentials: 'include' })
+            .then(function (response) { return response.ok ? response.json() : null; })
+            .then(function (profile) { if (profile) applyProfile(profile); })
+            .catch(function () {});
+    }
+
+    function clearLocalSession() {
         sessionStorage.removeItem('atlasSelectedTopic');
         sessionStorage.removeItem('atlasSelectedProvince');
         sessionStorage.removeItem('welcomeShown');
@@ -11,7 +34,15 @@
         sessionStorage.removeItem('themeTopicAccent');
         sessionStorage.removeItem('atlasThemeBannerBg');
         sessionStorage.removeItem('atlasThemeTopicAccent');
-        window.location.replace('index.html');
+    }
+
+    function logout() {
+        fetch(apiBase() + '/api/auth/logout', { method: 'POST', credentials: 'include' })
+            .catch(function () {})
+            .finally(function () {
+                clearLocalSession();
+                window.location.replace('index.html');
+            });
     }
 
     function isIndexPage() {
@@ -40,6 +71,7 @@
 
     function setup() {
         setupLogoHome();
+        loadProfile();
         const btn = document.getElementById('user-menu-btn');
         const menu = document.getElementById('user-menu-dropdown');
         const logoutBtn = document.getElementById('btn-logout');

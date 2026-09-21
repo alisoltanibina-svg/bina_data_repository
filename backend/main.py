@@ -20,7 +20,8 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
+from pydantic import BaseModel, Field
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -37,7 +38,14 @@ from backend.database import (
     normalize_fa_name,
     resolve_catalog_name,
 )
-from backend.membership import seed_admin
+from backend.membership import (
+    SESSION_COOKIE,
+    SESSION_DAYS,
+    authenticate,
+    delete_session_token,
+    profile_from_session_token,
+    seed_admin,
+)
 from backend.ratelimit import RateLimitMiddleware
 
 JSON_MEDIA = "application/json"
@@ -637,6 +645,63 @@ def get_curtain_race():
         media_type=JSON_MEDIA,
         headers={"Cache-Control": "no-store", "Vary": "Accept-Encoding"},
     )
+
+
+class LoginBody(BaseModel):
+    phone: str = Field(min_length=1)
+    password: str = Field(min_length=1)
+
+
+_AUTH_NO_STORE = {"Cache-Control": "no-store", "Vary": "Accept-Encoding"}
+_LOGIN_FAIL = "شماره یا رمز نادرست است."
+
+
+def _cookie_secure(request: Request) -> bool:
+    proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "").split(",")[0].strip()
+    return proto == "https"
+
+
+def _set_session_cookie(response: JSONResponse, token: str, request: Request) -> None:
+    response.set_cookie(
+        key=SESSION_COOKIE,
+        value=token,
+        max_age=SESSION_DAYS * 24 * 3600,
+        httponly=True,
+        secure=_cookie_secure(request),
+        samesite="lax",
+        path="/",
+    )
+
+
+@app.post("/api/auth/login")
+def auth_login(body: LoginBody, request: Request):
+    result = authenticate(body.phone, body.password)
+    if result is None:
+        raise HTTPException(status_code=401, detail=_LOGIN_FAIL)
+    response = JSONResponse(content=result["profile"], headers=_AUTH_NO_STORE)
+    _set_session_cookie(response, result["token"], request)
+    return response
+
+
+@app.post("/api/auth/logout")
+def auth_logout(request: Request):
+    delete_session_token(request.cookies.get(SESSION_COOKIE) or "")
+    response = JSONResponse(content={"ok": True}, headers=_AUTH_NO_STORE)
+    response.delete_cookie(
+        SESSION_COOKIE,
+        path="/",
+        secure=_cookie_secure(request),
+        samesite="lax",
+    )
+    return response
+
+
+@app.get("/api/auth/me")
+def auth_me(request: Request):
+    profile = profile_from_session_token(request.cookies.get(SESSION_COOKIE) or "")
+    if profile is None:
+        raise HTTPException(status_code=401, detail="وارد نشده‌اید.")
+    return JSONResponse(content=profile, headers=_AUTH_NO_STORE)
 
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent

@@ -1,5 +1,5 @@
 // File: login.js
-// Purpose: Validate the login form. Server auth is wired in a later step.
+// Purpose: Validate the login form and sign in through POST /api/auth/login.
 
 function setError(name, message) {
     const input = document.getElementById(name);
@@ -27,9 +27,16 @@ function normalizePhone(raw) {
     return s;
 }
 
+function failDetail(data) {
+    if (!data || data.detail == null) return 'ورود ناموفق بود.';
+    if (typeof data.detail === 'string') return data.detail;
+    return 'ورود ناموفق بود.';
+}
+
 onReady(() => {
     const form = document.getElementById('login-form');
-    form.addEventListener('submit', event => {
+    const submit = document.getElementById('login-submit');
+    form.addEventListener('submit', async event => {
         event.preventDefault();
         setError('phone', '');
         setError('password', '');
@@ -48,6 +55,26 @@ onReady(() => {
             document.getElementById(first).focus();
             return;
         }
-        showNotice('ورود هنوز به سرور وصل نشده است.');
+
+        submit.disabled = true;
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ phone, password })
+            });
+            let data = null;
+            try { data = await response.json(); } catch (e) { data = null; }
+            if (!response.ok) {
+                showNotice(failDetail(data));
+                return;
+            }
+            window.location.href = data && data.is_admin ? 'admin.html' : 'index.html';
+        } catch (err) {
+            showNotice('ارتباط با سرور برقرار نشد.');
+        } finally {
+            submit.disabled = false;
+        }
     });
 });
