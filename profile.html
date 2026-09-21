@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<!--
+  File: profile.html
+  Purpose: Signed-in user profile. Photo is preview-only until avatar storage exists.
+  Notes: Visible UI strings remain in Persian. Does not write to the database.
+-->
+
+<html lang="fa" dir="rtl" class="treat-v1">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>حساب من — دیده‌بان فرهنگ</title>
+    <link rel="icon" href="assets/images/Logo.webp" type="image/webp">
+    <link rel="stylesheet" href="assets/fonts/peyda.css">
+    <script src="force-motion.js"></script>
+    <link rel="stylesheet" href="global.css">
+    <link rel="stylesheet" href="register.css">
+    <link rel="stylesheet" href="profile.css">
+    <link rel="stylesheet" href="treat-v1.css">
+    <script src="config.js"></script>
+    <script src="shared.js"></script>
+    <script src="profile.js" defer></script>
+    <script src="auth.js" defer></script>
+</head>
+<body class="register-body">
+
+    <div id="top-banner" data-page="profile"></div>
+    <script src="banner.js"></script>
+
+    <main class="register-workspace">
+        <section class="register-card">
+            <p class="register-kicker">حساب کاربری</p>
+            <h1>ویرایش پروفایل</h1>
+            <p class="register-lead">نام و سمت خود را ببینید و یک عکس برای دکمهٔ دایرهٔ بنر انتخاب کنید.</p>
+
+            <form id="profile-form" novalidate>
+                <div class="profile-photo">
+                    <input type="file" id="avatar-file" accept="image/jpeg,image/png,image/webp" hidden>
+                    <button type="button" class="profile-photo-btn" id="avatar-pick" aria-label="انتخاب عکس">
+                        <span class="profile-photo-preview" id="avatar-preview">
+                            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="12" cy="7" r="4"></circle>
+                            </svg>
+                        </span>
+                    </button>
+                    <p class="profile-photo-hint">برای انتخاب عکس روی دایره بزنید. JPG، PNG یا WebP، حداکثر ۵ مگابایت.</p>
+                    <button type="button" class="profile-photo-clear" id="avatar-clear" hidden>حذف عکس</button>
+                </div>
+
+                <div class="register-pair">
+                    <label class="register-field">
+                        <span>نام</span>
+                        <input type="text" id="first_name" name="first_name" autocomplete="given-name" required maxlength="40">
+                        <em class="register-error" id="err-first_name" hidden></em>
+                    </label>
+                    <label class="register-field">
+                        <span>نام خانوادگی</span>
+                        <input type="text" id="last_name" name="last_name" autocomplete="family-name" required maxlength="40">
+                        <em class="register-error" id="err-last_name" hidden></em>
+                    </label>
+                </div>
+
+                <label class="register-field">
+                    <span>شماره موبایل</span>
+                    <input type="tel" id="phone" name="phone" dir="ltr" readonly>
+                </label>
+
+                <label class="register-field">
+                    <span>سمت</span>
+                    <input type="text" id="role_title" name="role_title" autocomplete="organization-title" maxlength="60">
+                </label>
+
+                <label class="register-field">
+                    <span>سازمان <small>اختیاری</small></span>
+                    <input type="text" id="organization" name="organization" autocomplete="organization" maxlength="80">
+                </label>
+
+                <p class="register-hint">عکس فعلاً فقط در همین صفحه پیش‌نمایش می‌شود و در پایگاه داده ذخیره نمی‌شود.</p>
+                <button type="submit" class="register-submit" id="profile-submit">ثبت تغییرات</button>
+            </form>
+        </section>
+    </main>
+
+</body>
+</html>

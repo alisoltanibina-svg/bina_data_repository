@@ -38,6 +38,7 @@
                         '</svg>' +
                     '</button>' +
                     '<div class="user-menu-dropdown" id="user-menu-dropdown" hidden>' +
+                        '<a href="profile.html" class="user-menu-link' + (page === 'profile' ? ' is-current' : '') + '" id="btn-profile">حساب من</a>' +
                         '<button type="button" class="user-exit-btn" id="btn-logout">' +
                             '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
                                 '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>' +

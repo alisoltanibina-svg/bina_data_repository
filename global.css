@@ -190,6 +190,14 @@ body {
     padding: 6px; z-index: 2300;
 }
 .user-menu-dropdown[hidden] { display: none; }
+.user-menu-link {
+    display: flex; align-items: center; justify-content: flex-start;
+    width: 100%; padding: 10px 12px; border-radius: 8px;
+    color: #1b242e; font-family: inherit; font-weight: 600; font-size: 0.9rem;
+    text-decoration: none; box-sizing: border-box;
+}
+.user-menu-link:hover { background: #f4f5f7; }
+.user-menu-link.is-current { background: #f4f5f7; }
 .user-exit-btn {
     display: flex; align-items: center; justify-content: flex-start; gap: 8px;
     width: 100%; padding: 10px 12px; border: none; background: transparent;

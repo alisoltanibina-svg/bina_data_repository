@@ -122,6 +122,13 @@ html.atlas-view #entry-view-curtain,
     pointer-events: none;
     text-align: center;
 }
+.entry-hero-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    left: -360px;
+}
 .entry-header-texts { text-align: center; margin-bottom: 28px; }
 .entry-main-title { font-size: 2.2rem; font-weight: 800; color: #2a2550; margin: 0; }
 
@@ -877,6 +884,7 @@ body.immersive-mode #map { background: #dce5ec; }
 
 @media (max-width: 767px) {
     .entry-main-title { font-size: 1.25rem; padding: 0 8px; }
+    .entry-hero-stack { left: 0; }
     .entry-search-container { max-width: 100%; }
 
     #bottom-panel {
