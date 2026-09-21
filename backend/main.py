@@ -37,6 +37,7 @@ from backend.database import (
     normalize_fa_name,
     resolve_catalog_name,
 )
+from backend.membership import seed_admin
 from backend.ratelimit import RateLimitMiddleware
 
 JSON_MEDIA = "application/json"
@@ -234,6 +235,7 @@ def _warm_cache() -> None:
 
 def bootstrap() -> None:
     check_connection()
+    seed_admin()
     _warm_cache()
 
 
