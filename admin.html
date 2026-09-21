@@ -2,7 +2,7 @@
 <!--
   File: admin.html
   Purpose: Admin control panel for reviewing membership requests.
-  Notes: Visible UI strings remain in Persian. Data layer is mocked until auth APIs exist.
+  Notes: Visible UI strings remain in Persian. Reads and updates /api/admin/requests.
 -->
 
 <html lang="fa" dir="rtl" class="treat-v1">
@@ -18,7 +18,6 @@
     <link rel="stylesheet" href="treat-v1.css">
     <script src="config.js"></script>
     <script src="shared.js"></script>
-    <script src="membership-store.js"></script>
     <script src="admin.js" defer></script>
     <script src="auth.js" defer></script>
 </head>
@@ -33,10 +32,6 @@
             <h1>درخواست‌های عضویت</h1>
             <p class="admin-lead">درخواست‌های ثبت‌نام را بررسی کنید. پذیرش، حساب را می‌سازد؛ رد، فقط پرونده را می‌بندد.</p>
         </header>
-
-        <div class="admin-demo" role="status">
-            درخواست‌ها در همین مرورگر ذخیره می‌شوند. فرم عضویت: register.html
-        </div>
 
         <section class="admin-stats" aria-label="خلاصه وضعیت">
             <article class="admin-stat" data-stat="pending">

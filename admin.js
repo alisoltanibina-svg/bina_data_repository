@@ -1,6 +1,6 @@
 // File: admin.js
 // Purpose: Membership-request inbox for the admin control panel.
-//   AdminApi wraps MembershipStore. Replace its methods with fetch() when auth APIs exist.
+//   AdminApi talks to /api/admin/requests.
 
 const STATUS = {
     pending: { label: 'در انتظار', emptyTitle: 'درخواست معلقی نیست', emptyText: 'وقتی کسی فرم عضویت را بفرستد، اینجا دیده می‌شود.' },
@@ -9,23 +9,57 @@ const STATUS = {
     all: { label: 'همه', emptyTitle: 'درخواستی نیست', emptyText: 'هنوز پرونده‌ای برای بررسی نیامده است.' }
 };
 
-function later(fn) {
-    return new Promise((resolve, reject) => {
-        setTimeout(() => {
-            try { resolve(fn()); } catch (err) { reject(err); }
-        }, 220);
-    });
+function sameId(a, b) {
+    return String(a) === String(b);
+}
+
+function displayName(row) {
+    const parts = [row && row.first_name, row && row.last_name].filter(Boolean);
+    return parts.join(' ') || '';
+}
+
+function normalizePhone(raw) {
+    let s = String(raw || '');
+    s = s.replace(/[۰-۹]/g, d => '0123456789'['۰۱۲۳۴۵۶۷۸۹'.indexOf(d)]);
+    s = s.replace(/[٠-٩]/g, d => '0123456789'['٠١٢٣٤٥٦٧٨٩'.indexOf(d)]);
+    s = s.replace(/[\s-]/g, '');
+    if (s.startsWith('+98')) s = '0' + s.slice(3);
+    if (s.startsWith('0098')) s = '0' + s.slice(4);
+    if (s.startsWith('98') && s.length === 12) s = '0' + s.slice(2);
+    return s;
+}
+
+async function adminFetch(path, options) {
+    const response = await fetch(`${API_BASE_URL}${path}`, Object.assign({ credentials: 'include' }, options || {}));
+    if (response.status === 401 || response.status === 403) {
+        window.location.href = 'login.html';
+        throw new Error('auth');
+    }
+    let data = null;
+    try { data = await response.json(); } catch (e) { data = null; }
+    if (!response.ok) {
+        const detail = data && data.detail;
+        const message = (detail && detail.message) || (typeof detail === 'string' ? detail : 'انجام این اقدام ممکن نشد.');
+        const err = new Error(message);
+        err.detail = detail;
+        throw err;
+    }
+    return data;
 }
 
 const AdminApi = {
     list() {
-        return later(() => MembershipStore.list());
+        return adminFetch('/api/admin/requests');
     },
     approve(id) {
-        return later(() => MembershipStore.approve(id));
+        return adminFetch('/api/admin/requests/' + encodeURIComponent(id) + '/approve', { method: 'POST' });
     },
     reject(id, note) {
-        return later(() => MembershipStore.reject(id, note));
+        return adminFetch('/api/admin/requests/' + encodeURIComponent(id) + '/reject', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ note: note || '' })
+        });
     }
 }
 
@@ -73,8 +107,8 @@ function includesText(value, query) {
 
 function includesPhone(value, query) {
     if (!query) return true;
-    const needle = MembershipStore.normalizePhone(query);
-    const hay = MembershipStore.normalizePhone(value);
+    const needle = normalizePhone(query);
+    const hay = normalizePhone(value);
     if (needle && hay.includes(needle)) return true;
     return String(value || '').includes(query);
 }
@@ -93,7 +127,7 @@ function visibleRows() {
 }
 
 function selectedRow() {
-    return state.rows.find(row => row.id === state.selectedId) || null;
+    return state.rows.find(row => sameId(row.id, state.selectedId)) || null;
 }
 
 function badgeHtml(status) {
@@ -132,9 +166,9 @@ function renderTable() {
     rows.forEach(row => {
         const tr = document.createElement('tr');
         tr.dataset.id = row.id;
-        if (row.id === state.selectedId) tr.classList.add('is-selected');
+        if (sameId(row.id, state.selectedId)) tr.classList.add('is-selected');
         tr.innerHTML =
-            '<td><div class="admin-name">' + escapeHtml(MembershipStore.displayName(row)) + '</div></td>' +
+            '<td><div class="admin-name">' + escapeHtml(displayName(row)) + '</div></td>' +
             '<td><span class="admin-phone">' + escapeHtml(row.phone) + '</span></td>' +
             '<td>' + escapeHtml(row.role_title || '—') + '</td>' +
             '<td>' + escapeHtml(formatWhen(row.created_at)) + '</td>' +
@@ -161,7 +195,7 @@ function renderDetail() {
         return;
     }
     pane.hidden = false;
-    document.getElementById('detail-name').textContent = MembershipStore.displayName(row);
+    document.getElementById('detail-name').textContent = displayName(row);
     document.getElementById('detail-first').textContent = row.first_name || '—';
     document.getElementById('detail-last').textContent = row.last_name || '—';
     document.getElementById('detail-status-wrap').innerHTML = badgeHtml(row.status);
@@ -195,7 +229,7 @@ function refresh() {
 
 async function loadRows() {
     state.rows = await AdminApi.list();
-    if (state.selectedId && !state.rows.some(row => row.id === state.selectedId)) {
+    if (state.selectedId && !state.rows.some(row => sameId(row.id, state.selectedId))) {
         state.selectedId = null;
     }
     refresh();
@@ -223,13 +257,13 @@ function openDialog(kind, row) {
     note.value = '';
     if (kind === 'approve') {
         title.textContent = 'پذیرش درخواست';
-        text.textContent = 'با پذیرش، حساب «' + MembershipStore.displayName(row) + '» ساخته می‌شود و این فرد می‌تواند وارد بخش‌های نیازمند عضویت شود.';
+        text.textContent = 'با پذیرش، حساب «' + displayName(row) + '» ساخته می‌شود و این فرد می‌تواند وارد بخش‌های نیازمند عضویت شود.';
         noteWrap.hidden = true;
         confirm.textContent = 'تأیید پذیرش';
         confirm.className = 'admin-btn admin-btn-primary';
     } else {
         title.textContent = 'رد درخواست';
-        text.textContent = 'درخواست «' + MembershipStore.displayName(row) + '» رد می‌شود و حسابی ساخته نمی‌شود.';
+        text.textContent = 'درخواست «' + displayName(row) + '» رد می‌شود و حسابی ساخته نمی‌شود.';
         noteWrap.hidden = false;
         confirm.textContent = 'تأیید رد';
         confirm.className = 'admin-btn admin-btn-danger';
@@ -257,12 +291,12 @@ async function confirmDialog() {
     try {
         if (kind === 'approve') {
             const row = await AdminApi.approve(id);
-            const idx = state.rows.findIndex(item => item.id === id);
+            const idx = state.rows.findIndex(item => sameId(item.id, id));
             if (idx >= 0) state.rows[idx] = row;
             showNotice('حساب ساخته شد و درخواست پذیرفته شد.', 'ok');
         } else {
             const row = await AdminApi.reject(id, note);
-            const idx = state.rows.findIndex(item => item.id === id);
+            const idx = state.rows.findIndex(item => sameId(item.id, id));
             if (idx >= 0) state.rows[idx] = row;
             showNotice('درخواست رد شد.', 'ok');
         }
@@ -301,7 +335,7 @@ function bind() {
         const act = event.target.closest('[data-act]');
         if (act) {
             event.stopPropagation();
-            const row = state.rows.find(item => item.id === act.dataset.id);
+            const row = state.rows.find(item => sameId(item.id, act.dataset.id));
             if (row) openDialog(act.dataset.act, row);
             return;
         }
@@ -314,7 +348,7 @@ function bind() {
     document.getElementById('detail-actions').addEventListener('click', event => {
         const act = event.target.closest('[data-act]');
         if (!act) return;
-        const row = state.rows.find(item => item.id === act.dataset.id);
+        const row = state.rows.find(item => sameId(item.id, act.dataset.id));
         if (row) openDialog(act.dataset.act, row);
     });
 

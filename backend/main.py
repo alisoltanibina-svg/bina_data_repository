@@ -41,10 +41,15 @@ from backend.database import (
 from backend.membership import (
     SESSION_COOKIE,
     SESSION_DAYS,
+    MembershipError,
+    approve_registration,
     authenticate,
     delete_session_token,
+    list_registration_requests,
     profile_from_session_token,
+    reject_registration,
     seed_admin,
+    submit_registration,
 )
 from backend.ratelimit import RateLimitMiddleware
 
@@ -702,6 +707,91 @@ def auth_me(request: Request):
     if profile is None:
         raise HTTPException(status_code=401, detail="وارد نشده‌اید.")
     return JSONResponse(content=profile, headers=_AUTH_NO_STORE)
+
+
+class RegisterBody(BaseModel):
+    first_name: str = Field(min_length=1, max_length=80)
+    last_name: str = Field(min_length=1, max_length=80)
+    phone: str = Field(min_length=1, max_length=16)
+    role_title: str = Field(min_length=1, max_length=80)
+    organization: str = ""
+    password: str = Field(min_length=8, max_length=200)
+
+
+class RejectBody(BaseModel):
+    note: str = ""
+
+
+_MEMBERSHIP_HTTP = {
+    "first_name": 400,
+    "last_name": 400,
+    "phone": 400,
+    "role": 400,
+    "password": 400,
+    "pending": 409,
+    "exists": 409,
+    "not-found": 404,
+    "not-pending": 409,
+}
+
+
+def _raise_membership(err: MembershipError) -> None:
+    raise HTTPException(
+        status_code=_MEMBERSHIP_HTTP.get(err.code, 400),
+        detail={"code": err.code, "message": err.message},
+    )
+
+
+def _require_admin(request: Request) -> dict:
+    profile = profile_from_session_token(request.cookies.get(SESSION_COOKIE) or "")
+    if profile is None:
+        raise HTTPException(status_code=401, detail="وارد نشده‌اید.")
+    if not profile.get("is_admin"):
+        raise HTTPException(status_code=403, detail="این بخش فقط برای مدیر است.")
+    return profile
+
+
+@app.post("/api/auth/register")
+def auth_register(body: RegisterBody):
+    try:
+        row = submit_registration(
+            body.first_name,
+            body.last_name,
+            body.phone,
+            body.role_title,
+            body.organization,
+            body.password,
+        )
+    except MembershipError as err:
+        _raise_membership(err)
+    return JSONResponse(content=row, status_code=201, headers=_AUTH_NO_STORE)
+
+
+@app.get("/api/admin/requests")
+def admin_list_requests(request: Request):
+    _require_admin(request)
+    return JSONResponse(content=list_registration_requests(), headers=_AUTH_NO_STORE)
+
+
+@app.post("/api/admin/requests/{request_id}/approve")
+def admin_approve_request(request_id: int, request: Request):
+    admin = _require_admin(request)
+    try:
+        row = approve_registration(request_id, admin["id"])
+    except MembershipError as err:
+        _raise_membership(err)
+    return JSONResponse(content=row, headers=_AUTH_NO_STORE)
+
+
+@app.post("/api/admin/requests/{request_id}/reject")
+def admin_reject_request(request_id: int, request: Request, body: RejectBody | None = None):
+    admin = _require_admin(request)
+    payload = body or RejectBody()
+    try:
+        row = reject_registration(request_id, admin["id"], payload.note)
+    except MembershipError as err:
+        _raise_membership(err)
+    return JSONResponse(content=row, headers=_AUTH_NO_STORE)
 
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent

@@ -2,7 +2,7 @@
 <!--
   File: register.html
   Purpose: Public membership request form. Admin later accepts or rejects the request.
-  Notes: Visible UI strings remain in Persian. Data layer is mocked until auth APIs exist.
+  Notes: Visible UI strings remain in Persian. Submits to POST /api/auth/register.
 -->
 
 <html lang="fa" dir="rtl" class="treat-v1">
@@ -18,7 +18,6 @@
     <link rel="stylesheet" href="treat-v1.css">
     <script src="config.js"></script>
     <script src="shared.js"></script>
-    <script src="membership-store.js"></script>
     <script src="register.js" defer></script>
     <script src="auth.js" defer></script>
 </head>
@@ -32,10 +31,6 @@
             <p class="register-kicker">عضویت</p>
             <h1>درخواست عضویت</h1>
             <p class="register-lead">پس از ارسال، درخواست شما بررسی می‌شود. پس از پذیرش می‌توانید وارد بخش‌های نیازمند عضویت شوید.</p>
-
-            <div class="register-demo" role="status">
-                این فرم فعلاً در همین مرورگر ذخیره می‌شود. درخواست را در صفحهٔ پذیرش ببینید.
-            </div>
 
             <form id="register-form" novalidate>
                 <div class="register-pair">

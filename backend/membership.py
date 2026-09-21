@@ -9,9 +9,10 @@ from datetime import datetime, timedelta, timezone
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from backend.database import db_session
-from backend.models import User, UserSession
+from backend.models import RegistrationRequest, User, UserSession
 from backend.settings import get_settings
 
 SESSION_COOKIE = "bina_session"
@@ -82,14 +83,45 @@ def seed_admin() -> None:
         user.is_active = True
 
 
+class MembershipError(Exception):
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
+        self.message = message
+
+
 def public_profile(user: User) -> dict:
     return {
+        "id": user.id,
         "first_name": user.first_name or "",
         "last_name": user.last_name or "",
         "phone": user.phone,
         "role_title": user.role_title or "",
         "organization": user.organization or "",
         "is_admin": bool(user.is_admin),
+    }
+
+
+def _iso(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.isoformat()
+
+
+def serialize_request(row: RegistrationRequest) -> dict:
+    return {
+        "id": row.id,
+        "phone": row.phone,
+        "first_name": row.first_name,
+        "last_name": row.last_name,
+        "role_title": row.role_title,
+        "organization": row.organization or "",
+        "status": row.status,
+        "note": row.note or "",
+        "created_at": _iso(row.created_at),
+        "reviewed_at": _iso(row.reviewed_at),
     }
 
 
@@ -156,3 +188,113 @@ def delete_session_token(token: str) -> None:
         ).scalar_one_or_none()
         if row is not None:
             session.delete(row)
+
+
+def submit_registration(
+    first_name: str,
+    last_name: str,
+    phone: str,
+    role_title: str,
+    organization: str,
+    password: str,
+) -> dict:
+    first_name = (first_name or "").strip()
+    last_name = (last_name or "").strip()
+    role_title = (role_title or "").strip()
+    organization = (organization or "").strip()
+    phone = normalize_phone(phone)
+    if len(first_name) < 2:
+        raise MembershipError("first_name", "نام را وارد کنید.")
+    if len(last_name) < 2:
+        raise MembershipError("last_name", "نام خانوادگی را وارد کنید.")
+    if not is_mobile_phone(phone):
+        raise MembershipError("phone", "شماره موبایل نامعتبر است.")
+    if not role_title:
+        raise MembershipError("role", "سمت را وارد کنید.")
+    if len(password or "") < 8:
+        raise MembershipError("password", "رمز عبور حداقل ۸ نویسه باشد.")
+
+    with db_session() as session:
+        user = session.execute(select(User).where(User.phone == phone)).scalar_one_or_none()
+        if user is not None:
+            raise MembershipError("exists", "برای این شماره قبلاً حساب پذیرفته شده است.")
+        pending = session.execute(
+            select(RegistrationRequest).where(
+                RegistrationRequest.phone == phone,
+                RegistrationRequest.status == "pending",
+            )
+        ).scalar_one_or_none()
+        if pending is not None:
+            raise MembershipError("pending", "برای این شماره یک درخواست در انتظار بررسی است.")
+        row = RegistrationRequest(
+            phone=phone,
+            first_name=first_name,
+            last_name=last_name,
+            role_title=role_title,
+            organization=organization or None,
+            password_hash=hash_password(password),
+            status="pending",
+        )
+        session.add(row)
+        try:
+            session.flush()
+        except IntegrityError:
+            raise MembershipError("pending", "برای این شماره یک درخواست در انتظار بررسی است.") from None
+        session.refresh(row)
+        return serialize_request(row)
+
+
+def list_registration_requests() -> list[dict]:
+    with db_session() as session:
+        rows = session.execute(
+            select(RegistrationRequest).order_by(RegistrationRequest.created_at.desc())
+        ).scalars().all()
+        return [serialize_request(row) for row in rows]
+
+
+def approve_registration(request_id: int, admin_id: int) -> dict:
+    now = datetime.now(timezone.utc)
+    with db_session() as session:
+        req = session.get(RegistrationRequest, request_id)
+        if req is None:
+            raise MembershipError("not-found", "درخواست پیدا نشد.")
+        if req.status != "pending":
+            raise MembershipError("not-pending", "این درخواست قابل پذیرش نیست.")
+        existing = session.execute(select(User).where(User.phone == req.phone)).scalar_one_or_none()
+        if existing is not None:
+            raise MembershipError("exists", "برای این شماره قبلاً حساب ساخته شده است.")
+        session.add(
+            User(
+                phone=req.phone,
+                first_name=req.first_name,
+                last_name=req.last_name,
+                role_title=req.role_title,
+                organization=req.organization,
+                password_hash=req.password_hash,
+                is_admin=False,
+                is_active=True,
+                approved_at=now,
+                approved_by=admin_id,
+            )
+        )
+        req.status = "approved"
+        req.reviewed_at = now
+        req.reviewed_by = admin_id
+        session.flush()
+        return serialize_request(req)
+
+
+def reject_registration(request_id: int, admin_id: int, note: str) -> dict:
+    now = datetime.now(timezone.utc)
+    with db_session() as session:
+        req = session.get(RegistrationRequest, request_id)
+        if req is None:
+            raise MembershipError("not-found", "درخواست پیدا نشد.")
+        if req.status != "pending":
+            raise MembershipError("not-pending", "این درخواست قابل رد نیست.")
+        req.status = "rejected"
+        req.note = (note or "").strip() or None
+        req.reviewed_at = now
+        req.reviewed_by = admin_id
+        session.flush()
+        return serialize_request(req)

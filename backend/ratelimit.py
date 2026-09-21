@@ -39,6 +39,7 @@ _EXPENSIVE_PATHS = frozenset(
         "/api/atlas/topic-trends",
         "/api/bubble/init",
         "/api/auth/login",
+        "/api/auth/register",
     }
 )
 

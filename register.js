@@ -1,19 +1,5 @@
 // File: register.js
-// Purpose: Validate and submit a membership request. Uses MembershipStore until APIs exist.
-
-function later(fn) {
-    return new Promise((resolve, reject) => {
-        setTimeout(() => {
-            try { resolve(fn()); } catch (err) { reject(err); }
-        }, 220);
-    });
-}
-
-const RegisterApi = {
-    submit(payload) {
-        return later(() => MembershipStore.submit(payload));
-    }
-};
+// Purpose: Validate and submit a membership request through POST /api/auth/register.
 
 const FIELDS = ['first_name', 'last_name', 'phone', 'role_title', 'password', 'password_confirm'];
 
@@ -36,6 +22,25 @@ function clearErrors() {
     FIELDS.forEach(name => setError(name, ''));
 }
 
+function normalizePhone(raw) {
+    let s = String(raw || '');
+    s = s.replace(/[۰-۹]/g, d => '0123456789'['۰۱۲۳۴۵۶۷۸۹'.indexOf(d)]);
+    s = s.replace(/[٠-٩]/g, d => '0123456789'['٠١٢٣٤٥٦٧٨٩'.indexOf(d)]);
+    s = s.replace(/[\s-]/g, '');
+    if (s.startsWith('+98')) s = '0' + s.slice(3);
+    if (s.startsWith('0098')) s = '0' + s.slice(4);
+    if (s.startsWith('98') && s.length === 12) s = '0' + s.slice(2);
+    return s;
+}
+
+function isMobilePhone(phone) {
+    return /^09\d{9}$/.test(phone);
+}
+
+function displayName(row) {
+    return [row && row.first_name, row && row.last_name].filter(Boolean).join(' ');
+}
+
 function readForm(form) {
     const data = Object.fromEntries(new FormData(form).entries());
     return {
@@ -53,8 +58,7 @@ function validate(values) {
     const errors = {};
     if (values.first_name.length < 2) errors.first_name = 'نام را وارد کنید.';
     if (values.last_name.length < 2) errors.last_name = 'نام خانوادگی را وارد کنید.';
-    const phone = MembershipStore.normalizePhone(values.phone);
-    if (!MembershipStore.isMobilePhone(phone)) errors.phone = 'شماره موبایل را به‌صورت ۰۹۱۲۱۲۳۴۵۶۷ وارد کنید.';
+    if (!isMobilePhone(normalizePhone(values.phone))) errors.phone = 'شماره موبایل را به‌صورت ۰۹۱۲۱۲۳۴۵۶۷ وارد کنید.';
     if (!values.role_title) errors.role_title = 'سمت را وارد کنید.';
     if (values.password.length < 8) errors.password = 'رمز عبور حداقل ۸ نویسه باشد.';
     if (values.password_confirm !== values.password) errors.password_confirm = 'تکرار رمز با رمز عبور یکی نیست.';
@@ -69,15 +73,18 @@ function showDone(name) {
         'درخواست «' + name + '» ثبت شد. پس از پذیرش مدیر می‌توانید وارد بخش‌های نیازمند عضویت شوید.';
 }
 
-function errorMessage(err) {
-    const code = err && err.code;
-    if (code === 'pending') return 'برای این شماره یک درخواست در انتظار بررسی است.';
-    if (code === 'exists') return 'برای این شماره قبلاً حساب پذیرفته شده است.';
-    if (code === 'phone') return 'شماره موبایل نامعتبر است.';
-    if (code === 'first_name') return 'نام را وارد کنید.';
-    if (code === 'last_name') return 'نام خانوادگی را وارد کنید.';
-    if (code === 'role') return 'سمت را وارد کنید.';
-    return 'ارسال درخواست ممکن نشد.';
+function errorFromResponse(data) {
+    const detail = data && data.detail;
+    const code = detail && detail.code;
+    const message = detail && detail.message;
+    if (code === 'pending') return { field: 'phone', text: message || 'برای این شماره یک درخواست در انتظار بررسی است.' };
+    if (code === 'exists') return { field: 'phone', text: message || 'برای این شماره قبلاً حساب پذیرفته شده است.' };
+    if (code === 'phone') return { field: 'phone', text: message || 'شماره موبایل نامعتبر است.' };
+    if (code === 'first_name' || code === 'last_name') return { field: code, text: message || 'این فیلد را کامل کنید.' };
+    if (code === 'role') return { field: 'role_title', text: message || 'سمت را وارد کنید.' };
+    if (code === 'password') return { field: 'password', text: message || 'رمز عبور نامعتبر است.' };
+    if (typeof detail === 'string') return { field: '', text: detail };
+    return { field: '', text: 'ارسال درخواست ممکن نشد.' };
 }
 
 onReady(() => {
@@ -98,14 +105,30 @@ onReady(() => {
 
         submit.disabled = true;
         try {
-            const row = await RegisterApi.submit(values);
+            const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    first_name: values.first_name,
+                    last_name: values.last_name,
+                    phone: normalizePhone(values.phone),
+                    role_title: values.role_title,
+                    organization: values.organization,
+                    password: values.password
+                })
+            });
+            let data = null;
+            try { data = await response.json(); } catch (e) { data = null; }
+            if (!response.ok) {
+                const err = errorFromResponse(data);
+                if (err.field) setError(err.field, err.text);
+                else showNotice(err.text);
+                return;
+            }
             form.reset();
-            showDone(MembershipStore.displayName(row));
+            showDone(displayName(data));
         } catch (err) {
-            if (err && (err.code === 'first_name' || err.code === 'last_name')) setError(err.code, errorMessage(err));
-            else if (err && err.code === 'phone') setError('phone', errorMessage(err));
-            else if (err && (err.code === 'pending' || err.code === 'exists')) setError('phone', errorMessage(err));
-            else showNotice(errorMessage(err));
+            showNotice('ارتباط با سرور برقرار نشد.');
         } finally {
             submit.disabled = false;
         }
