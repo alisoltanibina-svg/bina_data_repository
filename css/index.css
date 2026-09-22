@@ -73,10 +73,6 @@ html.atlas-view #top-banner::before {
 #entry-view-curtain {
     position: absolute; top: 0; left: 0; width: 100%; height: 100vh; height: var(--vvh, 100dvh);
     background-color: #e9e6f6;
-    background-image: url("assets/images/bg_curtain.webp");
-    background-size: cover;
-    background-position: center bottom;
-    background-repeat: no-repeat;
     z-index: 1500;
     transform: translate3d(0, 0, 0);
     will-change: transform;
@@ -86,6 +82,23 @@ html.atlas-view #top-banner::before {
     overflow: hidden;
     padding: 0; border-radius: 0;
     --curtain-banner-h: 75px;
+    --curtain-dock-h: 64px;
+}
+
+#entry-view-curtain::before {
+    content: "";
+    position: absolute;
+    top: var(--curtain-banner-h, 75px);
+    right: 0;
+    bottom: -30px;
+    left: 0;
+    z-index: 0;
+    background-color: #e9e6f6;
+    background-image: url("../assets/images/bg_curtain.webp");
+    background-size: cover;
+    background-position: center bottom;
+    background-repeat: no-repeat;
+    pointer-events: none;
 }
 
 html.atlas-view #entry-view-curtain,
@@ -101,7 +114,7 @@ html.atlas-view #entry-view-curtain,
     position: absolute;
     top: var(--curtain-banner-h, 75px);
     right: 0;
-    bottom: 0;
+    bottom: var(--curtain-dock-h, 64px);
     left: 0;
     z-index: 2;
     width: 100%;
@@ -111,6 +124,52 @@ html.atlas-view #entry-view-curtain,
     overflow: hidden;
     overscroll-behavior: none;
 }
+html:not(.atlas-view) #top-banner .top-nav {
+    display: none;
+}
+
+.entry-dock {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: var(--curtain-dock-h, 64px);
+    z-index: 4;
+    display: flex;
+    align-items: stretch;
+    background: #ffffff;
+    pointer-events: auto;
+}
+
+.entry-dock-item {
+    flex: 1 1 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    padding: 0 8px 1px;
+    border: 0;
+    background: transparent;
+    color: #8b949e;
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.entry-dock-item + .entry-dock-item {
+    border-inline-start: 1px solid rgba(27, 36, 46, 0.12);
+}
+
+.entry-dock-item.is-current {
+    color: var(--banner-fg, #6cbf43);
+}
+
+span.entry-dock-item {
+    cursor: default;
+}
+
 .entry-hero {
     min-height: 100%;
     display: flex;
@@ -125,15 +184,14 @@ html.atlas-view #entry-view-curtain,
 .entry-hero-stack {
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: stretch;
     position: relative;
-    left: -360px;
+    right: -200px;
+    width: min(500px, calc(100% - 40px));
 }
-.entry-header-texts { text-align: center; margin-bottom: 28px; }
-.entry-main-title { font-size: 2.2rem; font-weight: 800; color: #2a2550; margin: 0; }
-
 .entry-launch {
-    width: min(440px, 100%);
+    width: 100%;
+    box-sizing: border-box;
     pointer-events: auto;
     background: #ffffff;
     border-radius: 24px;
@@ -160,7 +218,7 @@ html.atlas-view #entry-view-curtain,
 }
 .entry-login-btn:hover { filter: brightness(0.96); }
 .entry-login-btn:focus-visible,
-.entry-atlas-btn:focus-visible {
+.entry-register-btn:focus-visible {
     outline: 2px solid #1b242e;
     outline-offset: 2px;
 }
@@ -178,44 +236,27 @@ html.atlas-view #entry-view-curtain,
     align-items: center;
     justify-content: center;
 }
-.entry-launch-row {
+.entry-launch-rule {
+    display: block;
+    height: 1px;
+    margin: 0 18px;
+    background: rgba(27, 36, 46, 0.10);
+}
+.entry-register-btn {
     display: flex;
     align-items: center;
-    gap: 10px;
-    min-width: 0;
-}
-.entry-launch-divider {
-    width: 1px;
-    height: 28px;
-    flex-shrink: 0;
-    background: rgba(27, 36, 46, 0.12);
-}
-.entry-atlas-btn {
-    flex: 0 0 auto;
-    min-width: 5.6rem;
+    justify-content: center;
     height: 48px;
     padding: 0 18px 1px;
-    border: 0;
     border-radius: 999px;
     background: #eef0f4;
-    color: #1b242e;
-    font: inherit;
+    color: #5c6570;
+    text-decoration: none;
     font-size: 0.95rem;
     font-weight: 600;
-    cursor: pointer;
+    font-family: inherit;
 }
-.entry-atlas-btn:hover { background: #e4e7ec; }
-.entry-search-container { position: relative; flex: 1 1 auto; min-width: 0; width: auto; max-width: none; margin-bottom: 0; pointer-events: auto; }
-.entry-search-box { display: flex; align-items: center; background: #eef0f4; border: 0; border-radius: 999px; padding: 0 16px; height: 48px; box-shadow: none; }
-.entry-search-box .search-icon { width: 20px; height: 20px; color: #8b949e; margin-left: 8px; flex-shrink: 0; }
-.entry-search-box input { flex-grow: 1; min-width: 0; border: none; outline: none; padding: 0; font-size: 0.95rem; font-family: inherit; background: transparent; color: #1b242e; }
-.entry-search-box input::placeholder { color: #8b949e; }
-
-.entry-suggestions { position: absolute; top: 100%; left: 0; right: 0; background: #fff; color: #1e293b; border-radius: 8px; margin-top: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); max-height: 250px; overflow-y: auto; z-index: 10; list-style: none; padding: 0; display: none; border: 1px solid var(--border-color); }
-.entry-suggestions li { padding: 12px 20px; cursor: pointer; border-bottom: 1px solid #eee; transition: background 0.2s; font-size: 1rem; color: #1e293b; line-height: 1.7; text-align: right; white-space: normal; overflow-wrap: break-word; }
-.entry-suggestions li strong { color: #0078d7; font-weight: 800; }
-.entry-suggestions li:last-child { border-bottom: none; }
-.entry-suggestions li:hover { background: #f0f7ff; }
+.entry-register-btn:hover { background: #e4e7ec; }
 
 .entry-scroll-cue {
     margin-top: 36px;
@@ -575,7 +616,6 @@ html.atlas-view #entry-view-curtain,
 
 @media(max-width: 768px) {
     .entry-start-btn { position: static; margin-top: 20px; align-self: center; }
-    .entry-main-title { font-size: 1.6rem; }
     .entry-section-split { flex-direction: column; gap: 24px; }
     .entry-report-cover { width: min(220px, 70vw); }
     .entry-preview,
@@ -883,9 +923,7 @@ body.immersive-mode #map { background: #dce5ec; }
 #map-panel-dock { display: none; }
 
 @media (max-width: 767px) {
-    .entry-main-title { font-size: 1.25rem; padding: 0 8px; }
-    .entry-hero-stack { left: 0; }
-    .entry-search-container { max-width: 100%; }
+    .entry-hero-stack { left: 0; right: 0; }
 
     #bottom-panel {
         height: 104px;

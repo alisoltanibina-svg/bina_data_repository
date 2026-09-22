@@ -52,7 +52,7 @@ onReady(async () => {
     try {
         const response = await fetch(`${API_BASE_URL}/api/auth/me`, { credentials: 'include' });
         if (response.status === 401 || response.status === 403) {
-            window.location.href = 'login.html';
+            window.location.href = SITE.page('login.html');
             return;
         }
         if (!response.ok) {

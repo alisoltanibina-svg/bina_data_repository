@@ -157,7 +157,7 @@ async function selectPickerTopic(topic) {
     applyBubbleTheme(topicsColorData.find(t => t.topic_name === topic));
     const explorerBtn = document.getElementById('btn-explorer');
     if (explorerBtn) {
-        explorerBtn.href = `explorer.html?openTopic=${encodeURIComponent(urlTopic)}&source=${encodeURIComponent(urlSource)}`;
+        explorerBtn.href = SITE.page(`explorer.html?openTopic=${encodeURIComponent(urlTopic)}&source=${encodeURIComponent(urlSource)}`);
     }
     const subtitle = document.getElementById('page-subtitle');
     if (subtitle) subtitle.innerText = `حوزه: ${urlTopic}`;
@@ -308,8 +308,8 @@ async function init() {
     const explorerBtn = document.getElementById('btn-explorer');
     if (explorerBtn) {
         explorerBtn.href = urlTopic
-            ? `explorer.html?openTopic=${encodeURIComponent(urlTopic)}&source=${encodeURIComponent(urlSource)}`
-            : `explorer.html?source=${encodeURIComponent(urlSource)}`;
+            ? SITE.page(`explorer.html?openTopic=${encodeURIComponent(urlTopic)}&source=${encodeURIComponent(urlSource)}`)
+            : SITE.page(`explorer.html?source=${encodeURIComponent(urlSource)}`);
     }
 
     if (urlTopic) markPickerTopic(urlTopic);

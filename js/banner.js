@@ -5,9 +5,9 @@
 
     const page = root.getAttribute('data-page') || '';
     const hashAtlas = window.location.hash === '#atlas';
-    let explorerHref = 'explorer.html';
+    let explorerHref = SITE.page('explorer.html');
     if (page === 'index') {
-        explorerHref = hashAtlas ? 'explorer.html?source=atlas' : 'explorer.html?source=start';
+        explorerHref = hashAtlas ? SITE.page('explorer.html?source=atlas') : SITE.page('explorer.html?source=start');
     }
 
     const atlasCurrent = page === 'index' && hashAtlas ? ' is-current' : '';
@@ -23,7 +23,7 @@
                 '<div class="project-main">دیده‌بان فرهنگ</div>' +
                 '<div class="project-sub">سامانه راهبری زیست‌بوم فرهنگی تبلیغی ایران</div>' +
                 '<div class="top-nav" role="navigation" aria-label="Top navigation">' +
-                    '<a href="index.html#atlas" id="btn-atlas" class="banner-btn hang-btn' + atlasCurrent + '"' + (atlasCurrent ? ' aria-current="page"' : '') + '><span class="btn-label">اطلس</span></a>' +
+                    '<a href="' + SITE.page('index.html#atlas') + '" id="btn-atlas" class="banner-btn hang-btn' + atlasCurrent + '"' + (atlasCurrent ? ' aria-current="page"' : '') + '><span class="btn-label">اطلس</span></a>' +
                     '<a href="' + explorerHref + '" id="btn-explorer" class="banner-btn hang-btn' + explorerCurrent + '"' + (explorerCurrent ? ' aria-current="page"' : '') + '><span class="btn-label">کاوشگر</span></a>' +
                 '</div>' +
             '</div>' +
@@ -38,7 +38,7 @@
                         '</svg>' +
                     '</button>' +
                     '<div class="user-menu-dropdown" id="user-menu-dropdown" hidden>' +
-                        '<a href="profile.html" class="user-menu-link' + (page === 'profile' ? ' is-current' : '') + '" id="btn-profile">حساب من</a>' +
+                        '<a href="' + SITE.page('profile.html') + '" class="user-menu-link' + (page === 'profile' ? ' is-current' : '') + '" id="btn-profile">حساب من</a>' +
                         '<button type="button" class="user-exit-btn" id="btn-logout">' +
                             '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
                                 '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>' +
@@ -49,9 +49,10 @@
                         '</button>' +
                     '</div>' +
                 '</div>' +
-                '<div class="user-texts">' +
-                    '<div class="user-name">علی سلطانی</div>' +
-                    '<div class="user-role">پژوهشگر</div>' +
+                '<a href="' + SITE.page('login.html') + '" class="banner-auth-btn" id="banner-auth-btn">ورود | ثبت نام</a>' +
+                '<div class="user-texts" id="user-texts" hidden>' +
+                    '<div class="user-name"></div>' +
+                    '<div class="user-role"></div>' +
                 '</div>' +
             '</div>' +
         '</div>';

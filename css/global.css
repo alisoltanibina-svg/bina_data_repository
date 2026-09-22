@@ -1,7 +1,7 @@
 /*
 File: global.css
 Purpose: Shared global styles used by all pages (fonts, base background, and utility classes).
-Notes: Peyda is loaded via <link href="assets/fonts/peyda.css"> on dashboard pages, not imported here.
+Notes: Peyda is loaded via <link href="assets/fonts/peyda.css"> (from html/: ../assets/fonts/peyda.css).
 */
 :root {
     --vvh: 100vh;
@@ -114,8 +114,8 @@ body {
     flex-shrink: 0;
     cursor: pointer;
     background-color: var(--banner-fg);
-    -webkit-mask-image: url("assets/images/Logo.webp");
-            mask-image: url("assets/images/Logo.webp");
+    -webkit-mask-image: url("../assets/images/Logo.webp");
+            mask-image: url("../assets/images/Logo.webp");
     -webkit-mask-size: contain;
             mask-size: contain;
     -webkit-mask-repeat: no-repeat;
@@ -206,8 +206,18 @@ body {
 }
 .user-exit-btn:hover { background: #fef2f2; }
 .user-texts { display: flex; flex-direction: column; line-height: 1.5; text-align: left; }
+.user-texts[hidden] { display: none; }
 .user-name { font-weight: 800; color: var(--banner-fg); font-size: 0.95rem; }
 .user-role { font-size: 0.75rem; color: var(--banner-fg); }
+.banner-auth-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    height: 36px; padding: 0 14px 1px; border-radius: 999px;
+    background: #eef0f4; color: var(--banner-fg);
+    text-decoration: none; font-family: inherit; font-weight: 600; font-size: 0.82rem;
+    white-space: nowrap;
+}
+.banner-auth-btn:hover { background: #e4e7ec; }
+.banner-auth-btn[hidden] { display: none; }
 
 /* Lazy image background utilities */
 .lazy-bg { background-size: cover; background-position: center; background-repeat: no-repeat; }

@@ -17,16 +17,16 @@
     <!-- Peyda (Farsi numerals) -->
     <link rel="stylesheet" href="assets/fonts/peyda.css">
     <!-- Page CSS -->
-    <link rel="stylesheet" href="global.css">
-    <link rel="stylesheet" href="index.css">
+    <link rel="stylesheet" href="css/global.css">
+    <link rel="stylesheet" href="css/index.css">
     <!-- Reversible revayat treatment. Restore: drop class treat-v1 and this link. -->
-    <link rel="stylesheet" href="treat-v1.css">
+    <link rel="stylesheet" href="css/treat-v1.css">
     <!-- Page Javascript -->
-    <script src="force-motion.js"></script>
-    <script src="config.js"></script>
-    <script src="shared.js"></script>
-    <script src="index.js" defer></script>
-    <script src="auth.js" defer></script>
+    <script src="js/force-motion.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/shared.js"></script>
+    <script src="js/index.js" defer></script>
+    <script src="js/auth.js" defer></script>
 
     <script>
         const hashAtlas = window.location.hash === '#atlas';
@@ -47,7 +47,7 @@
 
     <!-- Header Banner -->
     <div id="top-banner" data-page="index"></div>
-    <script src="banner.js"></script>
+    <script src="js/banner.js"></script>
 
     <!-- Entry / Welcome Curtain View -->
     <div id="entry-view-curtain" class="entry-curtain">
@@ -62,11 +62,8 @@
         <div class="entry-scroll">
             <section class="entry-hero" id="entry-hero">
                 <div class="entry-hero-stack">
-                <div class="entry-header-texts entry-reveal">
-                    <h2 class="entry-main-title">راهبری زیست بوم فرهنگی تبلیغی ایران</h2>
-                </div>
                 <div class="entry-launch entry-reveal">
-                    <a href="login.html" class="entry-login-btn" id="btn-open-login">
+                    <a href="html/login.html" class="entry-login-btn" id="btn-open-login">
                         <span class="entry-login-arrow" aria-hidden="true">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M5 12h14"></path>
@@ -75,21 +72,18 @@
                         </span>
                         <span>ورود به حساب کاربری</span>
                     </a>
-                    <div class="entry-launch-row">
-                        <div class="entry-search-container">
-                            <div class="entry-search-box">
-                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="search-icon"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                                <input type="text" id="indicator-search" placeholder="جستجوی شاخص" autocomplete="off">
-                            </div>
-                            <ul id="search-suggestions" class="entry-suggestions"></ul>
-                        </div>
-                        <span class="entry-launch-divider" aria-hidden="true"></span>
-                        <button type="button" class="entry-atlas-btn" id="btn-open-atlas">اطلس</button>
-                    </div>
+                    <span class="entry-launch-rule" aria-hidden="true"></span>
+                    <a href="html/register.html" class="entry-register-btn" id="btn-open-register">ثبت نام در سامانه</a>
                 </div>
                 </div>
             </section>
         </div>
+        <nav class="entry-dock" id="entry-dock" aria-label="ناوبری صفحه آغاز">
+            <span class="entry-dock-item">نمایه</span>
+            <a class="entry-dock-item" href="html/explorer.html?source=start">کاوشگر</a>
+            <button type="button" class="entry-dock-item is-current" id="btn-dock-atlas">اطلس</button>
+            <span class="entry-dock-item">گونه‌شناسی</span>
+        </nav>
     </div>
 
     <!-- Main Dashboard Content -->
@@ -189,7 +183,7 @@
 
             function setExplorerHrefByState() {
                 if (!explorerBtn) return;
-                explorerBtn.href = isAtlasView() ? "explorer.html?source=atlas" : "explorer.html?source=start";
+                explorerBtn.href = isAtlasView() ? SITE.page("explorer.html?source=atlas") : SITE.page("explorer.html?source=start");
             }
 
             function updateHeaderButtonsVisibility() {
@@ -249,13 +243,15 @@
                 });
             }
 
-            const openAtlas = document.getElementById('btn-open-atlas');
-            if (openAtlas && atlasBtn) {
-                openAtlas.addEventListener('click', (event) => {
-                    event.preventDefault();
-                    atlasBtn.click();
-                });
-            }
+            ['btn-dock-atlas'].forEach((id) => {
+                const openAtlas = document.getElementById(id);
+                if (openAtlas && atlasBtn) {
+                    openAtlas.addEventListener('click', (event) => {
+                        event.preventDefault();
+                        atlasBtn.click();
+                    });
+                }
+            });
 
             if (curtainEnter) {
                 requestAnimationFrame(function () {

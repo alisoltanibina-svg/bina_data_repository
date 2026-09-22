@@ -32,7 +32,7 @@ function normalizePhone(raw) {
 async function adminFetch(path, options) {
     const response = await fetch(`${API_BASE_URL}${path}`, Object.assign({ credentials: 'include' }, options || {}));
     if (response.status === 401 || response.status === 403) {
-        window.location.href = 'login.html';
+        window.location.href = SITE.page('login.html');
         throw new Error('auth');
     }
     let data = null;

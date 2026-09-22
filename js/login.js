@@ -70,7 +70,7 @@ onReady(() => {
                 showNotice(failDetail(data));
                 return;
             }
-            window.location.href = data && data.is_admin ? 'admin.html' : 'index.html';
+            window.location.href = data && data.is_admin ? SITE.page('admin.html') : SITE.page('index.html');
         } catch (err) {
             showNotice('ارتباط با سرور برقرار نشد.');
         } finally {

@@ -107,14 +107,17 @@ html.treat-v1 .search-icon {
 /* Curtain boxes: rooms (14px) and instruments (pills)                 */
 /* ------------------------------------------------------------------ */
 
+html.treat-v1 .entry-dock-item {
+    font-weight: 600;
+}
+
 html.treat-v1 .entry-launch {
     border-radius: 24px;
     box-shadow: var(--treat-shadow);
 }
 
 html.treat-v1 .entry-login-btn,
-html.treat-v1 .entry-atlas-btn,
-html.treat-v1 .entry-search-box {
+html.treat-v1 .entry-register-btn {
     border-radius: var(--treat-radius-pill);
     box-shadow: none;
 }
@@ -837,7 +840,7 @@ html.treat-v1 body.register-body #top-banner::before {
 }
 
 html.treat-v1 .entry-login-btn:focus-visible,
-html.treat-v1 .entry-atlas-btn:focus-visible {
+html.treat-v1 .entry-register-btn:focus-visible {
     outline: 2px solid #1b242e;
     outline-offset: 2px;
 }

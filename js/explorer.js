@@ -141,7 +141,7 @@ function applyExplorerTheme(topic) {
 }
 
 function bubbleUrl(topic, subtopic) {
-    return `bubble-chart.html?topic=${encodeURIComponent(topic)}&subtopic=${encodeURIComponent(subtopic)}&source=${encodeURIComponent(window.explorerSource || 'atlas')}`;
+    return SITE.page(`bubble-chart.html?topic=${encodeURIComponent(topic)}&subtopic=${encodeURIComponent(subtopic)}&source=${encodeURIComponent(window.explorerSource || 'atlas')}`);
 }
 
 function firstBubbleHref() {
@@ -150,7 +150,7 @@ function firstBubbleHref() {
         const subs = Object.keys(topicsHierarchy[topic] || {});
         if (subs.length) return bubbleUrl(topic, subs[0]);
     }
-    return `bubble-chart.html?source=${encodeURIComponent(window.explorerSource || 'atlas')}`;
+    return SITE.page(`bubble-chart.html?source=${encodeURIComponent(window.explorerSource || 'atlas')}`);
 }
 
 function countTopicIndicators(topic) {
@@ -170,7 +170,7 @@ function mosaicTopics() {
 }
 
 function topicTileSrc(topic) {
-    return encodeURI(`assets/images/${topic}-tile.webp`);
+    return encodeURI(SITE.asset(`images/${topic}-tile.webp`));
 }
 
 function mosaicLayout() {

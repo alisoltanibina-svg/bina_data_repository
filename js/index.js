@@ -14,13 +14,17 @@ function curtainScroller() {
 function initCurtainBannerOffset() {
     const curtain = document.getElementById('entry-view-curtain');
     const banner = document.getElementById('top-banner');
+    const dock = document.getElementById('entry-dock');
     if (!curtain || !banner) return;
     const sync = () => {
         curtain.style.setProperty('--curtain-banner-h', `${banner.offsetHeight}px`);
+        if (dock) curtain.style.setProperty('--curtain-dock-h', `${dock.offsetHeight}px`);
     };
     sync();
     if (typeof ResizeObserver !== 'undefined') {
-        new ResizeObserver(sync).observe(banner);
+        const ro = new ResizeObserver(sync);
+        ro.observe(banner);
+        if (dock) ro.observe(dock);
     } else {
         window.addEventListener('resize', sync);
     }
@@ -396,7 +400,7 @@ function initIndicatorSearch() {
                             appendHighlightedName(li, match.title, query);
                             
                             li.addEventListener('click', () => {
-                                window.location.href = `explorer.html?indicator=${encodeURIComponent(match.title)}&topic=${encodeURIComponent(match.topic)}&source=search`;
+                                window.location.href = SITE.page(`explorer.html?indicator=${encodeURIComponent(match.title)}&topic=${encodeURIComponent(match.topic)}&source=search`);
                             });
                             
                             suggestionsBox.appendChild(li);
@@ -504,7 +508,7 @@ function initUI() {
         
         const img = document.createElement('div');
         img.className = 'index-item-img lazy-bg bg-placeholder';
-        img.dataset.bg = `assets/images/تاپیک ${t.topic_name}.webp`;
+        img.dataset.bg = SITE.asset(`images/تاپیک ${t.topic_name}.webp`);
         const label = document.createElement('span');
         label.className = 'index-item-text';
         label.textContent = t.topic_name;
@@ -594,7 +598,7 @@ function renderLeftFloatingPanel(provinceName) {
         topicsData.forEach((t, index) => {
             let isLeft = index < 4;
             let markerId = 'left-marker-' + t.topic_name.replace(/\s+/g, '-');
-            let imgPath = `assets/images/تاپیک ${t.topic_name}.webp`;
+            let imgPath = SITE.asset(`images/تاپیک ${t.topic_name}.webp`);
             
             const marker = document.createElement('div');
             marker.className = 'topic-marker ' + (isLeft ? 'left-side' : 'right-side');

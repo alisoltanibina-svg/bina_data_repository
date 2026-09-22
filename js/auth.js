@@ -10,20 +10,38 @@
         return [profile.first_name, profile.last_name].filter(Boolean).join(' ').trim();
     }
 
+    let signedIn = false;
+    let profileReady = false;
+
     function applyProfile(profile) {
+        profileReady = true;
+        signedIn = !!profile;
+        const authBtn = document.getElementById('banner-auth-btn');
+        const texts = document.getElementById('user-texts');
         const nameEl = document.querySelector('.user-name');
         const roleEl = document.querySelector('.user-role');
-        if (!profile || !nameEl || !roleEl) return;
-        const name = displayName(profile);
-        if (name) nameEl.textContent = name;
-        roleEl.textContent = profile.role_title || (profile.is_admin ? 'مدیر' : roleEl.textContent);
+        const box = document.getElementById('user-box') || document.querySelector('.user-box');
+        if (profile) {
+            if (authBtn) authBtn.hidden = true;
+            if (texts) texts.hidden = false;
+            if (box) box.classList.add('is-signed-in');
+            const name = displayName(profile);
+            if (nameEl) nameEl.textContent = name;
+            if (roleEl) roleEl.textContent = profile.role_title || (profile.is_admin ? 'مدیر' : '');
+            return;
+        }
+        if (authBtn) authBtn.hidden = false;
+        if (texts) texts.hidden = true;
+        if (box) box.classList.remove('is-signed-in');
+        if (nameEl) nameEl.textContent = '';
+        if (roleEl) roleEl.textContent = '';
     }
 
     function loadProfile() {
         fetch(apiBase() + '/api/auth/me', { credentials: 'include' })
             .then(function (response) { return response.ok ? response.json() : null; })
-            .then(function (profile) { if (profile) applyProfile(profile); })
-            .catch(function () {});
+            .then(function (profile) { applyProfile(profile); })
+            .catch(function () { applyProfile(null); });
     }
 
     function clearLocalSession() {
@@ -41,7 +59,7 @@
             .catch(function () {})
             .finally(function () {
                 clearLocalSession();
-                window.location.replace('index.html');
+                window.location.replace(SITE.page('index.html'));
             });
     }
 
@@ -65,7 +83,7 @@
         if (!logo || isIndexPage()) return;
         logo.addEventListener('click', function () {
             snapshotAppTheme();
-            window.location.href = 'index.html?curtain=1';
+            window.location.href = SITE.page('index.html?curtain=1');
         });
     }
 
@@ -85,6 +103,11 @@
 
         function toggleMenu(event) {
             event.stopPropagation();
+            if (!profileReady) return;
+            if (!signedIn) {
+                window.location.href = SITE.page('login.html');
+                return;
+            }
             if (menu.hidden) {
                 menu.hidden = false;
                 btn.setAttribute('aria-expanded', 'true');
