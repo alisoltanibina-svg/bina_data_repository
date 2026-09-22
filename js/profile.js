@@ -59,7 +59,13 @@ onReady(async () => {
             showNotice('بارگذاری حساب ممکن نشد.');
             return;
         }
-        fillForm(await response.json());
+        const profile = await response.json();
+        fillForm(profile);
+        const adminLink = document.getElementById('profile-admin-link');
+        if (adminLink) {
+            adminLink.href = SITE.page('admin.html');
+            adminLink.hidden = !profile.is_admin;
+        }
     } catch (err) {
         showNotice('ارتباط با سرور برقرار نشد.');
         return;
@@ -91,14 +97,34 @@ onReady(async () => {
         setError('last_name', '');
         const first = document.getElementById('first_name').value.trim();
         const last = document.getElementById('last_name').value.trim();
+        const role = document.getElementById('role_title').value.trim();
+        const org = document.getElementById('organization').value.trim();
         if (first.length < 2) {
             setError('first_name', 'نام را وارد کنید.');
+            document.getElementById('first_name').focus();
+            return;
+        }
+        if (plainTextError(first)) {
+            setError('first_name', plainTextError(first));
             document.getElementById('first_name').focus();
             return;
         }
         if (last.length < 2) {
             setError('last_name', 'نام خانوادگی را وارد کنید.');
             document.getElementById('last_name').focus();
+            return;
+        }
+        if (plainTextError(last)) {
+            setError('last_name', plainTextError(last));
+            document.getElementById('last_name').focus();
+            return;
+        }
+        if (plainTextError(role)) {
+            showNotice(plainTextError(role));
+            return;
+        }
+        if (plainTextError(org)) {
+            showNotice(plainTextError(org));
             return;
         }
         showNotice('ذخیره عکس و مشخصات در مرحله بعد به سرور وصل می‌شود.');

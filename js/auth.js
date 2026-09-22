@@ -21,6 +21,8 @@
         const nameEl = document.querySelector('.user-name');
         const roleEl = document.querySelector('.user-role');
         const box = document.getElementById('user-box') || document.querySelector('.user-box');
+        const adminLink = document.getElementById('btn-admin-panel');
+        if (adminLink) adminLink.hidden = !(profile && profile.is_admin);
         if (profile) {
             if (authBtn) authBtn.hidden = true;
             if (texts) texts.hidden = false;

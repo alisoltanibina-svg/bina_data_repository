@@ -82,3 +82,13 @@ Purpose: Photo picker on the signed-in profile page.
     background: var(--rg-paper);
     color: var(--rg-muted);
 }
+
+#profile-admin-link[hidden] {
+    display: none;
+}
+
+#profile-admin-link {
+    background: #fff;
+    color: var(--rg-submit);
+    border: 1px solid var(--rg-line);
+}

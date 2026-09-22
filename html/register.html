@@ -48,7 +48,7 @@
 
                 <label class="register-field">
                     <span>شماره موبایل</span>
-                    <input type="tel" id="phone" name="phone" inputmode="tel" dir="ltr" autocomplete="tel" required maxlength="16" placeholder="09121234567">
+                    <input type="tel" id="phone" name="phone" inputmode="numeric" dir="ltr" autocomplete="tel" required maxlength="11" placeholder="09121234567">
                     <em class="register-error" id="err-phone" hidden></em>
                 </label>
 
@@ -61,6 +61,7 @@
                 <label class="register-field">
                     <span>سازمان <small>اختیاری</small></span>
                     <input type="text" id="organization" name="organization" autocomplete="organization" maxlength="80">
+                    <em class="register-error" id="err-organization" hidden></em>
                 </label>
 
                 <div class="register-pair">

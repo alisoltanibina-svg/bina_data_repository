@@ -285,6 +285,10 @@ async function confirmDialog() {
     const id = root.dataset.id;
     const kind = root.dataset.kind;
     const note = document.getElementById('dialog-note').value;
+    if (kind === 'reject' && plainTextError(note)) {
+        showNotice(plainTextError(note));
+        return;
+    }
     const confirm = document.getElementById('dialog-confirm');
     state.busy = true;
     confirm.disabled = true;
@@ -311,6 +315,7 @@ async function confirmDialog() {
 }
 
 function bind() {
+    bindPhoneInput(document.getElementById('filter-phone'));
     document.querySelectorAll('.admin-tab').forEach(btn => {
         btn.addEventListener('click', () => setFilter(btn.dataset.filter));
     });

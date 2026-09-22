@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -21,6 +22,10 @@ SESSION_DAYS = 14
 _hasher = PasswordHasher()
 
 _FA_DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
+_URL_OR_CODE = re.compile(
+    r"(https?://|www\.|javascript:|data:text|</?[a-zA-Z]|[<>])",
+    re.IGNORECASE,
+)
 
 
 def normalize_phone(raw: str) -> str:
@@ -37,6 +42,13 @@ def normalize_phone(raw: str) -> str:
 
 def is_mobile_phone(phone: str) -> bool:
     return len(phone) == 11 and phone.startswith("09") and phone.isdigit()
+
+
+def assert_plain_text(value: str, code: str, label: str) -> str:
+    value = (value or "").strip()
+    if _URL_OR_CODE.search(value):
+        raise MembershipError(code, f"{label} نباید شامل پیوند یا کد باشد.")
+    return value
 
 
 def normalize_secret(raw: str) -> str:
@@ -248,10 +260,10 @@ def submit_registration(
     organization: str,
     password: str,
 ) -> dict:
-    first_name = (first_name or "").strip()
-    last_name = (last_name or "").strip()
-    role_title = (role_title or "").strip()
-    organization = (organization or "").strip()
+    first_name = assert_plain_text(first_name, "first_name", "نام")
+    last_name = assert_plain_text(last_name, "last_name", "نام خانوادگی")
+    role_title = assert_plain_text(role_title, "role", "سمت")
+    organization = assert_plain_text(organization, "role", "سازمان")
     phone = normalize_phone(phone)
     if len(first_name) < 2:
         raise MembershipError("first_name", "نام را وارد کنید.")
@@ -346,7 +358,8 @@ def reject_registration(request_id: int, admin_id: int, note: str) -> dict:
         if req.status != "pending":
             raise MembershipError("not-pending", "این درخواست قابل رد نیست.")
         req.status = "rejected"
-        req.note = (note or "").strip() or None
+        note = assert_plain_text(note, "not-pending", "یادداشت")
+        req.note = note or None
         req.reviewed_at = now
         req.reviewed_by = admin_id
         session.flush()

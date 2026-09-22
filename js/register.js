@@ -1,7 +1,7 @@
 // File: register.js
 // Purpose: Validate and submit a membership request through POST /api/auth/register.
 
-const FIELDS = ['first_name', 'last_name', 'phone', 'role_title', 'password', 'password_confirm'];
+const FIELDS = ['first_name', 'last_name', 'phone', 'role_title', 'organization', 'password', 'password_confirm'];
 
 function setError(name, message) {
     const input = document.getElementById(name);
@@ -23,14 +23,7 @@ function clearErrors() {
 }
 
 function normalizePhone(raw) {
-    let s = String(raw || '');
-    s = s.replace(/[۰-۹]/g, d => '0123456789'['۰۱۲۳۴۵۶۷۸۹'.indexOf(d)]);
-    s = s.replace(/[٠-٩]/g, d => '0123456789'['٠١٢٣٤٥٦٧٨٩'.indexOf(d)]);
-    s = s.replace(/[\s-]/g, '');
-    if (s.startsWith('+98')) s = '0' + s.slice(3);
-    if (s.startsWith('0098')) s = '0' + s.slice(4);
-    if (s.startsWith('98') && s.length === 12) s = '0' + s.slice(2);
-    return s;
+    return digitsOnlyPhone(raw);
 }
 
 function isMobilePhone(phone) {
@@ -57,9 +50,13 @@ function readForm(form) {
 function validate(values) {
     const errors = {};
     if (values.first_name.length < 2) errors.first_name = 'نام را وارد کنید.';
+    else if (plainTextError(values.first_name)) errors.first_name = plainTextError(values.first_name);
     if (values.last_name.length < 2) errors.last_name = 'نام خانوادگی را وارد کنید.';
-    if (!isMobilePhone(normalizePhone(values.phone))) errors.phone = 'شماره موبایل را به‌صورت ۰۹۱۲۱۲۳۴۵۶۷ وارد کنید.';
+    else if (plainTextError(values.last_name)) errors.last_name = plainTextError(values.last_name);
+    if (!isMobilePhone(normalizePhone(values.phone))) errors.phone = 'شماره موبایل باید ۱۱ رقم و با ۰۹ شروع شود.';
     if (!values.role_title) errors.role_title = 'سمت را وارد کنید.';
+    else if (plainTextError(values.role_title)) errors.role_title = plainTextError(values.role_title);
+    if (plainTextError(values.organization)) errors.organization = plainTextError(values.organization);
     if (values.password.length < 8) errors.password = 'رمز عبور حداقل ۸ نویسه باشد.';
     if (values.password_confirm !== values.password) errors.password_confirm = 'تکرار رمز با رمز عبور یکی نیست.';
     return errors;
@@ -90,6 +87,7 @@ function errorFromResponse(data) {
 onReady(() => {
     const form = document.getElementById('register-form');
     const submit = document.getElementById('register-submit');
+    bindPhoneInput(document.getElementById('phone'));
 
     form.addEventListener('submit', async event => {
         event.preventDefault();

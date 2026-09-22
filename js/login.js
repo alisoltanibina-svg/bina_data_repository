@@ -17,14 +17,7 @@ function setError(name, message) {
 }
 
 function normalizePhone(raw) {
-    let s = String(raw || '');
-    s = s.replace(/[۰-۹]/g, d => '0123456789'['۰۱۲۳۴۵۶۷۸۹'.indexOf(d)]);
-    s = s.replace(/[٠-٩]/g, d => '0123456789'['٠١٢٣٤٥٦٧٨٩'.indexOf(d)]);
-    s = s.replace(/[\s-]/g, '');
-    if (s.startsWith('+98')) s = '0' + s.slice(3);
-    if (s.startsWith('0098')) s = '0' + s.slice(4);
-    if (s.startsWith('98') && s.length === 12) s = '0' + s.slice(2);
-    return s;
+    return digitsOnlyPhone(raw);
 }
 
 function failDetail(data) {
@@ -36,6 +29,7 @@ function failDetail(data) {
 onReady(() => {
     const form = document.getElementById('login-form');
     const submit = document.getElementById('login-submit');
+    bindPhoneInput(document.getElementById('phone'));
     form.addEventListener('submit', async event => {
         event.preventDefault();
         setError('phone', '');
@@ -44,7 +38,7 @@ onReady(() => {
         const password = document.getElementById('password').value;
         let first = '';
         if (!/^09\d{9}$/.test(phone)) {
-            setError('phone', 'شماره موبایل را به‌صورت ۰۹۱۲۱۲۳۴۵۶۷ وارد کنید.');
+            setError('phone', 'شماره موبایل باید ۱۱ رقم و با ۰۹ شروع شود.');
             first = 'phone';
         }
         if (password.length < 8) {

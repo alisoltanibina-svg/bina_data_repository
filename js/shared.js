@@ -117,3 +117,43 @@ function onReady(fn) {
         fn();
     }
 }
+
+function toEnDigits(raw) {
+    return String(raw || '')
+        .replace(/[۰-۹]/g, d => '0123456789'['۰۱۲۳۴۵۶۷۸۹'.indexOf(d)])
+        .replace(/[٠-٩]/g, d => '0123456789'['٠١٢٣٤٥٦٧٨٩'.indexOf(d)]);
+}
+
+function digitsOnlyPhone(raw) {
+    return toEnDigits(raw).replace(/\D/g, '').slice(0, 11);
+}
+
+function bindPhoneInput(input) {
+    if (!input || input.readOnly || input.disabled) return;
+    input.setAttribute('maxlength', '11');
+    input.setAttribute('inputmode', 'numeric');
+    input.setAttribute('autocomplete', input.getAttribute('autocomplete') || 'tel');
+    const apply = () => {
+        const next = digitsOnlyPhone(input.value);
+        if (input.value !== next) input.value = next;
+    };
+    input.addEventListener('input', apply);
+    input.addEventListener('blur', apply);
+    input.addEventListener('paste', event => {
+        event.preventDefault();
+        input.value = digitsOnlyPhone((event.clipboardData || window.clipboardData).getData('text'));
+    });
+    apply();
+}
+
+function looksLikeCodeOrUrl(value) {
+    const t = String(value || '');
+    if (/[<>]/.test(t)) return true;
+    if (/https?:\/\/|www\.|javascript:|data:|<\/?[a-z]/i.test(t)) return true;
+    return false;
+}
+
+function plainTextError(value) {
+    if (looksLikeCodeOrUrl(value)) return 'این فیلد نباید شامل پیوند یا کد باشد.';
+    return '';
+}
