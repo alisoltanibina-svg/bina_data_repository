@@ -7,8 +7,8 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 from argon2 import PasswordHasher
-from argon2.exceptions import VerifyMismatchError
-from sqlalchemy import select
+from argon2.exceptions import InvalidHash, VerificationError, VerifyMismatchError
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 
 from backend.database import db_session
@@ -39,15 +39,57 @@ def is_mobile_phone(phone: str) -> bool:
     return len(phone) == 11 and phone.startswith("09") and phone.isdigit()
 
 
+def normalize_secret(raw: str) -> str:
+    s = (raw or "").translate(_FA_DIGITS).strip()
+    for ch in ("\u200c", "\u200d", "\u200b", "\ufeff"):
+        s = s.replace(ch, "")
+    return s
+
+
 def hash_password(plain: str) -> str:
-    return _hasher.hash(plain)
+    return _hasher.hash(normalize_secret(plain))
 
 
 def verify_password(password_hash: str, plain: str) -> bool:
     try:
-        return bool(_hasher.verify(password_hash, plain))
-    except (VerifyMismatchError, ValueError, TypeError):
+        return bool(_hasher.verify((password_hash or "").strip(), normalize_secret(plain)))
+    except (VerifyMismatchError, InvalidHash, VerificationError, ValueError, TypeError):
         return False
+
+
+def argon2_hash_is_well_formed(value: str) -> bool:
+    value = (value or "").strip()
+    if not value.startswith("$argon2"):
+        return False
+    try:
+        _hasher.verify(value, "__probe__")
+    except VerifyMismatchError:
+        return True
+    except (InvalidHash, VerificationError, ValueError, TypeError):
+        return False
+    return True
+
+
+def repair_approved_user_hashes() -> None:
+    """Copy a usable hash from the approved request when the user hash is missing or truncated."""
+    with db_session() as session:
+        users = session.execute(select(User)).scalars().all()
+        for user in users:
+            if argon2_hash_is_well_formed(user.password_hash or ""):
+                continue
+            req = session.execute(
+                select(RegistrationRequest)
+                .where(
+                    RegistrationRequest.phone == user.phone,
+                    RegistrationRequest.status == "approved",
+                )
+                .order_by(RegistrationRequest.reviewed_at.desc())
+            ).scalars().first()
+            if req is None or not argon2_hash_is_well_formed(req.password_hash or ""):
+                continue
+            user.password_hash = req.password_hash.strip()
+            if user.is_active is None:
+                user.is_active = True
 
 
 def seed_admin() -> None:
@@ -141,13 +183,21 @@ def create_session(user_id: int) -> tuple[str, datetime]:
 
 def authenticate(phone: str, password: str) -> dict | None:
     phone = normalize_phone(phone)
+    password = normalize_secret(password)
     if not is_mobile_phone(phone) or not password:
         return None
     with db_session() as session:
-        user = session.execute(select(User).where(User.phone == phone)).scalar_one_or_none()
-        if user is None or not user.is_active or not user.password_hash:
+        user = session.execute(
+            select(User).where(or_(User.phone == phone, func.trim(User.phone) == phone))
+        ).scalars().first()
+        if user is None:
             return None
-        if not verify_password(user.password_hash, password):
+        if user.is_active is False:
+            return None
+        stored_hash = (user.password_hash or "").strip()
+        if not stored_hash:
+            return None
+        if not verify_password(stored_hash, password):
             return None
         profile = public_profile(user)
         user_id = user.id
@@ -211,7 +261,8 @@ def submit_registration(
         raise MembershipError("phone", "شماره موبایل نامعتبر است.")
     if not role_title:
         raise MembershipError("role", "سمت را وارد کنید.")
-    if len(password or "") < 8:
+    password = normalize_secret(password)
+    if len(password) < 8:
         raise MembershipError("password", "رمز عبور حداقل ۸ نویسه باشد.")
 
     with db_session() as session:
@@ -263,20 +314,22 @@ def approve_registration(request_id: int, admin_id: int) -> dict:
         existing = session.execute(select(User).where(User.phone == req.phone)).scalar_one_or_none()
         if existing is not None:
             raise MembershipError("exists", "برای این شماره قبلاً حساب ساخته شده است.")
-        session.add(
-            User(
-                phone=req.phone,
-                first_name=req.first_name,
-                last_name=req.last_name,
-                role_title=req.role_title,
-                organization=req.organization,
-                password_hash=req.password_hash,
-                is_admin=False,
-                is_active=True,
-                approved_at=now,
-                approved_by=admin_id,
-            )
+        password_hash = (req.password_hash or "").strip()
+        if not password_hash:
+            raise MembershipError("not-pending", "این درخواست رمز معتبری ندارد.")
+        user = User(
+            phone=normalize_phone(req.phone),
+            first_name=req.first_name,
+            last_name=req.last_name,
+            role_title=req.role_title,
+            organization=req.organization,
+            password_hash=password_hash,
+            is_admin=False,
+            is_active=True,
+            approved_at=now,
+            approved_by=admin_id,
         )
+        session.add(user)
         req.status = "approved"
         req.reviewed_at = now
         req.reviewed_by = admin_id

@@ -48,6 +48,7 @@ from backend.membership import (
     list_registration_requests,
     profile_from_session_token,
     reject_registration,
+    repair_approved_user_hashes,
     seed_admin,
     submit_registration,
 )
@@ -248,6 +249,7 @@ def _warm_cache() -> None:
 
 def bootstrap() -> None:
     check_connection()
+    repair_approved_user_hashes()
     seed_admin()
     _warm_cache()
 
