@@ -146,6 +146,19 @@ function selectedProvinceBounds() {
 const MAP_HOME_CENTER = [31.4279, 55.6880];
 const MAP_HOME_ZOOM = 4.8;
 const MAP_MAX_ZOOM = 5.2;
+const MAP_WORLD_BOUNDS = [[-85, -180], [85, 180]];
+
+function worldMinZoom() {
+    const width = (map && map.getSize && map.getSize().x) || (document.getElementById('map') && document.getElementById('map').clientWidth) || 1200;
+    return Math.max(2, Math.ceil(Math.log2(Math.max(width, 256) / 256)));
+}
+
+function lockSingleWorld() {
+    if (!map) return;
+    const minZ = worldMinZoom();
+    map.setMinZoom(minZ);
+    if (map.getZoom() < minZ) map.setZoom(minZ, { animate: false });
+}
 
 function mapContainerHasSize() {
     if (!map) return false;
@@ -156,6 +169,7 @@ function mapContainerHasSize() {
 function syncMapToContainer({ animate = false } = {}) {
     if (!map || !mapContainerHasSize()) return false;
     map.invalidateSize({ animate: false, pan: false });
+    lockSingleWorld();
     refitMapView({ animate });
     return true;
 }
@@ -475,6 +489,9 @@ async function loadAllData() {
         initUI();
         initLegend();
         renderLeftFloatingPanel(null);
+        const rightPanel = document.getElementById('right-panel');
+        if (rightPanel) rightPanel.classList.add('show-panel');
+        updateDefaultPanel();
         initMap();
 
         const geoRes = await fetch('data/iran.geojson');
@@ -743,13 +760,23 @@ function clearSelection() {
 }
 
 function initMap() {
-    map = L.map('map', { zoomSnap: 0.5, maxZoom: MAP_MAX_ZOOM, zoomControl: false }).setView(MAP_HOME_CENTER, MAP_HOME_ZOOM);
+    map = L.map('map', {
+        zoomSnap: 0.5,
+        minZoom: worldMinZoom(),
+        maxZoom: MAP_MAX_ZOOM,
+        zoomControl: false,
+        worldCopyJump: false,
+        maxBounds: MAP_WORLD_BOUNDS,
+        maxBoundsViscosity: 1.0
+    }).setView(MAP_HOME_CENTER, MAP_HOME_ZOOM);
     // OSM tiles are often blocked in Iran. Google roadmap (Persian labels) is the stand-in.
     // Transparent fallback so a missed tile does not show Leaflet's broken-image icon.
     L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&hl=fa&x={x}&y={y}&z={z}', {
         subdomains: ['0', '1', '2', '3'],
         attribution: '&copy; Google',
         maxZoom: 19,
+        noWrap: true,
+        bounds: MAP_WORLD_BOUNDS,
         errorTileUrl: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
     }).addTo(map);
 

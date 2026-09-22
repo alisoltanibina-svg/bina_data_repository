@@ -389,6 +389,7 @@ html.treat-v1 #right-panel.show-panel {
 
 html.treat-v1.atlas-view #right-panel,
 html.treat-v1.atlas-view #right-panel.show-panel {
+    display: flex;
     bottom: auto;
     gap: 12px;
 }

@@ -1169,6 +1169,7 @@ html.atlas-view #right-panel.show-panel {
     right: auto;
     bottom: auto;
     left: auto;
+    display: flex;
     width: 280px;
     flex: 0 0 280px;
     height: auto;
@@ -1176,10 +1177,6 @@ html.atlas-view #right-panel.show-panel {
     gap: 12px;
     pointer-events: auto;
     overflow: hidden;
-}
-
-html.atlas-view #right-panel.show-panel {
-    display: flex;
 }
 
 html.atlas-view .right-card {
@@ -1322,6 +1319,10 @@ html.atlas-view .index-item.active::after {
 
 html.atlas-view .index-item.active .index-item-text {
     color: #ffffff;
+}
+
+html.atlas-view .index-item.active .index-item-img {
+    filter: brightness(0) invert(1);
 }
 
 @media (max-width: 767px) {

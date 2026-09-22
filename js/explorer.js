@@ -68,6 +68,7 @@ let chartInstance = null;
 let scatterProvinceChart = null;
 let activeIndicatorGlob = null;
 let activeTopicGlob = null;
+let activeSubtopicGlob = null;
 let currentChartYears = [];
 let currentChartMode = 'trend';
 let latestYearGlob = null;
@@ -117,7 +118,7 @@ async function loadExplorerData() {
             }
             setTimeout(() => loadIndicator(queryIndicator, queryTopic), 50);
         } else if (queryOpenTopic) {
-            setTimeout(() => expandMosaicTopic(queryOpenTopic), 50);
+            expandMosaicTopic(queryOpenTopic);
         }
 
     } catch (err) {
@@ -174,7 +175,117 @@ function topicTileSrc(topic) {
 }
 
 function mosaicLayout() {
-    return { cols: window.innerWidth < 900 ? 2 : 4 };
+    const n = mosaicTopics().length || 9;
+    const w = window.innerWidth;
+    if (w < 640) return { cols: 1 };
+    if (w < 980) return { cols: 2 };
+    if (n % 4 === 0) return { cols: 4 };
+    if (n % 3 === 0) return { cols: 3 };
+    return { cols: 4 };
+}
+
+function firstTopicIndicator(topic) {
+    const subs = topicsHierarchy[topic] || {};
+    for (const list of Object.values(subs)) {
+        if (list && list.length) return list[0];
+    }
+    return null;
+}
+
+function subtopicsOf(topic) {
+    return Object.keys(topicsHierarchy[topic] || {});
+}
+
+function indicatorsOf(topic, subtopic) {
+    const list = (topicsHierarchy[topic] || {})[subtopic];
+    return Array.isArray(list) ? list : [];
+}
+
+function findSubtopicForIndicator(topic, indicator) {
+    const subs = topicsHierarchy[topic] || {};
+    for (const [sub, list] of Object.entries(subs)) {
+        if (list && list.indexOf(indicator) !== -1) return sub;
+    }
+    return subtopicsOf(topic)[0] || '';
+}
+
+function closeExplorerDropdowns() {
+    document.querySelectorAll('.ex-dd').forEach(dd => {
+        dd.classList.remove('is-open');
+        const btn = dd.querySelector('.ex-dd-toggle');
+        const menu = dd.querySelector('.ex-dd-menu');
+        if (btn) btn.setAttribute('aria-expanded', 'false');
+        if (menu) menu.hidden = true;
+    });
+}
+
+function fillDropdownMenu(menu, items, current, onPick) {
+    if (!menu) return;
+    menu.replaceChildren();
+    items.forEach(item => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = item;
+        if (item === current) btn.className = 'is-current';
+        btn.addEventListener('click', () => {
+            closeExplorerDropdowns();
+            onPick(item);
+        });
+        menu.appendChild(btn);
+    });
+}
+
+function syncExplorerDropdowns() {
+    const topic = activeTopicGlob || '';
+    const sub = activeSubtopicGlob || findSubtopicForIndicator(topic, activeIndicatorGlob);
+    activeSubtopicGlob = sub;
+    const topicVal = document.getElementById('dd-topic-value');
+    const subVal = document.getElementById('dd-subtopic-value');
+    const indVal = document.getElementById('dd-indicator-value');
+    if (topicVal) topicVal.textContent = topic || '—';
+    if (subVal) subVal.textContent = sub || '—';
+    if (indVal) indVal.textContent = activeIndicatorGlob || '—';
+    fillDropdownMenu(document.getElementById('dd-topic-menu'), mosaicTopics(), topic, nextTopic => {
+        openTopicIndex(nextTopic);
+    });
+    fillDropdownMenu(document.getElementById('dd-subtopic-menu'), subtopicsOf(topic), sub, nextSub => {
+        const first = indicatorsOf(topic, nextSub)[0];
+        if (first) loadIndicator(first, topic);
+    });
+    fillDropdownMenu(document.getElementById('dd-indicator-menu'), indicatorsOf(topic, sub), activeIndicatorGlob, nextInd => {
+        loadIndicator(nextInd, topic);
+    });
+}
+
+function bindExplorerDropdowns() {
+    document.querySelectorAll('.ex-dd').forEach(dd => {
+        const btn = dd.querySelector('.ex-dd-toggle');
+        const menu = dd.querySelector('.ex-dd-menu');
+        if (!btn || !menu) return;
+        btn.addEventListener('click', event => {
+            event.stopPropagation();
+            const open = dd.classList.contains('is-open');
+            closeExplorerDropdowns();
+            if (!open) {
+                dd.classList.add('is-open');
+                btn.setAttribute('aria-expanded', 'true');
+                menu.hidden = false;
+            }
+        });
+        menu.addEventListener('click', event => event.stopPropagation());
+    });
+    document.addEventListener('click', closeExplorerDropdowns);
+}
+
+function openTopicIndex(topic) {
+    if (!topic) return;
+    applyExplorerTheme(topic);
+    const indicator = firstTopicIndicator(topic);
+    if (!indicator) {
+        showNotice('شاخصی برای این موضوع نیست.');
+        return;
+    }
+    loadIndicator(indicator, topic);
 }
 
 function landingScroller() {
@@ -277,7 +388,7 @@ function killMosaicAnimations() {
 
 function waitForMosaicImages(root) {
     const urls = new Set();
-    root.querySelectorAll('.ex-room-visual').forEach(el => {
+    root.querySelectorAll('.ex-room-photo, .ex-room-visual').forEach(el => {
         const bg = el.style.backgroundImage;
         const m = bg && bg.match(/url\(["']?(.*?)["']?\)/);
         if (m && m[1]) urls.add(m[1]);
@@ -327,19 +438,15 @@ function topicBackHtml(topic) {
 
 function topicFlipHtml(topic, index, cols) {
     const col = index % cols;
-    const open = flippedTopic === topic ? ' is-open' : '';
     const n = countTopicIndicators(topic);
     return `
-        <article class="ex-room${open}" data-col="${col}" data-topic="${escapeHtml(topic)}">
-            <button type="button" class="ex-room-face" aria-expanded="${open ? 'true' : 'false'}" aria-label="${escapeHtml(topic)}">
+        <article class="ex-room" data-col="${col}" data-topic="${escapeHtml(topic)}">
+            <button type="button" class="ex-room-face">
                 <div class="ex-room-visual">
-                    <div class="ex-room-veil"></div>
-                </div>
-                <div class="ex-room-copy">
-                    <h2>${escapeHtml(topic)}</h2>
-                    <div class="ex-room-meta">
-                        <span class="ex-room-pearl" aria-hidden="true"></span>
-                        <span>${toFa(n)} شاخص</span>
+                    <div class="ex-room-photo"></div>
+                    <div class="ex-room-copy">
+                        <h2>${escapeHtml(topic)}</h2>
+                        <p class="ex-room-count">${toFa(n)} شاخص</p>
                     </div>
                 </div>
             </button>
@@ -471,17 +578,9 @@ function setTopicFlipped(topic, on) {
 function bindMosaicInteractions(container) {
     container.querySelectorAll('.ex-room').forEach(card => {
         const topic = card.dataset.topic;
-        const face = card.querySelector('.ex-room-face');
         card.addEventListener('mouseenter', () => applyExplorerTheme(topic));
-        card.addEventListener('mouseleave', () => {
-            if (flippedTopic) applyExplorerTheme(flippedTopic);
-        });
-        if (face) {
-            face.addEventListener('click', () => {
-                const opening = !card.classList.contains('is-open');
-                setTopicFlipped(topic, opening);
-            });
-        }
+        const face = card.querySelector('.ex-room-face');
+        if (face) face.addEventListener('click', () => openTopicIndex(topic));
     });
 }
 
@@ -552,6 +651,7 @@ function renderMosaicMenu() {
     if (firstTopic) applyExplorerTheme(flippedTopic && topics.includes(flippedTopic) ? flippedTopic : firstTopic);
 
     const topicCards = topics.map((topic, i) => topicFlipHtml(topic, i, layout.cols)).join('');
+    const rows = Math.max(1, Math.ceil(topics.length / layout.cols));
 
     container.className = 'ex-stage is-pending';
     container.innerHTML = `
@@ -559,26 +659,17 @@ function renderMosaicMenu() {
             <h1 class="ex-title">کاوشگر داده</h1>
             <p class="ex-lead">برای دیدن شاخص‌ها یکی از زیرحوزه‌ها را انتخاب کنید</p>
         </section>
-        <section class="ex-bento">
-            <div class="ex-topics">${topicCards}</div>
-            <section class="ex-panel ex-index-panel" id="ex-index-panel">
-                <div class="ex-panel-grain" aria-hidden="true"></div>
-                <div class="ex-panel-body" id="ex-index-body">${indexEmptyHtml()}</div>
-            </section>
-            ${bubblePreviewHtml()}
-        </section>
+        <div class="ex-topics" style="--ex-cols:${layout.cols};--ex-rows:${rows}">${topicCards}</div>
     `;
 
     container.querySelectorAll('.ex-room').forEach(card => {
         const topic = card.dataset.topic;
         if (!topic) return;
         card.style.setProperty('--topic-accent', topicAccent(topic));
-        const visual = card.querySelector('.ex-room-visual');
-        if (visual) visual.style.backgroundImage = cssUrl(topicTileSrc(topic));
+        const photo = card.querySelector('.ex-room-photo');
+        if (photo) photo.style.backgroundImage = cssUrl(topicTileSrc(topic));
     });
     bindMosaicInteractions(container);
-    initBubblePreview(container);
-    if (flippedTopic) setTopicFlipped(flippedTopic, true);
 
     Promise.race([
         waitForMosaicImages(container),
@@ -590,19 +681,7 @@ function renderMosaicMenu() {
 }
 
 function expandMosaicTopic(topic) {
-    const container = document.getElementById('mosaic-menu');
-    if (!container) return;
-    applyExplorerTheme(topic);
-    setTopicFlipped(topic, true);
-    const match = Array.from(container.querySelectorAll('.ex-room')).find(el => el.dataset.topic === topic);
-    if (!match) return;
-    const scroller = landingScroller();
-    if (scroller && typeof scroller.__smoothScrollTo === 'function') {
-        const top = match.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop - scroller.clientHeight * 0.22;
-        scroller.__smoothScrollTo(top);
-    } else {
-        match.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    }
+    openTopicIndex(topic);
 }
 
 async function loadIndicator(indicatorName, topicName) {
@@ -614,8 +693,8 @@ async function loadIndicator(indicatorName, topicName) {
     document.getElementById('view-landing').style.display = 'none';
     document.getElementById('view-dashboard').classList.remove('hidden');
     document.getElementById('indicator-title').innerText = indicatorName;
-    const topicKicker = document.getElementById('dash-topic-kicker');
-    if (topicKicker) topicKicker.textContent = topicName || activeTopicGlob || '';
+    activeSubtopicGlob = findSubtopicForIndicator(activeTopicGlob, indicatorName);
+    syncExplorerDropdowns();
 
     try {
         const response = await fetch(`${API_BASE_URL}/api/explorer/indicator?name=${encodeURIComponent(indicatorName)}`);
@@ -735,7 +814,7 @@ function clearAllProvinces() {
 }
 
 function setProvinceFilterEnabled(enabled) {
-    const aside = document.querySelector('#view-dashboard aside, .ex-prov-rail');
+    const aside = document.querySelector('#view-dashboard .ex-side, .ex-prov-rail');
     if (aside) aside.classList.toggle('is-disabled', !enabled);
     document.querySelectorAll('.province-checkbox').forEach(cb => { cb.disabled = !enabled; });
     const search = document.getElementById('province-search');
@@ -1040,6 +1119,7 @@ const onExplorerResize = debounce(() => {
 window.addEventListener('resize', onExplorerResize);
 
 function bindExplorerChrome() {
+    bindExplorerDropdowns();
     const back = document.getElementById('btn-nav-subtopics');
     if (back) back.addEventListener('click', goBackToLanding);
     const trend = document.getElementById('btn-chart-trend');

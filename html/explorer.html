@@ -44,22 +44,42 @@
                     document.getElementById('view-landing').style.display = 'none';
                 }
             </script>
-            <div class="ex-atmosphere" aria-hidden="true"></div>
             <div class="ex-stage" id="mosaic-menu"></div>
         </div>
 
         <div id="view-dashboard" class="ex-dash hidden">
             <div class="ex-dash-head">
-                <button type="button" id="btn-nav-subtopics">
-                    <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
-                    بازگشت به حوزه‌ها
-                </button>
-                <p class="ex-kicker" id="dash-topic-kicker"></p>
-                <h2 id="indicator-title">نام شاخص</h2>
-                <p id="insight-text">در حال بارگذاری اطلاعات...</p>
-                <div class="ex-meta">
-                    <span id="indicator-source">منبع: نامشخص</span>
-                    <span id="indicator-period">دوره: نامشخص</span>
+                <div class="ex-dash-nav">
+                    <button type="button" id="btn-nav-subtopics">
+                        بازگشت به حوزه‌ها
+                        <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+                    </button>
+                    <div class="ex-dd-group" id="ex-dd-group">
+                        <div class="ex-dd" data-dd="topic">
+                            <button type="button" class="ex-dd-toggle" id="dd-topic-btn" aria-expanded="false">
+                                <span class="ex-dd-kicker">حوزه</span>
+                                <span class="ex-dd-value" id="dd-topic-value">—</span>
+                                <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+                            </button>
+                            <div class="ex-dd-menu" id="dd-topic-menu" hidden></div>
+                        </div>
+                        <div class="ex-dd" data-dd="subtopic">
+                            <button type="button" class="ex-dd-toggle" id="dd-subtopic-btn" aria-expanded="false">
+                                <span class="ex-dd-kicker">موضوع</span>
+                                <span class="ex-dd-value" id="dd-subtopic-value">—</span>
+                                <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+                            </button>
+                            <div class="ex-dd-menu" id="dd-subtopic-menu" hidden></div>
+                        </div>
+                        <div class="ex-dd" data-dd="indicator">
+                            <button type="button" class="ex-dd-toggle" id="dd-indicator-btn" aria-expanded="false">
+                                <span class="ex-dd-kicker">شاخص</span>
+                                <span class="ex-dd-value" id="dd-indicator-value">—</span>
+                                <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+                            </button>
+                            <div class="ex-dd-menu" id="dd-indicator-menu" hidden></div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -82,16 +102,25 @@
                     </div>
                 </section>
 
-                <aside class="ex-prov-rail" aria-label="مقایسه استانی">
-                    <h2>مقایسه استانی</h2>
-                    <div class="ex-prov-search">
-                        <input type="text" id="province-search" placeholder="جستجوی استان..." autocomplete="off">
-                    </div>
-                    <div class="ex-prov-actions">
-                        <button type="button" id="btn-select-all-provinces">انتخاب همه</button>
-                        <button type="button" id="btn-clear-all-provinces">پاک کردن همه</button>
-                    </div>
-                    <div class="ex-prov-list custom-scrollbar" id="provinces-list"></div>
+                <aside class="ex-side" aria-label="شرح شاخص و استان‌ها">
+                    <section class="ex-insight-card">
+                        <h2 id="indicator-title">نام شاخص</h2>
+                        <p id="insight-text">در حال بارگذاری اطلاعات...</p>
+                        <div class="ex-meta">
+                            <span id="indicator-source">منبع: نامشخص</span>
+                            <span id="indicator-period">دوره: نامشخص</span>
+                        </div>
+                    </section>
+                    <section class="ex-prov-rail" aria-label="مقایسه استانی">
+                        <div class="ex-prov-actions">
+                            <button type="button" id="btn-clear-all-provinces">پاک کردن همه</button>
+                            <button type="button" id="btn-select-all-provinces">انتخاب همه</button>
+                        </div>
+                        <div class="ex-prov-search">
+                            <input type="text" id="province-search" placeholder="جستجوی استان..." autocomplete="off">
+                        </div>
+                        <div class="ex-prov-list custom-scrollbar" id="provinces-list"></div>
+                    </section>
                 </aside>
             </div>
         </div>
