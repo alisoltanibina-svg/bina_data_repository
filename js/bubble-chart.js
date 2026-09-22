@@ -322,7 +322,7 @@ function applyBubbleTheme(colors) {
     if (colors.upper_color) themeUpper = colors.upper_color;
     if (colors.lower_color) themeLower = colors.lower_color;
     const accentHex = colors.master_color || colors.upper_color || themeUpper;
-    document.documentElement.style.setProperty('--topic-accent', accentHex);
+    setTopicChrome(accentHex);
     try {
         sessionStorage.setItem('themeTopicAccent', accentHex);
     } catch (e) {}

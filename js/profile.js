@@ -64,7 +64,7 @@ onReady(async () => {
         const adminLink = document.getElementById('profile-admin-link');
         if (adminLink) {
             adminLink.href = SITE.page('admin.html');
-            adminLink.hidden = !profile.is_admin;
+            adminLink.hidden = profile.is_admin !== true;
         }
     } catch (err) {
         showNotice('ارتباط با سرور برقرار نشد.');

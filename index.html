@@ -38,7 +38,10 @@
         if (!hashAtlas) {
             try {
                 const storedAc = sessionStorage.getItem('themeTopicAccent');
-                if (storedAc) document.documentElement.style.setProperty('--topic-accent', storedAc);
+                if (storedAc) {
+                    document.documentElement.style.setProperty('--topic-accent', storedAc);
+                    document.documentElement.style.setProperty('--banner-fg', storedAc);
+                }
             } catch (e) {}
         }
     </script>
@@ -88,26 +91,7 @@
 
     <!-- Main Dashboard Content -->
     <div id="main-content">
-        <!-- Right panel (Split into two cards) -->
-        <div id="right-panel">    
-            <!-- Top Panel: Title and Description -->
-            <div class="right-card right-card-top">
-                <div id="province-details"><p class="instruction">در حال بارگذاری اطلاعات...</p></div>
-            </div>
-
-            <!-- Bottom Panel: Charts -->
-            <div class="right-card right-card-bottom">
-                <div id="bottom-prov-header" style="width: 100%;"></div>
-                
-                <div id="chart-wrapper" style="width: 100%; height: 150px; margin-bottom: 5px; display: none;"><canvas id="rankingBarChart"></canvas></div>
-                <div id="trend-wrapper" style="width: 100%; height: 150px; margin-bottom: 5px; display: none;"><canvas id="trendChartPanel"></canvas></div>
-            </div>
-
-        </div>
-
-        <div id="center-column">
-            <div id="map"></div>
-
+        <div id="atlas-stage">
             <div id="left-popup-panel">
                 <h3 id="left-popup-title">وضعیت شاخص‌ها</h3>
                 <div id="left-chart-container">
@@ -120,23 +104,38 @@
                 </div>
             </div>
 
-            <div id="map-legend">
-                <span class="legend-title" id="legend-title-text">طیف امتیاز شاخص</span>
-                <div class="legend-scale-wrapper">
-                    <div class="legend-scale-bar" id="legend-bar"><div id="score-pointer"><div id="pointer-label">۰</div></div></div>
-                    <!-- Requirement 11: Updated Persian Labels -->
-                    <div class="legend-labels"><span>بد</span><span>متوسط</span><span>خوب</span></div>
+            <div id="center-column">
+                <div id="map-frame">
+                    <div id="map"></div>
+                    <div id="map-legend">
+                        <span class="legend-title" id="legend-title-text">طیف امتیاز شاخص</span>
+                        <div class="legend-scale-wrapper">
+                            <div class="legend-scale-bar" id="legend-bar"><div id="score-pointer"><div id="pointer-label">۰</div></div></div>
+                            <div class="legend-labels"><span>بد</span><span>متوسط</span><span>خوب</span></div>
+                        </div>
+                    </div>
+                    <div id="map-panel-dock" hidden>
+                        <button type="button" class="map-dock-btn is-active" data-sheet="map">نقشه</button>
+                        <button type="button" class="map-dock-btn" data-sheet="details">استان</button>
+                        <button type="button" class="map-dock-btn" data-sheet="topics">شاخص‌ها</button>
+                    </div>
                 </div>
             </div>
 
-            <div id="map-panel-dock" hidden>
-                <button type="button" class="map-dock-btn is-active" data-sheet="map">نقشه</button>
-                <button type="button" class="map-dock-btn" data-sheet="details">استان</button>
-                <button type="button" class="map-dock-btn" data-sheet="topics">شاخص‌ها</button>
+            <div id="right-panel">
+                <div class="right-card right-card-top">
+                    <div id="province-details"><p class="instruction">در حال بارگذاری اطلاعات...</p></div>
+                </div>
+                <div class="right-card right-card-bottom">
+                    <p id="province-pick-hint" class="instruction">روی یک استان کلیک کنید</p>
+                    <div id="bottom-prov-header" style="width: 100%;"></div>
+                    <div id="chart-wrapper" style="width: 100%; height: 150px; margin-bottom: 5px; display: none;"><canvas id="rankingBarChart"></canvas></div>
+                    <div id="trend-wrapper" style="width: 100%; height: 150px; margin-bottom: 5px; display: none;"><canvas id="trendChartPanel"></canvas></div>
+                </div>
             </div>
-            
-            <div id="bottom-panel"><ul class="index-list" id="index-list"></ul></div>
         </div>
+
+        <div id="bottom-panel"><ul class="index-list" id="index-list"></ul></div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
@@ -159,6 +158,7 @@
                 if (atlasBtn) atlasBtn.classList.toggle('is-current', on);
                 if (on) {
                     updateHeaderButtonsVisibility();
+                    setTimeout(function () { window.dispatchEvent(new Event('resize')); }, 80);
                     return;
                 }
                 const hideAtlasOnlyButtons = () => {

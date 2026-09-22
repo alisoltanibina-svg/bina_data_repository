@@ -45,7 +45,7 @@ body {
     align-items: center; 
     justify-content: space-between; 
     padding: 0 25px; 
-    color: var(--banner-fg, #6cbf43); 
+    color: var(--banner-fg, var(--topic-accent, #0078d7)); 
     z-index: 2000; 
     box-shadow: none; 
     transition: top 0.9s cubic-bezier(0.22, 1, 0.36, 1), left 0.9s cubic-bezier(0.22, 1, 0.36, 1), right 0.9s cubic-bezier(0.22, 1, 0.36, 1), width 0.9s cubic-bezier(0.22, 1, 0.36, 1), border-radius 0.9s cubic-bezier(0.22, 1, 0.36, 1), background 0.6s ease; 
@@ -727,6 +727,8 @@ body.immersive-mode path.detached-province { filter: drop-shadow(0 20px 30px rgb
 
 .panel-title { font-size: 0.8rem; margin-top: 0; margin-bottom: 15px; text-align: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; width: 100%; font-weight: 700; color: var(--text-color); }
 .instruction { font-size: 0.90rem; color: #666; text-align: center; margin-top: 30px; line-height: 1.5; }
+#province-pick-hint { margin: auto; padding: 12px 16px; }
+#province-pick-hint[hidden] { display: none; }
 .index-kicker { margin-top: 0; font-size: 0.75rem; color: #666; font-weight: bold; }
 .index-description-text { font-size: 0.70rem; line-height: 1.7; color: #444; text-align: justify; margin: 10px 0; padding: 10px; background: #f8fbff; border-radius: 8px; border: 1px solid #e0efff; }
 .prov-head-row {
@@ -1115,5 +1117,224 @@ body.immersive-mode #map { background: #dce5ec; }
     .floating-box { padding: 10px; }
     .switcher-btn { font-size: 0.7rem; padding: 6px 4px; }
     .prov-chart-wrap { height: 100px; }
+}
+
+html.atlas-view,
+html.atlas-view body {
+    background-color: #eef1f8;
+}
+
+html.atlas-view #main-content {
+    background-color: #eef1f8;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: calc(var(--banner-gap) + 75px + 12px) 16px 16px;
+    box-sizing: border-box;
+}
+
+html.atlas-view #atlas-stage {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: row-reverse;
+    align-items: stretch;
+    gap: 12px;
+}
+
+html.atlas-view #center-column {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+}
+
+html.atlas-view #map-frame {
+    position: relative;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    border-radius: 20px;
+    overflow: hidden;
+    background: #ffffff;
+    box-shadow: 0 10px 28px rgba(27, 36, 46, 0.08);
+}
+
+html.atlas-view #map {
+    position: absolute;
+    inset: 0;
+    background: #eef1f8;
+}
+
+html.atlas-view #right-panel,
+html.atlas-view #right-panel.show-panel {
+    position: relative;
+    top: auto;
+    right: auto;
+    bottom: auto;
+    left: auto;
+    width: 280px;
+    flex: 0 0 280px;
+    height: auto;
+    min-height: 0;
+    gap: 12px;
+    pointer-events: auto;
+    overflow: hidden;
+}
+
+html.atlas-view #right-panel.show-panel {
+    display: flex;
+}
+
+html.atlas-view .right-card {
+    width: 100%;
+    max-width: none;
+    border-left-width: 0;
+    box-shadow: none;
+    border: 1px solid rgba(27, 36, 46, 0.08);
+}
+
+html.atlas-view .right-card-bottom {
+    margin-bottom: 0;
+    min-height: 0;
+}
+
+html.atlas-view #left-popup-panel {
+    position: relative;
+    top: auto;
+    left: auto;
+    bottom: auto;
+    width: 230px;
+    flex: 0 0 230px;
+    height: auto;
+    min-height: 0;
+    border-right-width: 1px;
+}
+
+html.atlas-view #map-legend {
+    bottom: 18px;
+    background: rgba(255, 255, 255, 0.96);
+    border-radius: 999px;
+    box-shadow: 0 8px 24px rgba(27, 36, 46, 0.08);
+    padding: 8px 22px 10px;
+}
+
+html.atlas-view #bottom-panel {
+    position: relative;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    height: 92px;
+    flex: 0 0 92px;
+    width: 100%;
+    padding: 0 4px;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    align-items: center;
+    z-index: 1;
+}
+
+html.atlas-view .index-list {
+    width: 100%;
+    height: 100%;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    overflow: visible;
+}
+
+html.atlas-view .index-item {
+    flex: 1 1 calc(100% / var(--topic-count, 9));
+    width: auto;
+    min-width: 0;
+    height: 84px;
+    border-radius: 16px;
+    border: 0;
+    box-shadow: none;
+    transform: none;
+    transform-origin: center;
+    background: transparent;
+    padding-inline: 10px;
+}
+
+html.atlas-view .index-item::after {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    inset-inline: 10px;
+    border-radius: 16px;
+    background: #ffffff;
+    box-shadow: 0 8px 20px rgba(27, 36, 46, 0.06);
+    z-index: 0;
+    pointer-events: none;
+}
+
+html.atlas-view .index-item .index-item-img,
+html.atlas-view .index-item .index-item-text {
+    position: relative;
+    z-index: 1;
+}
+
+html.atlas-view .index-item + .index-item::before {
+    content: "";
+    position: absolute;
+    inset-inline-start: calc(-8px - 0.5px);
+    top: 50%;
+    transform: translateY(-50%);
+    width: 1px;
+    height: 60%;
+    background: #c5c9d2;
+    z-index: 2;
+    pointer-events: none;
+}
+
+html.atlas-view .index-item:hover {
+    transform: none;
+    box-shadow: none;
+}
+
+html.atlas-view .index-item:hover::after {
+    box-shadow: 0 8px 20px rgba(27, 36, 46, 0.1);
+}
+
+html.atlas-view .index-item.active {
+    height: 84px;
+    transform: none;
+    border: 0;
+    box-shadow: none;
+    background: transparent;
+}
+
+html.atlas-view .index-item.active::after {
+    background: var(--topic-accent, #0078d7);
+    box-shadow: 0 8px 20px rgba(27, 36, 46, 0.12);
+}
+
+html.atlas-view .index-item.active .index-item-text {
+    color: #ffffff;
+}
+
+@media (max-width: 767px) {
+    html.atlas-view #main-content {
+        padding: calc(64px + 8px) 8px calc(8px + env(safe-area-inset-bottom, 0px));
+        gap: 8px;
+    }
+    html.atlas-view #atlas-stage {
+        flex-direction: column;
+    }
+    html.atlas-view #left-popup-panel,
+    html.atlas-view #right-panel,
+    html.atlas-view #right-panel.show-panel {
+        width: auto;
+        flex: none;
+    }
+    html.atlas-view #bottom-panel {
+        height: 88px;
+        flex-basis: 88px;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+    }
 }
 

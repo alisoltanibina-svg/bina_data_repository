@@ -448,7 +448,7 @@ async function loadAllData() {
         }
 
         if (keepHomeTheme) {
-            document.documentElement.style.setProperty('--topic-accent', homeAc);
+            setTopicChrome(homeAc);
         }
         
         initUI();
@@ -479,7 +479,7 @@ function updateTopicColors(tObj, options = {}) {
     if (options && options.skipChrome) return;
 
     const accentHex = (tObj && tObj.master_color) ? tObj.master_color : (tObj && tObj.upper_color) ? tObj.upper_color : '#0078d7';
-    document.documentElement.style.setProperty('--topic-accent', accentHex);
+    setTopicChrome(accentHex);
     persistAppTheme(accentHex);
 
     // Update back control to use the topic's upper color (if available)
@@ -501,6 +501,8 @@ function getHeatmapColor(score) {
 function initUI() {
     const list = document.getElementById('index-list');
     list.innerHTML = '';
+    const count = Math.max(1, topicsData.length);
+    list.style.setProperty('--topic-count', String(count));
     
     topicsData.forEach(t => {
         const li = document.createElement('li');
@@ -820,8 +822,12 @@ function updateDefaultPanel() {
     document.getElementById('trend-wrapper').style.display = 'none';
 
     const bottomCard = document.querySelector('.right-card-bottom');
-    if (bottomCard) bottomCard.style.display = 'none';
-    
+    if (bottomCard) bottomCard.style.display = 'flex';
+    const hint = document.getElementById('province-pick-hint');
+    if (hint) hint.hidden = false;
+    const header = document.getElementById('bottom-prov-header');
+    if (header) header.replaceChildren();
+
     if (rankingBarChart) { rankingBarChart.destroy(); rankingBarChart = null; }
     if (trendChartInstance) { trendChartInstance.destroy(); trendChartInstance = null; }
     updatePointer();
@@ -832,6 +838,8 @@ function updateRightPanel(provinceName) {
 
     const bottomCard = document.querySelector('.right-card-bottom');
     if (bottomCard) bottomCard.style.display = 'flex';
+    const hint = document.getElementById('province-pick-hint');
+    if (hint) hint.hidden = true;
 
     const tObj = topicsData.find(t => t.topic_name === currentIndex);
     renderTopicDetails(tObj ? tObj.topic_description : '');

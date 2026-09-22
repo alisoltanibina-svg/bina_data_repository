@@ -134,7 +134,7 @@ function topicAccent(topic) {
 function applyExplorerTheme(topic) {
     if (!topic) return;
     const accent = topicAccent(topic);
-    document.documentElement.style.setProperty('--topic-accent', accent);
+    setTopicChrome(accent);
     try {
         sessionStorage.setItem('themeTopicAccent', accent);
     } catch (e) {}

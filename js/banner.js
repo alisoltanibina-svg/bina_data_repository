@@ -20,13 +20,15 @@
             '</div>' +
             '<div class="banner-divider" aria-hidden="true"></div>' +
             '<div class="project-texts">' +
-                '<div class="project-main">دیده‌بان فرهنگ</div>' +
-                '<div class="project-sub">سامانه راهبری زیست‌بوم فرهنگی تبلیغی ایران</div>' +
-                '<div class="top-nav" role="navigation" aria-label="Top navigation">' +
-                    '<a href="' + SITE.page('index.html#atlas') + '" id="btn-atlas" class="banner-btn hang-btn' + atlasCurrent + '"' + (atlasCurrent ? ' aria-current="page"' : '') + '><span class="btn-label">اطلس</span></a>' +
-                    '<a href="' + explorerHref + '" id="btn-explorer" class="banner-btn hang-btn' + explorerCurrent + '"' + (explorerCurrent ? ' aria-current="page"' : '') + '><span class="btn-label">کاوشگر</span></a>' +
-                '</div>' +
+                '<div class="project-main">سامانه دیده‌بان فرهنگ</div>' +
+                '<div class="project-sub">راهبری زیست‌بوم فرهنگی تبلیغی ایران</div>' +
             '</div>' +
+            '<nav class="top-nav banner-seg" role="navigation" aria-label="ناوبری اصلی">' +
+                '<a href="' + SITE.page('index.html#atlas') + '" id="btn-atlas" class="banner-seg-btn' + atlasCurrent + '"' + (atlasCurrent ? ' aria-current="page"' : '') + '>اطلس</a>' +
+                '<a href="' + explorerHref + '" id="btn-explorer" class="banner-seg-btn' + explorerCurrent + '"' + (explorerCurrent ? ' aria-current="page"' : '') + '>کاوشگر</a>' +
+                '<span class="banner-seg-btn" aria-disabled="true">نمایه</span>' +
+                '<span class="banner-seg-btn" aria-disabled="true">گونه‌شناسی</span>' +
+            '</nav>' +
         '</div>' +
         '<div class="banner-left">' +
             '<div class="user-box">' +

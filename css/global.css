@@ -9,8 +9,8 @@ Notes: Peyda is loaded via <link href="assets/fonts/peyda.css"> (from html/: ../
     --default-font-family: 'PeydaFaNumWeb', Tahoma, sans-serif;
     --banner-gap: 16px;
     --banner-side-gap: 16px;
-    --banner-fg: #6cbf43; /* upper_color of معنویت و ارزش‌های دینی */
     --topic-accent: #0078d7;
+    --banner-fg: var(--topic-accent);
 }
 @supports (height: 100dvh) {
     :root { --vvh: 100dvh; }
@@ -124,52 +124,42 @@ body {
             mask-position: center;
 }
 .banner-divider { width: 1px; height: 48px; background: color-mix(in srgb, var(--banner-fg) 28%, transparent); margin: 0 14px; }
-.project-texts { display: flex; flex-direction: column; line-height: 1.7; position: relative; }
+.project-texts { display: flex; flex-direction: column; line-height: 1.7; position: relative; flex-shrink: 0; }
 .project-main { font-weight: 800; font-size: 0.95rem; color: var(--banner-fg); }
 .project-sub { font-size: 0.8rem; color: var(--banner-fg); }
-.top-nav { position: absolute; top: calc(40% + 37.5px); right: -200px; left: auto; display: flex; gap: 12px; z-index: -2; }
-.hang-btn { width: 110px; height: 38px; padding: 6px 10px; border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,0.25); transform-origin: top center; }
-.hang-btn .btn-label { font-size: 0.85rem; }
-.banner-btn {
-    height: 38px;
-    color: #333333;
-    background-color: #ffffff;
-    border: 1px solid #d1d5db;
-    border-bottom: 5px solid var(--topic-accent, #0078d7);
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    font-family: inherit;
-    font-size: 0.85rem;
-    font-weight: 800;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    position: relative;
-    overflow: hidden;
+.banner-seg {
+    display: flex;
+    align-items: center;
+    margin-inline-start: 18px;
+    padding: 4px;
+    border-radius: 999px;
+    background: #eef1f8;
+    flex-shrink: 0;
+}
+.banner-seg-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    height: 34px;
+    padding: 0 14px 1px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: #5c6570;
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
     text-decoration: none;
-    padding: 0 14px;
+    cursor: pointer;
+    white-space: nowrap;
 }
-.banner-btn .btn-label { display: inline-block; font-weight: 800; }
-.banner-btn span { position: relative; z-index: 10; }
-.banner-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,0.1); background-color: #f3f4f6; }
-.banner-btn.is-current,
-.hang-btn.is-current {
-    background-color: var(--topic-accent, #0078d7);
+.banner-seg-btn:hover { color: #1b242e; }
+.banner-seg-btn.is-current {
+    background: var(--topic-accent, #0078d7);
     color: #ffffff;
-    border-color: rgba(0,0,0,0.08);
-    border-bottom-color: rgba(0,0,0,0.25);
-    box-shadow: inset 0 2px 5px rgba(0,0,0,0.2);
-    transform: translateY(4px);
 }
-.banner-btn.is-current:hover,
-.hang-btn.is-current:hover {
-    background-color: var(--topic-accent, #0078d7);
-    color: #ffffff;
-    transform: translateY(4px);
-}
+.banner-seg-btn.is-current:hover { color: #ffffff; }
+.banner-seg-btn[aria-disabled="true"] { cursor: default; }
 .user-box { display: flex; align-items: center; gap: 10px; padding-right: 6px; flex-direction: row-reverse; }
 .user-menu { position: relative; flex-shrink: 0; }
 .user-circle {
@@ -198,6 +188,7 @@ body {
 }
 .user-menu-link:hover { background: #f4f5f7; }
 .user-menu-link.is-current { background: #f4f5f7; }
+.user-menu-link[hidden] { display: none; }
 .user-exit-btn {
     display: flex; align-items: center; justify-content: flex-start; gap: 8px;
     width: 100%; padding: 10px 12px; border: none; background: transparent;
@@ -260,23 +251,14 @@ body {
     .project-main {
         font-size: 0.8rem;
     }
-    .top-nav {
-        position: static;
-        right: auto;
-        top: auto;
-        margin-top: 6px;
-        gap: 6px;
-        z-index: 1;
-        flex-wrap: wrap;
+    .banner-seg {
+        margin-inline-start: 8px;
+        padding: 3px;
     }
-    .hang-btn {
-        width: auto;
-        min-width: 64px;
-        height: 32px;
-        padding: 4px 8px;
-    }
-    .hang-btn .btn-label {
-        font-size: 0.75rem;
+    .banner-seg-btn {
+        height: 28px;
+        padding: 0 10px 1px;
+        font-size: 0.72rem;
     }
     .user-circle {
         width: 36px;
