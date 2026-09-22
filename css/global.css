@@ -110,18 +110,10 @@ body {
 #logo-img {
     display: block;
     height: 44px;
-    aspect-ratio: 3768 / 1174;
+    width: auto;
+    object-fit: contain;
     flex-shrink: 0;
     cursor: pointer;
-    background-color: var(--banner-fg);
-    -webkit-mask-image: url("../assets/images/Logo.webp");
-            mask-image: url("../assets/images/Logo.webp");
-    -webkit-mask-size: contain;
-            mask-size: contain;
-    -webkit-mask-repeat: no-repeat;
-            mask-repeat: no-repeat;
-    -webkit-mask-position: center;
-            mask-position: center;
 }
 .banner-divider { width: 1px; height: 48px; background: color-mix(in srgb, var(--banner-fg) 28%, transparent); margin: 0 14px; }
 .project-texts { display: flex; flex-direction: column; line-height: 1.7; position: relative; flex-shrink: 0; }
@@ -206,8 +198,12 @@ body {
     background: #eef0f4; color: var(--banner-fg);
     text-decoration: none; font-family: inherit; font-weight: 600; font-size: 0.82rem;
     white-space: nowrap;
+    transition: background 0.2s ease, color 0.2s ease;
 }
-.banner-auth-btn:hover { background: #e4e7ec; }
+.banner-auth-btn:hover {
+    background: var(--banner-fg);
+    color: #ffffff;
+}
 .banner-auth-btn[hidden] { display: none; }
 
 /* Lazy image background utilities */

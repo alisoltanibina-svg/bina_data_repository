@@ -112,8 +112,9 @@ html.treat-v1 .entry-dock-item {
 }
 
 html.treat-v1 .entry-launch {
-    border-radius: 24px;
-    box-shadow: var(--treat-shadow);
+    border-radius: 0;
+    box-shadow: none;
+    background: transparent;
 }
 
 html.treat-v1 .entry-login-btn,
@@ -460,6 +461,7 @@ html.treat-v1 #left-popup-panel {
 
 html.treat-v1.atlas-view #left-popup-panel {
     position: relative;
+    display: flex;
 }
 
 html.treat-v1 #left-popup-panel::before {

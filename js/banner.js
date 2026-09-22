@@ -16,7 +16,7 @@
     root.innerHTML =
         '<div class="banner-right">' +
             '<div class="institution">' +
-                '<span id="logo-img" role="img" aria-label="مرکز رصد بینا"></span>' +
+                '<img id="logo-img" src="' + SITE.asset('images/Logo.webp') + '" alt="مرکز رصد بینا">' +
             '</div>' +
             '<div class="banner-divider" aria-hidden="true"></div>' +
             '<div class="project-texts">' +

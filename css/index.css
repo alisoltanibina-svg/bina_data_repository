@@ -24,11 +24,39 @@ body {
 
 /* Requirement 1: Map lives behind the banner natively */
 #main-content { 
-    display: flex; 
-    flex-grow: 1; 
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    min-height: 0;
     overflow: hidden; 
     position: relative;
-    margin-top: 0; /* Ensures map container takes full screen height, rendering behind floating banner */
+    margin-top: 0;
+    gap: 12px;
+    padding: calc(var(--banner-gap) + 75px + 12px) 16px 16px;
+    box-sizing: border-box;
+    background-color: #eef1f8;
+}
+
+#atlas-stage {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: row-reverse;
+    align-items: stretch;
+    gap: 12px;
+}
+
+#map-frame {
+    position: relative;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 20px;
+    overflow: hidden;
+    background: #ffffff;
+    box-shadow: 0 10px 28px rgba(27, 36, 46, 0.08);
 }
 
 #top-banner { 
@@ -156,6 +184,7 @@ html:not(.atlas-view) #top-banner .top-nav {
     font-weight: 600;
     text-decoration: none;
     cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease;
 }
 
 .entry-dock-item + .entry-dock-item {
@@ -164,6 +193,11 @@ html:not(.atlas-view) #top-banner .top-nav {
 
 .entry-dock-item.is-current {
     color: var(--banner-fg, #6cbf43);
+}
+
+.entry-dock-item:hover {
+    background: var(--banner-fg);
+    color: #ffffff;
 }
 
 span.entry-dock-item {
@@ -193,10 +227,10 @@ span.entry-dock-item {
     width: 100%;
     box-sizing: border-box;
     pointer-events: auto;
-    background: #ffffff;
-    border-radius: 24px;
-    padding: 16px;
-    box-shadow: 0 10px 28px rgba(27, 36, 46, 0.08);
+    background: transparent;
+    border-radius: 0;
+    padding: 0;
+    box-shadow: none;
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -760,8 +794,8 @@ body.immersive-mode path.detached-province { filter: drop-shadow(0 20px 30px rgb
 
 @keyframes fadeSlideIn { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: translateX(0); } }
 
-#center-column { display: flex; flex-direction: column; flex-grow: 1; position: relative; }
-#map { flex-grow: 1; background: #e8f4fc; transition: background 2.2s; }
+#center-column { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; min-height: 0; position: relative; }
+#map { position: absolute; inset: 0; width: 100%; height: 100%; background: #e8f4fc; transition: background 2.2s; }
 body.immersive-mode #map { background: #dce5ec; }
 
 .leaflet-bottom.leaflet-right { margin-bottom: 25px !important; margin-right: 25px !important; z-index: 1001; }
@@ -1126,44 +1160,6 @@ html.atlas-view body {
 
 html.atlas-view #main-content {
     background-color: #eef1f8;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding: calc(var(--banner-gap) + 75px + 12px) 16px 16px;
-    box-sizing: border-box;
-}
-
-html.atlas-view #atlas-stage {
-    flex: 1 1 auto;
-    min-height: 0;
-    display: flex;
-    flex-direction: row-reverse;
-    align-items: stretch;
-    gap: 12px;
-}
-
-html.atlas-view #center-column {
-    flex: 1 1 auto;
-    min-width: 0;
-    min-height: 0;
-    display: flex;
-}
-
-html.atlas-view #map-frame {
-    position: relative;
-    flex: 1 1 auto;
-    min-width: 0;
-    min-height: 0;
-    border-radius: 20px;
-    overflow: hidden;
-    background: #ffffff;
-    box-shadow: 0 10px 28px rgba(27, 36, 46, 0.08);
-}
-
-html.atlas-view #map {
-    position: absolute;
-    inset: 0;
-    background: #eef1f8;
 }
 
 html.atlas-view #right-panel,
@@ -1204,11 +1200,20 @@ html.atlas-view #left-popup-panel {
     top: auto;
     left: auto;
     bottom: auto;
+    display: flex;
     width: 230px;
     flex: 0 0 230px;
     height: auto;
     min-height: 0;
     border-right-width: 1px;
+}
+
+html.atlas-view #left-popup-panel:not(.is-open) #left-chart-container {
+    display: none;
+}
+
+#left-province-hint[hidden] {
+    display: none;
 }
 
 html.atlas-view #map-legend {
@@ -1244,6 +1249,18 @@ html.atlas-view .index-list {
     overflow: visible;
 }
 
+html.atlas-view .index-divider {
+    flex: 0 0 1px;
+    width: 1px;
+    align-self: center;
+    height: calc(84px * 0.6);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    background: #868686;
+    pointer-events: none;
+}
+
 html.atlas-view .index-item {
     flex: 1 1 calc(100% / var(--topic-count, 9));
     width: auto;
@@ -1256,6 +1273,7 @@ html.atlas-view .index-item {
     transform-origin: center;
     background: transparent;
     padding-inline: 10px;
+    overflow: visible;
 }
 
 html.atlas-view .index-item::after {
@@ -1276,17 +1294,8 @@ html.atlas-view .index-item .index-item-text {
     z-index: 1;
 }
 
-html.atlas-view .index-item + .index-item::before {
-    content: "";
-    position: absolute;
-    inset-inline-start: calc(-8px - 0.5px);
-    top: 50%;
-    transform: translateY(-50%);
-    width: 1px;
-    height: 60%;
-    background: #c5c9d2;
-    z-index: 2;
-    pointer-events: none;
+html.atlas-view .index-item .index-item-text {
+    color: #868686;
 }
 
 html.atlas-view .index-item:hover {

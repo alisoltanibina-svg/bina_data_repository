@@ -10,6 +10,13 @@
         return [profile.first_name, profile.last_name].filter(Boolean).join(' ').trim();
     }
 
+    function roleLine(profile) {
+        const role = (profile.role_title || (profile.is_admin ? 'مدیر' : '')).trim();
+        const org = (profile.organization || '').trim();
+        if (role && org) return role + ' ' + org;
+        return role || org;
+    }
+
     let signedIn = false;
     let profileReady = false;
 
@@ -29,7 +36,7 @@
             if (box) box.classList.add('is-signed-in');
             const name = displayName(profile);
             if (nameEl) nameEl.textContent = name;
-            if (roleEl) roleEl.textContent = profile.role_title || (profile.is_admin ? 'مدیر' : '');
+            if (roleEl) roleEl.textContent = roleLine(profile);
             return;
         }
         if (authBtn) authBtn.hidden = false;

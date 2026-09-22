@@ -147,9 +147,31 @@ const MAP_HOME_CENTER = [31.4279, 55.6880];
 const MAP_HOME_ZOOM = 4.8;
 const MAP_MAX_ZOOM = 5.2;
 
+function mapContainerHasSize() {
+    if (!map) return false;
+    const el = map.getContainer();
+    return !!(el && el.clientWidth > 2 && el.clientHeight > 2);
+}
+
+function syncMapToContainer({ animate = false } = {}) {
+    if (!map || !mapContainerHasSize()) return false;
+    map.invalidateSize({ animate: false, pan: false });
+    refitMapView({ animate });
+    return true;
+}
+
+function scheduleMapSync({ animate = false } = {}) {
+    let tries = 24;
+    const tick = () => {
+        if (syncMapToContainer({ animate })) return;
+        if (--tries <= 0) return;
+        requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+}
+
 function showIranView({ animate = false } = {}) {
     if (!map) return;
-    map.invalidateSize(true);
     if (isCompactMap()) {
         fitMapTo(iranLayerBounds(), { animate, maxZoom: MAP_HOME_ZOOM, duration: 1.2 });
         return;
@@ -160,7 +182,6 @@ function showIranView({ animate = false } = {}) {
 
 function fitMapTo(bounds, { animate = false, maxZoom = MAP_MAX_ZOOM, duration = 1.6 } = {}) {
     if (!map || !bounds) return;
-    map.invalidateSize(true);
     const opts = { ...mapOverlayPadding(), maxZoom: Math.min(maxZoom, MAP_MAX_ZOOM) };
     if (animate) map.flyToBounds(bounds, { ...opts, duration });
     else map.fitBounds(bounds, opts);
@@ -453,11 +474,17 @@ async function loadAllData() {
         
         initUI();
         initLegend();
+        renderLeftFloatingPanel(null);
         initMap();
 
         const geoRes = await fetch('data/iran.geojson');
         if (!geoRes.ok) throw new Error("GeoJSON not found");
         renderMapData(await geoRes.json());
+        if (map && typeof map.whenReady === 'function') {
+            map.whenReady(() => scheduleMapSync({ animate: false }));
+        } else {
+            scheduleMapSync({ animate: false });
+        }
 
         initIndicatorSearch();
 
@@ -516,6 +543,13 @@ function initUI() {
         label.textContent = t.topic_name;
         li.append(img, label);
 
+        if (list.childElementCount) {
+            const divider = document.createElement('li');
+            divider.className = 'index-divider';
+            divider.setAttribute('aria-hidden', 'true');
+            list.appendChild(divider);
+        }
+
         li.addEventListener('click', () => {
             document.querySelectorAll('.index-item').forEach(el => el.classList.remove('active'));
             li.classList.add('active');
@@ -548,7 +582,6 @@ function restoreSelectedProvince(provName) {
 
     geojsonLayer.eachLayer(layer => {
         if (layer.feature.properties.ProvincNam === provName) {
-            try { map.invalidateSize(true); } catch (e) {}
             fitMapTo(layer.getBounds(), { animate: true, maxZoom: MAP_MAX_ZOOM, duration: 1.6 });
 
             const rp = document.getElementById('right-panel');
@@ -590,9 +623,17 @@ function getProvincePop(provName) {
 
 function renderLeftFloatingPanel(provinceName) {
     const panel = document.getElementById('left-popup-panel');
-    if(!provinceName) { panel.style.display = 'none'; return; }
-    
+    const hint = document.getElementById('left-province-hint');
     const container = document.getElementById('left-chart-markers');
+    if (!panel) return;
+    if (!provinceName) {
+        panel.classList.remove('is-open');
+        if (hint) hint.hidden = false;
+        document.getElementById('left-popup-title').innerText = 'شاخص‌ها';
+        return;
+    }
+    panel.classList.add('is-open');
+    if (hint) hint.hidden = true;
     document.getElementById('left-popup-title').innerText = `شاخص‌های ${provinceName}`;
     
     if (!leftPanelInitialized) {
@@ -680,7 +721,6 @@ function renderLeftFloatingPanel(provinceName) {
         });
     }, 50);
     
-    panel.style.display = 'flex';
 }
 
 // CHANGE 2: Explicitly clears sessionStorage when fully exiting Atlas to start over
@@ -691,7 +731,7 @@ function clearSelection() {
 
     updateMapStyles();
     map.closePopup();
-    document.getElementById('left-popup-panel').style.display = 'none';
+    renderLeftFloatingPanel(null);
     if (isCompactMap()) setMapSheet('map');
 
     setTimeout(() => {
@@ -714,6 +754,27 @@ function initMap() {
     }).addTo(map);
 
     map.on('click', clearSelection);
+    requestAnimationFrame(() => {
+        if (map && mapContainerHasSize()) {
+            map.invalidateSize({ animate: false, pan: false });
+        }
+    });
+
+    const el = map.getContainer();
+    if (el && typeof ResizeObserver !== 'undefined') {
+        let lastW = el.clientWidth;
+        let lastH = el.clientHeight;
+        const ro = new ResizeObserver(() => {
+            const w = el.clientWidth;
+            const h = el.clientHeight;
+            if (w < 2 || h < 2 || (w === lastW && h === lastH)) return;
+            lastW = w;
+            lastH = h;
+            map.invalidateSize({ animate: false, pan: false });
+            refitMapView({ animate: false });
+        });
+        ro.observe(el);
+    }
 }
 
 function updateMapStyles() {
@@ -769,18 +830,13 @@ function renderMapData(geojsonData) {
                 updateMapStyles();
                 updatePointer();
                 
+                document.getElementById('right-panel').classList.add('show-panel');
+                updateRightPanel(provName);
+                renderLeftFloatingPanel(provName);
+                if (isCompactMap()) setMapSheet('details');
+                const bounds = layer.getBounds();
                 requestAnimationFrame(() => {
-                    setTimeout(() => {
-                        document.getElementById('right-panel').classList.add('show-panel');
-
-                        map.invalidateSize(true);
-                        const bounds = layer.getBounds();
-                        fitMapTo(bounds, { animate: true, maxZoom: MAP_MAX_ZOOM, duration: 1.6 });
-
-                        updateRightPanel(provName);
-                        renderLeftFloatingPanel(provName);
-                        if (isCompactMap()) setMapSheet('details'); 
-                    }, 15);
+                    fitMapTo(bounds, { animate: true, maxZoom: MAP_MAX_ZOOM, duration: 1.6 });
                 });
             });
         }
