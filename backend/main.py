@@ -25,6 +25,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, Field, field_validator
 from fastapi.staticfiles import StaticFiles
+from starlette.datastructures import MutableHeaders
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from backend.database import (
@@ -298,6 +299,7 @@ app = FastAPI(
     docs_url=None,
     redoc_url=None,
     openapi_url=None,
+    redirect_slashes=False,
 )
 
 _SECURITY_HEADERS = {
@@ -334,7 +336,44 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
+class AuthJsonContentTypeMiddleware:
+    """Parse /api/auth POST bodies as JSON even if Content-Type is missing or text/plain."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if (
+            scope["type"] == "http"
+            and (scope.get("method") or "") in {"POST", "PUT", "PATCH"}
+            and (scope.get("path") or "").startswith("/api/auth")
+        ):
+            headers = MutableHeaders(scope=scope)
+            ctype = (headers.get("content-type") or "").split(";")[0].strip().lower()
+            if ctype != "application/json":
+                headers["content-type"] = "application/json"
+        await self.app(scope, receive, send)
+
+
+def _jsonable_errors(errors):
+    """RequestValidationError.input can be raw bytes; JSONResponse cannot encode that."""
+
+    def convert(value):
+        if isinstance(value, (bytes, bytearray)):
+            return value.decode("utf-8", "replace")
+        if isinstance(value, dict):
+            return {str(key): convert(item) for key, item in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [convert(item) for item in value]
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            return value
+        return str(value)
+
+    return convert(errors)
+
+
 # Innermost first: 429s still pass through CORS, gzip, and security headers.
+app.add_middleware(AuthJsonContentTypeMiddleware)
 app.add_middleware(RateLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
@@ -367,9 +406,13 @@ app.add_middleware(SecurityHeadersMiddleware)
 
 @app.exception_handler(RequestValidationError)
 async def auth_validation_handler(request: Request, exc: RequestValidationError):
+    errors = _jsonable_errors(exc.errors())
     if request.url.path.startswith("/api/auth"):
-        write_auth_log(f"validation path={request.url.path} errors={exc.errors()!s}")
-    return JSONResponse(status_code=422, content={"detail": exc.errors()}, headers=_AUTH_NO_STORE)
+        write_auth_log(
+            f"validation path={request.url.path} method={request.method} "
+            f"content_type={request.headers.get('content-type')!s} errors={errors!s}"
+        )
+    return JSONResponse(status_code=422, content={"detail": errors}, headers=_AUTH_NO_STORE)
 
 
 @app.exception_handler(Exception)
@@ -771,15 +814,8 @@ class GateBody(BaseModel):
         return normalize_phone(str(value))
 
 
-@app.api_route("/api/auth/gate", methods=["GET", "HEAD"])
-def auth_gate_wrong_method():
-    raise HTTPException(
-        status_code=405,
-        detail={"code": "method", "message": "ارسال شماره باید با POST باشد."},
-    )
-
-
 @app.post("/api/auth/gate")
+@app.post("/api/auth/gate/")
 def auth_gate(body: GateBody, request: Request):
     write_auth_log(
         "gate start "

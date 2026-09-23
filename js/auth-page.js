@@ -268,14 +268,40 @@ function showStatus(title, text) {
 
 async function apiJson(path, body) {
     const url = `${API_BASE_URL}${path}`;
+    const payload = JSON.stringify(body);
+    const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
+    const post = (target) => fetch(target, {
+        method: 'POST',
+        headers: headers,
+        credentials: 'include',
+        redirect: 'manual',
+        body: payload
+    });
     let response;
     try {
-        response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify(body)
-        });
+        response = await post(url);
+        let hops = 0;
+        while (
+            hops < 4
+            && (response.status === 301 || response.status === 302 || response.status === 303
+                || response.status === 307 || response.status === 308)
+        ) {
+            hops += 1;
+            const loc = response.headers.get('Location');
+            if (!loc) break;
+            response = await post(new URL(loc, url).toString());
+        }
+        if (response.type === 'opaqueredirect' && /^http:\/\//i.test(url)) {
+            response = await fetch(url.replace(/^http:\/\//i, 'https://'), {
+                method: 'POST',
+                headers: headers,
+                credentials: 'include',
+                body: payload
+            });
+        }
+        if (response.type === 'opaqueredirect') {
+            throw new Error('ارتباط با سرور برقرار نشد.');
+        }
     } catch (networkErr) {
         captureAuthClientLog({
             url: url,
