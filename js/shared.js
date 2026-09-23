@@ -212,3 +212,111 @@ function applyBannerAvatar(url) {
         btn.classList.remove('has-photo');
     }
 }
+
+function authApiRoot() {
+    if (typeof API_BASE_URL === 'string' && API_BASE_URL) return String(API_BASE_URL).replace(/\/+$/, '');
+    try {
+        if (window.location && window.location.origin) {
+            if (window.location.protocol === 'http:' && /rasadbina\.ir$/i.test(window.location.hostname || '')) {
+                return window.location.origin.replace(/^http:/i, 'https:');
+            }
+            return window.location.origin;
+        }
+    } catch (e) {}
+    return '';
+}
+
+function authRequestUrls(path) {
+    const root = authApiRoot();
+    const clean = ('/' + String(path || '').replace(/^\/+/, '')).replace(/\/+$/, '');
+    const urls = [root + clean, root + clean + '/'];
+    if (/^http:\/\//i.test(root)) {
+        const httpsRoot = root.replace(/^http:/i, 'https:');
+        urls.push(httpsRoot + clean, httpsRoot + clean + '/');
+    }
+    return urls.filter((url, i, all) => all.indexOf(url) === i);
+}
+
+function encodeAuthJsonHeader(body) {
+    const json = JSON.stringify(body == null ? {} : body);
+    return btoa(unescape(encodeURIComponent(json)));
+}
+
+function authFailDetail(data, fallback) {
+    if (!data || data.detail == null) return fallback;
+    if (Array.isArray(data.detail) && data.detail.length && data.detail[0] && data.detail[0].msg) {
+        return data.detail[0].msg;
+    }
+    if (typeof data.detail === 'string') return data.detail;
+    if (data.detail.message) return data.detail.message;
+    return fallback;
+}
+
+function authErrorFromResponse(data, status) {
+    const err = new Error(authFailDetail(data, '') || ('انجام این اقدام ممکن نشد. (HTTP ' + status + ')'));
+    err.code = data && data.detail && data.detail.code;
+    err.httpStatus = status;
+    return err;
+}
+
+async function authReadJson(response) {
+    const raw = await response.text();
+    let data = null;
+    try { data = raw ? JSON.parse(raw) : null; } catch (e) { data = null; }
+    return data;
+}
+
+async function authRequest(path, body) {
+    const payload = JSON.stringify(body == null ? {} : body);
+    const urls = authRequestUrls(path);
+    let lastErr = null;
+    for (let i = 0; i < urls.length; i += 1) {
+        const url = urls[i];
+        let response;
+        try {
+            response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                credentials: 'include',
+                body: payload
+            });
+        } catch (networkErr) {
+            lastErr = new Error('ارتباط با سرور برقرار نشد.');
+            continue;
+        }
+        const data = await authReadJson(response);
+        if (response.ok) return data;
+        lastErr = authErrorFromResponse(data, response.status);
+        const code = lastErr.code;
+        if (response.status === 401) throw lastErr;
+        if (code !== 'method' && response.status !== 404 && response.status !== 405) throw lastErr;
+    }
+    const header = encodeAuthJsonHeader(body);
+    for (let i = 0; i < urls.length; i += 1) {
+        const url = urls[i];
+        let response;
+        try {
+            response = await fetch(url, {
+                method: 'GET',
+                credentials: 'include',
+                headers: { Accept: 'application/json', 'X-Auth-JSON': header }
+            });
+        } catch (networkErr) {
+            lastErr = new Error('ارتباط با سرور برقرار نشد.');
+            continue;
+        }
+        const data = await authReadJson(response);
+        if (response.ok) return data;
+        lastErr = authErrorFromResponse(data, response.status);
+        if (response.status === 401) throw lastErr;
+        if (lastErr.code !== 'method' && response.status !== 404 && response.status !== 405) throw lastErr;
+    }
+    if (String(path).indexOf('/api/auth/gate') >= 0 && body && body.phone) {
+        const url = authApiRoot() + '/api/auth/gate?phone=' + encodeURIComponent(body.phone);
+        const response = await fetch(url, { credentials: 'include', headers: { Accept: 'application/json' } });
+        const data = await authReadJson(response);
+        if (response.ok) return data;
+        throw authErrorFromResponse(data, response.status);
+    }
+    throw lastErr || new Error('ارتباط با سرور برقرار نشد.');
+}

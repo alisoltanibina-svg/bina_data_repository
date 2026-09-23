@@ -266,113 +266,12 @@ function showStatus(title, text) {
     showPanel('auth-status');
 }
 
-function authApiRoot() {
-    if (typeof API_BASE_URL === 'string' && API_BASE_URL) return API_BASE_URL.replace(/\/+$/, '');
-    try {
-        if (window.location && window.location.origin) {
-            const origin = window.location.origin;
-            if (window.location.protocol === 'http:' && /rasadbina\.ir$/i.test(window.location.hostname || '')) {
-                return origin.replace(/^http:/i, 'https:');
-            }
-            return origin;
-        }
-    } catch (e) {}
-    return '';
-}
-
-function authPostUrls(path) {
-    const root = authApiRoot();
-    const clean = (path.startsWith('/') ? path : '/' + path).replace(/\/+$/, '');
-    const urls = [root + clean, root + clean + '/'];
-    if (/^http:\/\//i.test(root)) {
-        const httpsRoot = root.replace(/^http:/i, 'https:');
-        urls.push(httpsRoot + clean, httpsRoot + clean + '/');
-    }
-    return urls.filter((url, i, all) => all.indexOf(url) === i);
-}
-
 async function apiJson(path, body) {
-    const payload = JSON.stringify(body);
-    const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
-    let lastNetwork = '';
-    let lastFail = null;
-    for (const url of authPostUrls(path)) {
-        let response;
-        try {
-            // Do not follow 301/302: browsers turn POST into GET and drop the body.
-            response = await fetch(url, {
-                method: 'POST',
-                headers: headers,
-                credentials: 'include',
-                redirect: 'error',
-                body: payload
-            });
-        } catch (networkErr) {
-            lastNetwork = String(networkErr && networkErr.message);
-            captureAuthClientLog({ url: url, network: lastNetwork });
-            continue;
-        }
-        const raw = await response.text();
-        let data = null;
-        try { data = raw ? JSON.parse(raw) : null; } catch (e) { data = null; }
-        if (response.ok) return data;
-        captureAuthClientLog({
-            url: url,
-            status: response.status,
-            raw: String(raw || '').slice(0, 500)
-        });
-        lastFail = {
-            status: response.status,
-            message: failDetail(data, ''),
-            code: data && data.detail && data.detail.code
-        };
-        if (response.status !== 404 && response.status !== 405) break;
-    }
-    if (lastFail) {
-        const err = new Error(lastFail.message || ('انجام این اقدام ممکن نشد. (HTTP ' + lastFail.status + ')'));
-        err.code = lastFail.code;
-        err.httpStatus = lastFail.status;
-        throw err;
-    }
-    throw new Error('ارتباط با سرور برقرار نشد.');
+    return authRequest(path, body);
 }
 
 async function lookupPhone(phone) {
-    try {
-        const data = await apiJson('/api/auth/gate', { phone: phone });
-        if (data && data.status) return data.status;
-    } catch (err) {
-        captureAuthClientLog({
-            step: 'gate-post-failed',
-            message: String(err && err.message)
-        });
-    }
-    const url = `${API_BASE_URL}/api/auth/gate?phone=${encodeURIComponent(phone)}`;
-    let response;
-    try {
-        response = await fetch(url, {
-            credentials: 'include',
-            headers: { Accept: 'application/json' }
-        });
-    } catch (networkErr) {
-        captureAuthClientLog({
-            url: url,
-            network: String(networkErr && networkErr.message)
-        });
-        throw new Error('ارتباط با سرور برقرار نشد.');
-    }
-    const raw = await response.text();
-    let data = null;
-    try { data = raw ? JSON.parse(raw) : null; } catch (e) { data = null; }
-    if (!response.ok) {
-        captureAuthClientLog({
-            url: url,
-            status: response.status,
-            raw: String(raw || '').slice(0, 500)
-        });
-        const message = failDetail(data, '');
-        throw new Error(message || ('انجام این اقدام ممکن نشد. (HTTP ' + response.status + ')'));
-    }
+    const data = await apiJson('/api/auth/gate', { phone: phone });
     return data && data.status;
 }
 
@@ -492,11 +391,7 @@ onReady(() => {
             const profile = await apiJson('/api/auth/login', { phone: currentPhone, password: password });
             finishSignedIn(profile);
         } catch (err) {
-            captureAuthClientLog({ step: 'login-json-failed', message: String(err && err.message) });
-            const form = event.currentTarget;
-            form.action = authApiRoot() + '/api/auth/login';
-            form.method = 'post';
-            form.submit();
+            showNotice(err.message || 'ورود ناموفق بود.');
         } finally {
             submit.disabled = false;
         }

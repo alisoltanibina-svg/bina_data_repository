@@ -9,6 +9,8 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import hashlib
 import json
 import os
@@ -23,7 +25,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator
 from fastapi.staticfiles import StaticFiles
 from starlette.datastructures import MutableHeaders
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -374,6 +376,67 @@ class AuthJsonContentTypeMiddleware:
         await self.app(scope, receive, send)
 
 
+def _read_auth_json(request: Request, raw: bytes) -> dict:
+    """JSON from body, form, or X-Auth-JSON (GET fallback when a proxy strips POST)."""
+    if raw:
+        text = raw.decode("utf-8", "replace").strip()
+        if text.startswith("{"):
+            try:
+                data = json.loads(text)
+            except json.JSONDecodeError:
+                data = None
+            if isinstance(data, dict):
+                return data
+        if text and "=" in text:
+            from urllib.parse import parse_qs
+
+            parsed = parse_qs(text, keep_blank_values=True)
+            return {key: (vals[-1] if vals else "") for key, vals in parsed.items()}
+    header = (request.headers.get("x-auth-json") or "").strip()
+    if not header:
+        return {}
+    write_auth_log("auth json header present")
+    try:
+        padded = header + ("=" * ((4 - len(header) % 4) % 4))
+        decoded = base64.b64decode(padded).decode("utf-8")
+        data = json.loads(decoded)
+        if isinstance(data, dict):
+            return data
+    except (ValueError, json.JSONDecodeError, binascii.Error, UnicodeDecodeError):
+        pass
+    try:
+        data = json.loads(header)
+        if isinstance(data, dict):
+            return data
+    except json.JSONDecodeError:
+        pass
+    return {}
+
+
+async def _json_from_request(request: Request) -> dict:
+    raw = await request.body()
+    data = dict(request.query_params)
+    data.pop("password", None)
+    data.update(_read_auth_json(request, raw))
+    return data
+
+
+def _validate_body(model, data: dict):
+    try:
+        return model.model_validate(data)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=_jsonable_errors(exc.errors())) from exc
+
+
+_AUTH_WRITE_METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH"]
+
+
+def _route_auth(path: str, func) -> None:
+    app.add_api_route(path, func, methods=_AUTH_WRITE_METHODS)
+    if not path.endswith("/"):
+        app.add_api_route(path + "/", func, methods=_AUTH_WRITE_METHODS)
+
+
 def _jsonable_errors(errors):
     """RequestValidationError.input can be raw bytes; JSONResponse cannot encode that."""
 
@@ -398,13 +461,14 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins(),
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=[
         "Accept",
         "Content-Type",
         "If-None-Match",
         "Authorization",
         "X-Requested-With",
+        "X-Auth-JSON",
         "Cache-Control",
         "Pragma",
     ],
@@ -853,43 +917,27 @@ def _gate_status_response(phone: str, request: Request) -> JSONResponse:
     return JSONResponse(content={"status": status}, headers=_AUTH_NO_STORE)
 
 
-def auth_gate(body: GateBody, request: Request):
-    return _gate_status_response(body.phone, request)
-
-
-def auth_gate_get(request: Request, phone: str = ""):
+async def auth_gate(request: Request):
+    data = await _json_from_request(request)
+    phone = str(data.get("phone") or "")
     if not phone:
-        write_auth_log(f"gate GET without phone origin={request.headers.get('origin')!s}")
+        write_auth_log(f"gate missing phone method={request.method}")
         raise HTTPException(
-            status_code=405,
-            detail={"code": "method", "message": "ارسال شماره باید با POST باشد."},
+            status_code=400,
+            detail={"code": "phone", "message": "شماره موبایل نامعتبر است."},
         )
     return _gate_status_response(phone, request)
 
 
-app.add_api_route("/api/auth/gate", auth_gate, methods=["POST"])
-app.add_api_route("/api/auth/gate/", auth_gate, methods=["POST"])
-app.add_api_route("/api/auth/gate", auth_gate_get, methods=["GET", "HEAD"])
-app.add_api_route("/api/auth/gate/", auth_gate_get, methods=["GET", "HEAD"])
+_route_auth("/api/auth/gate", auth_gate)
 
 
 def _parse_login_payload(raw: bytes, request: Request) -> tuple[str, str]:
-    from urllib.parse import parse_qs
-
     from backend.membership import normalize_phone
 
-    phone = request.query_params.get("phone") or ""
-    password = request.query_params.get("password") or ""
-    if raw:
-        text = raw.decode("utf-8", "replace").strip()
-        if text.startswith("{"):
-            data = json.loads(text)
-            phone = str(data.get("phone") or phone)
-            password = str(data.get("password") or password)
-        else:
-            parsed = parse_qs(text, keep_blank_values=True)
-            phone = (parsed.get("phone") or [phone])[0]
-            password = (parsed.get("password") or [password])[0]
+    data = _read_auth_json(request, raw)
+    phone = str(data.get("phone") or request.query_params.get("phone") or "")
+    password = str(data.get("password") or "")
     return normalize_phone(phone), password
 
 
@@ -927,12 +975,9 @@ async def auth_login(request: Request):
     return response
 
 
-app.add_api_route("/api/auth/login", auth_login, methods=["GET", "HEAD", "POST", "PUT", "PATCH"])
-app.add_api_route("/api/auth/login/", auth_login, methods=["GET", "HEAD", "POST", "PUT", "PATCH"])
+_route_auth("/api/auth/login", auth_login)
 
 
-@app.post("/api/auth/logout")
-@app.post("/api/auth/logout/")
 def auth_logout(request: Request):
     delete_session_token(request.cookies.get(SESSION_COOKIE) or "")
     response = JSONResponse(content={"ok": True}, headers=_AUTH_NO_STORE)
@@ -943,6 +988,9 @@ def auth_logout(request: Request):
         samesite="lax",
     )
     return response
+
+
+_route_auth("/api/auth/logout", auth_logout)
 
 
 @app.get("/api/auth/me")
@@ -1035,9 +1083,8 @@ class PasswordResetBody(BaseModel):
     password: str = Field(min_length=8, max_length=200)
 
 
-@app.post("/api/auth/otp/send")
-@app.post("/api/auth/otp/send/")
-def auth_otp_send(body: OtpSendBody):
+async def auth_otp_send(request: Request):
+    body = _validate_body(OtpSendBody, await _json_from_request(request))
     try:
         payload = send_otp(body.phone, body.purpose)
     except MembershipError as err:
@@ -1045,9 +1092,8 @@ def auth_otp_send(body: OtpSendBody):
     return JSONResponse(content=payload, headers=_AUTH_NO_STORE)
 
 
-@app.post("/api/auth/otp/verify")
-@app.post("/api/auth/otp/verify/")
-def auth_otp_verify(body: OtpVerifyBody):
+async def auth_otp_verify(request: Request):
+    body = _validate_body(OtpVerifyBody, await _json_from_request(request))
     try:
         payload = verify_otp(body.phone, body.purpose, body.code)
     except MembershipError as err:
@@ -1055,9 +1101,8 @@ def auth_otp_verify(body: OtpVerifyBody):
     return JSONResponse(content=payload, headers=_AUTH_NO_STORE)
 
 
-@app.post("/api/auth/register")
-@app.post("/api/auth/register/")
-def auth_register(body: RegisterBody):
+async def auth_register(request: Request):
+    body = _validate_body(RegisterBody, await _json_from_request(request))
     try:
         row = register_after_otp(
             body.first_name,
@@ -1072,9 +1117,13 @@ def auth_register(body: RegisterBody):
     return JSONResponse(content=row, status_code=201, headers=_AUTH_NO_STORE)
 
 
-@app.post("/api/auth/password/reset")
-@app.post("/api/auth/password/reset/")
-def auth_password_reset(body: PasswordResetBody, request: Request):
+_route_auth("/api/auth/otp/send", auth_otp_send)
+_route_auth("/api/auth/otp/verify", auth_otp_verify)
+_route_auth("/api/auth/register", auth_register)
+
+
+async def auth_password_reset(request: Request):
+    body = _validate_body(PasswordResetBody, await _json_from_request(request))
     try:
         result = reset_password_after_otp(body.phone, body.password)
     except MembershipError as err:
@@ -1082,6 +1131,9 @@ def auth_password_reset(body: PasswordResetBody, request: Request):
     response = JSONResponse(content=result["profile"], headers=_AUTH_NO_STORE)
     _set_session_cookie(response, result["token"], request)
     return response
+
+
+_route_auth("/api/auth/password/reset", auth_password_reset)
 
 
 @app.get("/api/admin/requests")
@@ -1111,9 +1163,9 @@ def admin_reject_request(request_id: int, request: Request, body: RejectBody | N
     return JSONResponse(content=row, headers=_AUTH_NO_STORE)
 
 
-@app.patch("/api/auth/profile")
-def auth_update_profile(body: ProfileBody, request: Request):
+async def auth_update_profile(request: Request):
     user = _require_user(request)
+    body = _validate_body(ProfileBody, await _json_from_request(request))
     try:
         profile = update_own_profile(
             user["id"],
@@ -1128,6 +1180,9 @@ def auth_update_profile(body: ProfileBody, request: Request):
     except MembershipError as err:
         _raise_membership(err)
     return JSONResponse(content=profile, headers=_AUTH_NO_STORE)
+
+
+_route_auth("/api/auth/profile", auth_update_profile)
 
 
 @app.post("/api/auth/profile/avatar")
