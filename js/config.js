@@ -34,6 +34,10 @@
 // برای آفلاین بودن از کامنت دربیاید
 (function (global) {
     var loc = global.location;
+    if (loc && /rasadbina\.ir$/i.test(loc.hostname || '') && loc.protocol === 'http:') {
+        loc.replace('https://' + loc.host + loc.pathname + loc.search + loc.hash);
+        return;
+    }
 
     if (!loc || loc.hostname === 'localhost' || loc.hostname === '127.0.0.1') {
         // صفحه از لپ‌تاپ باز شده: API همان سایت آنلاین
@@ -41,6 +45,6 @@
         return;
     }
 
-    // صفحه روی دامنه واقعی: مسیر نسبی /api
-    global.API_BASE_URL = '';
+    // صفحه روی دامنه واقعی: همان origin با https
+    global.API_BASE_URL = loc.origin || '';
 })(typeof window !== 'undefined' ? window : this);

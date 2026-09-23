@@ -22,7 +22,7 @@ from fastapi.exception_handlers import http_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel, Field, field_validator
 from fastapi.staticfiles import StaticFiles
 from starlette.datastructures import MutableHeaders
@@ -343,7 +343,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 
 class AuthJsonContentTypeMiddleware:
-    """Log every /api/auth hit and treat POST bodies as JSON if Content-Type is wrong."""
+    """Log /api/auth hits. Restore POST if a proxy turned it into GET but left a body."""
 
     def __init__(self, app):
         self.app = app
@@ -353,16 +353,24 @@ class AuthJsonContentTypeMiddleware:
             headers = MutableHeaders(scope=scope)
             qs = (scope.get("query_string") or b"").decode("latin-1")
             method = scope.get("method") or ""
+            cl = headers.get("content-length") or "0"
             write_auth_log(
                 "http "
                 f"method={method} path={scope.get('path')} qs={qs!s} "
                 f"origin={headers.get('origin')!s} "
-                f"content_type={headers.get('content-type')!s}"
+                f"xfp={headers.get('x-forwarded-proto')!s} "
+                f"cl={cl} content_type={headers.get('content-type')!s}"
             )
+            if method in {"GET", "HEAD"} and cl.isdigit() and int(cl) > 0:
+                write_auth_log(f"rewrite GET->POST path={scope.get('path')} cl={cl}")
+                scope = dict(scope)
+                scope["method"] = "POST"
+                method = "POST"
             if method in {"POST", "PUT", "PATCH"}:
                 ctype = (headers.get("content-type") or "").split(";")[0].strip().lower()
-                if ctype != "application/json":
-                    headers["content-type"] = "application/json"
+                if ctype not in {"application/json", "application/x-www-form-urlencoded", "multipart/form-data"}:
+                    if ctype != "application/x-www-form-urlencoded":
+                        headers["content-type"] = "application/json"
         await self.app(scope, receive, send)
 
 
@@ -865,33 +873,62 @@ app.add_api_route("/api/auth/gate", auth_gate_get, methods=["GET", "HEAD"])
 app.add_api_route("/api/auth/gate/", auth_gate_get, methods=["GET", "HEAD"])
 
 
-def auth_login(body: LoginBody, request: Request):
+def _parse_login_payload(raw: bytes, request: Request) -> tuple[str, str]:
+    from urllib.parse import parse_qs
+
+    from backend.membership import normalize_phone
+
+    phone = request.query_params.get("phone") or ""
+    password = request.query_params.get("password") or ""
+    if raw:
+        text = raw.decode("utf-8", "replace").strip()
+        if text.startswith("{"):
+            data = json.loads(text)
+            phone = str(data.get("phone") or phone)
+            password = str(data.get("password") or password)
+        else:
+            parsed = parse_qs(text, keep_blank_values=True)
+            phone = (parsed.get("phone") or [phone])[0]
+            password = (parsed.get("password") or [password])[0]
+    return normalize_phone(phone), password
+
+
+async def auth_login(request: Request):
+    raw = await request.body()
     write_auth_log(
-        f"login start phone={mask_phone(body.phone)} method={request.method} "
-        f"origin={request.headers.get('origin')!s}"
+        "login hit "
+        f"method={request.method} xfp={request.headers.get('x-forwarded-proto')!s} "
+        f"cl={request.headers.get('content-length')!s} body_len={len(raw)} "
+        f"ct={request.headers.get('content-type')!s} "
+        f"accept={request.headers.get('accept')!s}"
     )
-    result = authenticate(body.phone, body.password)
+    try:
+        phone, password = _parse_login_payload(raw, request)
+    except Exception as err:
+        write_auth_log("login parse", err)
+        raise HTTPException(status_code=400, detail=_LOGIN_FAIL) from err
+    if not phone or not password:
+        write_auth_log(f"login rejected method={request.method} body_len={len(raw)}")
+        raise HTTPException(
+            status_code=405 if request.method in {"GET", "HEAD"} else 400,
+            detail={"code": "method", "message": "ورود باید با POST باشد."},
+        )
+    result = authenticate(phone, password)
     if result is None:
         write_auth_log("login fail")
         raise HTTPException(status_code=401, detail=_LOGIN_FAIL)
-    write_auth_log("login ok")
-    response = JSONResponse(content=result["profile"], headers=_AUTH_NO_STORE)
+    write_auth_log(f"login ok phone={mask_phone(phone)}")
+    accept = (request.headers.get("accept") or "").lower()
+    if "text/html" in accept and "application/json" not in accept:
+        response = RedirectResponse("/", status_code=303, headers=_AUTH_NO_STORE)
+    else:
+        response = JSONResponse(content=result["profile"], headers=_AUTH_NO_STORE)
     _set_session_cookie(response, result["token"], request)
     return response
 
 
-def auth_login_wrong_method(request: Request):
-    write_auth_log(f"login rejected method={request.method}")
-    raise HTTPException(
-        status_code=405,
-        detail={"code": "method", "message": "ورود باید با POST باشد."},
-    )
-
-
-app.add_api_route("/api/auth/login", auth_login, methods=["POST"])
-app.add_api_route("/api/auth/login/", auth_login, methods=["POST"])
-app.add_api_route("/api/auth/login", auth_login_wrong_method, methods=["GET", "HEAD"])
-app.add_api_route("/api/auth/login/", auth_login_wrong_method, methods=["GET", "HEAD"])
+app.add_api_route("/api/auth/login", auth_login, methods=["GET", "HEAD", "POST", "PUT", "PATCH"])
+app.add_api_route("/api/auth/login/", auth_login, methods=["GET", "HEAD", "POST", "PUT", "PATCH"])
 
 
 @app.post("/api/auth/logout")

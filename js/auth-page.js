@@ -266,9 +266,23 @@ function showStatus(title, text) {
     showPanel('auth-status');
 }
 
+function authApiRoot() {
+    if (typeof API_BASE_URL === 'string' && API_BASE_URL) return API_BASE_URL.replace(/\/+$/, '');
+    try {
+        if (window.location && window.location.origin) {
+            const origin = window.location.origin;
+            if (window.location.protocol === 'http:' && /rasadbina\.ir$/i.test(window.location.hostname || '')) {
+                return origin.replace(/^http:/i, 'https:');
+            }
+            return origin;
+        }
+    } catch (e) {}
+    return '';
+}
+
 function authPostUrls(path) {
-    const root = typeof API_BASE_URL === 'string' ? API_BASE_URL : '';
-    const clean = path.startsWith('/') ? path : '/' + path;
+    const root = authApiRoot();
+    const clean = (path.startsWith('/') ? path : '/' + path).replace(/\/+$/, '');
     const urls = [root + clean, root + clean + '/'];
     if (/^http:\/\//i.test(root)) {
         const httpsRoot = root.replace(/^http:/i, 'https:');
@@ -470,13 +484,19 @@ onReady(() => {
             document.getElementById('login-password').focus();
             return;
         }
+        const phoneField = document.getElementById('login-phone');
+        if (phoneField) phoneField.value = currentPhone;
         const submit = document.getElementById('login-submit');
         submit.disabled = true;
         try {
             const profile = await apiJson('/api/auth/login', { phone: currentPhone, password: password });
             finishSignedIn(profile);
         } catch (err) {
-            showNotice(err.message || 'ورود ناموفق بود.');
+            captureAuthClientLog({ step: 'login-json-failed', message: String(err && err.message) });
+            const form = event.currentTarget;
+            form.action = authApiRoot() + '/api/auth/login';
+            form.method = 'post';
+            form.submit();
         } finally {
             submit.disabled = false;
         }
