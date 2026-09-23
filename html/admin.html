@@ -9,7 +9,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>پذیرش درخواست‌ها — دیده‌بان فرهنگ</title>
+    <title>پنل مدیریت — دیده‌بان فرهنگ</title>
     <link rel="icon" href="../assets/images/Logo.webp" type="image/webp">
     <link rel="stylesheet" href="../assets/fonts/peyda.css">
     <script src="../js/force-motion.js"></script>
@@ -29,10 +29,15 @@
     <main class="admin-workspace">
         <header class="admin-head">
             <p class="admin-kicker">پنل مدیریت</p>
-            <h1>درخواست‌های عضویت</h1>
-            <p class="admin-lead">درخواست‌های ثبت‌نام را بررسی کنید. پذیرش، حساب را می‌سازد؛ رد، فقط پرونده را می‌بندد.</p>
+            <div class="admin-views" role="tablist" aria-label="بخش پنل">
+                <button type="button" class="admin-view-tab is-active" role="tab" aria-selected="true" data-view="requests">درخواست‌های عضویت</button>
+                <button type="button" class="admin-view-tab" role="tab" aria-selected="false" data-view="users">حساب‌ها و عکس‌ها</button>
+            </div>
+            <h1 id="admin-title">درخواست‌های عضویت</h1>
+            <p class="admin-lead" id="admin-lead">درخواست‌های ثبت‌نام را بررسی کنید. پذیرش، حساب را می‌سازد؛ رد، فقط پرونده را می‌بندد.</p>
         </header>
 
+        <div id="view-requests">
         <section class="admin-stats" aria-label="خلاصه وضعیت">
             <article class="admin-stat" data-stat="pending">
                 <p class="admin-stat-label">در انتظار</p>
@@ -149,6 +154,85 @@
                 </div>
             </aside>
         </section>
+        </div>
+
+        <div id="view-users" hidden>
+            <section class="admin-board">
+                <div class="admin-list-pane">
+                    <div class="admin-toolbar">
+                        <div class="admin-filters" id="user-filters">
+                            <label class="admin-filter">
+                                <span>نام</span>
+                                <input type="search" id="user-filter-first_name" data-user-filter="first_name" autocomplete="off">
+                            </label>
+                            <label class="admin-filter">
+                                <span>نام خانوادگی</span>
+                                <input type="search" id="user-filter-last_name" data-user-filter="last_name" autocomplete="off">
+                            </label>
+                            <label class="admin-filter">
+                                <span>شماره</span>
+                                <input type="search" id="user-filter-phone" data-user-filter="phone" dir="ltr" inputmode="numeric" maxlength="11" autocomplete="off">
+                            </label>
+                            <button type="button" class="admin-btn admin-btn-ghost admin-filters-clear" id="user-filters-clear" hidden>پاک کردن فیلتر</button>
+                        </div>
+                    </div>
+                    <div class="admin-table-wrap" id="users-table-wrap">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">عکس</th>
+                                    <th scope="col">نام</th>
+                                    <th scope="col">شماره</th>
+                                    <th scope="col">سمت</th>
+                                    <th scope="col">عکس</th>
+                                </tr>
+                            </thead>
+                            <tbody id="users-tbody"></tbody>
+                        </table>
+                        <div class="admin-empty" id="users-empty" hidden>
+                            <p class="admin-empty-title" id="users-empty-title">حسابی نیست</p>
+                            <p id="users-empty-text">پس از پذیرش عضویت، حساب‌ها اینجا دیده می‌شوند.</p>
+                        </div>
+                    </div>
+                </div>
+                <aside class="admin-detail" id="user-detail" hidden>
+                    <div class="admin-detail-inner">
+                        <div class="admin-detail-head">
+                            <p class="admin-kicker">حساب</p>
+                            <button type="button" class="admin-icon-btn" id="user-detail-close" aria-label="بستن پرونده">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+                                    <path d="M18 6L6 18M6 6l12 12"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="admin-user-photo" id="user-photo-wrap">
+                            <img id="user-photo" alt="" hidden>
+                            <span id="user-photo-empty">بدون عکس</span>
+                        </div>
+                        <h2 id="user-detail-name"></h2>
+                        <dl class="admin-fields">
+                            <div>
+                                <dt>شماره تماس</dt>
+                                <dd id="user-detail-phone" dir="ltr"></dd>
+                            </div>
+                            <div>
+                                <dt>سمت</dt>
+                                <dd id="user-detail-role"></dd>
+                            </div>
+                            <div>
+                                <dt>سازمان</dt>
+                                <dd id="user-detail-org"></dd>
+                            </div>
+                        </dl>
+                        <div class="admin-detail-actions" id="user-photo-actions"></div>
+                        <div class="admin-revisions" id="user-revisions-wrap">
+                            <p class="admin-kicker">سابقه ویرایش</p>
+                            <ol class="admin-revision-list" id="user-revisions"></ol>
+                        </div>
+                    </div>
+                </aside>
+            </section>
+        </div>
     </main>
 
     <div class="admin-dialog-root" id="admin-dialog-root" hidden>

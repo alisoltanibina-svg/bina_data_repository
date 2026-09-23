@@ -17,10 +17,10 @@ from contextlib import asynccontextmanager
 
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -44,13 +44,19 @@ from backend.membership import (
     MembershipError,
     approve_registration,
     authenticate,
+    avatar_download,
+    clear_user_avatar,
     delete_session_token,
+    get_user_for_admin,
     list_registration_requests,
+    list_users_for_admin,
     profile_from_session_token,
     reject_registration,
     repair_approved_user_hashes,
     seed_admin,
+    set_user_avatar,
     submit_registration,
+    update_own_profile,
 )
 from backend.ratelimit import RateLimitMiddleware
 
@@ -724,12 +730,20 @@ class RejectBody(BaseModel):
     note: str = ""
 
 
+class ProfileBody(BaseModel):
+    first_name: str = Field(min_length=1, max_length=80)
+    last_name: str = Field(min_length=1, max_length=80)
+    role_title: str = ""
+    organization: str = ""
+
+
 _MEMBERSHIP_HTTP = {
     "first_name": 400,
     "last_name": 400,
     "phone": 400,
     "role": 400,
     "password": 400,
+    "avatar": 400,
     "pending": 409,
     "exists": 409,
     "not-found": 404,
@@ -744,10 +758,15 @@ def _raise_membership(err: MembershipError) -> None:
     )
 
 
-def _require_admin(request: Request) -> dict:
+def _require_user(request: Request) -> dict:
     profile = profile_from_session_token(request.cookies.get(SESSION_COOKIE) or "")
     if profile is None:
         raise HTTPException(status_code=401, detail="وارد نشده‌اید.")
+    return profile
+
+
+def _require_admin(request: Request) -> dict:
+    profile = _require_user(request)
     if not profile.get("is_admin"):
         raise HTTPException(status_code=403, detail="این بخش فقط برای مدیر است.")
     return profile
@@ -794,6 +813,84 @@ def admin_reject_request(request_id: int, request: Request, body: RejectBody | N
     except MembershipError as err:
         _raise_membership(err)
     return JSONResponse(content=row, headers=_AUTH_NO_STORE)
+
+
+@app.patch("/api/auth/profile")
+def auth_update_profile(body: ProfileBody, request: Request):
+    user = _require_user(request)
+    try:
+        profile = update_own_profile(
+            user["id"],
+            body.first_name,
+            body.last_name,
+            body.role_title,
+            body.organization,
+        )
+    except MembershipError as err:
+        _raise_membership(err)
+    return JSONResponse(content=profile, headers=_AUTH_NO_STORE)
+
+
+@app.post("/api/auth/profile/avatar")
+async def auth_upload_avatar(request: Request, file: UploadFile = File(...)):
+    user = _require_user(request)
+    data = await file.read()
+    try:
+        profile = set_user_avatar(user["id"], data, user["id"], "self")
+    except MembershipError as err:
+        _raise_membership(err)
+    return JSONResponse(content=profile, headers=_AUTH_NO_STORE)
+
+
+@app.delete("/api/auth/profile/avatar")
+def auth_delete_avatar(request: Request):
+    user = _require_user(request)
+    try:
+        profile = clear_user_avatar(user["id"], user["id"], "self")
+    except MembershipError as err:
+        _raise_membership(err)
+    return JSONResponse(content=profile, headers=_AUTH_NO_STORE)
+
+
+@app.get("/api/admin/users")
+def admin_list_users(request: Request):
+    _require_admin(request)
+    return JSONResponse(content=list_users_for_admin(), headers=_AUTH_NO_STORE)
+
+
+@app.get("/api/admin/users/{user_id}")
+def admin_get_user(user_id: int, request: Request):
+    _require_admin(request)
+    try:
+        payload = get_user_for_admin(user_id)
+    except MembershipError as err:
+        _raise_membership(err)
+    return JSONResponse(content=payload, headers=_AUTH_NO_STORE)
+
+
+@app.get("/api/admin/users/{user_id}/avatar")
+def admin_download_avatar(user_id: int, request: Request):
+    _require_admin(request)
+    try:
+        path, filename = avatar_download(user_id)
+    except MembershipError as err:
+        _raise_membership(err)
+    return FileResponse(
+        path=str(path),
+        media_type="image/webp",
+        filename=filename,
+        headers=_AUTH_NO_STORE,
+    )
+
+
+@app.delete("/api/admin/users/{user_id}/avatar")
+def admin_delete_avatar(user_id: int, request: Request):
+    admin = _require_admin(request)
+    try:
+        profile = clear_user_avatar(user_id, admin["id"], "admin")
+    except MembershipError as err:
+        _raise_membership(err)
+    return JSONResponse(content=profile, headers=_AUTH_NO_STORE)
 
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent

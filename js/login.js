@@ -16,9 +16,7 @@ function setError(name, message) {
     }
 }
 
-function normalizePhone(raw) {
-    return digitsOnlyPhone(raw);
-}
+
 
 function failDetail(data) {
     if (!data || data.detail == null) return 'ورود ناموفق بود.';
@@ -34,7 +32,7 @@ onReady(() => {
         event.preventDefault();
         setError('phone', '');
         setError('password', '');
-        const phone = normalizePhone(document.getElementById('phone').value);
+        const phone = digitsOnlyPhone(document.getElementById('phone').value);
         const password = document.getElementById('password').value;
         let first = '';
         if (!/^09\d{9}$/.test(phone)) {

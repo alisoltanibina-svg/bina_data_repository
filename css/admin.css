@@ -71,6 +71,37 @@ body.admin-body {
     color: var(--ad-muted);
 }
 
+.admin-views {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0 0 12px;
+}
+
+.admin-view-tab {
+    height: 34px;
+    padding: 0 12px 1px;
+    border: 1px solid var(--ad-line);
+    border-radius: var(--ad-pill);
+    background: #fff;
+    color: var(--ad-muted);
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.admin-view-tab:hover {
+    color: var(--ad-ink);
+    background: rgba(27, 36, 46, 0.04);
+}
+
+.admin-view-tab.is-active {
+    background: var(--ad-ink);
+    color: #fff;
+    border-color: var(--ad-ink);
+}
+
 .admin-head h1 {
     margin: 0;
     font-size: 1.5rem;
@@ -187,6 +218,7 @@ body.admin-body {
 }
 
 .admin-tab:focus-visible,
+.admin-view-tab:focus-visible,
 .admin-btn:focus-visible,
 .admin-icon-btn:focus-visible,
 .admin-filter input:focus-visible,
@@ -543,6 +575,105 @@ body.admin-body {
     justify-content: flex-end;
     gap: 8px;
     margin-top: 16px;
+}
+
+#view-requests,
+#view-users {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+#view-users .admin-board {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+#view-requests[hidden],
+#view-users[hidden] { display: none; }
+
+.admin-avatar-cell {
+    width: 44px;
+}
+
+.admin-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: #eef0f4;
+    display: block;
+}
+
+.admin-avatar.is-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ad-muted);
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.admin-user-photo {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: #eef0f4;
+    margin: 12px 0 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.admin-user-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.admin-user-photo img[hidden] { display: none; }
+
+#user-photo-empty {
+    font-size: 0.8rem;
+    color: var(--ad-muted);
+    font-weight: 600;
+}
+
+.admin-revisions {
+    margin-top: 22px;
+}
+
+.admin-revision-list {
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.admin-revision-list li {
+    padding: 10px 12px;
+    border: 1px solid var(--ad-line);
+    border-radius: 10px;
+    background: var(--ad-paper);
+}
+
+.admin-revision-when {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--ad-muted);
+    font-weight: 600;
+}
+
+.admin-revision-fields {
+    margin: 4px 0 0;
+    font-size: 0.85rem;
+    line-height: 1.6;
 }
 
 @media (max-width: 960px) {

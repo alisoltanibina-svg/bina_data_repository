@@ -19,6 +19,7 @@ from sqlalchemy import (
     func,
     text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -179,6 +180,11 @@ class User(Base):
     approved_by: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL")
     )
+    avatar_path: Mapped[str | None] = mapped_column(String(255))
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
 
 
 class RegistrationRequest(Base):
@@ -233,6 +239,33 @@ class UserSession(Base):
     )
     token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+
+class ProfileRevision(Base):
+    """Append-only log of profile field and avatar changes."""
+
+    __tablename__ = "profile_revisions"
+    __table_args__ = (
+        CheckConstraint(
+            "source IN ('self', 'admin', 'system')",
+            name="ck_profile_revisions_source",
+        ),
+        Index("idx_profile_revisions_user_created", "user_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    actor_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL")
+    )
+    source: Mapped[str] = mapped_column(String(16), nullable=False)
+    changes: Mapped[dict] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

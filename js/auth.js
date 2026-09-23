@@ -37,6 +37,7 @@
             const name = displayName(profile);
             if (nameEl) nameEl.textContent = name;
             if (roleEl) roleEl.textContent = roleLine(profile);
+            applyBannerAvatar(profile.avatar_url);
             return;
         }
         if (authBtn) authBtn.hidden = false;
@@ -44,6 +45,7 @@
         if (box) box.classList.remove('is-signed-in');
         if (nameEl) nameEl.textContent = '';
         if (roleEl) roleEl.textContent = '';
+        applyBannerAvatar('');
     }
 
     function loadProfile() {

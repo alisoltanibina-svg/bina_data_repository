@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!--
   File: profile.html
-  Purpose: Signed-in user profile. Photo is preview-only until avatar storage exists.
-  Notes: Visible UI strings remain in Persian. Does not write to the database.
+  Purpose: Signed-in user profile editor with circular avatar crop and server save.
+  Notes: Visible UI strings remain in Persian.
 -->
 
 <html lang="fa" dir="rtl" class="treat-v1">
@@ -31,7 +31,7 @@
         <section class="register-card">
             <p class="register-kicker">حساب کاربری</p>
             <h1>ویرایش پروفایل</h1>
-            <p class="register-lead">نام و سمت خود را ببینید و یک عکس برای دکمهٔ دایرهٔ بنر انتخاب کنید.</p>
+            <p class="register-lead">نام و سمت را ویرایش کنید و عکس را با دایرهٔ حساب در بنر هماهنگ کنید.</p>
 
             <form id="profile-form" novalidate>
                 <div class="profile-photo">
@@ -44,7 +44,7 @@
                             </svg>
                         </span>
                     </button>
-                    <p class="profile-photo-hint">برای انتخاب عکس روی دایره بزنید. JPG، PNG یا WebP، حداکثر ۵ مگابایت.</p>
+                    <p class="profile-photo-hint">روی دایره بزنید، عکس را برش دهید تا با دایرهٔ بنر یکی شود. JPG، PNG یا WebP، حداکثر ۵ مگابایت.</p>
                     <button type="button" class="profile-photo-clear" id="avatar-clear" hidden>حذف عکس</button>
                 </div>
 
@@ -76,12 +76,38 @@
                     <input type="text" id="organization" name="organization" autocomplete="organization" maxlength="80">
                 </label>
 
-                <p class="register-hint">عکس فعلاً فقط در همین صفحه پیش‌نمایش می‌شود و در پایگاه داده ذخیره نمی‌شود.</p>
+                <p class="register-hint">تغییرات نام، سمت و عکس در حساب شما ذخیره می‌شود.</p>
                 <button type="submit" class="register-submit" id="profile-submit">ثبت تغییرات</button>
                 <a class="register-submit register-link" id="profile-admin-link" hidden>پنل مدیریت</a>
             </form>
         </section>
     </main>
+
+    <div class="avatar-crop-root" id="avatar-crop-root" hidden>
+        <div class="avatar-crop-backdrop" data-crop-dismiss></div>
+        <div class="avatar-crop-dialog" role="dialog" aria-modal="true" aria-labelledby="avatar-crop-title">
+            <h2 id="avatar-crop-title">برش عکس</h2>
+            <p class="avatar-crop-lead">عکس را بکشید و بزرگنمایی کنید تا صورت در دایرهٔ بنر قرار بگیرد.</p>
+            <div class="avatar-crop-stage" id="avatar-crop-stage">
+                <img id="avatar-crop-image" alt="">
+                <div class="avatar-crop-mask" aria-hidden="true"></div>
+            </div>
+            <div class="avatar-crop-banner-row">
+                <span>پیش‌نمایش دایرهٔ بنر</span>
+                <span class="avatar-crop-banner-circle" id="avatar-crop-mini-wrap">
+                    <img id="avatar-crop-mini" alt="">
+                </span>
+            </div>
+            <label class="avatar-crop-zoom">
+                <span>بزرگنمایی</span>
+                <input type="range" id="avatar-crop-zoom" min="1" max="4" step="0.01" value="1">
+            </label>
+            <div class="avatar-crop-actions">
+                <button type="button" class="profile-photo-clear" id="avatar-crop-cancel">انصراف</button>
+                <button type="button" class="register-submit" id="avatar-crop-ok">تأیید برش</button>
+            </div>
+        </div>
+    </div>
 
 </body>
 </html>

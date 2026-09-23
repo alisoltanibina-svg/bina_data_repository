@@ -118,7 +118,7 @@ async function loadExplorerData() {
             }
             setTimeout(() => loadIndicator(queryIndicator, queryTopic), 50);
         } else if (queryOpenTopic) {
-            expandMosaicTopic(queryOpenTopic);
+            openTopicIndex(queryOpenTopic);
         }
 
     } catch (err) {
@@ -141,19 +141,6 @@ function applyExplorerTheme(topic) {
     } catch (e) {}
 }
 
-function bubbleUrl(topic, subtopic) {
-    return SITE.page(`bubble-chart.html?topic=${encodeURIComponent(topic)}&subtopic=${encodeURIComponent(subtopic)}&source=${encodeURIComponent(window.explorerSource || 'atlas')}`);
-}
-
-function firstBubbleHref() {
-    const topics = mosaicTopics();
-    for (const topic of topics) {
-        const subs = Object.keys(topicsHierarchy[topic] || {});
-        if (subs.length) return bubbleUrl(topic, subs[0]);
-    }
-    return SITE.page(`bubble-chart.html?source=${encodeURIComponent(window.explorerSource || 'atlas')}`);
-}
-
 function countTopicIndicators(topic) {
     return Object.values(topicsHierarchy[topic] || {}).reduce((n, list) => n + (list ? list.length : 0), 0);
 }
@@ -161,7 +148,6 @@ function countTopicIndicators(topic) {
 let mosaicAnimCtx = null;
 let mosaicRenderGen = 0;
 let mosaicLayoutKey = '';
-let flippedTopic = null;
 
 function mosaicTopics() {
     return Object.keys(topicsHierarchy).filter(topic => {
@@ -288,85 +274,6 @@ function openTopicIndex(topic) {
     loadIndicator(indicator, topic);
 }
 
-function landingScroller() {
-    return document.getElementById('view-landing') || window;
-}
-
-function attachSmoothWheel(scroller) {
-    if (!scroller || scroller === window || scroller.dataset.smoothScroll === '1') return;
-    scroller.dataset.smoothScroll = '1';
-
-    let current = scroller.scrollTop;
-    let target = scroller.scrollTop;
-    let raf = 0;
-    const ease = 0.16;
-
-    function maxScroll() {
-        return Math.max(0, scroller.scrollHeight - scroller.clientHeight);
-    }
-
-    function tick() {
-        current += (target - current) * ease;
-        if (Math.abs(target - current) < 0.5) {
-            current = target;
-            scroller.scrollTop = current;
-            raf = 0;
-            return;
-        }
-        scroller.scrollTop = current;
-        raf = requestAnimationFrame(tick);
-    }
-
-    function run() {
-        if (!raf) raf = requestAnimationFrame(tick);
-    }
-
-    function clamp(y) {
-        return Math.max(0, Math.min(maxScroll(), y));
-    }
-
-    scroller.__smoothScrollTo = function (y) {
-        current = scroller.scrollTop;
-        target = clamp(y);
-        run();
-    };
-    scroller.__smoothJump = function (y) {
-        current = target = clamp(y);
-        scroller.scrollTop = current;
-        if (raf) {
-            cancelAnimationFrame(raf);
-            raf = 0;
-        }
-    };
-
-    scroller.addEventListener('wheel', function (e) {
-        if (e.ctrlKey || e.defaultPrevented) return;
-        const nested = e.target.closest('.ex-room-sheet, .ex-prov-list, aside, [data-no-smooth-scroll]');
-        if (nested && nested !== scroller && nested.scrollHeight > nested.clientHeight + 2) {
-            const atTop = nested.scrollTop <= 0 && e.deltaY < 0;
-            const atBottom = nested.scrollTop + nested.clientHeight >= nested.scrollHeight - 2 && e.deltaY > 0;
-            if (!atTop && !atBottom) return;
-        }
-        e.preventDefault();
-        current = scroller.scrollTop;
-        let dy = e.deltaY;
-        if (e.deltaMode === 1) dy *= 28;
-        else if (e.deltaMode === 2) dy *= scroller.clientHeight * 0.85;
-        target = clamp(target + dy);
-        run();
-    }, { passive: false });
-
-    scroller.addEventListener('scroll', function () {
-        if (raf) return;
-        current = scroller.scrollTop;
-        target = scroller.scrollTop;
-    }, { passive: true });
-}
-
-function initExplorerSmoothScroll() {
-    attachSmoothWheel(document.getElementById('view-landing'));
-}
-
 function isLandingVisible() {
     const el = document.getElementById('view-landing');
     return !!(el && el.style.display !== 'none' && !el.classList.contains('hidden'));
@@ -401,41 +308,6 @@ function waitForMosaicImages(root) {
     })));
 }
 
-function indexEmptyHtml() {
-    return `
-        <div class="ex-panel-empty">
-            <p class="ex-kicker">شاخص‌ها</p>
-            <p>موضوعی را از بالا انتخاب کنید</p>
-        </div>
-    `;
-}
-
-function topicBackHtml(topic) {
-    const subtopics = topicsHierarchy[topic] || {};
-    const listHtml = Object.keys(subtopics).map(sub => `
-        <div class="ex-sub">
-            <span class="ex-sub-name">${escapeHtml(sub)}</span>
-            <div class="ex-inds">
-            ${subtopics[sub].map(ind => `
-                <button type="button" class="mosaic-ind" data-indicator="${escapeHtml(ind)}" data-topic="${escapeHtml(topic)}">
-                    <span class="mosaic-ind-dot"></span>
-                    <span>${escapeHtml(ind)}</span>
-                </button>
-            `).join('')}
-            </div>
-        </div>
-    `).join('');
-    return `
-        <div class="ex-sheet-head">
-            <h3>${escapeHtml(topic)}</h3>
-            <button type="button" class="ex-sheet-close" aria-label="بستن">
-                <i class="fa-solid fa-xmark"></i>
-            </button>
-        </div>
-        ${listHtml}
-    `;
-}
-
 function topicFlipHtml(topic, index, cols) {
     const col = index % cols;
     const n = countTopicIndicators(topic);
@@ -452,127 +324,6 @@ function topicFlipHtml(topic, index, cols) {
             </button>
         </article>
     `;
-}
-
-function bubblePreviewHtml() {
-    return `
-        <section class="ex-panel ex-bubble-panel">
-            <div class="ex-panel-grain" aria-hidden="true"></div>
-            <div class="ex-bubbles" id="ex-bubbles">
-                <span class="ex-bubble-axis ex-bubble-axis-x"></span>
-                <span class="ex-bubble-axis ex-bubble-axis-y"></span>
-            </div>
-            <div class="ex-panel-copy">
-                <h3>نمودار حبابی</h3>
-                <p>وزن شاخص‌ها را عوض کنید و ببینید استان‌ها چطور جابه‌جا می‌شوند</p>
-                <a class="ex-build bubble-build-bar" href="${escapeHtml(firstBubbleHref())}">شاخص خودت را بساز</a>
-            </div>
-        </section>
-    `;
-}
-
-const BUBBLE_PREVIEW = [
-    { name: 'تهران', x: 26, y: 40, s: 92 },
-    { name: 'مشهد', x: 48, y: 28, s: 70 },
-    { name: 'اصفهان', x: 66, y: 52, s: 62 },
-    { name: 'شیراز', x: 38, y: 66, s: 52 },
-    { name: 'تبریز', x: 16, y: 58, s: 48 },
-    { name: 'اهواز', x: 78, y: 36, s: 44 },
-    { name: 'قم', x: 56, y: 74, s: 36 },
-    { name: 'رشت', x: 72, y: 68, s: 40 }
-];
-
-function initBubblePreview(root) {
-    const stage = root.querySelector('#ex-bubbles');
-    if (!stage) return;
-    BUBBLE_PREVIEW.forEach((b, i) => {
-        const el = document.createElement('button');
-        el.type = 'button';
-        el.className = 'ex-bubble';
-        el.textContent = b.name;
-        el.style.left = b.x + '%';
-        el.style.top = b.y + '%';
-        el.style.width = b.s + 'px';
-        el.style.height = b.s + 'px';
-        el.style.marginLeft = -(b.s / 2) + 'px';
-        el.style.marginTop = -(b.s / 2) + 'px';
-        el.style.animationDelay = (-i * 0.4) + 's';
-        el.setAttribute('aria-label', b.name);
-        stage.appendChild(el);
-        bindBubbleDrag(el, stage);
-    });
-}
-
-function bindBubbleDrag(el, stage) {
-    let dragging = false;
-    let startX = 0;
-    let startY = 0;
-    let origLeft = 0;
-    let origTop = 0;
-
-    el.addEventListener('pointerdown', (e) => {
-        dragging = true;
-        el.setPointerCapture(e.pointerId);
-        el.style.animationPlayState = 'paused';
-        el.style.zIndex = '8';
-        const rect = stage.getBoundingClientRect();
-        const box = el.getBoundingClientRect();
-        startX = e.clientX;
-        startY = e.clientY;
-        origLeft = ((box.left + box.width / 2) - rect.left) / rect.width * 100;
-        origTop = ((box.top + box.height / 2) - rect.top) / rect.height * 100;
-    });
-    el.addEventListener('pointermove', (e) => {
-        if (!dragging) return;
-        const rect = stage.getBoundingClientRect();
-        const dx = (e.clientX - startX) / rect.width * 100;
-        const dy = (e.clientY - startY) / rect.height * 100;
-        const left = Math.max(8, Math.min(92, origLeft + dx));
-        const top = Math.max(10, Math.min(86, origTop + dy));
-        el.style.left = left + '%';
-        el.style.top = top + '%';
-    });
-    const stop = () => {
-        if (!dragging) return;
-        dragging = false;
-        el.style.animationPlayState = '';
-        el.style.zIndex = '';
-    };
-    el.addEventListener('pointerup', stop);
-    el.addEventListener('pointercancel', stop);
-}
-
-function fillIndexPanel(topic) {
-    const body = document.getElementById('ex-index-body');
-    if (!body) return;
-    if (!topic) {
-        body.innerHTML = indexEmptyHtml();
-        return;
-    }
-    body.innerHTML = topicBackHtml(topic);
-    const closeBtn = body.querySelector('.ex-sheet-close');
-    if (closeBtn) {
-        closeBtn.addEventListener('click', () => setTopicFlipped(topic, false));
-    }
-    body.querySelectorAll('.mosaic-ind').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.preventDefault();
-            loadIndicator(btn.dataset.indicator, btn.dataset.topic);
-        });
-    });
-}
-
-function setTopicFlipped(topic, on) {
-    const cards = document.querySelectorAll('.ex-room');
-    cards.forEach(card => {
-        const match = on && card.dataset.topic === topic;
-        card.classList.toggle('is-open', match);
-        const face = card.querySelector('.ex-room-face');
-        if (face) face.setAttribute('aria-expanded', match ? 'true' : 'false');
-    });
-    flippedTopic = on ? topic : null;
-    if (on && topic) applyExplorerTheme(topic);
-    fillIndexPanel(on ? topic : null);
 }
 
 function bindMosaicInteractions(container) {
@@ -648,7 +399,7 @@ function renderMosaicMenu() {
     const layout = mosaicLayout();
     mosaicLayoutKey = String(layout.cols);
     const firstTopic = topics[0];
-    if (firstTopic) applyExplorerTheme(flippedTopic && topics.includes(flippedTopic) ? flippedTopic : firstTopic);
+    if (firstTopic) applyExplorerTheme(firstTopic);
 
     const topicCards = topics.map((topic, i) => topicFlipHtml(topic, i, layout.cols)).join('');
     const rows = Math.max(1, Math.ceil(topics.length / layout.cols));
@@ -678,10 +429,6 @@ function renderMosaicMenu() {
         if (gen !== mosaicRenderGen) return;
         initStaggeredAnimations(container);
     });
-}
-
-function expandMosaicTopic(topic) {
-    openTopicIndex(topic);
 }
 
 async function loadIndicator(indicatorName, topicName) {
@@ -743,20 +490,12 @@ async function loadIndicator(indicatorName, topicName) {
 
 function goBackToLanding() {
     document.getElementById('view-dashboard').classList.add('hidden');
-    document.getElementById('main-header').classList.add('hidden');
+    const header = document.getElementById('main-header');
+    if (header) header.classList.add('hidden');
     const landing = document.getElementById('view-landing');
     landing.style.display = '';
     landing.classList.remove('hidden');
-    flippedTopic = null;
-    if (typeof landing.__smoothJump === 'function') landing.__smoothJump(0);
-    else landing.scrollTop = 0;
     renderMosaicMenu();
-    if (typeof landing.__smoothJump === 'function') landing.__smoothJump(0);
-    else landing.scrollTop = 0;
-    requestAnimationFrame(() => {
-        if (typeof landing.__smoothJump === 'function') landing.__smoothJump(0);
-        else landing.scrollTop = 0;
-    });
 }
 
 function renderProvincesList() {
@@ -1138,7 +877,7 @@ function startExplorer() {
     if (applyChartDefaults()) registerExplorerChartPlugin();
     else showNotice('مشکل در بارگذاری نمودار.');
     bindExplorerChrome();
-    initExplorerSmoothScroll();
+
     loadExplorerData();
 }
 

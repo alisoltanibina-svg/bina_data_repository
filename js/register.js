@@ -22,10 +22,6 @@ function clearErrors() {
     FIELDS.forEach(name => setError(name, ''));
 }
 
-function normalizePhone(raw) {
-    return digitsOnlyPhone(raw);
-}
-
 function isMobilePhone(phone) {
     return /^09\d{9}$/.test(phone);
 }
@@ -53,7 +49,7 @@ function validate(values) {
     else if (plainTextError(values.first_name)) errors.first_name = plainTextError(values.first_name);
     if (values.last_name.length < 2) errors.last_name = 'نام خانوادگی را وارد کنید.';
     else if (plainTextError(values.last_name)) errors.last_name = plainTextError(values.last_name);
-    if (!isMobilePhone(normalizePhone(values.phone))) errors.phone = 'شماره موبایل باید ۱۱ رقم و با ۰۹ شروع شود.';
+    if (!isMobilePhone(digitsOnlyPhone(values.phone))) errors.phone = 'شماره موبایل باید ۱۱ رقم و با ۰۹ شروع شود.';
     if (!values.role_title) errors.role_title = 'سمت را وارد کنید.';
     else if (plainTextError(values.role_title)) errors.role_title = plainTextError(values.role_title);
     if (plainTextError(values.organization)) errors.organization = plainTextError(values.organization);
@@ -109,7 +105,7 @@ onReady(() => {
                 body: JSON.stringify({
                     first_name: values.first_name,
                     last_name: values.last_name,
-                    phone: normalizePhone(values.phone),
+                    phone: digitsOnlyPhone(values.phone),
                     role_title: values.role_title,
                     organization: values.organization,
                     password: values.password

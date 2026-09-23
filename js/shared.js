@@ -26,11 +26,6 @@ function hexToRgb(hex, fallback) {
     };
 }
 
-function rgbaFromHex(hex, a, fallback) {
-    const c = hexToRgb(hex, fallback);
-    return `rgba(${c.r}, ${c.g}, ${c.b}, ${a})`;
-}
-
 function toFa(num) {
     if (num === null || num === undefined) return '';
     return String(num).replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]);
@@ -162,4 +157,26 @@ function looksLikeCodeOrUrl(value) {
 function plainTextError(value) {
     if (looksLikeCodeOrUrl(value)) return 'این فیلد نباید شامل پیوند یا کد باشد.';
     return '';
+}
+
+function avatarSrc(url) {
+    if (!url) return '';
+    if (/^https?:\/\//i.test(url)) return url;
+    return (typeof API_BASE_URL === 'string' ? API_BASE_URL : '') + url;
+}
+
+function applyBannerAvatar(url) {
+    const img = document.getElementById('user-avatar-img');
+    const btn = document.getElementById('user-menu-btn');
+    if (!img || !btn) return;
+    const src = avatarSrc(url);
+    if (src) {
+        img.src = src;
+        img.hidden = false;
+        btn.classList.add('has-photo');
+    } else {
+        img.removeAttribute('src');
+        img.hidden = true;
+        btn.classList.remove('has-photo');
+    }
 }

@@ -26,6 +26,8 @@ DATABASE_URL=postgresql+psycopg://USER:PASSWORD@HOST:5432/DBNAME
 alembic upgrade head
 ```
 
+برای عکس پروفایل و سابقهٔ ویرایش (مهاجرت `0003_user_avatars_and_revisions`) همین فرمان را از ریشهٔ پروژه بزنید تا ستون `users.avatar_path` و جدول `profile_revisions` ساخته شود. فایل عکس‌ها در `assets/images/avatars/` ذخیره می‌شود.
+
 اجرای API:
 
 ```bash

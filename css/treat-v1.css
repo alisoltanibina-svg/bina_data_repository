@@ -92,13 +92,6 @@ html.treat-v1 .entry-reveal.is-leave {
     transform: translate3d(0, -8px, 0);
 }
 
-html.treat-v1 .entry-scroll-cue i {
-    width: 10px;
-    height: 10px;
-    border-right-width: 1.5px;
-    border-bottom-width: 1.5px;
-}
-
 html.treat-v1 .search-icon {
     stroke-width: 1.7;
 }
@@ -244,12 +237,6 @@ html.treat-v1 .entry-preview img {
 html.treat-v1 .entry-social a {
     background: rgba(255, 255, 255, 0.14);
     border: 1px solid var(--treat-line-on-color);
-}
-
-html.treat-v1 .entry-start-btn {
-    border-radius: var(--treat-radius-pill);
-    font-weight: 600;
-    box-shadow: var(--treat-shadow);
 }
 
 /* Race: 3px tracks + pearl knobs */
@@ -607,13 +594,7 @@ html.treat-v1 #map-legend {
     padding: 8px 15px 12px;
 }
 
-/* Topic strip: floating 14px rooms, pearl instead of thick top bar */
 html.treat-v1 #bottom-panel {
-    padding: 0 15px 10px;
-    align-items: flex-end;
-}
-
-html.treat-v1.atlas-view #bottom-panel {
     padding: 0 4px;
     align-items: center;
     border-radius: 0;
@@ -623,27 +604,10 @@ html.treat-v1.atlas-view #bottom-panel {
 
 html.treat-v1 .index-list {
     gap: 16px;
-    align-items: flex-end;
-}
-
-html.treat-v1.atlas-view .index-list {
-    gap: 16px;
     align-items: center;
 }
 
 html.treat-v1 .index-item {
-    width: 108px;
-    height: 108px;
-    border-radius: var(--treat-radius-room);
-    border: 1px solid var(--treat-line);
-    border-bottom: 1px solid var(--treat-line);
-    box-shadow: var(--treat-shadow);
-    padding: 16px 12px 14px;
-    gap: 10px;
-    margin-bottom: 0;
-}
-
-html.treat-v1.atlas-view .index-item {
     width: auto;
     height: 84px;
     border-radius: 16px;
@@ -657,46 +621,16 @@ html.treat-v1 .index-item .index-item-img {
     border-radius: 8px;
 }
 
-html.treat-v1 .index-item:hover {
-    transform: translateY(-3px);
-    box-shadow: var(--treat-shadow);
-}
-
-html.treat-v1.atlas-view .index-item:hover {
+html.treat-v1 .index-item:hover,
+html.treat-v1 .index-item.active {
     transform: none;
     box-shadow: none;
 }
 
 html.treat-v1 .index-item.active {
-    height: 88%;
-    border: 1px solid var(--treat-line);
-    border-top: 1px solid var(--treat-line);
-    transform: translateY(-3px);
-    box-shadow: var(--treat-shadow);
-}
-
-html.treat-v1.atlas-view .index-item.active {
     height: 84px;
     border: 0;
-    transform: none;
-    box-shadow: none;
     background: transparent;
-}
-
-html.treat-v1 .index-item.active::before {
-    content: "";
-    position: absolute;
-    top: 8px;
-    left: 50%;
-    width: var(--treat-pearl);
-    height: var(--treat-pearl);
-    border-radius: 50%;
-    background: var(--topic-accent, #0078d7);
-    transform: translateX(-50%);
-}
-
-html.treat-v1.atlas-view .index-item.active::before {
-    display: none;
 }
 
 html.treat-v1 #map-panel-dock {
@@ -744,11 +678,10 @@ html.treat-v1 .entry-info-box h3 {
     }
 
     html.treat-v1 .index-item {
-        width: 72px;
-        height: 80px;
+        height: 84px;
         padding: 10px 6px 8px;
         gap: 6px;
-        border-radius: var(--treat-radius-room);
+        border-radius: 16px;
     }
 
     html.treat-v1 .right-card {

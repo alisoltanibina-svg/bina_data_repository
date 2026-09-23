@@ -19,14 +19,7 @@ function displayName(row) {
 }
 
 function normalizePhone(raw) {
-    let s = String(raw || '');
-    s = s.replace(/[۰-۹]/g, d => '0123456789'['۰۱۲۳۴۵۶۷۸۹'.indexOf(d)]);
-    s = s.replace(/[٠-٩]/g, d => '0123456789'['٠١٢٣٤٥٦٧٨٩'.indexOf(d)]);
-    s = s.replace(/[\s-]/g, '');
-    if (s.startsWith('+98')) s = '0' + s.slice(3);
-    if (s.startsWith('0098')) s = '0' + s.slice(4);
-    if (s.startsWith('98') && s.length === 12) s = '0' + s.slice(2);
-    return s;
+    return digitsOnlyPhone(raw);
 }
 
 async function adminFetch(path, options) {
@@ -60,8 +53,32 @@ const AdminApi = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ note: note || '' })
         });
+    },
+    users() {
+        return adminFetch('/api/admin/users');
+    },
+    user(id) {
+        return adminFetch('/api/admin/users/' + encodeURIComponent(id));
+    },
+    removeAvatar(id) {
+        return adminFetch('/api/admin/users/' + encodeURIComponent(id) + '/avatar', { method: 'DELETE' });
     }
 }
+
+const CHANGE_LABELS = {
+    first_name: 'نام',
+    last_name: 'نام خانوادگی',
+    role_title: 'سمت',
+    organization: 'سازمان',
+    avatar_path: 'عکس'
+};
+
+const usersState = {
+    rows: [],
+    selectedId: null,
+    detail: null,
+    filters: { first_name: '', last_name: '', phone: '' }
+};
 
 const state = {
     filter: 'pending',
@@ -261,6 +278,12 @@ function openDialog(kind, row) {
         noteWrap.hidden = true;
         confirm.textContent = 'تأیید پذیرش';
         confirm.className = 'admin-btn admin-btn-primary';
+    } else if (kind === 'remove-avatar') {
+        title.textContent = 'حذف عکس';
+        text.textContent = 'عکس حساب «' + displayName(row) + '» از پرونده و از پوشهٔ عکس‌ها حذف می‌شود.';
+        noteWrap.hidden = true;
+        confirm.textContent = 'حذف عکس';
+        confirm.className = 'admin-btn admin-btn-danger';
     } else {
         title.textContent = 'رد درخواست';
         text.textContent = 'درخواست «' + displayName(row) + '» رد می‌شود و حسابی ساخته نمی‌شود.';
@@ -298,6 +321,15 @@ async function confirmDialog() {
             const idx = state.rows.findIndex(item => sameId(item.id, id));
             if (idx >= 0) state.rows[idx] = row;
             showNotice('حساب ساخته شد و درخواست پذیرفته شد.', 'ok');
+        } else if (kind === 'remove-avatar') {
+            const profile = await AdminApi.removeAvatar(id);
+            const idx = usersState.rows.findIndex(item => sameId(item.id, id));
+            if (idx >= 0) usersState.rows[idx] = Object.assign({}, usersState.rows[idx], profile);
+            if (usersState.detail && sameId(usersState.detail.id, id)) {
+                usersState.detail = await AdminApi.user(id);
+            }
+            showNotice('عکس حذف شد.', 'ok');
+            renderUsers();
         } else {
             const row = await AdminApi.reject(id, note);
             const idx = state.rows.findIndex(item => sameId(item.id, id));
@@ -307,15 +339,196 @@ async function confirmDialog() {
         closeDialog();
         refresh();
     } catch (err) {
-        showNotice('انجام این اقدام ممکن نشد.');
+        showNotice((err && err.message && err.message !== 'auth') ? err.message : 'انجام این اقدام ممکن نشد.');
     } finally {
         state.busy = false;
         confirm.disabled = false;
     }
 }
 
+function visibleUsers() {
+    const f = usersState.filters;
+    return usersState.rows.filter(row => {
+        if (!includesText(row.first_name, f.first_name)) return false;
+        if (!includesText(row.last_name, f.last_name)) return false;
+        if (!includesPhone(row.phone, f.phone)) return false;
+        return true;
+    });
+}
+
+function hasUserFilters() {
+    return Object.values(usersState.filters).some(value => String(value || '').trim());
+}
+
+function userThumbHtml(row) {
+    if (row.avatar_url) {
+        return '<img class="admin-avatar" src="' + escapeHtml(avatarSrc(row.avatar_url)) + '" alt="">';
+    }
+    return '<span class="admin-avatar is-empty">—</span>';
+}
+
+function renderUsersTable() {
+    const tbody = document.getElementById('users-tbody');
+    const empty = document.getElementById('users-empty');
+    if (!tbody) return;
+    const rows = visibleUsers();
+    tbody.replaceChildren();
+    if (!rows.length) {
+        document.getElementById('users-empty-title').textContent = hasUserFilters() ? 'نتیجه‌ای پیدا نشد' : 'حسابی نیست';
+        document.getElementById('users-empty-text').textContent = hasUserFilters()
+            ? 'فیلترها را تغییر دهید یا پاک کنید.'
+            : 'پس از پذیرش عضویت، حساب‌ها اینجا دیده می‌شوند.';
+        empty.hidden = false;
+        return;
+    }
+    empty.hidden = true;
+    const frag = document.createDocumentFragment();
+    rows.forEach(row => {
+        const tr = document.createElement('tr');
+        tr.dataset.userId = row.id;
+        if (sameId(row.id, usersState.selectedId)) tr.classList.add('is-selected');
+        tr.innerHTML =
+            '<td class="admin-avatar-cell">' + userThumbHtml(row) + '</td>' +
+            '<td><div class="admin-name">' + escapeHtml(displayName(row)) + '</div></td>' +
+            '<td><span class="admin-phone">' + escapeHtml(row.phone || '') + '</span></td>' +
+            '<td>' + escapeHtml(row.role_title || '—') + '</td>' +
+            '<td>' + (row.avatar_url ? 'دارد' : 'ندارد') + '</td>';
+        frag.appendChild(tr);
+    });
+    tbody.appendChild(frag);
+}
+
+function revisionLine(rev) {
+    const keys = Object.keys(rev.changes || {});
+    const labels = keys.map(key => CHANGE_LABELS[key] || key);
+    const who = rev.source === 'admin' ? (rev.actor_name ? 'مدیر — ' + rev.actor_name : 'مدیر') : (rev.actor_name || 'خود کاربر');
+    return who + ' · ' + (labels.join('، ') || 'ویرایش');
+}
+
+function renderUserDetail() {
+    const pane = document.getElementById('user-detail');
+    const row = usersState.detail;
+    if (!pane) return;
+    if (!row) {
+        pane.hidden = true;
+        return;
+    }
+    pane.hidden = false;
+    document.getElementById('user-detail-name').textContent = displayName(row);
+    document.getElementById('user-detail-phone').textContent = row.phone || '—';
+    document.getElementById('user-detail-role').textContent = row.role_title || '—';
+    document.getElementById('user-detail-org').textContent = row.organization || '—';
+    const img = document.getElementById('user-photo');
+    const empty = document.getElementById('user-photo-empty');
+    if (row.avatar_url) {
+        img.src = avatarSrc(row.avatar_url);
+        img.hidden = false;
+        empty.hidden = true;
+    } else {
+        img.removeAttribute('src');
+        img.hidden = true;
+        empty.hidden = false;
+    }
+    const actions = document.getElementById('user-photo-actions');
+    actions.replaceChildren();
+    if (row.avatar_url) {
+        const down = document.createElement('button');
+        down.type = 'button';
+        down.className = 'admin-btn admin-btn-ghost';
+        down.textContent = 'دانلود عکس';
+        down.dataset.act = 'download-avatar';
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'admin-btn admin-btn-danger';
+        remove.textContent = 'حذف عکس';
+        remove.dataset.act = 'remove-avatar';
+        actions.append(down, remove);
+    }
+    const list = document.getElementById('user-revisions');
+    list.replaceChildren();
+    const revisions = row.revisions || [];
+    if (!revisions.length) {
+        const li = document.createElement('li');
+        li.textContent = 'هنوز ویرایشی ثبت نشده است.';
+        list.appendChild(li);
+        return;
+    }
+    revisions.forEach(rev => {
+        const li = document.createElement('li');
+        const when = document.createElement('p');
+        when.className = 'admin-revision-when';
+        when.textContent = formatWhen(rev.created_at);
+        const fields = document.createElement('p');
+        fields.className = 'admin-revision-fields';
+        fields.textContent = revisionLine(rev);
+        li.append(when, fields);
+        list.appendChild(li);
+    });
+}
+
+function renderUsers() {
+    const clear = document.getElementById('user-filters-clear');
+    if (clear) clear.hidden = !hasUserFilters();
+    renderUsersTable();
+    renderUserDetail();
+}
+
+async function loadUsers() {
+    usersState.rows = await AdminApi.users();
+    if (usersState.selectedId) {
+        try {
+            usersState.detail = await AdminApi.user(usersState.selectedId);
+        } catch (err) {
+            usersState.selectedId = null;
+            usersState.detail = null;
+        }
+    }
+    renderUsers();
+}
+
+async function selectUser(id) {
+    usersState.selectedId = id;
+    usersState.detail = await AdminApi.user(id);
+    renderUsers();
+}
+
+function setAdminView(view) {
+    const requests = view === 'requests';
+    document.getElementById('view-requests').hidden = !requests;
+    document.getElementById('view-users').hidden = requests;
+    document.getElementById('admin-title').textContent = requests ? 'درخواست‌های عضویت' : 'حساب‌ها و عکس‌ها';
+    document.getElementById('admin-lead').textContent = requests
+        ? 'درخواست‌های ثبت‌نام را بررسی کنید. پذیرش، حساب را می‌سازد؛ رد، فقط پرونده را می‌بندد.'
+        : 'عکس هر حساب را ببینید، دانلود کنید یا حذف کنید. سابقهٔ ویرایش پروفایل هم اینجاست.';
+    document.querySelectorAll('.admin-view-tab').forEach(btn => {
+        const on = btn.dataset.view === view;
+        btn.classList.toggle('is-active', on);
+        btn.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+}
+
+async function downloadUserAvatar(row) {
+    const response = await fetch(`${API_BASE_URL}/api/admin/users/${encodeURIComponent(row.id)}/avatar`, {
+        credentials: 'include'
+    });
+    if (!response.ok) {
+        showNotice('دانلود عکس ممکن نشد.');
+        return;
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (displayName(row) || 'avatar') + '.webp';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+}
+
 function bind() {
     bindPhoneInput(document.getElementById('filter-phone'));
+    bindPhoneInput(document.getElementById('user-filter-phone'));
     document.querySelectorAll('.admin-tab').forEach(btn => {
         btn.addEventListener('click', () => setFilter(btn.dataset.filter));
     });
@@ -369,6 +582,51 @@ function bind() {
     });
     document.addEventListener('keydown', event => {
         if (event.key === 'Escape') closeDialog();
+    });
+
+    document.querySelectorAll('.admin-view-tab').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            setAdminView(btn.dataset.view);
+            if (btn.dataset.view === 'users' && !usersState.rows.length) {
+                try { await loadUsers(); } catch (err) { showNotice('بارگذاری حساب‌ها ممکن نشد.'); }
+            }
+        });
+    });
+
+    document.getElementById('user-filters').addEventListener('input', event => {
+        const field = event.target.dataset.userFilter;
+        if (!field || !(field in usersState.filters)) return;
+        usersState.filters[field] = event.target.value.trim();
+        renderUsers();
+    });
+    document.getElementById('user-filters-clear').addEventListener('click', () => {
+        Object.keys(usersState.filters).forEach(key => {
+            usersState.filters[key] = '';
+            const input = document.getElementById('user-filter-' + key);
+            if (input) input.value = '';
+        });
+        renderUsers();
+    });
+    document.getElementById('users-tbody').addEventListener('click', async event => {
+        const tr = event.target.closest('tr[data-user-id]');
+        if (!tr) return;
+        try { await selectUser(tr.dataset.userId); } catch (err) { showNotice('بارگذاری پرونده ممکن نشد.'); }
+    });
+    document.getElementById('user-detail-close').addEventListener('click', () => {
+        usersState.selectedId = null;
+        usersState.detail = null;
+        renderUsers();
+    });
+    document.getElementById('user-photo-actions').addEventListener('click', event => {
+        const act = event.target.closest('[data-act]');
+        if (!act || !usersState.detail) return;
+        if (act.dataset.act === 'download-avatar') {
+            downloadUserAvatar(usersState.detail);
+            return;
+        }
+        if (act.dataset.act === 'remove-avatar') {
+            openDialog('remove-avatar', usersState.detail);
+        }
     });
 }
 

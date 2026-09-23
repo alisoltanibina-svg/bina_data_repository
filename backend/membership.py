@@ -6,15 +6,26 @@ import hashlib
 import re
 import secrets
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHash, VerificationError, VerifyMismatchError
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 
+from backend.avatars import (
+    AVATAR_DIR,
+    AvatarError,
+    delete_avatar_file,
+    is_managed_path,
+    public_url,
+    save_user_avatar,
+)
 from backend.database import db_session
-from backend.models import RegistrationRequest, User, UserSession
+from backend.models import ProfileRevision, RegistrationRequest, User, UserSession
 from backend.settings import get_settings
+
+_PROFILE_FIELDS = ("first_name", "last_name", "role_title", "organization", "avatar_path")
 
 SESSION_COOKIE = "bina_session"
 SESSION_DAYS = 14
@@ -153,6 +164,8 @@ def public_profile(user: User) -> dict:
         "role_title": user.role_title or "",
         "organization": user.organization or "",
         "is_admin": bool(user.is_admin),
+        "avatar_url": public_url(user.avatar_path),
+        "updated_at": _iso(user.updated_at),
     }
 
 
@@ -364,3 +377,181 @@ def reject_registration(request_id: int, admin_id: int, note: str) -> dict:
         req.reviewed_by = admin_id
         session.flush()
         return serialize_request(req)
+
+
+def _profile_snapshot(user: User) -> dict:
+    return {
+        "first_name": user.first_name or "",
+        "last_name": user.last_name or "",
+        "role_title": user.role_title or "",
+        "organization": user.organization or "",
+        "avatar_path": user.avatar_path or "",
+    }
+
+
+def _profile_diff(before: dict, after: dict) -> dict:
+    changes: dict = {}
+    for key in _PROFILE_FIELDS:
+        old = before.get(key) or ""
+        new = after.get(key) or ""
+        if old != new:
+            changes[key] = {"before": old or None, "after": new or None}
+    return changes
+
+
+def _display_name(user: User | None) -> str:
+    if user is None:
+        return ""
+    return " ".join(part for part in (user.first_name, user.last_name) if part).strip()
+
+
+def _add_revision(session, user: User, actor_id: int | None, source: str, before: dict) -> None:
+    changes = _profile_diff(before, _profile_snapshot(user))
+    if not changes:
+        return
+    session.add(
+        ProfileRevision(
+            user_id=user.id,
+            actor_id=actor_id,
+            source=source,
+            changes=changes,
+        )
+    )
+
+
+def update_own_profile(
+    user_id: int,
+    first_name: str,
+    last_name: str,
+    role_title: str,
+    organization: str,
+) -> dict:
+    first_name = assert_plain_text(first_name, "first_name", "نام")
+    last_name = assert_plain_text(last_name, "last_name", "نام خانوادگی")
+    role_title = assert_plain_text(role_title, "role", "سمت")
+    organization = assert_plain_text(organization, "role", "سازمان")
+    if len(first_name) < 2:
+        raise MembershipError("first_name", "نام را وارد کنید.")
+    if len(last_name) < 2:
+        raise MembershipError("last_name", "نام خانوادگی را وارد کنید.")
+    now = datetime.now(timezone.utc)
+    with db_session() as session:
+        user = session.get(User, user_id)
+        if user is None or not user.is_active:
+            raise MembershipError("not-found", "حساب پیدا نشد.")
+        before = _profile_snapshot(user)
+        user.first_name = first_name
+        user.last_name = last_name
+        user.role_title = role_title or None
+        user.organization = organization or None
+        user.updated_at = now
+        _add_revision(session, user, user_id, "self", before)
+        session.flush()
+        return public_profile(user)
+
+
+def set_user_avatar(user_id: int, data: bytes, actor_id: int, source: str) -> dict:
+    try:
+        new_path = save_user_avatar(user_id, data)
+    except AvatarError as err:
+        raise MembershipError("avatar", err.message) from err
+    now = datetime.now(timezone.utc)
+    old_path = None
+    try:
+        with db_session() as session:
+            user = session.get(User, user_id)
+            if user is None or not user.is_active:
+                raise MembershipError("not-found", "حساب پیدا نشد.")
+            before = _profile_snapshot(user)
+            old_path = user.avatar_path
+            user.avatar_path = new_path
+            user.updated_at = now
+            _add_revision(session, user, actor_id, source, before)
+            session.flush()
+            profile = public_profile(user)
+    except Exception:
+        delete_avatar_file(new_path)
+        raise
+    if old_path and old_path != new_path:
+        delete_avatar_file(old_path)
+    return profile
+
+
+def clear_user_avatar(user_id: int, actor_id: int, source: str) -> dict:
+    now = datetime.now(timezone.utc)
+    old_path = None
+    with db_session() as session:
+        user = session.get(User, user_id)
+        if user is None or not user.is_active:
+            raise MembershipError("not-found", "حساب پیدا نشد.")
+        if not user.avatar_path:
+            return public_profile(user)
+        before = _profile_snapshot(user)
+        old_path = user.avatar_path
+        user.avatar_path = None
+        user.updated_at = now
+        _add_revision(session, user, actor_id, source, before)
+        session.flush()
+        profile = public_profile(user)
+    delete_avatar_file(old_path)
+    return profile
+
+
+def list_users_for_admin() -> list[dict]:
+    with db_session() as session:
+        rows = session.execute(select(User).order_by(User.id.desc())).scalars().all()
+        return [public_profile(user) for user in rows]
+
+
+def get_user_for_admin(user_id: int) -> dict:
+    with db_session() as session:
+        user = session.get(User, user_id)
+        if user is None:
+            raise MembershipError("not-found", "حساب پیدا نشد.")
+        payload = public_profile(user)
+        payload["revisions"] = _serialize_revisions(session, user_id)
+        return payload
+
+
+def avatar_download(user_id: int) -> tuple[Path, str]:
+    with db_session() as session:
+        user = session.get(User, user_id)
+        if user is None or not user.avatar_path:
+            raise MembershipError("not-found", "عکسی برای این حساب نیست.")
+        path = user.avatar_path
+        name = _display_name(user) or f"user-{user.id}"
+    if not is_managed_path(path):
+        raise MembershipError("not-found", "عکسی برای این حساب نیست.")
+    filename = (path or "").replace("\\", "/").rsplit("/", 1)[-1]
+    file_path = AVATAR_DIR / filename
+    if not file_path.is_file():
+        raise MembershipError("not-found", "فایل عکس پیدا نشد.")
+    safe_name = re.sub(r"[^\w\u0600-\u06FF-]+", "_", name).strip("_") or f"user-{user_id}"
+    return file_path, f"{safe_name}.webp"
+
+
+def _serialize_revisions(session, user_id: int) -> list[dict]:
+    rows = session.execute(
+        select(ProfileRevision)
+        .where(ProfileRevision.user_id == user_id)
+        .order_by(ProfileRevision.created_at.desc())
+        .limit(40)
+    ).scalars().all()
+    actor_ids = {row.actor_id for row in rows if row.actor_id}
+    actors: dict[int, User] = {}
+    if actor_ids:
+        found = session.execute(select(User).where(User.id.in_(actor_ids))).scalars().all()
+        actors = {item.id: item for item in found}
+    out = []
+    for row in rows:
+        actor = actors.get(row.actor_id) if row.actor_id else None
+        out.append(
+            {
+                "id": row.id,
+                "source": row.source,
+                "actor_name": _display_name(actor),
+                "created_at": _iso(row.created_at),
+                "changes": row.changes or {},
+            }
+        )
+    return out

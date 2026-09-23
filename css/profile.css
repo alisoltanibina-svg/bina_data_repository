@@ -92,3 +92,146 @@ Purpose: Photo picker on the signed-in profile page.
     color: var(--rg-submit);
     border: 1px solid var(--rg-line);
 }
+
+.avatar-crop-root {
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.avatar-crop-root[hidden] { display: none; }
+
+.avatar-crop-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(27, 36, 46, 0.42);
+}
+
+.avatar-crop-dialog {
+    position: relative;
+    width: min(24rem, 100%);
+    background: #fff;
+    border-radius: var(--rg-radius);
+    box-shadow: var(--rg-shadow);
+    padding: 20px 20px 16px;
+}
+
+.avatar-crop-dialog h2 {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 600;
+}
+
+.avatar-crop-lead {
+    margin: 8px 0 0;
+    font-size: 0.88rem;
+    font-weight: 400;
+    line-height: 1.7;
+    color: var(--rg-muted);
+}
+
+.avatar-crop-stage {
+    position: relative;
+    width: 320px;
+    height: 320px;
+    max-width: 100%;
+    aspect-ratio: 1;
+    margin: 16px auto 0;
+    overflow: hidden;
+    background: #1b242e;
+    border-radius: 12px;
+    touch-action: none;
+    cursor: grab;
+}
+
+.avatar-crop-stage:active { cursor: grabbing; }
+
+.avatar-crop-stage img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    max-width: none;
+    transform-origin: 0 0;
+    pointer-events: none;
+    user-select: none;
+}
+
+.avatar-crop-mask {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 75%;
+    height: 75%;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    box-shadow: 0 0 0 999px rgba(15, 18, 22, 0.55);
+    border: 2px solid #ffffff;
+    pointer-events: none;
+}
+
+.avatar-crop-banner-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 14px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--rg-muted);
+}
+
+.avatar-crop-banner-circle {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    overflow: hidden;
+    position: relative;
+    flex-shrink: 0;
+    background: #e8eaee;
+    border: 1px solid var(--rg-line);
+}
+
+.avatar-crop-banner-circle img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    max-width: none;
+    transform-origin: 0 0;
+}
+
+.avatar-crop-zoom {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 14px;
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.avatar-crop-zoom input {
+    width: 100%;
+}
+
+.avatar-crop-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.avatar-crop-actions .register-submit {
+    width: auto;
+    min-width: 8rem;
+}
+
+@media (max-width: 767px) {
+    .avatar-crop-stage {
+        width: min(320px, calc(100vw - 72px));
+        height: auto;
+    }
+}

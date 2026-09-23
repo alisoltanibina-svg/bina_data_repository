@@ -40,6 +40,7 @@ _EXPENSIVE_PATHS = frozenset(
         "/api/bubble/init",
         "/api/auth/login",
         "/api/auth/register",
+        "/api/auth/profile/avatar",
     }
 )
 

@@ -525,15 +525,6 @@ function updateTopicColors(tObj, options = {}) {
     const accentHex = (tObj && tObj.master_color) ? tObj.master_color : (tObj && tObj.upper_color) ? tObj.upper_color : '#0078d7';
     setTopicChrome(accentHex);
     persistAppTheme(accentHex);
-
-    // Update back control to use the topic's upper color (if available)
-    const upperHex = (tObj && (tObj.upper_color || tObj.color)) || '#0078d7';
-    const btnEntry = document.getElementById('btn-back-entry');
-    if (btnEntry) {
-        btnEntry.style.background = upperHex;
-        btnEntry.style.borderColor = rgbaFromHex(upperHex, 0.85);
-        btnEntry.style.color = '#ffffff';
-    }
 }
 
 function getHeatmapColor(score) {
