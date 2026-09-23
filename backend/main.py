@@ -752,6 +752,9 @@ class ProfileBody(BaseModel):
     last_name: str = Field(min_length=1, max_length=80)
     role_title: str = ""
     organization: str = ""
+    birth_date: str = ""
+    email: str = ""
+    address: str = ""
 
 
 _MEMBERSHIP_HTTP = {
@@ -761,6 +764,9 @@ _MEMBERSHIP_HTTP = {
     "role": 400,
     "password": 400,
     "avatar": 400,
+    "email": 400,
+    "address": 400,
+    "birth_date": 400,
     "otp": 400,
     "cooldown": 429,
     "rejected": 403,
@@ -891,6 +897,9 @@ def auth_update_profile(body: ProfileBody, request: Request):
             body.last_name,
             body.role_title,
             body.organization,
+            body.birth_date,
+            body.email,
+            body.address,
         )
     except MembershipError as err:
         _raise_membership(err)

@@ -25,7 +25,17 @@ from backend.database import db_session
 from backend.models import OtpChallenge, ProfileRevision, RegistrationRequest, User, UserSession
 from backend.settings import get_settings
 
-_PROFILE_FIELDS = ("first_name", "last_name", "role_title", "organization", "avatar_path")
+_PROFILE_FIELDS = (
+    "first_name",
+    "last_name",
+    "role_title",
+    "organization",
+    "birth_date",
+    "email",
+    "address",
+    "avatar_path",
+)
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 SESSION_COOKIE = "bina_session"
 SESSION_DAYS = 14
@@ -163,6 +173,9 @@ def public_profile(user: User) -> dict:
         "phone": user.phone,
         "role_title": user.role_title or "",
         "organization": user.organization or "",
+        "birth_date": user.birth_date.isoformat() if user.birth_date else "",
+        "email": user.email or "",
+        "address": user.address or "",
         "is_admin": bool(user.is_admin),
         "avatar_url": public_url(user.avatar_path),
         "updated_at": _iso(user.updated_at),
@@ -497,6 +510,9 @@ def _profile_snapshot(user: User) -> dict:
         "last_name": user.last_name or "",
         "role_title": user.role_title or "",
         "organization": user.organization or "",
+        "birth_date": user.birth_date.isoformat() if user.birth_date else "",
+        "email": user.email or "",
+        "address": user.address or "",
         "avatar_path": user.avatar_path or "",
     }
 
@@ -537,15 +553,31 @@ def update_own_profile(
     last_name: str,
     role_title: str,
     organization: str,
+    birth_date: str = "",
+    email: str = "",
+    address: str = "",
 ) -> dict:
+    from datetime import date as date_type
+
     first_name = assert_plain_text(first_name, "first_name", "نام")
     last_name = assert_plain_text(last_name, "last_name", "نام خانوادگی")
     role_title = assert_plain_text(role_title, "role", "سمت")
     organization = assert_plain_text(organization, "role", "سازمان")
+    email = assert_plain_text(email, "email", "ایمیل").lower()
+    address = assert_plain_text(address, "address", "نشانی")
     if len(first_name) < 2:
         raise MembershipError("first_name", "نام را وارد کنید.")
     if len(last_name) < 2:
         raise MembershipError("last_name", "نام خانوادگی را وارد کنید.")
+    parsed_birth = None
+    birth_raw = (birth_date or "").strip()
+    if birth_raw:
+        try:
+            parsed_birth = date_type.fromisoformat(birth_raw[:10])
+        except ValueError:
+            raise MembershipError("birth_date", "تاریخ تولد نامعتبر است.") from None
+    if email and not _EMAIL_RE.match(email):
+        raise MembershipError("email", "ایمیل نامعتبر است.")
     now = datetime.now(timezone.utc)
     with db_session() as session:
         user = session.get(User, user_id)
@@ -556,6 +588,9 @@ def update_own_profile(
         user.last_name = last_name
         user.role_title = role_title or None
         user.organization = organization or None
+        user.birth_date = parsed_birth
+        user.email = email or None
+        user.address = address or None
         user.updated_at = now
         _add_revision(session, user, user_id, "self", before)
         session.flush()

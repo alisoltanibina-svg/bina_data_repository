@@ -28,12 +28,21 @@ function setError(name, message) {
     }
 }
 
+function markFilled(el) {
+    if (!el) return;
+    el.classList.toggle('is-filled', !!String(el.value || '').trim());
+}
+
 function fillForm(profile) {
     document.getElementById('first_name').value = profile.first_name || '';
     document.getElementById('last_name').value = profile.last_name || '';
     document.getElementById('phone').value = profile.phone || '';
+    document.getElementById('birth_date').value = profile.birth_date || '';
+    document.getElementById('email').value = profile.email || '';
+    document.getElementById('address').value = profile.address || '';
     document.getElementById('role_title').value = profile.role_title || '';
     document.getElementById('organization').value = profile.organization || '';
+    document.querySelectorAll('#profile-form input').forEach(markFilled);
 }
 
 function showImage(url) {
@@ -41,12 +50,10 @@ function showImage(url) {
     if (!url) {
         preview.style.backgroundImage = '';
         preview.classList.remove('is-image');
-        document.getElementById('avatar-clear').hidden = true;
         return;
     }
     preview.style.backgroundImage = cssUrl(url);
     preview.classList.add('is-image');
-    document.getElementById('avatar-clear').hidden = false;
 }
 
 function revokePreview() {
@@ -322,10 +329,16 @@ onReady(async () => {
         event.preventDefault();
         setError('first_name', '');
         setError('last_name', '');
+        setError('birth_date', '');
+        setError('email', '');
+        setError('address', '');
         const first = document.getElementById('first_name').value.trim();
         const last = document.getElementById('last_name').value.trim();
         const role = document.getElementById('role_title').value.trim();
         const org = document.getElementById('organization').value.trim();
+        const birth = document.getElementById('birth_date').value.trim();
+        const email = document.getElementById('email').value.trim();
+        const address = document.getElementById('address').value.trim();
         if (first.length < 2) {
             setError('first_name', 'نام را وارد کنید.');
             document.getElementById('first_name').focus();
@@ -354,6 +367,16 @@ onReady(async () => {
             showNotice(plainTextError(org));
             return;
         }
+        if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            setError('email', 'ایمیل نامعتبر است.');
+            document.getElementById('email').focus();
+            return;
+        }
+        if (plainTextError(address)) {
+            setError('address', plainTextError(address));
+            document.getElementById('address').focus();
+            return;
+        }
 
         const submit = document.getElementById('profile-submit');
         submit.disabled = true;
@@ -365,7 +388,10 @@ onReady(async () => {
                     first_name: first,
                     last_name: last,
                     role_title: role,
-                    organization: org
+                    organization: org,
+                    birth_date: birth,
+                    email: email,
+                    address: address
                 })
             });
             if (pendingClear) {
@@ -378,8 +404,169 @@ onReady(async () => {
             applySavedProfile(profile);
             showNotice('تغییرات ذخیره شد.', 'ok');
         } catch (err) {
-            if (err.code === 'first_name' || err.code === 'last_name') setError(err.code, err.message);
-            else showNotice(err.message || 'ذخیره ممکن نشد.');
+            if (err.code === 'first_name' || err.code === 'last_name' || err.code === 'email' || err.code === 'birth_date' || err.code === 'address') {
+                setError(err.code, err.message);
+            } else showNotice(err.message || 'ذخیره ممکن نشد.');
+        } finally {
+            submit.disabled = false;
+        }
+    });
+
+    document.querySelectorAll('#profile-form input').forEach(el => {
+        el.addEventListener('input', () => markFilled(el));
+        el.addEventListener('blur', () => markFilled(el));
+    });
+
+    const profilePhone = () => document.getElementById('phone').value.trim();
+    let resendTimer = 0;
+    let resendLeft = 0;
+
+    function showProfilePanel(id) {
+        ['profile-main', 'profile-otp', 'profile-reset'].forEach(name => {
+            const el = document.getElementById(name);
+            if (el) el.hidden = name !== id;
+        });
+    }
+
+    function stopResendTimer() {
+        window.clearInterval(resendTimer);
+        resendTimer = 0;
+        const btn = document.getElementById('profile-otp-resend');
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'ارسال دوباره';
+        }
+    }
+
+    function startResendTimer(seconds) {
+        const btn = document.getElementById('profile-otp-resend');
+        if (!btn) return;
+        stopResendTimer();
+        resendLeft = Math.max(0, Number(seconds) || 0);
+        const tick = () => {
+            if (resendLeft <= 0) {
+                stopResendTimer();
+                return;
+            }
+            btn.disabled = true;
+            btn.textContent = 'ارسال دوباره (' + resendLeft + ')';
+            resendLeft -= 1;
+        };
+        tick();
+        if (resendLeft > 0) resendTimer = window.setInterval(tick, 1000);
+    }
+
+    function setOtpSending(on) {
+        const box = document.getElementById('profile-otp-sending');
+        const form = document.getElementById('profile-otp-form');
+        const hint = document.getElementById('profile-otp-resend-wrap');
+        if (box) box.hidden = !on;
+        if (form) form.hidden = on;
+        if (hint) hint.hidden = on;
+    }
+
+    async function startPasswordOtp() {
+        const phone = profilePhone();
+        document.getElementById('profile-otp-phone').textContent = phone;
+        document.getElementById('profile-otp-code').value = '';
+        setError('profile-otp-code', '');
+        showProfilePanel('profile-otp');
+        setOtpSending(true);
+        try {
+            const data = await apiJson('/api/auth/otp/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone: phone, purpose: 'reset' })
+            });
+            setOtpSending(false);
+            startResendTimer((data && data.resend_seconds) || 60);
+            document.getElementById('profile-otp-code').focus();
+        } catch (err) {
+            setOtpSending(false);
+            showNotice(err.message || 'ارسال کد ممکن نشد.');
+            showProfilePanel('profile-main');
+        }
+    }
+
+    document.getElementById('profile-password-btn').addEventListener('click', startPasswordOtp);
+    document.getElementById('profile-otp-back').addEventListener('click', () => {
+        stopResendTimer();
+        setOtpSending(false);
+        showProfilePanel('profile-main');
+    });
+    document.getElementById('profile-reset-back').addEventListener('click', () => {
+        showProfilePanel('profile-otp');
+    });
+
+    document.getElementById('profile-otp-form').addEventListener('submit', async event => {
+        event.preventDefault();
+        setError('profile-otp-code', '');
+        const code = (document.getElementById('profile-otp-code').value || '').replace(/\D/g, '');
+        if (code.length !== 6) {
+            setError('profile-otp-code', 'کد باید ۶ رقم باشد.');
+            return;
+        }
+        const submit = document.getElementById('profile-otp-submit');
+        submit.disabled = true;
+        try {
+            await apiJson('/api/auth/otp/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone: profilePhone(), purpose: 'reset', code: code })
+            });
+            showProfilePanel('profile-reset');
+            document.getElementById('profile-reset-password').focus();
+        } catch (err) {
+            setError('profile-otp-code', err.message || 'کد نامعتبر است.');
+        } finally {
+            submit.disabled = false;
+        }
+    });
+
+    document.getElementById('profile-otp-resend').addEventListener('click', async () => {
+        const btn = document.getElementById('profile-otp-resend');
+        if (btn.disabled) return;
+        setOtpSending(true);
+        try {
+            const data = await apiJson('/api/auth/otp/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone: profilePhone(), purpose: 'reset' })
+            });
+            setOtpSending(false);
+            startResendTimer((data && data.resend_seconds) || 60);
+        } catch (err) {
+            setOtpSending(false);
+            setError('profile-otp-code', err.message || 'ارسال دوباره ممکن نشد.');
+        }
+    });
+
+    document.getElementById('profile-reset-form').addEventListener('submit', async event => {
+        event.preventDefault();
+        setError('profile-reset-password', '');
+        setError('profile-reset-password-confirm', '');
+        const password = document.getElementById('profile-reset-password').value;
+        const confirm = document.getElementById('profile-reset-password-confirm').value;
+        if (password.length < 8) {
+            setError('profile-reset-password', 'رمز عبور حداقل ۸ نویسه باشد.');
+            return;
+        }
+        if (confirm !== password) {
+            setError('profile-reset-password-confirm', 'تکرار رمز با رمز عبور یکی نیست.');
+            return;
+        }
+        const submit = document.getElementById('profile-reset-submit');
+        submit.disabled = true;
+        try {
+            await apiJson('/api/auth/password/reset', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone: profilePhone(), password: password })
+            });
+            showNotice('رمز عبور تغییر کرد.', 'ok');
+            showProfilePanel('profile-main');
+        } catch (err) {
+            showNotice(err.message || 'تغییر رمز ممکن نشد.');
         } finally {
             submit.disabled = false;
         }

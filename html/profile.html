@@ -22,63 +22,121 @@
     <script src="../js/profile.js" defer></script>
     <script src="../js/auth.js" defer></script>
 </head>
-<body class="register-body">
+<body class="register-body profile-body">
 
     <div id="top-banner" data-page="profile"></div>
     <script src="../js/banner.js"></script>
 
     <main class="register-workspace">
-        <section class="register-card">
+        <section class="register-card register-card-wide" id="profile-main">
+            <a class="auth-back-fab" href="../index.html" aria-label="بازگشت">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
+            </a>
             <p class="register-kicker">حساب کاربری</p>
             <h1>ویرایش پروفایل</h1>
-            <p class="register-lead">نام و سمت را ویرایش کنید و عکس را با دایرهٔ حساب در بنر هماهنگ کنید.</p>
 
             <form id="profile-form" novalidate>
                 <div class="profile-photo">
                     <input type="file" id="avatar-file" accept="image/jpeg,image/png,image/webp" hidden>
                     <button type="button" class="profile-photo-btn" id="avatar-pick" aria-label="انتخاب عکس">
-                        <span class="profile-photo-preview" id="avatar-preview">
-                            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                                <circle cx="12" cy="7" r="4"></circle>
-                            </svg>
-                        </span>
+                        <span class="profile-photo-preview" id="avatar-preview"></span>
                     </button>
-                    <p class="profile-photo-hint">روی دایره بزنید، عکس را برش دهید تا با دایرهٔ بنر یکی شود. JPG، PNG یا WebP، حداکثر ۵ مگابایت.</p>
-                    <button type="button" class="profile-photo-clear" id="avatar-clear" hidden>حذف عکس</button>
+                    <button type="button" class="profile-photo-clear" id="avatar-clear">حذف عکس</button>
                 </div>
 
                 <div class="register-pair">
                     <label class="register-field">
+                        <input type="text" id="first_name" name="first_name" autocomplete="given-name" required maxlength="40" placeholder=" ">
                         <span>نام</span>
-                        <input type="text" id="first_name" name="first_name" autocomplete="given-name" required maxlength="40">
                         <em class="register-error" id="err-first_name" hidden></em>
                     </label>
                     <label class="register-field">
+                        <input type="text" id="last_name" name="last_name" autocomplete="family-name" required maxlength="40" placeholder=" ">
                         <span>نام خانوادگی</span>
-                        <input type="text" id="last_name" name="last_name" autocomplete="family-name" required maxlength="40">
                         <em class="register-error" id="err-last_name" hidden></em>
                     </label>
                 </div>
 
+                <div class="register-pair">
+                    <label class="register-field">
+                        <input type="date" id="birth_date" name="birth_date" autocomplete="bday" dir="ltr" placeholder=" ">
+                        <span>تاریخ تولد</span>
+                        <em class="register-error" id="err-birth_date" hidden></em>
+                    </label>
+                    <label class="register-field">
+                        <input type="email" id="email" name="email" autocomplete="email" maxlength="120" dir="ltr" placeholder=" ">
+                        <span>ایمیل</span>
+                        <em class="register-error" id="err-email" hidden></em>
+                    </label>
+                </div>
+
                 <label class="register-field">
+                    <input type="text" id="address" name="address" autocomplete="street-address" maxlength="255" placeholder=" ">
+                    <span>آدرس</span>
+                    <em class="register-error" id="err-address" hidden></em>
+                </label>
+
+                <label class="register-field">
+                    <input type="tel" id="phone" name="phone" dir="ltr" readonly placeholder=" ">
                     <span>شماره موبایل</span>
-                    <input type="tel" id="phone" name="phone" dir="ltr" readonly>
                 </label>
 
-                <label class="register-field">
-                    <span>سمت</span>
-                    <input type="text" id="role_title" name="role_title" autocomplete="organization-title" maxlength="60">
-                </label>
+                <div class="register-pair">
+                    <label class="register-field">
+                        <input type="text" id="role_title" name="role_title" autocomplete="organization-title" maxlength="60" placeholder=" ">
+                        <span>سمت</span>
+                    </label>
+                    <label class="register-field">
+                        <input type="text" id="organization" name="organization" autocomplete="organization" maxlength="80" placeholder=" ">
+                        <span>سازمان (اختیاری)</span>
+                    </label>
+                </div>
 
-                <label class="register-field">
-                    <span>سازمان <small>اختیاری</small></span>
-                    <input type="text" id="organization" name="organization" autocomplete="organization" maxlength="80">
-                </label>
-
-                <p class="register-hint">تغییرات نام، سمت و عکس در حساب شما ذخیره می‌شود.</p>
+                <button type="button" class="profile-password-btn" id="profile-password-btn">تغییر رمز عبور</button>
                 <button type="submit" class="register-submit" id="profile-submit">ثبت تغییرات</button>
                 <a class="register-submit register-link" id="profile-admin-link" hidden>پنل مدیریت</a>
+            </form>
+        </section>
+
+        <section class="register-card" id="profile-otp" hidden>
+            <button type="button" class="auth-back-fab" id="profile-otp-back" aria-label="بازگشت">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
+            </button>
+            <p class="register-kicker">تغییر رمز عبور</p>
+            <h1>کد پیامک</h1>
+            <p class="register-lead">کد ارسال‌شده به <b id="profile-otp-phone" dir="ltr"></b></p>
+            <div class="otp-sending" id="profile-otp-sending" hidden>
+                <span class="otp-spinner" aria-hidden="true"></span>
+                <p>در حال ارسال پیامک…</p>
+            </div>
+            <form id="profile-otp-form" novalidate>
+                <label class="register-field">
+                    <input type="text" id="profile-otp-code" inputmode="numeric" dir="ltr" autocomplete="one-time-code" required maxlength="6" placeholder="کد ۶ رقمی">
+                    <em class="register-error" id="err-profile-otp-code" hidden></em>
+                </label>
+                <button type="submit" class="register-submit" id="profile-otp-submit">تأیید کد</button>
+            </form>
+            <p class="register-hint" id="profile-otp-resend-wrap">
+                <button type="button" class="auth-back" id="profile-otp-resend">ارسال دوباره</button>
+            </p>
+        </section>
+
+        <section class="register-card" id="profile-reset" hidden>
+            <button type="button" class="auth-back-fab" id="profile-reset-back" aria-label="بازگشت">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
+            </button>
+            <p class="register-kicker">تغییر رمز عبور</p>
+            <h1>رمز عبور جدید</h1>
+            <form id="profile-reset-form" novalidate>
+                <label class="register-field">
+                    <input type="password" id="profile-reset-password" autocomplete="new-password" required minlength="8" placeholder="رمز عبور جدید">
+                    <em class="register-error" id="err-profile-reset-password" hidden></em>
+                </label>
+                <label class="register-field">
+                    <input type="password" id="profile-reset-password-confirm" autocomplete="new-password" required minlength="8" placeholder="تکرار رمز عبور">
+                    <em class="register-error" id="err-profile-reset-password-confirm" hidden></em>
+                </label>
+                <button type="submit" class="register-submit" id="profile-reset-submit">ذخیره</button>
             </form>
         </section>
     </main>

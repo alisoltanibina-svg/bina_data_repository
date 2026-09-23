@@ -73,6 +73,9 @@ const CHANGE_LABELS = {
     last_name: 'نام خانوادگی',
     role_title: 'سمت',
     organization: 'سازمان',
+    birth_date: 'تاریخ تولد',
+    email: 'ایمیل',
+    address: 'نشانی',
     avatar_path: 'عکس'
 };
 
