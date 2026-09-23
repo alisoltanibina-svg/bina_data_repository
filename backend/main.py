@@ -18,6 +18,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
@@ -62,6 +63,7 @@ from backend.membership import (
     update_own_profile,
 )
 from backend.avatars import MAX_BYTES as AVATAR_MAX_BYTES
+from backend.authlog import mask_phone, write_auth_log
 from backend.otp import send_otp, verify_otp
 from backend.ratelimit import RateLimitMiddleware
 
@@ -352,6 +354,27 @@ app.add_middleware(
 
 app.add_middleware(GZipMiddleware, minimum_size=500)
 app.add_middleware(SecurityHeadersMiddleware)
+
+
+@app.exception_handler(RequestValidationError)
+async def auth_validation_handler(request: Request, exc: RequestValidationError):
+    if request.url.path.startswith("/api/auth"):
+        write_auth_log(f"validation path={request.url.path} errors={exc.errors()!s}")
+    return JSONResponse(status_code=422, content={"detail": exc.errors()}, headers=_AUTH_NO_STORE)
+
+
+@app.exception_handler(Exception)
+async def auth_unhandled_handler(request: Request, exc: Exception):
+    if isinstance(exc, HTTPException):
+        raise exc
+    if request.url.path.startswith("/api/auth"):
+        write_auth_log(f"unhandled path={request.url.path} method={request.method}", exc)
+        return JSONResponse(
+            status_code=500,
+            content={"detail": {"code": "server", "message": "خطای داخلی سرور."}},
+            headers=_AUTH_NO_STORE,
+        )
+    raise exc
 
 
 def _round_field(rows: list[dict], field: str) -> None:
@@ -724,11 +747,22 @@ class GateBody(BaseModel):
 
 
 @app.post("/api/auth/gate")
-def auth_gate(body: GateBody):
+def auth_gate(body: GateBody, request: Request):
+    write_auth_log(
+        "gate start "
+        f"phone={mask_phone(body.phone)} origin={request.headers.get('origin')!s} "
+        f"host={request.headers.get('host')!s} "
+        f"content_type={request.headers.get('content-type')!s}"
+    )
     try:
         status = lookup_auth_gate(body.phone)
     except MembershipError as err:
+        write_auth_log(f"gate membership code={err.code} message={err.message}")
         _raise_membership(err)
+    except Exception as err:
+        write_auth_log("gate crash", err)
+        raise
+    write_auth_log(f"gate ok status={status}")
     return JSONResponse(content={"status": status}, headers=_AUTH_NO_STORE)
 
 
