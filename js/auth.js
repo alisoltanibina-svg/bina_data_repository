@@ -43,7 +43,11 @@
             if (nameEl) nameEl.textContent = name;
             if (roleEl) roleEl.textContent = roleLine(profile);
             applyBannerAvatar(profile.avatar_url);
-            if (typeof window.closeCurtainAuth === 'function' && document.documentElement.classList.contains('curtain-auth')) {
+            if (
+                typeof window.closeCurtainAuth === 'function'
+                && document.documentElement.classList.contains('curtain-auth')
+                && !document.documentElement.classList.contains('curtain-profile')
+            ) {
                 window.closeCurtainAuth();
             }
             return;

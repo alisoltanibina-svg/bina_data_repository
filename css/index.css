@@ -34,7 +34,7 @@ body {
     gap: 12px;
     padding: calc(var(--banner-gap) + 75px + 12px) 16px 16px;
     box-sizing: border-box;
-    background-color: #eef1f8;
+    background-color: #f7f4ed;
 }
 
 #atlas-stage {
@@ -85,7 +85,7 @@ body {
     position: absolute;
     inset: 0;
     border-radius: inherit;
-    background: #f4eddf;
+    background: #ffffff;
     z-index: -1;
     box-shadow: 0 4px 18px rgba(81, 88, 17, 0.08);
     transition: background 0.6s ease, box-shadow 0.9s cubic-bezier(0.22, 1, 0.36, 1);
@@ -331,6 +331,67 @@ html.curtain-auth .entry-hero-stack {
 html.curtain-auth-wide .entry-hero-stack {
     width: min(34rem, calc(100% - 40px));
 }
+html.curtain-profile .entry-hero-stack {
+    width: min(28rem, calc(100% - 40px));
+}
+html.curtain-profile .entry-launch {
+    background: rgba(232, 217, 185, 0.14);
+    backdrop-filter: blur(28px) saturate(1.35);
+    -webkit-backdrop-filter: blur(28px) saturate(1.35);
+    padding: 26px 22px 22px;
+    overflow: visible;
+}
+html.curtain-profile .entry-profile-stage .register-card {
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    padding: 0;
+    width: 100%;
+    text-align: center;
+    position: relative;
+}
+html.curtain-profile .entry-profile-stage .register-card[hidden] { display: none; }
+html.curtain-profile .entry-auth-stage {
+    display: none !important;
+}
+.entry-profile-stage {
+    display: none;
+}
+html.curtain-profile .entry-profile-stage {
+    display: block;
+    animation: auth-stage-in 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+html.curtain-profile #top-banner .top-nav {
+    display: none !important;
+}
+#profile-form .register-pair .register-field {
+    flex: 1 1 0;
+    min-width: 0;
+    transition: flex-grow 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+}
+#profile-form .register-pair .register-field:focus-within,
+#profile-form .register-pair .register-field.is-expanded {
+    flex-grow: 3.6;
+}
+html.curtain-profile .profile-password-btn {
+    width: 100%;
+    height: 52px;
+    border: 0;
+    border-radius: 999px;
+    background: #E7D6B5;
+    color: #515811;
+    font: inherit;
+    font-size: 0.98rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+html.curtain-profile .profile-photo {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0 4px;
+}
 html.curtain-auth .entry-launch-home {
     position: absolute;
     inset: 0;
@@ -356,43 +417,51 @@ html.curtain-auth .entry-auth-stage.is-swap {
     to { opacity: 1; transform: none; }
 }
 
-.entry-auth-stage .register-kicker {
+.entry-auth-stage .register-kicker,
+.entry-profile-stage .register-kicker {
     margin: 0 0 4px;
     font-size: 1.05rem;
     font-weight: 500;
     color: #a18447;
 }
-.entry-auth-stage .register-card h1 {
+.entry-auth-stage .register-card h1,
+.entry-profile-stage .register-card h1 {
     margin: 0;
     font-size: 1.7rem;
     font-weight: 700;
     color: #515811;
 }
-.entry-auth-stage .register-lead {
+.entry-auth-stage .register-lead,
+.entry-profile-stage .register-lead {
     margin: 8px 0 0;
     font-size: 0.88rem;
     color: #a18447;
 }
-.entry-auth-stage form {
+.entry-auth-stage form,
+.entry-profile-stage form {
     margin-top: 22px;
     display: flex;
     flex-direction: column;
     gap: 12px;
 }
-.entry-auth-stage .register-pair {
+.entry-auth-stage .register-pair,
+.entry-profile-stage .register-pair {
     display: flex;
     flex-wrap: wrap;
     gap: 12px;
 }
-.entry-auth-stage .register-pair .register-field {
+.entry-auth-stage .register-pair .register-field,
+.entry-profile-stage .register-pair .register-field {
     flex: 1 1 11rem;
     min-width: 0;
 }
-#auth-register .register-field {
+#auth-register .register-field,
+.entry-profile-stage .register-field {
     position: relative;
     display: block;
 }
-#auth-register .register-field > span {
+#auth-register .register-field > span,
+.entry-profile-stage .register-field > span {
     position: absolute;
     top: 26px;
     left: 50%;
@@ -408,31 +477,43 @@ html.curtain-auth .entry-auth-stage.is-swap {
                 font-size 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 #auth-register .register-field input:focus + span,
-#auth-register .register-field input:not(:placeholder-shown) + span {
+#auth-register .register-field input:not(:placeholder-shown) + span,
+.entry-profile-stage .register-field input:focus + span,
+.entry-profile-stage .register-field input:not(:placeholder-shown) + span,
+.entry-profile-stage .register-field input.is-filled + span {
     left: calc(100% - 16px);
     transform: translate(-100%, -50%);
     font-size: 0.72rem;
     font-weight: 600;
 }
-#auth-register .register-field input {
+#auth-register .register-field input,
+.entry-profile-stage .register-field input {
     transition: padding 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 #auth-register .register-field input:focus,
-#auth-register .register-field input:not(:placeholder-shown) {
+#auth-register .register-field input:not(:placeholder-shown),
+.entry-profile-stage .register-field input:focus,
+.entry-profile-stage .register-field input:not(:placeholder-shown),
+.entry-profile-stage .register-field input.is-filled {
     text-align: start;
     padding-inline-start: 8rem;
     padding-inline-end: 16px;
 }
 #auth-register .register-field input[dir="ltr"]:focus,
-#auth-register .register-field input[dir="ltr"]:not(:placeholder-shown) {
+#auth-register .register-field input[dir="ltr"]:not(:placeholder-shown),
+.entry-profile-stage .register-field input[dir="ltr"]:focus,
+.entry-profile-stage .register-field input[dir="ltr"]:not(:placeholder-shown),
+.entry-profile-stage .register-field input[dir="ltr"].is-filled {
     text-align: left;
     padding-inline-start: 16px;
     padding-inline-end: 8rem;
 }
-#auth-register .register-field input::placeholder {
+#auth-register .register-field input::placeholder,
+.entry-profile-stage .register-field input::placeholder {
     color: transparent;
 }
-.entry-auth-stage .register-field input {
+.entry-auth-stage .register-field input,
+.entry-profile-stage .register-field input {
     width: 100%;
     height: 52px;
     padding: 0 18px;
@@ -445,7 +526,8 @@ html.curtain-auth .entry-auth-stage.is-swap {
     font-size: 0.95rem;
     font-weight: 500;
 }
-.entry-auth-stage .register-field input::placeholder {
+.entry-auth-stage .register-field input::placeholder,
+.entry-profile-stage .register-field input::placeholder {
     color: #a18447;
     opacity: 0.9;
 }
@@ -453,11 +535,14 @@ html.curtain-auth .entry-auth-stage.is-swap {
     opacity: 0.85;
 }
 .entry-auth-stage .register-field input:focus-visible,
-.entry-auth-stage .register-submit:focus-visible {
+.entry-auth-stage .register-submit:focus-visible,
+.entry-profile-stage .register-field input:focus-visible,
+.entry-profile-stage .register-submit:focus-visible {
     outline: 2px solid #515811;
     outline-offset: 2px;
 }
-.entry-auth-stage .register-submit {
+.entry-auth-stage .register-submit,
+.entry-profile-stage .register-submit {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -472,15 +557,19 @@ html.curtain-auth .entry-auth-stage.is-swap {
     font-weight: 600;
     cursor: pointer;
 }
-.entry-auth-stage .register-submit:hover:not(:disabled) { background: #3f460d; }
-.entry-auth-stage .register-submit:disabled { opacity: 0.55; cursor: not-allowed; }
-.entry-auth-stage .register-hint {
+.entry-auth-stage .register-submit:hover:not(:disabled),
+.entry-profile-stage .register-submit:hover:not(:disabled) { background: #3f460d; }
+.entry-auth-stage .register-submit:disabled,
+.entry-profile-stage .register-submit:disabled { opacity: 0.55; cursor: not-allowed; }
+.entry-auth-stage .register-hint,
+.entry-profile-stage .register-hint {
     margin: 14px 0 0;
     text-align: center;
     font-size: 0.8rem;
     color: #a18447;
 }
-.entry-auth-stage .auth-back {
+.entry-auth-stage .auth-back,
+.entry-profile-stage .auth-back {
     border: 0;
     padding: 0;
     background: none;
@@ -489,8 +578,10 @@ html.curtain-auth .entry-auth-stage.is-swap {
     font-weight: 500;
     cursor: pointer;
 }
-.entry-auth-stage .auth-back:hover { text-decoration: underline; }
-.entry-auth-stage .auth-back-fab {
+.entry-auth-stage .auth-back:hover,
+.entry-profile-stage .auth-back:hover { text-decoration: underline; }
+.entry-auth-stage .auth-back-fab,
+.entry-profile-stage .auth-back-fab {
     position: absolute;
     top: 0;
     inset-inline-start: 0;
@@ -506,7 +597,8 @@ html.curtain-auth .entry-auth-stage.is-swap {
     cursor: pointer;
     padding: 0;
 }
-.entry-auth-stage .register-error {
+.entry-auth-stage .register-error,
+.entry-profile-stage .register-error {
     display: block;
     margin-top: 6px;
     font-size: 0.75rem;
@@ -514,7 +606,8 @@ html.curtain-auth .entry-auth-stage.is-swap {
     color: #b91c1c;
     text-align: center;
 }
-.entry-auth-stage .register-error[hidden] { display: none; }
+.entry-auth-stage .register-error[hidden],
+.entry-profile-stage .register-error[hidden] { display: none; }
 
 .otp-sending {
     display: flex;
@@ -1508,11 +1601,11 @@ body.immersive-mode #map { background: #dce5ec; }
 
 html.atlas-view,
 html.atlas-view body {
-    background-color: #eef1f8;
+    background-color: #f7f4ed;
 }
 
 html.atlas-view #main-content {
-    background-color: #eef1f8;
+    background-color: #f7f4ed;
 }
 
 html.atlas-view #right-panel,

@@ -99,7 +99,7 @@ body {
     position: absolute;
     inset: 0;
     border-radius: inherit;
-    background: #f4eddf;
+    background: #ffffff;
     z-index: -1;
     box-shadow: 0 4px 18px rgba(81, 88, 17, 0.08);
     transition: background-color 0.6s ease, box-shadow 0.6s ease;
@@ -125,7 +125,7 @@ body {
     margin-inline-start: 18px;
     padding: 4px;
     border-radius: 999px;
-    background: #eef1f8;
+    background: #f7f4ed;
     flex-shrink: 0;
 }
 .banner-seg-btn {

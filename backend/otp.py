@@ -129,6 +129,8 @@ def send_otp(phone: str, purpose: str) -> dict:
     ttl = max(120, min(int(settings.otp_ttl_seconds or 180), 300))
     cooldown = max(20, int(settings.otp_resend_seconds or 60))
     now = _now()
+    if not _kavenegar_configured() and not bool(settings.otp_dev_mode):
+        raise MembershipError("otp", "ارسال پیامک در این محیط فعال نیست.")
 
     with db_session() as session:
         _assert_send_allowed(session, phone, purpose)

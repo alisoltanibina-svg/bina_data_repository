@@ -7,6 +7,9 @@ import re
 import secrets
 
 from PIL import Image, ImageOps, UnidentifiedImageError
+from PIL.Image import DecompressionBombError
+
+Image.MAX_IMAGE_PIXELS = 20_000_000
 
 from backend.settings import PROJECT_ROOT
 
@@ -64,7 +67,7 @@ def save_user_avatar(user_id: int, data: bytes) -> str:
     try:
         image = Image.open(io.BytesIO(data))
         image.load()
-    except (UnidentifiedImageError, OSError, ValueError):
+    except (UnidentifiedImageError, OSError, ValueError, DecompressionBombError):
         raise AvatarError("فایل تصویر معتبر نیست.") from None
     fmt = (image.format or "").upper()
     if fmt not in _ALLOWED_FORMATS:

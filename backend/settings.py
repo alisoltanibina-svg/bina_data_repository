@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     otp_ttl_seconds: int = 180
     otp_max_attempts: int = 5
     otp_resend_seconds: int = 60
+    otp_dev_mode: bool = False
 
 
 def _require_postgres_url(url: str) -> str:

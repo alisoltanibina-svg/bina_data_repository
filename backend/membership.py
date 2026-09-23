@@ -439,6 +439,8 @@ def reset_password_after_otp(phone: str, password: str) -> dict:
         consume_verified_otp_in_session(session, phone, "reset")
         user.password_hash = hash_password(password)
         user.updated_at = now
+        for row in session.execute(select(UserSession).where(UserSession.user_id == user.id)).scalars().all():
+            session.delete(row)
         profile = public_profile(user)
         user_id = user.id
     token, expires_at = create_session(user_id)

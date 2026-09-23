@@ -37,7 +37,8 @@ function fillForm(profile) {
     document.getElementById('first_name').value = profile.first_name || '';
     document.getElementById('last_name').value = profile.last_name || '';
     document.getElementById('phone').value = profile.phone || '';
-    document.getElementById('birth_date').value = profile.birth_date || '';
+    if (typeof window.setJalaliFromGregorian === 'function') window.setJalaliFromGregorian(profile.birth_date || '');
+    else document.getElementById('birth_date').value = profile.birth_date || '';
     document.getElementById('email').value = profile.email || '';
     document.getElementById('address').value = profile.address || '';
     document.getElementById('role_title').value = profile.role_title || '';
@@ -290,18 +291,198 @@ function bindCrop() {
     });
 }
 
-onReady(async () => {
-    try {
-        const profile = await apiJson('/api/auth/me');
-        applySavedProfile(profile);
-        const adminLink = document.getElementById('profile-admin-link');
-        if (adminLink) {
-            adminLink.href = SITE.page('admin.html');
-            adminLink.hidden = profile.is_admin !== true;
+const JALALI_MONTHS = ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور', 'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند'];
+
+function gregorianToJalali(gy, gm, gd) {
+    const g_d_m = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
+    const gy2 = gm > 2 ? gy + 1 : gy;
+    let days = 355666 + (365 * gy) + Math.floor((gy2 + 3) / 4) - Math.floor((gy2 + 99) / 100) + Math.floor((gy2 + 399) / 400) + gd + g_d_m[gm - 1];
+    let jy = -1595 + 33 * Math.floor(days / 12053);
+    days %= 12053;
+    jy += 4 * Math.floor(days / 1461);
+    days %= 1461;
+    if (days > 365) {
+        jy += Math.floor((days - 1) / 365);
+        days = (days - 1) % 365;
+    }
+    const jm = days < 186 ? 1 + Math.floor(days / 31) : 7 + Math.floor((days - 186) / 30);
+    const jd = 1 + (days < 186 ? days % 31 : (days - 186) % 30);
+    return { jy: jy, jm: jm, jd: jd };
+}
+
+function jalaliToGregorian(jy, jm, jd) {
+    jy += 1595;
+    let days = -355668 + (365 * jy) + Math.floor(jy / 33) * 8 + Math.floor(((jy % 33) + 3) / 4) + jd + (jm < 7 ? (jm - 1) * 31 : ((jm - 7) * 30) + 186);
+    let gy = 400 * Math.floor(days / 146097);
+    days %= 146097;
+    if (days > 36524) {
+        gy += 100 * Math.floor(--days / 36524);
+        days %= 36524;
+        if (days >= 365) days += 1;
+    }
+    gy += 4 * Math.floor(days / 1461);
+    days %= 1461;
+    if (days > 365) {
+        gy += Math.floor((days - 1) / 365);
+        days = (days - 1) % 365;
+    }
+    let gd = days + 1;
+    const leap = (gy % 4 === 0 && gy % 100 !== 0) || gy % 400 === 0;
+    const sal = [0, 31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let gm = 1;
+    while (gm < 13 && gd > sal[gm]) {
+        gd -= sal[gm];
+        gm += 1;
+    }
+    return { gy: gy, gm: gm, gd: gd };
+}
+
+function jalaliLeap(jy) {
+    return ((((((jy - 474) % 2820) + 2820) % 2820) + 474 + 38) * 682) % 2816 < 682;
+}
+
+function jalaliMonthLength(jy, jm) {
+    if (jm <= 6) return 31;
+    if (jm <= 11) return 30;
+    return jalaliLeap(jy) ? 30 : 29;
+}
+
+function pad2(n) {
+    return (n < 10 ? '0' : '') + n;
+}
+
+function bindJalaliPicker() {
+    const hidden = document.getElementById('birth_date');
+    const trigger = document.getElementById('birth-trigger');
+    const cal = document.getElementById('jalali-cal');
+    const yearSel = document.getElementById('jalali-year');
+    const monthSel = document.getElementById('jalali-month');
+    const grid = document.getElementById('jalali-grid');
+    const field = document.getElementById('birth-field');
+    if (!hidden || !trigger || !cal || !yearSel || !monthSel || !grid || !field) return;
+
+    for (let y = 1410; y >= 1300; y -= 1) {
+        const opt = document.createElement('option');
+        opt.value = String(y);
+        opt.textContent = String(y);
+        yearSel.appendChild(opt);
+    }
+    JALALI_MONTHS.forEach((name, i) => {
+        const opt = document.createElement('option');
+        opt.value = String(i + 1);
+        opt.textContent = name;
+        monthSel.appendChild(opt);
+    });
+    yearSel.value = '1360';
+    monthSel.value = '1';
+
+    function selectedJalali() {
+        if (!hidden.value) return null;
+        const p = hidden.value.split('-');
+        if (p.length !== 3) return null;
+        return gregorianToJalali(Number(p[0]), Number(p[1]), Number(p[2]));
+    }
+
+    function renderGrid() {
+        const jy = Number(yearSel.value);
+        const jm = Number(monthSel.value);
+        const len = jalaliMonthLength(jy, jm);
+        const g = jalaliToGregorian(jy, jm, 1);
+        const offset = (new Date(g.gy, g.gm - 1, g.gd).getDay() + 1) % 7;
+        const picked = selectedJalali();
+        grid.replaceChildren();
+        for (let i = 0; i < offset; i += 1) {
+            const empty = document.createElement('span');
+            grid.appendChild(empty);
         }
-    } catch (err) {
-        if (err.message !== 'auth') showNotice('بارگذاری حساب ممکن نشد.');
-        return;
+        for (let d = 1; d <= len; d += 1) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.textContent = String(d);
+            if (picked && picked.jy === jy && picked.jm === jm && picked.jd === d) btn.classList.add('is-selected');
+            btn.addEventListener('click', () => {
+                const greg = jalaliToGregorian(jy, jm, d);
+                hidden.value = greg.gy + '-' + pad2(greg.gm) + '-' + pad2(greg.gd);
+                trigger.textContent = jy + '/' + pad2(jm) + '/' + pad2(d);
+                field.classList.add('is-filled');
+                markFilled(hidden);
+                cal.hidden = true;
+                field.classList.remove('is-expanded');
+            });
+            grid.appendChild(btn);
+        }
+    }
+
+    function openCal() {
+        const cur = selectedJalali();
+        yearSel.value = String(cur ? cur.jy : 1360);
+        monthSel.value = String(cur ? cur.jm : 1);
+        renderGrid();
+        cal.hidden = false;
+        field.classList.add('is-expanded');
+    }
+
+    trigger.addEventListener('click', event => {
+        event.preventDefault();
+        if (cal.hidden) openCal();
+        else {
+            cal.hidden = true;
+            field.classList.remove('is-expanded');
+        }
+    });
+    yearSel.addEventListener('change', renderGrid);
+    monthSel.addEventListener('change', renderGrid);
+    document.addEventListener('click', event => {
+        if (!field.contains(event.target)) {
+            cal.hidden = true;
+            field.classList.remove('is-expanded');
+        }
+    });
+
+    window.setJalaliFromGregorian = function (iso) {
+        if (!iso) {
+            hidden.value = '';
+            trigger.textContent = '';
+            field.classList.remove('is-filled');
+            yearSel.value = '1360';
+            monthSel.value = '1';
+            return;
+        }
+        const p = String(iso).slice(0, 10).split('-');
+        const j = gregorianToJalali(Number(p[0]), Number(p[1]), Number(p[2]));
+        hidden.value = p[0] + '-' + p[1] + '-' + p[2];
+        trigger.textContent = j.jy + '/' + pad2(j.jm) + '/' + pad2(j.jd);
+        field.classList.add('is-filled');
+        yearSel.value = String(j.jy);
+        monthSel.value = String(j.jm);
+    };
+}
+
+onReady(async () => {
+    if (!document.getElementById('profile-form')) return;
+    bindJalaliPicker();
+
+    window.loadCurtainProfile = async function () {
+        try {
+            const profile = await apiJson('/api/auth/me');
+            applySavedProfile(profile);
+            const adminLink = document.getElementById('profile-admin-link');
+            if (adminLink) {
+                adminLink.href = SITE.page('admin.html');
+                adminLink.hidden = profile.is_admin !== true;
+            }
+        } catch (err) {
+            if (err.message === 'auth') {
+                if (typeof window.openCurtainAuth === 'function') window.openCurtainAuth();
+                else window.location.href = SITE.page('index.html') + '#auth';
+                return;
+            }
+            showNotice('بارگذاری حساب ممکن نشد.');
+        }
+    };
+
+    if (!document.getElementById('entry-auth-shell')) {
+        await window.loadCurtainProfile();
     }
 
     const fileInput = document.getElementById('avatar-file');

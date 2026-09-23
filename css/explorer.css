@@ -32,7 +32,7 @@ html, body.explorer-body {
 
 body.explorer-body {
     font-family: 'PeydaFaNumWeb', Tahoma, sans-serif !important;
-    background: #eef1f8;
+    background: #f7f4ed;
     color: var(--ex-ink);
     overflow: hidden;
     display: flex;
@@ -183,30 +183,49 @@ body.explorer-body {
     width: 100%;
     height: 100%;
     border-radius: 18px;
-    background-color: #d7dbe3;
+    background-color: #515811;
     position: relative;
     overflow: hidden;
-    box-shadow: 0 10px 28px rgba(27, 36, 46, 0.08);
+    box-shadow: 0 10px 28px rgba(81, 88, 17, 0.14);
 }
 
 .ex-room-photo {
     position: absolute;
     inset: 0;
+    z-index: 0;
     background-size: cover;
     background-position: center;
-    filter: grayscale(1);
+    filter: grayscale(1) contrast(1.08);
+    mix-blend-mode: luminosity;
     transform: scale(1.02);
-    transition: filter 0.45s ease;
+    transition: filter 0.45s ease, mix-blend-mode 0.45s ease;
+}
+
+.ex-room-visual::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: #a18447;
+    mix-blend-mode: multiply;
+    pointer-events: none;
+    transition: opacity 0.45s ease;
 }
 
 .ex-room:hover .ex-room-photo,
 .ex-room-face:focus-visible .ex-room-photo {
-    filter: grayscale(0);
+    filter: none;
+    mix-blend-mode: normal;
+}
+
+.ex-room:hover .ex-room-visual::after,
+.ex-room-face:focus-visible .ex-room-visual::after {
+    opacity: 0;
 }
 
 .ex-room-copy {
     position: relative;
-    z-index: 1;
+    z-index: 2;
     width: 100%;
     height: 100%;
     display: flex;
@@ -513,7 +532,7 @@ body.explorer-body {
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    background: #eef1f8;
+    background: #f7f4ed;
 }
 
 .ex-dash-head {
@@ -700,7 +719,7 @@ body.explorer-body {
     border: 0;
     border-radius: var(--ex-pill);
     padding: 3px;
-    background: #eef1f8;
+    background: #f7f4ed;
 }
 
 .chart-mode-btn {

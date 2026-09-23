@@ -256,10 +256,10 @@ body.profile-body .register-card {
     width: min(26rem, 100%);
     padding: 28px 26px 24px;
     text-align: center;
-    background: rgba(232, 217, 185, 0.38);
-    backdrop-filter: blur(18px) saturate(1.15);
-    -webkit-backdrop-filter: blur(18px) saturate(1.15);
-    border: 1px solid rgba(255, 255, 255, 0.5);
+    background: rgba(232, 217, 185, 0.14);
+    backdrop-filter: blur(28px) saturate(1.35);
+    -webkit-backdrop-filter: blur(28px) saturate(1.35);
+    border: 1px solid rgba(255, 255, 255, 0.45);
     border-radius: 28px;
     box-shadow: 0 12px 32px rgba(81, 88, 17, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.55);
 }
@@ -470,6 +470,96 @@ body.profile-body .otp-spinner {
 @keyframes otp-spin {
     to { transform: rotate(360deg); }
 }
+
+.birth-trigger {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    height: 52px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: #515811;
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+#birth-field.is-filled .birth-trigger,
+#birth-field:focus-within .birth-trigger {
+    text-align: start;
+    padding-inline-end: 16px;
+    padding-inline-start: 8rem;
+}
+
+#birth-field.is-filled > span,
+#birth-field:focus-within > span {
+    left: calc(100% - 16px);
+    transform: translate(-100%, -50%);
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+
+.jalali-cal {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    z-index: 8;
+    padding: 10px;
+    border-radius: 16px;
+    background: rgba(244, 237, 223, 0.96);
+    box-shadow: 0 10px 28px rgba(81, 88, 17, 0.16);
+    text-align: center;
+}
+
+.jalali-cal[hidden] { display: none; }
+
+.jalali-cal-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.jalali-cal-bar select {
+    flex: 1;
+    height: 34px;
+    border: 0;
+    border-radius: 999px;
+    background: #fff;
+    color: #515811;
+    font: inherit;
+    font-size: 0.82rem;
+    padding: 0 8px;
+}
+
+.jalali-week,
+.jalali-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+}
+
+.jalali-week span {
+    font-size: 0.7rem;
+    color: #a18447;
+    padding: 4px 0;
+}
+
+.jalali-grid button {
+    height: 32px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: #515811;
+    font: inherit;
+    font-size: 0.82rem;
+    cursor: pointer;
+}
+
+.jalali-grid button:hover { background: rgba(81, 88, 17, 0.08); }
+.jalali-grid button.is-selected { background: #515811; color: #fff; }
 
 body.profile-body #profile-admin-link {
     background: #f4eddf;

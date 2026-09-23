@@ -61,6 +61,7 @@ from backend.membership import (
     set_user_avatar,
     update_own_profile,
 )
+from backend.avatars import MAX_BYTES as AVATAR_MAX_BYTES
 from backend.otp import send_otp, verify_otp
 from backend.ratelimit import RateLimitMiddleware
 
@@ -234,7 +235,15 @@ def _cors_origins() -> list[str]:
     raw = os.environ.get("CORS_ORIGINS", "").strip()
     if raw:
         return [origin.strip().rstrip("/") for origin in raw.split(",") if origin.strip()]
-    return [_PRODUCTION_ORIGIN]
+    return [
+        _PRODUCTION_ORIGIN,
+        "http://127.0.0.1:8000",
+        "http://localhost:8000",
+        "http://127.0.0.1:5500",
+        "http://localhost:5500",
+        "http://127.0.0.1:5501",
+        "http://localhost:5501",
+    ]
 
 
 def _expand_thread_pool(size: int | None = None) -> None:
@@ -285,6 +294,18 @@ _SECURITY_HEADERS = {
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
+    "Content-Security-Policy": (
+        "default-src 'self'; "
+        "base-uri 'self'; "
+        "form-action 'self'; "
+        "frame-ancestors 'none'; "
+        "object-src 'none'; "
+        "script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net; "
+        "style-src 'self' 'unsafe-inline' https://unpkg.com; "
+        "img-src 'self' data: blob:; "
+        "font-src 'self'; "
+        "connect-src 'self' https://app.rasadbina.ir http://127.0.0.1:8000 http://localhost:8000"
+    ),
 }
 
 
@@ -293,41 +314,32 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         for name, value in _SECURITY_HEADERS.items():
             response.headers.setdefault(name, value)
+        proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "").split(",")[0].strip()
+        if proto == "https":
+            response.headers.setdefault(
+                "Strict-Transport-Security",
+                "max-age=15552000; includeSubDomains",
+            )
         return response
 
 
 # Innermost first: 429s still pass through CORS, gzip, and security headers.
 app.add_middleware(RateLimitMiddleware)
-# برای آنلاین بودن از کامنت دربیاید
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=_cors_origins(),
-#     allow_credentials=False,
-#     allow_methods=["*"],
-#     allow_headers=["*"],
-#     expose_headers=[
-#         "ETag",
-#         "Retry-After",
-#         "RateLimit",
-#         "RateLimit-Policy",
-#         "X-RateLimit-Limit",
-#         "X-RateLimit-Remaining",
-#         "X-RateLimit-Reset",
-#     ],
-# )
-
-# برای آفلاین بودن از کامنت دربیاید
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://127.0.0.1:5500",
-        "http://localhost:5500",
-        "http://127.0.0.1:5501",
-        "http://localhost:5501",
-    ],
+    allow_origins=_cors_origins(),
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "If-None-Match"],
+    expose_headers=[
+        "ETag",
+        "Retry-After",
+        "RateLimit",
+        "RateLimit-Policy",
+        "X-RateLimit-Limit",
+        "X-RateLimit-Remaining",
+        "X-RateLimit-Reset",
+    ],
 )
 
 app.add_middleware(GZipMiddleware, minimum_size=500)
@@ -674,8 +686,17 @@ _LOGIN_FAIL = "شماره یا رمز نادرست است."
 
 
 def _cookie_secure(request: Request) -> bool:
+    host = (
+        (request.headers.get("x-forwarded-host") or request.url.hostname or "")
+        .split(",")[0]
+        .strip()
+        .split(":")[0]
+        .lower()
+    )
+    if host in {"127.0.0.1", "localhost"}:
+        return False
     proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "").split(",")[0].strip()
-    return proto == "https"
+    return proto == "https" or bool(host)
 
 
 def _set_session_cookie(response: JSONResponse, token: str, request: Request) -> None:
@@ -909,7 +930,15 @@ def auth_update_profile(body: ProfileBody, request: Request):
 @app.post("/api/auth/profile/avatar")
 async def auth_upload_avatar(request: Request, file: UploadFile = File(...)):
     user = _require_user(request)
-    data = await file.read()
+    try:
+        declared = int(request.headers.get("content-length") or "0")
+    except ValueError:
+        declared = 0
+    if declared > AVATAR_MAX_BYTES + 65536:
+        raise HTTPException(status_code=413, detail="حجم عکس بیش از حد مجاز است.")
+    data = await file.read(AVATAR_MAX_BYTES + 1)
+    if len(data) > AVATAR_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="حجم عکس بیش از حد مجاز است.")
     try:
         profile = set_user_avatar(user["id"], data, user["id"], "self")
     except MembershipError as err:

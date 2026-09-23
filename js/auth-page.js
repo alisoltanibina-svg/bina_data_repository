@@ -52,6 +52,9 @@ function openCurtainAuth() {
     if (typeof window.setAtlasView === 'function' && document.documentElement.classList.contains('atlas-view')) {
         window.setAtlasView(false);
     }
+    const pstage = document.getElementById('entry-profile-stage');
+    if (pstage) pstage.hidden = true;
+    document.documentElement.classList.remove('curtain-profile');
     showPanel('auth-gate');
     stage.hidden = false;
     document.documentElement.classList.add('curtain-auth');
@@ -64,8 +67,9 @@ function openCurtainAuth() {
 
 function closeCurtainAuth() {
     const stage = document.getElementById('entry-auth-stage');
+    const pstage = document.getElementById('entry-profile-stage');
     const home = document.getElementById('entry-launch-home');
-    document.documentElement.classList.remove('curtain-auth', 'curtain-auth-wide');
+    document.documentElement.classList.remove('curtain-auth', 'curtain-auth-wide', 'curtain-profile');
     currentPhone = '';
     otpPurpose = '';
     pendingRegister = null;
@@ -75,17 +79,38 @@ function closeCurtainAuth() {
         stage.hidden = true;
         stage.classList.remove('is-swap');
     }
+    if (pstage) pstage.hidden = true;
     if (home) home.hidden = false;
     PANELS.forEach(name => {
         const el = document.getElementById(name);
         if (el) el.hidden = name !== 'auth-gate';
     });
-    if ((window.location.hash || '') === '#auth') {
+    const hash = window.location.hash || '';
+    if (hash === '#auth' || hash === '#profile') {
         try { history.replaceState(null, '', window.location.pathname + window.location.search); } catch (e) {}
     }
 }
 
+function openCurtainProfile() {
+    const shell = document.getElementById('entry-auth-shell');
+    const pstage = document.getElementById('entry-profile-stage');
+    const astage = document.getElementById('entry-auth-stage');
+    if (!shell || !pstage) return;
+    if (typeof window.setAtlasView === 'function' && document.documentElement.classList.contains('atlas-view')) {
+        window.setAtlasView(false);
+    }
+    if (astage) astage.hidden = true;
+    pstage.hidden = false;
+    document.documentElement.classList.add('curtain-auth', 'curtain-profile');
+    document.documentElement.classList.remove('curtain-auth-wide');
+    if (typeof window.loadCurtainProfile === 'function') window.loadCurtainProfile();
+    if (window.location.hash !== '#profile') {
+        try { history.replaceState(null, '', '#profile'); } catch (e) {}
+    }
+}
+
 window.openCurtainAuth = openCurtainAuth;
+window.openCurtainProfile = openCurtainProfile;
 window.closeCurtainAuth = closeCurtainAuth;
 
 function failDetail(data, fallback) {
@@ -279,6 +304,8 @@ onReady(() => {
 
     const openBtn = document.getElementById('btn-open-login');
     if (openBtn) openBtn.addEventListener('click', openCurtainAuth);
+    const profileBtn = document.getElementById('btn-open-profile');
+    if (profileBtn) profileBtn.addEventListener('click', openCurtainProfile);
     const bannerBtn = document.getElementById('banner-auth-btn');
     if (bannerBtn && document.getElementById('entry-auth-shell')) {
         bannerBtn.addEventListener('click', event => {
@@ -286,12 +313,17 @@ onReady(() => {
             openCurtainAuth();
         });
     }
-    if (window.location.hash === '#auth' && !readBannerProfile()) openCurtainAuth();
+    if (window.location.hash === '#profile' && readBannerProfile()) openCurtainProfile();
+    else if (window.location.hash === '#auth' && !readBannerProfile()) openCurtainAuth();
     document.addEventListener('keydown', event => {
         if (event.key !== 'Escape') return;
         if (!document.documentElement.classList.contains('curtain-auth')) return;
         const gate = document.getElementById('auth-gate');
         if (gate && !gate.hidden) closeCurtainAuth();
+        if (document.documentElement.classList.contains('curtain-profile')) {
+            const main = document.getElementById('profile-main');
+            if (main && !main.hidden) closeCurtainAuth();
+        }
     });
 
     document.querySelectorAll('[data-auth-back]').forEach(btn => {
