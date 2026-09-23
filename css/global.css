@@ -10,7 +10,7 @@ Notes: Peyda is loaded via <link href="assets/fonts/peyda.css"> (from html/: ../
     --banner-gap: 16px;
     --banner-side-gap: 16px;
     --topic-accent: #0078d7;
-    --banner-fg: var(--topic-accent);
+    --banner-fg: #515811;
 }
 @supports (height: 100dvh) {
     :root { --vvh: 100dvh; }
@@ -89,7 +89,7 @@ body {
     align-items: center;
     justify-content: space-between;
     padding: 0 25px;
-    color: var(--banner-fg);
+    color: #515811;
     z-index: 2000;
     box-shadow: none;
     border-radius: 12px;
@@ -99,9 +99,9 @@ body {
     position: absolute;
     inset: 0;
     border-radius: inherit;
-    background: #ffffff;
+    background: #f4eddf;
     z-index: -1;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.25);
+    box-shadow: 0 4px 18px rgba(81, 88, 17, 0.08);
     transition: background-color 0.6s ease, box-shadow 0.6s ease;
 }
 .banner-right { display: flex; align-items: center; gap: 20px; position: relative; }
@@ -115,10 +115,10 @@ body {
     flex-shrink: 0;
     cursor: pointer;
 }
-.banner-divider { width: 1px; height: 48px; background: color-mix(in srgb, var(--banner-fg) 28%, transparent); margin: 0 14px; }
+.banner-divider { width: 2px; height: 42px; background: #a18447; margin: 0 14px; }
 .project-texts { display: flex; flex-direction: column; line-height: 1.7; position: relative; flex-shrink: 0; }
-.project-main { font-weight: 800; font-size: 0.95rem; color: var(--banner-fg); }
-.project-sub { font-size: 0.8rem; color: var(--banner-fg); }
+.project-main { font-weight: 800; font-size: 0.95rem; color: #515811; }
+.project-sub { font-size: 0.8rem; color: #515811; }
 .banner-seg {
     display: flex;
     align-items: center;
@@ -156,10 +156,10 @@ body {
 .user-menu { position: relative; flex-shrink: 0; }
 .user-circle {
     width: 44px; height: 44px; border-radius: 50%;
-    background: color-mix(in srgb, var(--banner-fg) 12%, #ffffff);
-    border: 1px solid color-mix(in srgb, var(--banner-fg) 28%, transparent);
+    background: #515811;
+    border: 1px solid transparent;
     display: flex; align-items: center; justify-content: center;
-    cursor: pointer; padding: 0; font: inherit; color: inherit;
+    cursor: pointer; padding: 0; font: inherit; color: #f4eddf;
     appearance: none; -webkit-appearance: none;
     transition: background 0.2s ease;
     overflow: hidden;
@@ -180,7 +180,7 @@ body {
 .user-circle.has-photo img { display: block; }
 .user-circle.has-photo svg { display: none; }
 .user-circle:hover,
-.user-circle.is-open { background: color-mix(in srgb, var(--banner-fg) 20%, #ffffff); }
+.user-circle.is-open { background: #3f460d; }
 .user-circle.has-photo:hover,
 .user-circle.has-photo.is-open { background: #e8eaee; }
 .user-menu-dropdown {
@@ -209,18 +209,18 @@ body {
 .user-texts { display: flex; flex-direction: column; line-height: 1.5; text-align: left; }
 .user-texts[hidden] { display: none; }
 .user-box:not(.is-signed-in) .user-texts { display: none; }
-.user-name { font-weight: 800; color: var(--banner-fg); font-size: 0.95rem; }
-.user-role { font-size: 0.75rem; color: var(--banner-fg); }
+.user-name { font-weight: 800; color: #515811; font-size: 0.95rem; }
+.user-role { font-size: 0.75rem; color: #515811; }
 .banner-auth-btn {
     display: inline-flex; align-items: center; justify-content: center;
     height: 36px; padding: 0 14px 1px; border-radius: 999px;
-    background: #eef0f4; color: var(--banner-fg);
+    background: #515811; color: #ffffff;
     text-decoration: none; font-family: inherit; font-weight: 600; font-size: 0.82rem;
     white-space: nowrap;
     transition: background 0.2s ease, color 0.2s ease;
 }
 .banner-auth-btn:hover {
-    background: var(--banner-fg);
+    background: #3f460d;
     color: #ffffff;
 }
 .banner-auth-btn[hidden] { display: none; }

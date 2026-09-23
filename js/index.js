@@ -17,7 +17,7 @@ function initCurtainBannerOffset() {
     const dock = document.getElementById('entry-dock');
     if (!curtain || !banner) return;
     const sync = () => {
-        curtain.style.setProperty('--curtain-banner-h', `${banner.offsetHeight}px`);
+        curtain.style.setProperty('--curtain-banner-h', `${Math.round(banner.getBoundingClientRect().bottom)}px`);
         if (dock) curtain.style.setProperty('--curtain-dock-h', `${dock.offsetHeight}px`);
     };
     sync();

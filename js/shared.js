@@ -108,7 +108,6 @@ function applyChartDefaults() {
 function setTopicChrome(accentHex) {
     const hex = accentHex || '#0078d7';
     document.documentElement.style.setProperty('--topic-accent', hex);
-    document.documentElement.style.setProperty('--banner-fg', hex);
 }
 
 function onReady(fn) {

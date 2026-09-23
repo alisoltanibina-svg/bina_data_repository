@@ -41,7 +41,6 @@
                 const storedAc = sessionStorage.getItem('themeTopicAccent');
                 if (storedAc) {
                     document.documentElement.style.setProperty('--topic-accent', storedAc);
-                    document.documentElement.style.setProperty('--banner-fg', storedAc);
                 }
             } catch (e) {}
         }
@@ -69,24 +68,51 @@
                 <div class="entry-launch entry-reveal">
                     <a href="html/auth.html" class="entry-login-btn" id="btn-open-login">
                         <span class="entry-login-arrow" aria-hidden="true">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M5 12h14"></path>
                                 <path d="M13 6l6 6-6 6"></path>
                             </svg>
                         </span>
                         <span>ورود به حساب کاربری</span>
                     </a>
-                    <span class="entry-launch-rule" aria-hidden="true"></span>
-                    <a href="html/auth.html" class="entry-register-btn" id="btn-open-register">ثبت نام در سامانه</a>
+                    <div class="entry-launch-row">
+                        <span class="entry-ghost-btn" aria-disabled="true">ارتباط با ما</span>
+                        <span class="entry-launch-split" aria-hidden="true"></span>
+                        <span class="entry-ghost-btn" aria-disabled="true">درباره ما</span>
+                    </div>
                 </div>
                 </div>
             </section>
         </div>
         <nav class="entry-dock" id="entry-dock" aria-label="ناوبری صفحه آغاز">
-            <span class="entry-dock-item">نمایه</span>
-            <a class="entry-dock-item" href="html/explorer.html?source=start">کاوشگر</a>
-            <button type="button" class="entry-dock-item" id="btn-dock-atlas">اطلس</button>
-            <span class="entry-dock-item">گونه‌شناسی</span>
+            <span class="entry-dock-item">
+                <img class="entry-dock-icon" src="assets/images/نمایه.webp" alt="">
+                <span class="entry-dock-copy">
+                    <span class="entry-dock-title">نمایه</span>
+                    <span class="entry-dock-sub">استان‌درنگ‌نما</span>
+                </span>
+            </span>
+            <a class="entry-dock-item" href="html/explorer.html?source=start">
+                <img class="entry-dock-icon" src="assets/images/کاوشگر.webp" alt="">
+                <span class="entry-dock-copy">
+                    <span class="entry-dock-title">کاوشگر</span>
+                    <span class="entry-dock-sub">تغییرات شاخص‌ها</span>
+                </span>
+            </a>
+            <button type="button" class="entry-dock-item" id="btn-dock-atlas">
+                <img class="entry-dock-icon" src="assets/images/اطلس.webp" alt="">
+                <span class="entry-dock-copy">
+                    <span class="entry-dock-title">اطلس</span>
+                    <span class="entry-dock-sub">شاخص‌های ترکیبی</span>
+                </span>
+            </button>
+            <span class="entry-dock-item">
+                <img class="entry-dock-icon" src="assets/images/گونه‌شناسی.webp" alt="">
+                <span class="entry-dock-copy">
+                    <span class="entry-dock-title">گونه‌شناسی</span>
+                    <span class="entry-dock-sub">مقایسه‌های چندوجهی</span>
+                </span>
+            </span>
         </nav>
     </div>
 

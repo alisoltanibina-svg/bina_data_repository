@@ -105,13 +105,11 @@ html.treat-v1 .entry-dock-item {
 }
 
 html.treat-v1 .entry-launch {
-    border-radius: 0;
-    box-shadow: none;
-    background: transparent;
+    border-radius: 28px;
 }
 
 html.treat-v1 .entry-login-btn,
-html.treat-v1 .entry-register-btn {
+html.treat-v1 .entry-ghost-btn {
     border-radius: var(--treat-radius-pill);
     box-shadow: none;
 }
