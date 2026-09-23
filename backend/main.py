@@ -828,9 +828,9 @@ def auth_otp_verify(body: OtpVerifyBody):
 
 
 @app.post("/api/auth/register")
-def auth_register(body: RegisterBody, request: Request):
+def auth_register(body: RegisterBody):
     try:
-        result = register_after_otp(
+        row = register_after_otp(
             body.first_name,
             body.last_name,
             body.phone,
@@ -840,9 +840,7 @@ def auth_register(body: RegisterBody, request: Request):
         )
     except MembershipError as err:
         _raise_membership(err)
-    response = JSONResponse(content=result["profile"], status_code=201, headers=_AUTH_NO_STORE)
-    _set_session_cookie(response, result["token"], request)
-    return response
+    return JSONResponse(content=row, status_code=201, headers=_AUTH_NO_STORE)
 
 
 @app.post("/api/auth/password/reset")

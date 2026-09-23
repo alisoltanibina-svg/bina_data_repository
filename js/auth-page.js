@@ -345,7 +345,7 @@ onReady(() => {
                     document.getElementById('first_name').focus();
                     return;
                 }
-                const profile = await apiJson('/api/auth/register', {
+                await apiJson('/api/auth/register', {
                     first_name: pendingRegister.first_name,
                     last_name: pendingRegister.last_name,
                     phone: currentPhone,
@@ -353,7 +353,8 @@ onReady(() => {
                     organization: pendingRegister.organization,
                     password: pendingRegister.password
                 });
-                finishSignedIn(profile);
+                pendingRegister = null;
+                showStatus('در انتظار تایید', 'درخواست عضویت شما درانتظار تایید است');
                 return;
             }
             showPanel('auth-reset');

@@ -378,29 +378,35 @@ def register_after_otp(
     if len(password) < 8:
         raise MembershipError("password", "رمز عبور حداقل ۸ نویسه باشد.")
 
-    now = datetime.now(timezone.utc)
     with db_session() as session:
         existing = session.execute(select(User).where(User.phone == phone)).scalar_one_or_none()
         if existing is not None:
             raise MembershipError("exists", "برای این شماره قبلاً حساب پذیرفته شده است.")
+        pending = session.execute(
+            select(RegistrationRequest).where(
+                RegistrationRequest.phone == phone,
+                RegistrationRequest.status == "pending",
+            )
+        ).scalar_one_or_none()
+        if pending is not None:
+            raise MembershipError("pending", "برای این شماره یک درخواست در انتظار بررسی است.")
         consume_verified_otp_in_session(session, phone, "register")
-        user = User(
+        row = RegistrationRequest(
             phone=phone,
             first_name=first_name,
             last_name=last_name,
             role_title=role_title,
             organization=organization or None,
             password_hash=hash_password(password),
-            is_admin=False,
-            is_active=True,
-            updated_at=now,
+            status="pending",
         )
-        session.add(user)
-        session.flush()
-        profile = public_profile(user)
-        user_id = user.id
-    token, expires_at = create_session(user_id)
-    return {"profile": profile, "token": token, "expires_at": expires_at}
+        session.add(row)
+        try:
+            session.flush()
+        except IntegrityError:
+            raise MembershipError("pending", "برای این شماره یک درخواست در انتظار بررسی است.") from None
+        session.refresh(row)
+        return serialize_request(row)
 
 
 def reset_password_after_otp(phone: str, password: str) -> dict:
