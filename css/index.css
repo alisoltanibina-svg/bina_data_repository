@@ -388,6 +388,50 @@ html.curtain-auth .entry-auth-stage.is-swap {
     flex: 1 1 11rem;
     min-width: 0;
 }
+#auth-register .register-field {
+    position: relative;
+    display: block;
+}
+#auth-register .register-field > span {
+    position: absolute;
+    top: 26px;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #a18447;
+    font-size: 0.95rem;
+    font-weight: 500;
+    pointer-events: none;
+    white-space: nowrap;
+    transition: top 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+                left 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+                transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+                font-size 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+#auth-register .register-field input:focus + span,
+#auth-register .register-field input:not(:placeholder-shown) + span {
+    left: calc(100% - 16px);
+    transform: translate(-100%, -50%);
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+#auth-register .register-field input {
+    transition: padding 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+#auth-register .register-field input:focus,
+#auth-register .register-field input:not(:placeholder-shown) {
+    text-align: start;
+    padding-inline-start: 8rem;
+    padding-inline-end: 16px;
+}
+#auth-register .register-field input[dir="ltr"]:focus,
+#auth-register .register-field input[dir="ltr"]:not(:placeholder-shown) {
+    text-align: left;
+    padding-inline-start: 16px;
+    padding-inline-end: 8rem;
+}
+#auth-register .register-field input::placeholder {
+    color: transparent;
+}
 .entry-auth-stage .register-field input {
     width: 100%;
     height: 52px;
@@ -471,6 +515,31 @@ html.curtain-auth .entry-auth-stage.is-swap {
     text-align: center;
 }
 .entry-auth-stage .register-error[hidden] { display: none; }
+
+.otp-sending {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    min-height: 8.5rem;
+    color: #515811;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+.otp-sending[hidden] { display: none; }
+.otp-sending p { margin: 0; }
+.otp-spinner {
+    width: 38px;
+    height: 38px;
+    border: 3px solid rgba(81, 88, 17, 0.18);
+    border-top-color: #515811;
+    border-radius: 50%;
+    animation: otp-spin 0.75s linear infinite;
+}
+@keyframes otp-spin {
+    to { transform: rotate(360deg); }
+}
 .visually-hidden {
     position: absolute;
     width: 1px;

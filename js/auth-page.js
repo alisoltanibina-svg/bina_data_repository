@@ -7,6 +7,8 @@ const PANELS = ['auth-gate', 'auth-login', 'auth-otp', 'auth-reset', 'auth-regis
 let currentPhone = '';
 let otpPurpose = '';
 let pendingRegister = null;
+let resendTimer = 0;
+let resendLeft = 0;
 
 function setError(name, message) {
     const input = document.getElementById(name);
@@ -67,6 +69,8 @@ function closeCurtainAuth() {
     currentPhone = '';
     otpPurpose = '';
     pendingRegister = null;
+    stopResendTimer();
+    setOtpSending(false);
     if (stage) {
         stage.hidden = true;
         stage.classList.remove('is-swap');
@@ -124,15 +128,15 @@ function readRegisterForm(form) {
 
 function validateRegister(values) {
     const errors = {};
-    if (values.first_name.length < 2) errors.first_name = 'نام را وارد کنید.';
+    if (values.first_name.length < 2) errors.first_name = 'نام را وارد کنید';
     else if (plainTextError(values.first_name)) errors.first_name = plainTextError(values.first_name);
-    if (values.last_name.length < 2) errors.last_name = 'نام خانوادگی را وارد کنید.';
+    if (values.last_name.length < 2) errors.last_name = 'نام خانوادگی را وارد کنید';
     else if (plainTextError(values.last_name)) errors.last_name = plainTextError(values.last_name);
-    if (!values.role_title) errors.role_title = 'سمت را وارد کنید.';
+    if (!values.role_title) errors.role_title = 'سمت را وارد کنید';
     else if (plainTextError(values.role_title)) errors.role_title = plainTextError(values.role_title);
     if (plainTextError(values.organization)) errors.organization = plainTextError(values.organization);
-    if (values.password.length < 8) errors.password = 'رمز عبور حداقل ۸ نویسه باشد.';
-    if (values.password_confirm !== values.password) errors.password_confirm = 'تکرار رمز با رمز عبور یکی نیست.';
+    if (values.password.length < 8) errors.password = 'رمز عبور حداقل ۸ نویسه باشد';
+    if (values.password_confirm !== values.password) errors.password_confirm = 'تکرار رمز با رمز عبور یکی نیست';
     return errors;
 }
 
@@ -140,13 +144,13 @@ function errorFromRegister(data) {
     const detail = data && data.detail;
     const code = detail && detail.code;
     const message = detail && detail.message;
-    if (code === 'pending') return { field: '', text: message || 'برای این شماره یک درخواست در انتظار بررسی است.' };
-    if (code === 'exists') return { field: '', text: message || 'برای این شماره قبلاً حساب پذیرفته شده است.' };
-    if (code === 'otp') return { field: '', text: message || 'ابتدا کد پیامک را تأیید کنید.' };
-    if (code === 'phone') return { field: '', text: message || 'شماره موبایل نامعتبر است.' };
-    if (code === 'first_name' || code === 'last_name') return { field: code, text: message || 'این فیلد را کامل کنید.' };
-    if (code === 'role') return { field: 'role_title', text: message || 'سمت را وارد کنید.' };
-    if (code === 'password') return { field: 'password', text: message || 'رمز عبور نامعتبر است.' };
+    if (code === 'pending') return { field: '', text: message || 'برای این شماره یک درخواست در انتظار بررسی است' };
+    if (code === 'exists') return { field: '', text: message || 'برای این شماره قبلاً حساب پذیرفته شده است' };
+    if (code === 'otp') return { field: '', text: message || 'ابتدا کد پیامک را تأیید کنید' };
+    if (code === 'phone') return { field: '', text: message || 'شماره موبایل نامعتبر است' };
+    if (code === 'first_name' || code === 'last_name') return { field: code, text: message || 'این فیلد را کامل کنید' };
+    if (code === 'role') return { field: 'role_title', text: message || 'سمت را وارد کنید' };
+    if (code === 'password') return { field: 'password', text: message || 'رمز عبور نامعتبر است' };
     if (typeof detail === 'string') return { field: '', text: detail };
     return { field: '', text: 'ارسال درخواست ممکن نشد.' };
 }
@@ -168,10 +172,50 @@ function applyPhone(phone) {
     });
 }
 
+function stopResendTimer() {
+    window.clearInterval(resendTimer);
+    resendTimer = 0;
+    resendLeft = 0;
+    const btn = document.getElementById('otp-resend');
+    if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'ارسال دوباره';
+    }
+}
+
+function startResendTimer(seconds) {
+    const btn = document.getElementById('otp-resend');
+    if (!btn) return;
+    stopResendTimer();
+    resendLeft = Math.max(0, Number(seconds) || 0);
+    const tick = () => {
+        if (resendLeft <= 0) {
+            stopResendTimer();
+            return;
+        }
+        btn.disabled = true;
+        btn.textContent = 'ارسال دوباره (' + resendLeft + ')';
+        resendLeft -= 1;
+    };
+    tick();
+    if (resendLeft > 0) resendTimer = window.setInterval(tick, 1000);
+}
+
+function setOtpSending(on) {
+    const box = document.getElementById('otp-sending');
+    const form = document.getElementById('otp-form');
+    const hint = document.getElementById('otp-resend-wrap');
+    if (box) box.hidden = !on;
+    if (form) form.hidden = on;
+    if (hint) hint.hidden = on;
+}
+
 function backToGate() {
     currentPhone = '';
     otpPurpose = '';
     pendingRegister = null;
+    stopResendTimer();
+    setOtpSending(false);
     showPanel('auth-gate');
     const input = document.getElementById('gate-phone');
     if (input) input.focus();
@@ -211,11 +255,19 @@ async function sendOtp(purpose) {
 
 async function startOtp(purpose) {
     otpPurpose = purpose;
-    await sendOtp(purpose);
     document.getElementById('otp-code').value = '';
     setError('otp-code', '');
     showPanel('auth-otp');
-    document.getElementById('otp-code').focus();
+    setOtpSending(true);
+    try {
+        const data = await sendOtp(purpose);
+        setOtpSending(false);
+        startResendTimer((data && data.resend_seconds) || 60);
+        document.getElementById('otp-code').focus();
+    } catch (err) {
+        setOtpSending(false);
+        throw err;
+    }
 }
 
 onReady(() => {
@@ -368,15 +420,17 @@ onReady(() => {
 
     document.getElementById('otp-resend').addEventListener('click', async () => {
         const btn = document.getElementById('otp-resend');
-        btn.disabled = true;
+        if (btn.disabled) return;
         setError('otp-code', '');
+        setOtpSending(true);
         try {
-            await sendOtp(otpPurpose);
+            const data = await sendOtp(otpPurpose);
+            setOtpSending(false);
+            startResendTimer((data && data.resend_seconds) || 60);
             showNotice('کد دوباره ارسال شد.', 'ok');
         } catch (err) {
+            setOtpSending(false);
             setError('otp-code', err.message || 'ارسال دوباره ممکن نشد.');
-        } finally {
-            btn.disabled = false;
         }
     });
 

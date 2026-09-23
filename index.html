@@ -99,7 +99,7 @@
                             <form id="gate-form" novalidate>
                                 <label class="register-field">
                                     <span class="visually-hidden">شماره موبایل</span>
-                                    <input type="tel" id="gate-phone" name="gate_phone" inputmode="numeric" dir="ltr" autocomplete="tel" required maxlength="11" placeholder="شماره تماس خود را وارد کنید.">
+                                    <input type="tel" id="gate-phone" name="gate_phone" inputmode="numeric" dir="ltr" autocomplete="tel" required maxlength="11" placeholder="شماره تماس خود را وارد کنید">
                                     <em class="register-error" id="err-gate-phone" hidden></em>
                                 </label>
                                 <button type="submit" class="register-submit" id="gate-submit">ادامه</button>
@@ -132,6 +132,10 @@
                             <p class="register-kicker">تأیید شماره</p>
                             <h1>کد پیامک</h1>
                             <p class="register-lead">کد ارسال‌شده به <b id="otp-phone-label" dir="ltr"></b></p>
+                            <div class="otp-sending" id="otp-sending" hidden>
+                                <span class="otp-spinner" aria-hidden="true"></span>
+                                <p>در حال ارسال پیامک…</p>
+                            </div>
                             <form id="otp-form" novalidate>
                                 <label class="register-field">
                                     <span class="visually-hidden">کد ۶ رقمی</span>
@@ -140,7 +144,7 @@
                                 </label>
                                 <button type="submit" class="register-submit" id="otp-submit">تأیید کد</button>
                             </form>
-                            <p class="register-hint">
+                            <p class="register-hint" id="otp-resend-wrap">
                                 <button type="button" class="auth-back" id="otp-resend">ارسال دوباره</button>
                             </p>
                         </section>
@@ -174,41 +178,41 @@
                             <form id="register-form" novalidate>
                                 <div class="register-pair">
                                     <label class="register-field">
-                                        <span class="visually-hidden">نام</span>
-                                        <input type="text" id="first_name" name="first_name" autocomplete="given-name" required maxlength="40" placeholder="نام">
+                                        <input type="text" id="first_name" name="first_name" autocomplete="given-name" required maxlength="40" placeholder=" ">
+                                        <span>نام</span>
                                         <em class="register-error" id="err-first_name" hidden></em>
                                     </label>
                                     <label class="register-field">
-                                        <span class="visually-hidden">نام خانوادگی</span>
-                                        <input type="text" id="last_name" name="last_name" autocomplete="family-name" required maxlength="40" placeholder="نام خانوادگی">
+                                        <input type="text" id="last_name" name="last_name" autocomplete="family-name" required maxlength="40" placeholder=" ">
+                                        <span>نام خانوادگی</span>
                                         <em class="register-error" id="err-last_name" hidden></em>
                                     </label>
                                 </div>
                                 <label class="register-field">
-                                    <span class="visually-hidden">شماره موبایل</span>
-                                    <input type="tel" id="register-phone" name="phone" dir="ltr" readonly placeholder="شماره موبایل">
+                                    <input type="tel" id="register-phone" name="phone" dir="ltr" readonly placeholder=" ">
+                                    <span>شماره موبایل</span>
                                 </label>
                                 <div class="register-pair">
                                     <label class="register-field">
-                                        <span class="visually-hidden">سمت</span>
-                                        <input type="text" id="role_title" name="role_title" autocomplete="organization-title" required maxlength="60" placeholder="سمت">
+                                        <input type="text" id="role_title" name="role_title" autocomplete="organization-title" required maxlength="60" placeholder=" ">
+                                        <span>سمت</span>
                                         <em class="register-error" id="err-role_title" hidden></em>
                                     </label>
                                     <label class="register-field">
-                                        <span class="visually-hidden">سازمان</span>
-                                        <input type="text" id="organization" name="organization" autocomplete="organization" maxlength="80" placeholder="سازمان (اختیاری)">
+                                        <input type="text" id="organization" name="organization" autocomplete="organization" maxlength="80" placeholder=" ">
+                                        <span>سازمان (اختیاری)</span>
                                         <em class="register-error" id="err-organization" hidden></em>
                                     </label>
                                 </div>
                                 <div class="register-pair">
                                     <label class="register-field">
-                                        <span class="visually-hidden">رمز عبور</span>
-                                        <input type="password" id="password" name="password" autocomplete="new-password" required minlength="8" placeholder="رمز عبور">
+                                        <input type="password" id="password" name="password" autocomplete="new-password" required minlength="8" placeholder=" ">
+                                        <span>رمز عبور</span>
                                         <em class="register-error" id="err-password" hidden></em>
                                     </label>
                                     <label class="register-field">
-                                        <span class="visually-hidden">تکرار رمز عبور</span>
-                                        <input type="password" id="password_confirm" name="password_confirm" autocomplete="new-password" required minlength="8" placeholder="تکرار رمز عبور">
+                                        <input type="password" id="password_confirm" name="password_confirm" autocomplete="new-password" required minlength="8" placeholder=" ">
+                                        <span>تکرار رمز عبور</span>
                                         <em class="register-error" id="err-password_confirm" hidden></em>
                                     </label>
                                 </div>
