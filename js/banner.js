@@ -53,7 +53,7 @@
                         '</button>' +
                     '</div>' +
                 '</div>' +
-                '<a href="' + SITE.page('login.html') + '" class="banner-auth-btn" id="banner-auth-btn">ورود | ثبت نام</a>' +
+                '<a href="' + SITE.page('auth.html') + '" class="banner-auth-btn" id="banner-auth-btn">ورود | ثبت نام</a>' +
                 '<div class="user-texts" id="user-texts" hidden>' +
                     '<div class="user-name"></div>' +
                     '<div class="user-role"></div>' +

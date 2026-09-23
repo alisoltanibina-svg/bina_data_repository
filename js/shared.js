@@ -165,6 +165,39 @@ function avatarSrc(url) {
     return (typeof API_BASE_URL === 'string' ? API_BASE_URL : '') + url;
 }
 
+const BANNER_PROFILE_KEY = 'binaBannerProfile';
+
+function readBannerProfile() {
+    try {
+        const raw = sessionStorage.getItem(BANNER_PROFILE_KEY);
+        if (!raw) return null;
+        const data = JSON.parse(raw);
+        if (!data || typeof data !== 'object') return null;
+        if (!data.first_name && !data.last_name && !data.avatar_url) return null;
+        return data;
+    } catch (err) {
+        return null;
+    }
+}
+
+function writeBannerProfile(profile) {
+    try {
+        if (!profile) {
+            sessionStorage.removeItem(BANNER_PROFILE_KEY);
+            return;
+        }
+        sessionStorage.setItem(BANNER_PROFILE_KEY, JSON.stringify({
+            id: profile.id,
+            first_name: profile.first_name || '',
+            last_name: profile.last_name || '',
+            role_title: profile.role_title || '',
+            organization: profile.organization || '',
+            is_admin: profile.is_admin === true,
+            avatar_url: profile.avatar_url || ''
+        }));
+    } catch (err) {}
+}
+
 function applyBannerAvatar(url) {
     const img = document.getElementById('user-avatar-img');
     const btn = document.getElementById('user-menu-btn');

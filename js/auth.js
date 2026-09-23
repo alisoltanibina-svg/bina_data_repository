@@ -30,6 +30,7 @@
         const box = document.getElementById('user-box') || document.querySelector('.user-box');
         const adminLink = document.getElementById('btn-admin-panel');
         if (adminLink) adminLink.hidden = !(profile && profile.is_admin === true);
+        writeBannerProfile(profile || null);
         if (profile) {
             if (authBtn) authBtn.hidden = true;
             if (texts) texts.hidden = false;
@@ -56,6 +57,7 @@
     }
 
     function clearLocalSession() {
+        writeBannerProfile(null);
         sessionStorage.removeItem('atlasSelectedTopic');
         sessionStorage.removeItem('atlasSelectedProvince');
         sessionStorage.removeItem('welcomeShown');
@@ -100,7 +102,11 @@
 
     function setup() {
         setupLogoHome();
+        applyProfile(readBannerProfile());
         loadProfile();
+        window.addEventListener('pageshow', function () {
+            loadProfile();
+        });
         const btn = document.getElementById('user-menu-btn');
         const menu = document.getElementById('user-menu-dropdown');
         const logoutBtn = document.getElementById('btn-logout');
@@ -116,7 +122,7 @@
             event.stopPropagation();
             if (!profileReady) return;
             if (!signedIn) {
-                window.location.href = SITE.page('login.html');
+                window.location.href = SITE.page('auth.html');
                 return;
             }
             if (menu.hidden) {

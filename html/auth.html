@@ -1,15 +1,15 @@
 <!DOCTYPE html>
 <!--
-  File: register.html
-  Purpose: Public membership request form. Admin later accepts or rejects the request.
-  Notes: Visible UI strings remain in Persian. Submits to POST /api/auth/register.
+  File: auth.html
+  Purpose: Single authentication page. Phone lookup then login, register, or status.
+  Notes: Visible UI strings remain in Persian.
 -->
 
 <html lang="fa" dir="rtl" class="treat-v1">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>درخواست عضویت — دیده‌بان فرهنگ</title>
+    <title>ورود | ثبت نام — دیده‌بان فرهنگ</title>
     <link rel="icon" href="../assets/images/Logo.webp" type="image/webp">
     <link rel="stylesheet" href="../assets/fonts/peyda.css">
     <script src="../js/force-motion.js"></script>
@@ -18,20 +18,51 @@
     <link rel="stylesheet" href="../css/treat-v1.css">
     <script src="../js/config.js"></script>
     <script src="../js/shared.js"></script>
-    <script src="../js/register.js" defer></script>
+    <script src="../js/auth-page.js" defer></script>
     <script src="../js/auth.js" defer></script>
 </head>
 <body class="register-body">
 
-    <div id="top-banner" data-page="register"></div>
+    <div id="top-banner" data-page="auth"></div>
     <script src="../js/banner.js"></script>
 
     <main class="register-workspace">
-        <section class="register-card" id="register-card">
+        <section class="register-card" id="auth-gate">
+            <p class="register-kicker">حساب کاربری</p>
+            <h1>ورود | ثبت نام</h1>
+            <p class="register-lead">شماره موبایل را وارد کنید تا مسیر ورود یا عضویت مشخص شود.</p>
+            <form id="gate-form" novalidate>
+                <label class="register-field">
+                    <span>شماره موبایل</span>
+                    <input type="tel" id="gate-phone" name="gate_phone" inputmode="numeric" dir="ltr" autocomplete="tel" required maxlength="11" placeholder="09121234567">
+                    <em class="register-error" id="err-gate-phone" hidden></em>
+                </label>
+                <button type="submit" class="register-submit" id="gate-submit">ادامه</button>
+            </form>
+        </section>
+
+        <section class="register-card" id="auth-login" hidden>
+            <p class="register-kicker">حساب کاربری</p>
+            <h1>ورود به حساب</h1>
+            <p class="register-lead">رمز عبور را برای شماره <b id="login-phone-label" dir="ltr"></b> وارد کنید.</p>
+            <form id="login-form" novalidate>
+                <input type="hidden" id="login-phone" name="phone">
+                <label class="register-field">
+                    <span>رمز عبور</span>
+                    <input type="password" id="login-password" name="password" autocomplete="current-password" required minlength="8">
+                    <em class="register-error" id="err-login-password" hidden></em>
+                </label>
+                <button type="submit" class="register-submit" id="login-submit">ورود</button>
+            </form>
+            <p class="register-hint" style="margin-top: 16px;">
+                <button type="button" class="auth-back" data-auth-back>تغییر شماره</button>
+            </p>
+        </section>
+
+        <section class="register-card" id="auth-register" hidden>
             <p class="register-kicker">عضویت</p>
             <h1>درخواست عضویت</h1>
-            <p class="register-lead">پس از ارسال، درخواست شما بررسی می‌شود. پس از پذیرش می‌توانید وارد بخش‌های نیازمند عضویت شوید.</p>
-
+            <p class="register-lead">پس از ارسال، درخواست شما بررسی می‌شود. پس از پذیرش می‌توانید وارد شوید.</p>
             <form id="register-form" novalidate>
                 <div class="register-pair">
                     <label class="register-field">
@@ -45,25 +76,20 @@
                         <em class="register-error" id="err-last_name" hidden></em>
                     </label>
                 </div>
-
                 <label class="register-field">
                     <span>شماره موبایل</span>
-                    <input type="tel" id="phone" name="phone" inputmode="numeric" dir="ltr" autocomplete="tel" required maxlength="11" placeholder="09121234567">
-                    <em class="register-error" id="err-phone" hidden></em>
+                    <input type="tel" id="register-phone" name="phone" dir="ltr" readonly>
                 </label>
-
                 <label class="register-field">
                     <span>سمت</span>
                     <input type="text" id="role_title" name="role_title" autocomplete="organization-title" required maxlength="60" placeholder="پژوهشگر">
                     <em class="register-error" id="err-role_title" hidden></em>
                 </label>
-
                 <label class="register-field">
                     <span>سازمان <small>اختیاری</small></span>
                     <input type="text" id="organization" name="organization" autocomplete="organization" maxlength="80">
                     <em class="register-error" id="err-organization" hidden></em>
                 </label>
-
                 <div class="register-pair">
                     <label class="register-field">
                         <span>رمز عبور</span>
@@ -76,17 +102,27 @@
                         <em class="register-error" id="err-password_confirm" hidden></em>
                     </label>
                 </div>
-
                 <p class="register-hint">رمز حداقل ۸ نویسه باشد. تا زمان پذیرش، حسابی ساخته نمی‌شود.</p>
-
                 <button type="submit" class="register-submit" id="register-submit">ارسال درخواست</button>
             </form>
+            <p class="register-hint" style="margin-top: 16px;">
+                <button type="button" class="auth-back" data-auth-back>تغییر شماره</button>
+            </p>
         </section>
 
-        <section class="register-card register-done" id="register-done" hidden>
+        <section class="register-card" id="auth-status" hidden>
+            <p class="register-kicker">حساب کاربری</p>
+            <h1 id="auth-status-title"></h1>
+            <p class="register-lead" id="auth-status-text"></p>
+            <p class="register-hint" style="margin-top: 16px;">
+                <button type="button" class="auth-back" data-auth-back>تغییر شماره</button>
+            </p>
+        </section>
+
+        <section class="register-card register-done" id="auth-done" hidden>
             <p class="register-kicker">درخواست ثبت شد</p>
             <h1>در انتظار بررسی</h1>
-            <p class="register-lead" id="register-done-text">درخواست شما دریافت شد. پس از پذیرش مدیر، می‌توانید وارد شوید.</p>
+            <p class="register-lead" id="auth-done-text">درخواست شما دریافت شد. پس از پذیرش مدیر، می‌توانید وارد شوید.</p>
             <a class="register-submit register-link" href="../index.html">بازگشت به صفحه اصلی</a>
         </section>
     </main>

@@ -230,6 +230,37 @@ def authenticate(phone: str, password: str) -> dict | None:
     return {"profile": profile, "token": token, "expires_at": expires_at}
 
 
+def lookup_auth_gate(phone: str) -> str:
+    """Route a phone to login, register, pending, or rejected. No extra profile data."""
+    phone = normalize_phone(phone)
+    if not is_mobile_phone(phone):
+        raise MembershipError("phone", "شماره موبایل نامعتبر است.")
+    with db_session() as session:
+        user = session.execute(
+            select(User).where(or_(User.phone == phone, func.trim(User.phone) == phone))
+        ).scalars().first()
+        requests = session.execute(
+            select(RegistrationRequest)
+            .where(
+                or_(
+                    RegistrationRequest.phone == phone,
+                    func.trim(RegistrationRequest.phone) == phone,
+                )
+            )
+            .order_by(RegistrationRequest.created_at.desc())
+        ).scalars().all()
+        if any(row.status == "pending" for row in requests):
+            return "pending"
+        if user is not None and user.is_active is not False:
+            return "login"
+        latest = requests[0] if requests else None
+        if latest is not None and latest.status == "rejected":
+            return "rejected"
+        if latest is not None and latest.status == "approved":
+            return "login"
+        return "register"
+
+
 def profile_from_session_token(token: str) -> dict | None:
     if not token:
         return None

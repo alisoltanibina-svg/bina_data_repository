@@ -208,6 +208,7 @@ body {
 .user-exit-btn:hover { background: #fef2f2; }
 .user-texts { display: flex; flex-direction: column; line-height: 1.5; text-align: left; }
 .user-texts[hidden] { display: none; }
+.user-box:not(.is-signed-in) .user-texts { display: none; }
 .user-name { font-weight: 800; color: var(--banner-fg); font-size: 0.95rem; }
 .user-role { font-size: 0.75rem; color: var(--banner-fg); }
 .banner-auth-btn {

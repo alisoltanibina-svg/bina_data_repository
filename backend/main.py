@@ -50,6 +50,7 @@ from backend.membership import (
     get_user_for_admin,
     list_registration_requests,
     list_users_for_admin,
+    lookup_auth_gate,
     profile_from_session_token,
     reject_registration,
     repair_approved_user_hashes,
@@ -684,6 +685,19 @@ def _set_session_cookie(response: JSONResponse, token: str, request: Request) ->
         samesite="lax",
         path="/",
     )
+
+
+class GateBody(BaseModel):
+    phone: str = Field(min_length=1, max_length=16)
+
+
+@app.post("/api/auth/gate")
+def auth_gate(body: GateBody):
+    try:
+        status = lookup_auth_gate(body.phone)
+    except MembershipError as err:
+        _raise_membership(err)
+    return JSONResponse(content={"status": status}, headers=_AUTH_NO_STORE)
 
 
 @app.post("/api/auth/login")

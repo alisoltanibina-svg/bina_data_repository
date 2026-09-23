@@ -137,6 +137,11 @@ body.register-body {
     border-color: color-mix(in srgb, var(--rg-danger) 55%, var(--rg-line));
 }
 
+.register-field input[readonly] {
+    background: var(--rg-paper);
+    color: var(--rg-muted);
+}
+
 .register-error {
     font-size: 0.75rem;
     font-weight: 500;
@@ -200,6 +205,26 @@ body.register-body {
 .register-done[hidden],
 .register-card[hidden] {
     display: none;
+}
+
+.auth-back {
+    border: 0;
+    padding: 0;
+    background: none;
+    color: var(--rg-submit);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.auth-back:hover {
+    text-decoration: underline;
+}
+
+#login-phone-label {
+    font-weight: 600;
+    color: var(--rg-ink);
+    unicode-bidi: isolate;
 }
 
 @media (max-width: 767px) {
