@@ -6,6 +6,7 @@ const PANELS = ['auth-gate', 'auth-login', 'auth-otp', 'auth-reset', 'auth-regis
 
 let currentPhone = '';
 let otpPurpose = '';
+let pendingRegister = null;
 
 function setError(name, message) {
     const input = document.getElementById(name);
@@ -107,6 +108,7 @@ function applyPhone(phone) {
 function backToGate() {
     currentPhone = '';
     otpPurpose = '';
+    pendingRegister = null;
     showPanel('auth-gate');
     const input = document.getElementById('gate-phone');
     if (input) input.focus();
@@ -182,7 +184,9 @@ onReady(() => {
                 return;
             }
             if (status === 'register') {
-                await startOtp('register');
+                pendingRegister = null;
+                showPanel('auth-register');
+                document.getElementById('first_name').focus();
                 return;
             }
             if (status === 'pending') {
@@ -255,8 +259,20 @@ onReady(() => {
                 code: code
             });
             if (otpPurpose === 'register') {
-                showPanel('auth-register');
-                document.getElementById('first_name').focus();
+                if (!pendingRegister) {
+                    showPanel('auth-register');
+                    document.getElementById('first_name').focus();
+                    return;
+                }
+                const profile = await apiJson('/api/auth/register', {
+                    first_name: pendingRegister.first_name,
+                    last_name: pendingRegister.last_name,
+                    phone: currentPhone,
+                    role_title: pendingRegister.role_title,
+                    organization: pendingRegister.organization,
+                    password: pendingRegister.password
+                });
+                finishSignedIn(profile);
                 return;
             }
             showPanel('auth-reset');
@@ -328,16 +344,10 @@ onReady(() => {
         const submit = document.getElementById('register-submit');
         submit.disabled = true;
         try {
-            const profile = await apiJson('/api/auth/register', {
-                first_name: values.first_name,
-                last_name: values.last_name,
-                phone: currentPhone,
-                role_title: values.role_title,
-                organization: values.organization,
-                password: values.password
-            });
-            finishSignedIn(profile);
+            pendingRegister = values;
+            await startOtp('register');
         } catch (err) {
+            pendingRegister = null;
             const mapped = errorFromRegister({ detail: { code: err.code, message: err.message } });
             if (mapped.field) setError(mapped.field, mapped.text);
             else showNotice(mapped.text);
