@@ -47,6 +47,7 @@ from backend.membership import (
     avatar_download,
     clear_user_avatar,
     delete_session_token,
+    delete_user_account,
     get_user_for_admin,
     list_registration_requests,
     list_users_for_admin,
@@ -767,6 +768,7 @@ _MEMBERSHIP_HTTP = {
     "exists": 409,
     "not-found": 404,
     "not-pending": 409,
+    "forbidden": 403,
 }
 
 
@@ -947,6 +949,16 @@ def admin_download_avatar(user_id: int, request: Request):
         filename=filename,
         headers=_AUTH_NO_STORE,
     )
+
+
+@app.delete("/api/admin/users/{user_id}")
+def admin_delete_user(user_id: int, request: Request):
+    admin = _require_admin(request)
+    try:
+        delete_user_account(user_id, admin["id"])
+    except MembershipError as err:
+        _raise_membership(err)
+    return JSONResponse(content={"ok": True}, headers=_AUTH_NO_STORE)
 
 
 @app.delete("/api/admin/users/{user_id}/avatar")

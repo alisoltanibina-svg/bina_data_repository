@@ -239,3 +239,178 @@ body.register-body {
 
     .register-card h1 { font-size: 1.25rem; }
 }
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+body.auth-body {
+    background-color: #e8d9b8;
+    background-image: url("../assets/images/bg_curtain.webp");
+    background-size: cover;
+    background-position: center center;
+    background-repeat: no-repeat;
+    overflow: hidden;
+}
+
+body.auth-body .register-workspace {
+    min-height: var(--vvh, 100dvh);
+    padding: calc(75px + var(--banner-gap) + 24px) 20px 32px;
+    align-items: center;
+}
+
+body.auth-body .register-card {
+    position: relative;
+    width: min(26rem, 100%);
+    padding: 28px 26px 24px;
+    text-align: center;
+    background: rgba(232, 217, 185, 0.38);
+    backdrop-filter: blur(18px) saturate(1.15);
+    -webkit-backdrop-filter: blur(18px) saturate(1.15);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    border-radius: 28px;
+    box-shadow: 0 12px 32px rgba(81, 88, 17, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+body.auth-body .register-card-wide {
+    width: min(34rem, 100%);
+}
+
+body.auth-body .register-kicker {
+    font-size: 1.05rem;
+    font-weight: 500;
+    color: #a18447;
+}
+
+body.auth-body .register-card h1 {
+    margin-top: 2px;
+    font-size: 1.7rem;
+    font-weight: 700;
+    color: #515811;
+}
+
+body.auth-body .register-lead {
+    margin: 8px auto 0;
+    max-width: none;
+    font-size: 0.88rem;
+    color: #a18447;
+}
+
+body.auth-body .register-card form {
+    margin-top: 22px;
+    gap: 12px;
+}
+
+body.auth-body .register-pair {
+    gap: 12px;
+}
+
+body.auth-body .register-field {
+    font-weight: 400;
+}
+
+body.auth-body .register-field input {
+    height: 52px;
+    padding: 0 18px;
+    border: 0;
+    border-radius: 999px;
+    background: #f4eddf;
+    color: #515811;
+    text-align: center;
+    font-weight: 500;
+}
+
+body.auth-body .register-field input::placeholder {
+    color: #a18447;
+    opacity: 0.9;
+}
+
+body.auth-body .register-field input[readonly] {
+    background: #f4eddf;
+    color: #515811;
+    opacity: 0.85;
+}
+
+body.auth-body .register-field input:focus-visible,
+body.auth-body .register-submit:focus-visible {
+    outline: 2px solid #515811;
+    outline-offset: 2px;
+}
+
+body.auth-body .register-submit {
+    width: 100%;
+    height: 52px;
+    margin-top: 2px;
+    background: #515811;
+    color: #ffffff;
+    font-size: 0.98rem;
+}
+
+body.auth-body .register-submit:hover:not(:disabled) {
+    background: #3f460d;
+    filter: none;
+}
+
+body.auth-body .register-hint {
+    margin-top: 14px;
+    text-align: center;
+    color: #a18447;
+}
+
+body.auth-body .register-hint .auth-back,
+body.auth-body .auth-back {
+    color: #a18447;
+    font-weight: 500;
+    text-decoration: none;
+}
+
+body.auth-body .auth-back:hover {
+    text-decoration: underline;
+}
+
+body.auth-body .auth-back-fab {
+    position: absolute;
+    top: 16px;
+    inset-inline-start: 16px;
+    width: 34px;
+    height: 34px;
+    border: 0;
+    border-radius: 50%;
+    background: #f4eddf;
+    color: #a18447;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+}
+
+body.auth-body .auth-back-fab:hover {
+    background: #efe4ce;
+}
+
+body.auth-body .register-error {
+    text-align: center;
+}
+
+@media (max-width: 767px) {
+    body.auth-body .register-workspace {
+        padding: calc(64px + 28px) 14px 20px;
+        padding-bottom: max(20px, env(safe-area-inset-bottom));
+    }
+
+    body.auth-body .register-card {
+        padding: 24px 16px 18px;
+        border-radius: 22px;
+    }
+
+    body.auth-body .register-card h1 { font-size: 1.4rem; }
+}

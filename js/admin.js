@@ -25,7 +25,7 @@ function normalizePhone(raw) {
 async function adminFetch(path, options) {
     const response = await fetch(`${API_BASE_URL}${path}`, Object.assign({ credentials: 'include' }, options || {}));
     if (response.status === 401 || response.status === 403) {
-        window.location.href = SITE.page('auth.html');
+        window.location.href = SITE.page('index.html') + '#auth';
         throw new Error('auth');
     }
     let data = null;
@@ -62,6 +62,9 @@ const AdminApi = {
     },
     removeAvatar(id) {
         return adminFetch('/api/admin/users/' + encodeURIComponent(id) + '/avatar', { method: 'DELETE' });
+    },
+    removeUser(id) {
+        return adminFetch('/api/admin/users/' + encodeURIComponent(id), { method: 'DELETE' });
     }
 }
 
@@ -284,6 +287,12 @@ function openDialog(kind, row) {
         noteWrap.hidden = true;
         confirm.textContent = 'حذف عکس';
         confirm.className = 'admin-btn admin-btn-danger';
+    } else if (kind === 'remove-user') {
+        title.textContent = 'حذف حساب';
+        text.textContent = 'حساب «' + displayName(row) + '» برای همیشه حذف می‌شود: ورود، عکس، سابقهٔ ویرایش و درخواست‌های این شماره.';
+        noteWrap.hidden = true;
+        confirm.textContent = 'حذف حساب';
+        confirm.className = 'admin-btn admin-btn-danger';
     } else {
         title.textContent = 'رد درخواست';
         text.textContent = 'درخواست «' + displayName(row) + '» رد می‌شود و حسابی ساخته نمی‌شود.';
@@ -329,6 +338,13 @@ async function confirmDialog() {
                 usersState.detail = await AdminApi.user(id);
             }
             showNotice('عکس حذف شد.', 'ok');
+            renderUsers();
+        } else if (kind === 'remove-user') {
+            await AdminApi.removeUser(id);
+            usersState.rows = usersState.rows.filter(item => !sameId(item.id, id));
+            usersState.selectedId = null;
+            usersState.detail = null;
+            showNotice('حساب حذف شد.', 'ok');
             renderUsers();
         } else {
             const row = await AdminApi.reject(id, note);
@@ -627,6 +643,9 @@ function bind() {
         if (act.dataset.act === 'remove-avatar') {
             openDialog('remove-avatar', usersState.detail);
         }
+    });
+    document.getElementById('user-delete-btn').addEventListener('click', () => {
+        if (usersState.detail) openDialog('remove-user', usersState.detail);
     });
 }
 

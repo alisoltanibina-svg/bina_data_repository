@@ -24,11 +24,65 @@ function setError(name, message) {
 }
 
 function showPanel(id) {
+    const apply = () => {
+        PANELS.forEach(name => {
+            const el = document.getElementById(name);
+            if (el) el.hidden = name !== id;
+        });
+        document.documentElement.classList.toggle('curtain-auth-wide', id === 'auth-register');
+    };
+    const stage = document.getElementById('entry-auth-stage');
+    if (!stage || stage.hidden || !document.documentElement.classList.contains('curtain-auth')) {
+        apply();
+        return;
+    }
+    stage.classList.add('is-swap');
+    window.setTimeout(() => {
+        apply();
+        stage.classList.remove('is-swap');
+    }, 180);
+}
+
+function openCurtainAuth() {
+    const stage = document.getElementById('entry-auth-stage');
+    const shell = document.getElementById('entry-auth-shell');
+    if (!stage || !shell) return;
+    if (typeof window.setAtlasView === 'function' && document.documentElement.classList.contains('atlas-view')) {
+        window.setAtlasView(false);
+    }
+    showPanel('auth-gate');
+    stage.hidden = false;
+    document.documentElement.classList.add('curtain-auth');
+    const phone = document.getElementById('gate-phone');
+    window.setTimeout(() => { if (phone) phone.focus(); }, 420);
+    if (window.location.hash !== '#auth') {
+        try { history.replaceState(null, '', '#auth'); } catch (e) {}
+    }
+}
+
+function closeCurtainAuth() {
+    const stage = document.getElementById('entry-auth-stage');
+    const home = document.getElementById('entry-launch-home');
+    document.documentElement.classList.remove('curtain-auth', 'curtain-auth-wide');
+    currentPhone = '';
+    otpPurpose = '';
+    pendingRegister = null;
+    if (stage) {
+        stage.hidden = true;
+        stage.classList.remove('is-swap');
+    }
+    if (home) home.hidden = false;
     PANELS.forEach(name => {
         const el = document.getElementById(name);
-        if (el) el.hidden = name !== id;
+        if (el) el.hidden = name !== 'auth-gate';
     });
+    if ((window.location.hash || '') === '#auth') {
+        try { history.replaceState(null, '', window.location.pathname + window.location.search); } catch (e) {}
+    }
 }
+
+window.openCurtainAuth = openCurtainAuth;
+window.closeCurtainAuth = closeCurtainAuth;
 
 function failDetail(data, fallback) {
     if (!data || data.detail == null) return fallback;
@@ -43,7 +97,16 @@ function displayName(row) {
 
 function finishSignedIn(profile) {
     writeBannerProfile(profile);
-    window.location.href = profile && profile.is_admin ? SITE.page('admin.html') : SITE.page('index.html');
+    if (profile && profile.is_admin) {
+        window.location.href = SITE.page('admin.html');
+        return;
+    }
+    if (document.getElementById('entry-auth-shell')) {
+        closeCurtainAuth();
+        window.dispatchEvent(new Event('bina-session-changed'));
+        return;
+    }
+    window.location.href = SITE.page('index.html');
 }
 
 function readRegisterForm(form) {
@@ -159,7 +222,25 @@ onReady(() => {
     const gateForm = document.getElementById('gate-form');
     const gateSubmit = document.getElementById('gate-submit');
     const gatePhone = document.getElementById('gate-phone');
+    if (!gateForm || !gatePhone) return;
     bindPhoneInput(gatePhone);
+
+    const openBtn = document.getElementById('btn-open-login');
+    if (openBtn) openBtn.addEventListener('click', openCurtainAuth);
+    const bannerBtn = document.getElementById('banner-auth-btn');
+    if (bannerBtn && document.getElementById('entry-auth-shell')) {
+        bannerBtn.addEventListener('click', event => {
+            event.preventDefault();
+            openCurtainAuth();
+        });
+    }
+    if (window.location.hash === '#auth' && !readBannerProfile()) openCurtainAuth();
+    document.addEventListener('keydown', event => {
+        if (event.key !== 'Escape') return;
+        if (!document.documentElement.classList.contains('curtain-auth')) return;
+        const gate = document.getElementById('auth-gate');
+        if (gate && !gate.hidden) closeCurtainAuth();
+    });
 
     document.querySelectorAll('[data-auth-back]').forEach(btn => {
         btn.addEventListener('click', backToGate);

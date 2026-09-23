@@ -200,7 +200,7 @@ function exportCrop(done) {
 async function apiJson(path, options) {
     const response = await fetch(`${API_BASE_URL}${path}`, Object.assign({ credentials: 'include' }, options || {}));
     if (response.status === 401 || response.status === 403) {
-        window.location.href = SITE.page('auth.html');
+        window.location.href = SITE.page('index.html') + '#auth';
         throw new Error('auth');
     }
     let data = null;

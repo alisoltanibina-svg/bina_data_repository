@@ -269,11 +269,14 @@ span.entry-dock-item {
     position: relative;
     right: auto;
     width: min(420px, calc(100% - 40px));
+    transition: width 0.55s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .entry-launch {
     width: 100%;
     box-sizing: border-box;
     pointer-events: auto;
+    position: relative;
+    overflow: hidden;
     background: rgba(232, 217, 185, 0.38);
     backdrop-filter: blur(18px) saturate(1.15);
     -webkit-backdrop-filter: blur(18px) saturate(1.15);
@@ -284,14 +287,210 @@ span.entry-dock-item {
     display: flex;
     flex-direction: column;
     gap: 12px;
+    transition: padding 0.55s cubic-bezier(0.22, 1, 0.36, 1), border-radius 0.55s ease;
+}
+.entry-launch-home {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    transition: opacity 0.35s ease, transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.entry-auth-stage {
+    display: none;
+    opacity: 0;
+    transform: scale(0.96);
+}
+.entry-auth-stage .register-card {
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    padding: 0;
+    width: 100%;
+    text-align: center;
+    position: relative;
+}
+.entry-auth-stage .register-card[hidden] { display: none; }
+
+html.curtain-auth .entry-dock {
+    transform: translate3d(0, 110%, 0);
+    pointer-events: none;
+}
+html.curtain-auth .entry-dock::before { opacity: 0; }
+.entry-dock,
+.entry-dock::before {
+    transition: transform 0.65s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.45s ease;
+}
+
+html.curtain-auth .entry-launch {
+    padding: 28px 26px 24px;
+    gap: 0;
+}
+html.curtain-auth .entry-hero-stack {
+    width: min(26rem, calc(100% - 40px));
+}
+html.curtain-auth-wide .entry-hero-stack {
+    width: min(34rem, calc(100% - 40px));
+}
+html.curtain-auth .entry-launch-home {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transform: scale(0.94);
+    pointer-events: none;
+    visibility: hidden;
+}
+html.curtain-auth .entry-auth-stage {
+    display: block;
+    opacity: 1;
+    transform: none;
+    animation: auth-stage-in 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+html.curtain-auth .entry-auth-stage.is-swap {
+    opacity: 0;
+    transform: translateY(10px);
+    animation: none;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+}
+@keyframes auth-stage-in {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: none; }
+}
+
+.entry-auth-stage .register-kicker {
+    margin: 0 0 4px;
+    font-size: 1.05rem;
+    font-weight: 500;
+    color: #a18447;
+}
+.entry-auth-stage .register-card h1 {
+    margin: 0;
+    font-size: 1.7rem;
+    font-weight: 700;
+    color: #515811;
+}
+.entry-auth-stage .register-lead {
+    margin: 8px 0 0;
+    font-size: 0.88rem;
+    color: #a18447;
+}
+.entry-auth-stage form {
+    margin-top: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.entry-auth-stage .register-pair {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+.entry-auth-stage .register-pair .register-field {
+    flex: 1 1 11rem;
+    min-width: 0;
+}
+.entry-auth-stage .register-field input {
+    width: 100%;
+    height: 52px;
+    padding: 0 18px;
+    border: 0;
+    border-radius: 999px;
+    background: #f4eddf;
+    color: #515811;
+    text-align: center;
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 500;
+}
+.entry-auth-stage .register-field input::placeholder {
+    color: #a18447;
+    opacity: 0.9;
+}
+.entry-auth-stage .register-field input[readonly] {
+    opacity: 0.85;
+}
+.entry-auth-stage .register-field input:focus-visible,
+.entry-auth-stage .register-submit:focus-visible {
+    outline: 2px solid #515811;
+    outline-offset: 2px;
+}
+.entry-auth-stage .register-submit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 52px;
+    border: 0;
+    border-radius: 999px;
+    background: #515811;
+    color: #ffffff;
+    font: inherit;
+    font-size: 0.98rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.entry-auth-stage .register-submit:hover:not(:disabled) { background: #3f460d; }
+.entry-auth-stage .register-submit:disabled { opacity: 0.55; cursor: not-allowed; }
+.entry-auth-stage .register-hint {
+    margin: 14px 0 0;
+    text-align: center;
+    font-size: 0.8rem;
+    color: #a18447;
+}
+.entry-auth-stage .auth-back {
+    border: 0;
+    padding: 0;
+    background: none;
+    color: #a18447;
+    font: inherit;
+    font-weight: 500;
+    cursor: pointer;
+}
+.entry-auth-stage .auth-back:hover { text-decoration: underline; }
+.entry-auth-stage .auth-back-fab {
+    position: absolute;
+    top: 0;
+    inset-inline-start: 0;
+    width: 34px;
+    height: 34px;
+    border: 0;
+    border-radius: 50%;
+    background: #f4eddf;
+    color: #a18447;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+}
+.entry-auth-stage .register-error {
+    display: block;
+    margin-top: 6px;
+    font-size: 0.75rem;
+    font-style: normal;
+    color: #b91c1c;
+    text-align: center;
+}
+.entry-auth-stage .register-error[hidden] { display: none; }
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
 }
 .entry-login-btn {
     position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
+    width: 100%;
     height: 52px;
     padding: 0 52px 1px;
+    border: 0;
     border-radius: 999px;
     background: #515811;
     color: #ffffff;
@@ -299,8 +498,10 @@ span.entry-dock-item {
     font-size: 0.95rem;
     font-weight: 600;
     font-family: inherit;
+    cursor: pointer;
 }
 .entry-login-btn:hover { filter: brightness(0.96); }
+.entry-login-btn[hidden] { display: none; }
 .entry-login-btn:focus-visible,
 .entry-ghost-btn:focus-visible {
     outline: 2px solid #515811;

@@ -27,6 +27,7 @@
     <script src="js/config.js"></script>
     <script src="js/shared.js"></script>
     <script src="js/index.js" defer></script>
+    <script src="js/auth-page.js" defer></script>
     <script src="js/auth.js" defer></script>
 
     <script>
@@ -65,20 +66,168 @@
         <div class="entry-scroll">
             <section class="entry-hero" id="entry-hero">
                 <div class="entry-hero-stack">
-                <div class="entry-launch entry-reveal">
-                    <a href="html/auth.html" class="entry-login-btn" id="btn-open-login">
-                        <span class="entry-login-arrow" aria-hidden="true">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M5 12h14"></path>
-                                <path d="M13 6l6 6-6 6"></path>
-                            </svg>
-                        </span>
-                        <span>ورود به حساب کاربری</span>
-                    </a>
-                    <div class="entry-launch-row">
-                        <span class="entry-ghost-btn" aria-disabled="true">ارتباط با ما</span>
-                        <span class="entry-launch-split" aria-hidden="true"></span>
-                        <span class="entry-ghost-btn" aria-disabled="true">درباره ما</span>
+                <div class="entry-launch entry-reveal" id="entry-auth-shell">
+                    <div class="entry-launch-home" id="entry-launch-home">
+                        <button type="button" class="entry-login-btn" id="btn-open-login">
+                            <span class="entry-login-arrow" aria-hidden="true">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M5 12h14"></path>
+                                    <path d="M13 6l6 6-6 6"></path>
+                                </svg>
+                            </span>
+                            <span>ورود به حساب کاربری</span>
+                        </button>
+                        <a class="entry-login-btn" id="btn-open-profile" href="html/profile.html" hidden>
+                            <span class="entry-login-arrow" aria-hidden="true">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M5 12h14"></path>
+                                    <path d="M13 6l6 6-6 6"></path>
+                                </svg>
+                            </span>
+                            <span>حساب من</span>
+                        </a>
+                        <div class="entry-launch-row">
+                            <span class="entry-ghost-btn" aria-disabled="true">ارتباط با ما</span>
+                            <span class="entry-launch-split" aria-hidden="true"></span>
+                            <span class="entry-ghost-btn" aria-disabled="true">درباره ما</span>
+                        </div>
+                    </div>
+                    <div class="entry-auth-stage" id="entry-auth-stage" hidden>
+                        <section class="register-card" id="auth-gate">
+                            <p class="register-kicker">حساب کاربری</p>
+                            <h1>ورود | ثبت نام</h1>
+                            <form id="gate-form" novalidate>
+                                <label class="register-field">
+                                    <span class="visually-hidden">شماره موبایل</span>
+                                    <input type="tel" id="gate-phone" name="gate_phone" inputmode="numeric" dir="ltr" autocomplete="tel" required maxlength="11" placeholder="شماره تماس خود را وارد کنید.">
+                                    <em class="register-error" id="err-gate-phone" hidden></em>
+                                </label>
+                                <button type="submit" class="register-submit" id="gate-submit">ادامه</button>
+                            </form>
+                        </section>
+                        <section class="register-card" id="auth-login" hidden>
+                            <button type="button" class="auth-back-fab" data-auth-back aria-label="بازگشت">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
+                            </button>
+                            <p class="register-kicker">حساب کاربری</p>
+                            <h1>ورود به حساب</h1>
+                            <b id="login-phone-label" class="visually-hidden" dir="ltr"></b>
+                            <form id="login-form" novalidate>
+                                <input type="hidden" id="login-phone" name="phone">
+                                <label class="register-field">
+                                    <span class="visually-hidden">رمز عبور</span>
+                                    <input type="password" id="login-password" name="password" autocomplete="current-password" required minlength="8" placeholder="رمز عبور را وارد کنید">
+                                    <em class="register-error" id="err-login-password" hidden></em>
+                                </label>
+                                <button type="submit" class="register-submit" id="login-submit">ورود</button>
+                            </form>
+                            <p class="register-hint">
+                                <button type="button" class="auth-back" id="forgot-password">فراموشی رمز عبور</button>
+                            </p>
+                        </section>
+                        <section class="register-card" id="auth-otp" hidden>
+                            <button type="button" class="auth-back-fab" data-auth-back aria-label="بازگشت">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
+                            </button>
+                            <p class="register-kicker">تأیید شماره</p>
+                            <h1>کد پیامک</h1>
+                            <p class="register-lead">کد ارسال‌شده به <b id="otp-phone-label" dir="ltr"></b></p>
+                            <form id="otp-form" novalidate>
+                                <label class="register-field">
+                                    <span class="visually-hidden">کد ۶ رقمی</span>
+                                    <input type="text" id="otp-code" name="otp_code" inputmode="numeric" dir="ltr" autocomplete="one-time-code" required maxlength="6" placeholder="کد ۶ رقمی">
+                                    <em class="register-error" id="err-otp-code" hidden></em>
+                                </label>
+                                <button type="submit" class="register-submit" id="otp-submit">تأیید کد</button>
+                            </form>
+                            <p class="register-hint">
+                                <button type="button" class="auth-back" id="otp-resend">ارسال دوباره</button>
+                            </p>
+                        </section>
+                        <section class="register-card" id="auth-reset" hidden>
+                            <button type="button" class="auth-back-fab" data-auth-back aria-label="بازگشت">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
+                            </button>
+                            <p class="register-kicker">بازیابی رمز</p>
+                            <h1>رمز عبور جدید</h1>
+                            <p class="register-lead">برای شماره <b id="reset-phone-label" dir="ltr"></b></p>
+                            <form id="reset-form" novalidate>
+                                <label class="register-field">
+                                    <span class="visually-hidden">رمز عبور جدید</span>
+                                    <input type="password" id="reset-password" name="reset_password" autocomplete="new-password" required minlength="8" placeholder="رمز عبور جدید">
+                                    <em class="register-error" id="err-reset-password" hidden></em>
+                                </label>
+                                <label class="register-field">
+                                    <span class="visually-hidden">تکرار رمز عبور</span>
+                                    <input type="password" id="reset-password-confirm" name="reset_password_confirm" autocomplete="new-password" required minlength="8" placeholder="تکرار رمز عبور">
+                                    <em class="register-error" id="err-reset-password-confirm" hidden></em>
+                                </label>
+                                <button type="submit" class="register-submit" id="reset-submit">ذخیره و ورود</button>
+                            </form>
+                        </section>
+                        <section class="register-card register-card-wide" id="auth-register" hidden>
+                            <button type="button" class="auth-back-fab" data-auth-back aria-label="بازگشت">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
+                            </button>
+                            <p class="register-kicker">عضویت</p>
+                            <h1>درخواست عضویت</h1>
+                            <form id="register-form" novalidate>
+                                <div class="register-pair">
+                                    <label class="register-field">
+                                        <span class="visually-hidden">نام</span>
+                                        <input type="text" id="first_name" name="first_name" autocomplete="given-name" required maxlength="40" placeholder="نام">
+                                        <em class="register-error" id="err-first_name" hidden></em>
+                                    </label>
+                                    <label class="register-field">
+                                        <span class="visually-hidden">نام خانوادگی</span>
+                                        <input type="text" id="last_name" name="last_name" autocomplete="family-name" required maxlength="40" placeholder="نام خانوادگی">
+                                        <em class="register-error" id="err-last_name" hidden></em>
+                                    </label>
+                                </div>
+                                <label class="register-field">
+                                    <span class="visually-hidden">شماره موبایل</span>
+                                    <input type="tel" id="register-phone" name="phone" dir="ltr" readonly placeholder="شماره موبایل">
+                                </label>
+                                <div class="register-pair">
+                                    <label class="register-field">
+                                        <span class="visually-hidden">سمت</span>
+                                        <input type="text" id="role_title" name="role_title" autocomplete="organization-title" required maxlength="60" placeholder="سمت">
+                                        <em class="register-error" id="err-role_title" hidden></em>
+                                    </label>
+                                    <label class="register-field">
+                                        <span class="visually-hidden">سازمان</span>
+                                        <input type="text" id="organization" name="organization" autocomplete="organization" maxlength="80" placeholder="سازمان (اختیاری)">
+                                        <em class="register-error" id="err-organization" hidden></em>
+                                    </label>
+                                </div>
+                                <div class="register-pair">
+                                    <label class="register-field">
+                                        <span class="visually-hidden">رمز عبور</span>
+                                        <input type="password" id="password" name="password" autocomplete="new-password" required minlength="8" placeholder="رمز عبور">
+                                        <em class="register-error" id="err-password" hidden></em>
+                                    </label>
+                                    <label class="register-field">
+                                        <span class="visually-hidden">تکرار رمز عبور</span>
+                                        <input type="password" id="password_confirm" name="password_confirm" autocomplete="new-password" required minlength="8" placeholder="تکرار رمز عبور">
+                                        <em class="register-error" id="err-password_confirm" hidden></em>
+                                    </label>
+                                </div>
+                                <button type="submit" class="register-submit" id="register-submit">ورود</button>
+                            </form>
+                        </section>
+                        <section class="register-card" id="auth-status" hidden>
+                            <button type="button" class="auth-back-fab" data-auth-back aria-label="بازگشت">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
+                            </button>
+                            <p class="register-kicker">حساب کاربری</p>
+                            <h1 id="auth-status-title"></h1>
+                            <p class="register-lead" id="auth-status-text"></p>
+                        </section>
+                        <section class="register-card register-done" id="auth-done" hidden>
+                            <p class="register-kicker">درخواست ثبت شد</p>
+                            <h1>در انتظار بررسی</h1>
+                            <p class="register-lead" id="auth-done-text"></p>
+                        </section>
                     </div>
                 </div>
                 </div>
@@ -89,7 +238,7 @@
                 <img class="entry-dock-icon" src="assets/images/نمایه.webp" alt="">
                 <span class="entry-dock-copy">
                     <span class="entry-dock-title">نمایه</span>
-                    <span class="entry-dock-sub">استان‌درنگ‌نما</span>
+                    <span class="entry-dock-sub">استان‌در یک نما</span>
                 </span>
             </span>
             <a class="entry-dock-item" href="html/explorer.html?source=start">
@@ -178,6 +327,7 @@
             function isAtlasView() {
                 return document.documentElement.classList.contains('atlas-view');
             }
+            window.setAtlasView = setAtlasView;
 
             function setAtlasView(on) {
                 document.documentElement.classList.toggle('atlas-view', on);
@@ -263,6 +413,10 @@
 
             if (logoImg) {
                 logoImg.addEventListener('click', () => {
+                    if (document.documentElement.classList.contains('curtain-auth')) {
+                        if (typeof window.closeCurtainAuth === 'function') window.closeCurtainAuth();
+                        return;
+                    }
                     setAtlasView(false);
                     setExplorerHrefByState();
                     history.pushState("", document.title, window.location.pathname + window.location.search);

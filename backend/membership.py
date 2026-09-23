@@ -22,7 +22,7 @@ from backend.avatars import (
     save_user_avatar,
 )
 from backend.database import db_session
-from backend.models import ProfileRevision, RegistrationRequest, User, UserSession
+from backend.models import OtpChallenge, ProfileRevision, RegistrationRequest, User, UserSession
 from backend.settings import get_settings
 
 _PROFILE_FIELDS = ("first_name", "last_name", "role_title", "organization", "avatar_path")
@@ -601,6 +601,33 @@ def clear_user_avatar(user_id: int, actor_id: int, source: str) -> dict:
         profile = public_profile(user)
     delete_avatar_file(old_path)
     return profile
+
+
+def delete_user_account(user_id: int, actor_id: int) -> None:
+    if int(user_id) == int(actor_id):
+        raise MembershipError("forbidden", "نمی‌توانید حساب خودتان را حذف کنید.")
+    avatar_path = None
+    with db_session() as session:
+        user = session.get(User, user_id)
+        if user is None:
+            raise MembershipError("not-found", "حساب پیدا نشد.")
+        if user.is_admin:
+            admin_count = session.execute(
+                select(func.count()).select_from(User).where(User.is_admin.is_(True))
+            ).scalar_one()
+            if int(admin_count or 0) <= 1:
+                raise MembershipError("forbidden", "آخرین مدیر را نمی‌توان حذف کرد.")
+        phone = user.phone
+        avatar_path = user.avatar_path
+        for row in session.execute(select(OtpChallenge).where(OtpChallenge.phone == phone)).scalars().all():
+            session.delete(row)
+        for row in session.execute(
+            select(RegistrationRequest).where(RegistrationRequest.phone == phone)
+        ).scalars().all():
+            session.delete(row)
+        session.delete(user)
+        session.flush()
+    delete_avatar_file(avatar_path)
 
 
 def list_users_for_admin() -> list[dict]:

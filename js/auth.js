@@ -31,6 +31,10 @@
         const adminLink = document.getElementById('btn-admin-panel');
         if (adminLink) adminLink.hidden = !(profile && profile.is_admin === true);
         writeBannerProfile(profile || null);
+        const loginBtn = document.getElementById('btn-open-login');
+        const profileBtn = document.getElementById('btn-open-profile');
+        if (loginBtn) loginBtn.hidden = !!profile;
+        if (profileBtn) profileBtn.hidden = !profile;
         if (profile) {
             if (authBtn) authBtn.hidden = true;
             if (texts) texts.hidden = false;
@@ -39,6 +43,9 @@
             if (nameEl) nameEl.textContent = name;
             if (roleEl) roleEl.textContent = roleLine(profile);
             applyBannerAvatar(profile.avatar_url);
+            if (typeof window.closeCurtainAuth === 'function' && document.documentElement.classList.contains('curtain-auth')) {
+                window.closeCurtainAuth();
+            }
             return;
         }
         if (authBtn) authBtn.hidden = false;
@@ -107,6 +114,7 @@
         window.addEventListener('pageshow', function () {
             loadProfile();
         });
+        window.addEventListener('bina-session-changed', loadProfile);
         const btn = document.getElementById('user-menu-btn');
         const menu = document.getElementById('user-menu-dropdown');
         const logoutBtn = document.getElementById('btn-logout');
@@ -122,7 +130,14 @@
             event.stopPropagation();
             if (!profileReady) return;
             if (!signedIn) {
-                window.location.href = SITE.page('auth.html');
+                if (typeof window.openCurtainAuth === 'function' && isIndexPage()) {
+                    if (document.documentElement.classList.contains('atlas-view') && typeof window.setAtlasView === 'function') {
+                        window.setAtlasView(false);
+                    }
+                    window.openCurtainAuth();
+                    return;
+                }
+                window.location.href = SITE.page('index.html') + '#auth';
                 return;
             }
             if (menu.hidden) {
