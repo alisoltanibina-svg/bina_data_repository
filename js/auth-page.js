@@ -266,39 +266,61 @@ function showStatus(title, text) {
     showPanel('auth-status');
 }
 
-async function apiJson(path, body) {
-    const url = `${API_BASE_URL}${path}`;
-    let response;
-    try {
-        response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify(body)
-        });
-    } catch (networkErr) {
-        captureAuthClientLog({
-            url: url,
-            network: String(networkErr && networkErr.message)
-        });
-        throw new Error('ارتباط با سرور برقرار نشد.');
+function authPostUrls(path) {
+    const root = typeof API_BASE_URL === 'string' ? API_BASE_URL : '';
+    const clean = path.startsWith('/') ? path : '/' + path;
+    const urls = [root + clean, root + clean + '/'];
+    if (/^http:\/\//i.test(root)) {
+        const httpsRoot = root.replace(/^http:/i, 'https:');
+        urls.push(httpsRoot + clean, httpsRoot + clean + '/');
     }
-    const raw = await response.text();
-    let data = null;
-    try { data = raw ? JSON.parse(raw) : null; } catch (e) { data = null; }
-    if (!response.ok) {
+    return urls.filter((url, i, all) => all.indexOf(url) === i);
+}
+
+async function apiJson(path, body) {
+    const payload = JSON.stringify(body);
+    const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
+    let lastNetwork = '';
+    let lastFail = null;
+    for (const url of authPostUrls(path)) {
+        let response;
+        try {
+            // Do not follow 301/302: browsers turn POST into GET and drop the body.
+            response = await fetch(url, {
+                method: 'POST',
+                headers: headers,
+                credentials: 'include',
+                redirect: 'error',
+                body: payload
+            });
+        } catch (networkErr) {
+            lastNetwork = String(networkErr && networkErr.message);
+            captureAuthClientLog({ url: url, network: lastNetwork });
+            continue;
+        }
+        const raw = await response.text();
+        let data = null;
+        try { data = raw ? JSON.parse(raw) : null; } catch (e) { data = null; }
+        if (response.ok) return data;
         captureAuthClientLog({
             url: url,
             status: response.status,
             raw: String(raw || '').slice(0, 500)
         });
-        const message = failDetail(data, '');
-        const err = new Error(message || ('انجام این اقدام ممکن نشد. (HTTP ' + response.status + ')'));
-        err.code = data && data.detail && data.detail.code;
-        err.httpStatus = response.status;
+        lastFail = {
+            status: response.status,
+            message: failDetail(data, ''),
+            code: data && data.detail && data.detail.code
+        };
+        if (response.status !== 404 && response.status !== 405) break;
+    }
+    if (lastFail) {
+        const err = new Error(lastFail.message || ('انجام این اقدام ممکن نشد. (HTTP ' + lastFail.status + ')'));
+        err.code = lastFail.code;
+        err.httpStatus = lastFail.status;
         throw err;
     }
-    return data;
+    throw new Error('ارتباط با سرور برقرار نشد.');
 }
 
 async function lookupPhone(phone) {

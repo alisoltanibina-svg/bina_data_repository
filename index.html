@@ -114,7 +114,7 @@
                             <p class="register-kicker">حساب کاربری</p>
                             <h1>ورود به حساب</h1>
                             <b id="login-phone-label" class="visually-hidden" dir="ltr"></b>
-                            <form id="login-form" novalidate>
+                            <form id="login-form" method="post" action="#" novalidate>
                                 <input type="hidden" id="login-phone" name="phone">
                                 <label class="register-field">
                                     <span class="visually-hidden">رمز عبور</span>
@@ -138,7 +138,7 @@
                                 <span class="otp-spinner" aria-hidden="true"></span>
                                 <p>در حال ارسال پیامک…</p>
                             </div>
-                            <form id="otp-form" novalidate>
+                            <form id="otp-form" method="post" action="#" novalidate>
                                 <label class="register-field">
                                     <span class="visually-hidden">کد ۶ رقمی</span>
                                     <input type="text" id="otp-code" name="otp_code" inputmode="numeric" dir="ltr" autocomplete="one-time-code" required maxlength="6" placeholder="کد ۶ رقمی">
@@ -157,7 +157,7 @@
                             <p class="register-kicker">بازیابی رمز</p>
                             <h1>رمز عبور جدید</h1>
                             <p class="register-lead">برای شماره <b id="reset-phone-label" dir="ltr"></b></p>
-                            <form id="reset-form" novalidate>
+                            <form id="reset-form" method="post" action="#" novalidate>
                                 <label class="register-field">
                                     <span class="visually-hidden">رمز عبور جدید</span>
                                     <input type="password" id="reset-password" name="reset_password" autocomplete="new-password" required minlength="8" placeholder="رمز عبور جدید">
@@ -177,7 +177,7 @@
                             </button>
                             <p class="register-kicker">عضویت</p>
                             <h1>درخواست عضویت</h1>
-                            <form id="register-form" novalidate>
+                            <form id="register-form" method="post" action="#" novalidate>
                                 <div class="register-pair">
                                     <label class="register-field">
                                         <input type="text" id="first_name" name="first_name" autocomplete="given-name" required maxlength="40" placeholder=" ">

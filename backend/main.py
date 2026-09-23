@@ -865,17 +865,37 @@ app.add_api_route("/api/auth/gate", auth_gate_get, methods=["GET", "HEAD"])
 app.add_api_route("/api/auth/gate/", auth_gate_get, methods=["GET", "HEAD"])
 
 
-@app.post("/api/auth/login")
 def auth_login(body: LoginBody, request: Request):
+    write_auth_log(
+        f"login start phone={mask_phone(body.phone)} method={request.method} "
+        f"origin={request.headers.get('origin')!s}"
+    )
     result = authenticate(body.phone, body.password)
     if result is None:
+        write_auth_log("login fail")
         raise HTTPException(status_code=401, detail=_LOGIN_FAIL)
+    write_auth_log("login ok")
     response = JSONResponse(content=result["profile"], headers=_AUTH_NO_STORE)
     _set_session_cookie(response, result["token"], request)
     return response
 
 
+def auth_login_wrong_method(request: Request):
+    write_auth_log(f"login rejected method={request.method}")
+    raise HTTPException(
+        status_code=405,
+        detail={"code": "method", "message": "ورود باید با POST باشد."},
+    )
+
+
+app.add_api_route("/api/auth/login", auth_login, methods=["POST"])
+app.add_api_route("/api/auth/login/", auth_login, methods=["POST"])
+app.add_api_route("/api/auth/login", auth_login_wrong_method, methods=["GET", "HEAD"])
+app.add_api_route("/api/auth/login/", auth_login_wrong_method, methods=["GET", "HEAD"])
+
+
 @app.post("/api/auth/logout")
+@app.post("/api/auth/logout/")
 def auth_logout(request: Request):
     delete_session_token(request.cookies.get(SESSION_COOKIE) or "")
     response = JSONResponse(content={"ok": True}, headers=_AUTH_NO_STORE)
@@ -979,6 +999,7 @@ class PasswordResetBody(BaseModel):
 
 
 @app.post("/api/auth/otp/send")
+@app.post("/api/auth/otp/send/")
 def auth_otp_send(body: OtpSendBody):
     try:
         payload = send_otp(body.phone, body.purpose)
@@ -988,6 +1009,7 @@ def auth_otp_send(body: OtpSendBody):
 
 
 @app.post("/api/auth/otp/verify")
+@app.post("/api/auth/otp/verify/")
 def auth_otp_verify(body: OtpVerifyBody):
     try:
         payload = verify_otp(body.phone, body.purpose, body.code)
@@ -997,6 +1019,7 @@ def auth_otp_verify(body: OtpVerifyBody):
 
 
 @app.post("/api/auth/register")
+@app.post("/api/auth/register/")
 def auth_register(body: RegisterBody):
     try:
         row = register_after_otp(
@@ -1013,6 +1036,7 @@ def auth_register(body: RegisterBody):
 
 
 @app.post("/api/auth/password/reset")
+@app.post("/api/auth/password/reset/")
 def auth_password_reset(body: PasswordResetBody, request: Request):
     try:
         result = reset_password_after_otp(body.phone, body.password)
