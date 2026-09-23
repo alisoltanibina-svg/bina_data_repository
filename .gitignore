@@ -32,3 +32,4 @@ _restore
 
 assets/images/avatars/*
 !assets/images/avatars/.gitkeep
+kavenegar_otp.log

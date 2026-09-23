@@ -7,8 +7,9 @@ import json
 import logging
 import secrets
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
 from sqlalchemy import select
@@ -16,9 +17,10 @@ from sqlalchemy import select
 from backend.database import db_session
 from backend.membership import MembershipError, is_mobile_phone, normalize_phone
 from backend.models import OtpChallenge, RegistrationRequest, User
-from backend.settings import get_settings
+from backend.settings import PROJECT_ROOT, get_settings
 
 log = logging.getLogger("backend.otp")
+OTP_DEBUG_LOG = PROJECT_ROOT / "kavenegar_otp.log"
 
 PURPOSES = frozenset({"register", "reset"})
 DEV_OTP = "123456"
@@ -79,8 +81,15 @@ def _assert_send_allowed(session, phone: str, purpose: str) -> None:
     raise MembershipError("otp", "نوع درخواست نامعتبر است.")
 
 
+def _kavenegar_key() -> str:
+    raw = get_settings().kavenegar_api_key.get_secret_value().strip()
+    if len(raw) >= 2 and raw[0] == raw[-1] and raw[0] in {"'", '"'}:
+        raw = raw[1:-1].strip()
+    return raw
+
+
 def _kavenegar_configured() -> bool:
-    return bool(get_settings().kavenegar_api_key.get_secret_value().strip())
+    return bool(_kavenegar_key())
 
 
 def _build_message(code: str) -> str:
@@ -90,24 +99,82 @@ def _build_message(code: str) -> str:
     return template.replace("{code}", code)
 
 
+def _redact_url(url: str) -> str:
+    parts = urlsplit(url)
+    path = parts.path
+    segs = path.split("/")
+    if len(segs) >= 3 and segs[1] == "v1":
+        segs[2] = "***"
+        path = "/".join(segs)
+    query = []
+    for key, value in parse_qsl(parts.query, keep_blank_values=True):
+        if key == "message":
+            query.append((key, f"<redacted len={len(value)}>"))
+        elif key == "receptor" and len(value) >= 7:
+            query.append((key, _mask_phone(value)))
+        else:
+            query.append((key, value))
+    return urlunsplit((parts.scheme, parts.netloc, path, urlencode(query), ""))
+
+
+def _write_otp_log(line: str) -> None:
+    stamp = _now().isoformat()
+    text = f"{stamp} {line}\n"
+    log.error("%s", line)
+    try:
+        with OTP_DEBUG_LOG.open("a", encoding="utf-8") as handle:
+            handle.write(text)
+    except OSError:
+        pass
+
+
 def _send_kavenegar(phone: str, text: str) -> None:
-    key = get_settings().kavenegar_api_key.get_secret_value().strip()
-    params = {"receptor": phone, "message": text}
+    key = _kavenegar_key()
     sender = (get_settings().kavenegar_sender or "").strip()
+    params = {"receptor": phone, "message": text}
     if sender:
         params["sender"] = sender
     url = f"https://api.kavenegar.com/v1/{key}/sms/send.json?{urlencode(params)}"
+    _write_otp_log(
+        "kavenegar request "
+        f"phone={_mask_phone(phone)} key_len={len(key)} sender_set={bool(sender)} "
+        f"message_len={len(text)} url={_redact_url(url)}"
+    )
     request = Request(url, method="GET")
     try:
         with urlopen(request, timeout=15) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError, OSError):
-        log.warning("kavenegar send failed phone=%s", _mask_phone(phone))
+            raw = response.read().decode("utf-8", errors="replace")
+            http_status = getattr(response, "status", None) or response.getcode()
+    except HTTPError as err:
+        body = ""
+        try:
+            body = err.read().decode("utf-8", errors="replace")[:2000]
+        except OSError:
+            body = ""
+        _write_otp_log(
+            "kavenegar HTTPError "
+            f"http_status={err.code} reason={err.reason!s} body={body!r}"
+        )
+        raise MembershipError("otp", "ارسال پیامک ممکن نشد.") from None
+    except (URLError, TimeoutError, OSError) as err:
+        _write_otp_log(f"kavenegar network error type={type(err).__name__} detail={err!s}")
+        raise MembershipError("otp", "ارسال پیامک ممکن نشد.") from None
+    except (ValueError, json.JSONDecodeError) as err:
+        _write_otp_log(f"kavenegar decode error type={type(err).__name__} detail={err!s}")
+        raise MembershipError("otp", "ارسال پیامک ممکن نشد.") from None
+
+    _write_otp_log(f"kavenegar HTTP {http_status} body={raw[:2000]!r}")
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as err:
+        _write_otp_log(f"kavenegar JSON parse failed detail={err!s}")
         raise MembershipError("otp", "ارسال پیامک ممکن نشد.") from None
     status = ((payload or {}).get("return") or {}).get("status")
+    message = ((payload or {}).get("return") or {}).get("message")
     if status != 200:
-        log.warning("kavenegar status=%s phone=%s", status, _mask_phone(phone))
+        _write_otp_log(f"kavenegar API status={status} message={message!s}")
         raise MembershipError("otp", "ارسال پیامک ممکن نشد.")
+    _write_otp_log(f"kavenegar OK status={status}")
 
 
 def send_otp(phone: str, purpose: str) -> dict:
