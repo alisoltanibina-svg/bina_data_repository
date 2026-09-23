@@ -52,13 +52,15 @@ from backend.membership import (
     list_users_for_admin,
     lookup_auth_gate,
     profile_from_session_token,
+    register_after_otp,
     reject_registration,
     repair_approved_user_hashes,
+    reset_password_after_otp,
     seed_admin,
     set_user_avatar,
-    submit_registration,
     update_own_profile,
 )
+from backend.otp import send_otp, verify_otp
 from backend.ratelimit import RateLimitMiddleware
 
 JSON_MEDIA = "application/json"
@@ -758,6 +760,9 @@ _MEMBERSHIP_HTTP = {
     "role": 400,
     "password": 400,
     "avatar": 400,
+    "otp": 400,
+    "cooldown": 429,
+    "rejected": 403,
     "pending": 409,
     "exists": 409,
     "not-found": 404,
@@ -786,10 +791,44 @@ def _require_admin(request: Request) -> dict:
     return profile
 
 
-@app.post("/api/auth/register")
-def auth_register(body: RegisterBody):
+class OtpSendBody(BaseModel):
+    phone: str = Field(min_length=1, max_length=16)
+    purpose: str = Field(min_length=1, max_length=16)
+
+
+class OtpVerifyBody(BaseModel):
+    phone: str = Field(min_length=1, max_length=16)
+    purpose: str = Field(min_length=1, max_length=16)
+    code: str = Field(min_length=4, max_length=8)
+
+
+class PasswordResetBody(BaseModel):
+    phone: str = Field(min_length=1, max_length=16)
+    password: str = Field(min_length=8, max_length=200)
+
+
+@app.post("/api/auth/otp/send")
+def auth_otp_send(body: OtpSendBody):
     try:
-        row = submit_registration(
+        payload = send_otp(body.phone, body.purpose)
+    except MembershipError as err:
+        _raise_membership(err)
+    return JSONResponse(content=payload, headers=_AUTH_NO_STORE)
+
+
+@app.post("/api/auth/otp/verify")
+def auth_otp_verify(body: OtpVerifyBody):
+    try:
+        payload = verify_otp(body.phone, body.purpose, body.code)
+    except MembershipError as err:
+        _raise_membership(err)
+    return JSONResponse(content=payload, headers=_AUTH_NO_STORE)
+
+
+@app.post("/api/auth/register")
+def auth_register(body: RegisterBody, request: Request):
+    try:
+        result = register_after_otp(
             body.first_name,
             body.last_name,
             body.phone,
@@ -799,7 +838,20 @@ def auth_register(body: RegisterBody):
         )
     except MembershipError as err:
         _raise_membership(err)
-    return JSONResponse(content=row, status_code=201, headers=_AUTH_NO_STORE)
+    response = JSONResponse(content=result["profile"], status_code=201, headers=_AUTH_NO_STORE)
+    _set_session_cookie(response, result["token"], request)
+    return response
+
+
+@app.post("/api/auth/password/reset")
+def auth_password_reset(body: PasswordResetBody, request: Request):
+    try:
+        result = reset_password_after_otp(body.phone, body.password)
+    except MembershipError as err:
+        _raise_membership(err)
+    response = JSONResponse(content=result["profile"], headers=_AUTH_NO_STORE)
+    _set_session_cookie(response, result["token"], request)
+    return response
 
 
 @app.get("/api/admin/requests")

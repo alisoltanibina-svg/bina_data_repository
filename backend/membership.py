@@ -351,6 +351,81 @@ def submit_registration(
         return serialize_request(row)
 
 
+def register_after_otp(
+    first_name: str,
+    last_name: str,
+    phone: str,
+    role_title: str,
+    organization: str,
+    password: str,
+) -> dict:
+    from backend.otp import consume_verified_otp_in_session
+
+    first_name = assert_plain_text(first_name, "first_name", "نام")
+    last_name = assert_plain_text(last_name, "last_name", "نام خانوادگی")
+    role_title = assert_plain_text(role_title, "role", "سمت")
+    organization = assert_plain_text(organization, "role", "سازمان")
+    phone = normalize_phone(phone)
+    if len(first_name) < 2:
+        raise MembershipError("first_name", "نام را وارد کنید.")
+    if len(last_name) < 2:
+        raise MembershipError("last_name", "نام خانوادگی را وارد کنید.")
+    if not is_mobile_phone(phone):
+        raise MembershipError("phone", "شماره موبایل نامعتبر است.")
+    if not role_title:
+        raise MembershipError("role", "سمت را وارد کنید.")
+    password = normalize_secret(password)
+    if len(password) < 8:
+        raise MembershipError("password", "رمز عبور حداقل ۸ نویسه باشد.")
+
+    now = datetime.now(timezone.utc)
+    with db_session() as session:
+        existing = session.execute(select(User).where(User.phone == phone)).scalar_one_or_none()
+        if existing is not None:
+            raise MembershipError("exists", "برای این شماره قبلاً حساب پذیرفته شده است.")
+        consume_verified_otp_in_session(session, phone, "register")
+        user = User(
+            phone=phone,
+            first_name=first_name,
+            last_name=last_name,
+            role_title=role_title,
+            organization=organization or None,
+            password_hash=hash_password(password),
+            is_admin=False,
+            is_active=True,
+            updated_at=now,
+        )
+        session.add(user)
+        session.flush()
+        profile = public_profile(user)
+        user_id = user.id
+    token, expires_at = create_session(user_id)
+    return {"profile": profile, "token": token, "expires_at": expires_at}
+
+
+def reset_password_after_otp(phone: str, password: str) -> dict:
+    from backend.otp import consume_verified_otp_in_session
+
+    phone = normalize_phone(phone)
+    password = normalize_secret(password)
+    if not is_mobile_phone(phone):
+        raise MembershipError("phone", "شماره موبایل نامعتبر است.")
+    if len(password) < 8:
+        raise MembershipError("password", "رمز عبور حداقل ۸ نویسه باشد.")
+    now = datetime.now(timezone.utc)
+    with db_session() as session:
+        user = session.execute(select(User).where(User.phone == phone)).scalar_one_or_none()
+        if user is None or user.is_active is False:
+            raise MembershipError("not-found", "حسابی با این شماره پیدا نشد.")
+        consume_verified_otp_in_session(session, phone, "reset")
+        user.password_hash = hash_password(password)
+        user.updated_at = now
+        profile = public_profile(user)
+        user_id = user.id
+    token, expires_at = create_session(user_id)
+    return {"profile": profile, "token": token, "expires_at": expires_at}
+
+
 def list_registration_requests() -> list[dict]:
     with db_session() as session:
         rows = session.execute(

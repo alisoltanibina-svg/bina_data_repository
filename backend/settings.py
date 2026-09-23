@@ -22,6 +22,12 @@ class Settings(BaseSettings):
     database_url: SecretStr
     admin_phone: str = ""
     admin_password: SecretStr = SecretStr("")
+    kavenegar_api_key: SecretStr = SecretStr("")
+    kavenegar_sender: str = ""
+    kavenegar_otp_message: str = "سامانه دیده‌بان فرهنگ\nکد ورود شما: {code}"
+    otp_ttl_seconds: int = 180
+    otp_max_attempts: int = 5
+    otp_resend_seconds: int = 60
 
 
 def _require_postgres_url(url: str) -> str:

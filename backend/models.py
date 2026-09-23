@@ -245,6 +245,33 @@ class UserSession(Base):
     )
 
 
+class OtpChallenge(Base):
+    """Short-lived SMS OTP for register or password reset. Codes are stored hashed."""
+
+    __tablename__ = "otp_challenges"
+    __table_args__ = (
+        CheckConstraint(
+            "purpose IN ('register', 'reset')",
+            name="ck_otp_challenges_purpose",
+        ),
+        Index("idx_otp_challenges_phone_purpose_created", "phone", "purpose", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
+    phone: Mapped[str] = mapped_column(String(15), nullable=False)
+    purpose: Mapped[str] = mapped_column(String(16), nullable=False)
+    code_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    salt: Mapped[str] = mapped_column(String(32), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+
 class ProfileRevision(Base):
     """Append-only log of profile field and avatar changes."""
 

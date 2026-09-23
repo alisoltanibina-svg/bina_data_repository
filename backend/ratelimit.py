@@ -41,6 +41,9 @@ _EXPENSIVE_PATHS = frozenset(
         "/api/auth/login",
         "/api/auth/register",
         "/api/auth/gate",
+        "/api/auth/otp/send",
+        "/api/auth/otp/verify",
+        "/api/auth/password/reset",
         "/api/auth/profile/avatar",
     }
 )

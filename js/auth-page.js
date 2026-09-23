@@ -1,10 +1,11 @@
 // File: auth-page.js
-// Purpose: One authentication page — phone lookup, then login, register, or status.
+// Purpose: Phone gate, password login, OTP for register/reset, then session cookie.
 
 const REGISTER_FIELDS = ['first_name', 'last_name', 'role_title', 'organization', 'password', 'password_confirm'];
-const PANELS = ['auth-gate', 'auth-login', 'auth-register', 'auth-status', 'auth-done'];
+const PANELS = ['auth-gate', 'auth-login', 'auth-otp', 'auth-reset', 'auth-register', 'auth-status', 'auth-done'];
 
 let currentPhone = '';
+let otpPurpose = '';
 
 function setError(name, message) {
     const input = document.getElementById(name);
@@ -37,6 +38,11 @@ function failDetail(data, fallback) {
 
 function displayName(row) {
     return [row && row.first_name, row && row.last_name].filter(Boolean).join(' ');
+}
+
+function finishSignedIn(profile) {
+    writeBannerProfile(profile);
+    window.location.href = profile && profile.is_admin ? SITE.page('admin.html') : SITE.page('index.html');
 }
 
 function readRegisterForm(form) {
@@ -72,6 +78,7 @@ function errorFromRegister(data) {
     const message = detail && detail.message;
     if (code === 'pending') return { field: '', text: message || 'برای این شماره یک درخواست در انتظار بررسی است.' };
     if (code === 'exists') return { field: '', text: message || 'برای این شماره قبلاً حساب پذیرفته شده است.' };
+    if (code === 'otp') return { field: '', text: message || 'ابتدا کد پیامک را تأیید کنید.' };
     if (code === 'phone') return { field: '', text: message || 'شماره موبایل نامعتبر است.' };
     if (code === 'first_name' || code === 'last_name') return { field: code, text: message || 'این فیلد را کامل کنید.' };
     if (code === 'role') return { field: 'role_title', text: message || 'سمت را وارد کنید.' };
@@ -82,16 +89,24 @@ function errorFromRegister(data) {
 
 function applyPhone(phone) {
     currentPhone = phone;
-    const loginPhone = document.getElementById('login-phone');
-    const loginLabel = document.getElementById('login-phone-label');
-    const registerPhone = document.getElementById('register-phone');
-    if (loginPhone) loginPhone.value = phone;
-    if (loginLabel) loginLabel.textContent = phone;
-    if (registerPhone) registerPhone.value = phone;
+    const nodes = {
+        'login-phone': phone,
+        'login-phone-label': phone,
+        'register-phone': phone,
+        'otp-phone-label': phone,
+        'reset-phone-label': phone
+    };
+    Object.keys(nodes).forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (el.tagName === 'INPUT') el.value = nodes[id];
+        else el.textContent = nodes[id];
+    });
 }
 
 function backToGate() {
     currentPhone = '';
+    otpPurpose = '';
     showPanel('auth-gate');
     const input = document.getElementById('gate-phone');
     if (input) input.focus();
@@ -103,18 +118,39 @@ function showStatus(title, text) {
     showPanel('auth-status');
 }
 
-async function lookupPhone(phone) {
-    const response = await fetch(`${API_BASE_URL}/api/auth/gate`, {
+async function apiJson(path, body) {
+    const response = await fetch(`${API_BASE_URL}${path}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: phone })
+        credentials: 'include',
+        body: JSON.stringify(body)
     });
     let data = null;
     try { data = await response.json(); } catch (e) { data = null; }
     if (!response.ok) {
-        throw new Error(failDetail(data, 'بررسی شماره ممکن نشد.'));
+        const err = new Error(failDetail(data, 'انجام این اقدام ممکن نشد.'));
+        err.code = data && data.detail && data.detail.code;
+        throw err;
     }
+    return data;
+}
+
+async function lookupPhone(phone) {
+    const data = await apiJson('/api/auth/gate', { phone: phone });
     return data && data.status;
+}
+
+async function sendOtp(purpose) {
+    return apiJson('/api/auth/otp/send', { phone: currentPhone, purpose: purpose });
+}
+
+async function startOtp(purpose) {
+    otpPurpose = purpose;
+    await sendOtp(purpose);
+    document.getElementById('otp-code').value = '';
+    setError('otp-code', '');
+    showPanel('auth-otp');
+    document.getElementById('otp-code').focus();
 }
 
 onReady(() => {
@@ -146,8 +182,7 @@ onReady(() => {
                 return;
             }
             if (status === 'register') {
-                showPanel('auth-register');
-                document.getElementById('first_name').focus();
+                await startOtp('register');
                 return;
             }
             if (status === 'pending') {
@@ -181,22 +216,98 @@ onReady(() => {
         const submit = document.getElementById('login-submit');
         submit.disabled = true;
         try {
-            const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ phone: currentPhone, password: password })
+            const profile = await apiJson('/api/auth/login', { phone: currentPhone, password: password });
+            finishSignedIn(profile);
+        } catch (err) {
+            showNotice(err.message || 'ورود ناموفق بود.');
+        } finally {
+            submit.disabled = false;
+        }
+    });
+
+    document.getElementById('forgot-password').addEventListener('click', async () => {
+        const btn = document.getElementById('forgot-password');
+        btn.disabled = true;
+        try {
+            await startOtp('reset');
+        } catch (err) {
+            showNotice(err.message || 'ارسال کد ممکن نشد.');
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
+    document.getElementById('otp-form').addEventListener('submit', async event => {
+        event.preventDefault();
+        setError('otp-code', '');
+        const code = (document.getElementById('otp-code').value || '').replace(/\D/g, '');
+        if (code.length !== 6) {
+            setError('otp-code', 'کد باید ۶ رقم باشد.');
+            document.getElementById('otp-code').focus();
+            return;
+        }
+        const submit = document.getElementById('otp-submit');
+        submit.disabled = true;
+        try {
+            await apiJson('/api/auth/otp/verify', {
+                phone: currentPhone,
+                purpose: otpPurpose,
+                code: code
             });
-            let data = null;
-            try { data = await response.json(); } catch (e) { data = null; }
-            if (!response.ok) {
-                showNotice(failDetail(data, 'ورود ناموفق بود.'));
+            if (otpPurpose === 'register') {
+                showPanel('auth-register');
+                document.getElementById('first_name').focus();
                 return;
             }
-            writeBannerProfile(data);
-            window.location.href = data && data.is_admin ? SITE.page('admin.html') : SITE.page('index.html');
+            showPanel('auth-reset');
+            document.getElementById('reset-password').focus();
         } catch (err) {
-            showNotice('ارتباط با سرور برقرار نشد.');
+            setError('otp-code', err.message || 'کد نامعتبر است.');
+        } finally {
+            submit.disabled = false;
+        }
+    });
+
+    document.getElementById('otp-resend').addEventListener('click', async () => {
+        const btn = document.getElementById('otp-resend');
+        btn.disabled = true;
+        setError('otp-code', '');
+        try {
+            await sendOtp(otpPurpose);
+            showNotice('کد دوباره ارسال شد.', 'ok');
+        } catch (err) {
+            setError('otp-code', err.message || 'ارسال دوباره ممکن نشد.');
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
+    document.getElementById('reset-form').addEventListener('submit', async event => {
+        event.preventDefault();
+        setError('reset-password', '');
+        setError('reset-password-confirm', '');
+        const password = document.getElementById('reset-password').value;
+        const confirm = document.getElementById('reset-password-confirm').value;
+        if (password.length < 8) {
+            setError('reset-password', 'رمز عبور حداقل ۸ نویسه باشد.');
+            document.getElementById('reset-password').focus();
+            return;
+        }
+        if (confirm !== password) {
+            setError('reset-password-confirm', 'تکرار رمز با رمز عبور یکی نیست.');
+            document.getElementById('reset-password-confirm').focus();
+            return;
+        }
+        const submit = document.getElementById('reset-submit');
+        submit.disabled = true;
+        try {
+            const profile = await apiJson('/api/auth/password/reset', {
+                phone: currentPhone,
+                password: password
+            });
+            finishSignedIn(profile);
+        } catch (err) {
+            showNotice(err.message || 'تغییر رمز ممکن نشد.');
         } finally {
             submit.disabled = false;
         }
@@ -217,32 +328,19 @@ onReady(() => {
         const submit = document.getElementById('register-submit');
         submit.disabled = true;
         try {
-            const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    first_name: values.first_name,
-                    last_name: values.last_name,
-                    phone: currentPhone,
-                    role_title: values.role_title,
-                    organization: values.organization,
-                    password: values.password
-                })
+            const profile = await apiJson('/api/auth/register', {
+                first_name: values.first_name,
+                last_name: values.last_name,
+                phone: currentPhone,
+                role_title: values.role_title,
+                organization: values.organization,
+                password: values.password
             });
-            let data = null;
-            try { data = await response.json(); } catch (e) { data = null; }
-            if (!response.ok) {
-                const err = errorFromRegister(data);
-                if (err.field) setError(err.field, err.text);
-                else showNotice(err.text);
-                return;
-            }
-            form.reset();
-            document.getElementById('auth-done-text').textContent =
-                'درخواست «' + displayName(data) + '» ثبت شد. پس از پذیرش مدیر می‌توانید وارد بخش‌های نیازمند عضویت شوید.';
-            showPanel('auth-done');
+            finishSignedIn(profile);
         } catch (err) {
-            showNotice('ارتباط با سرور برقرار نشد.');
+            const mapped = errorFromRegister({ detail: { code: err.code, message: err.message } });
+            if (mapped.field) setError(mapped.field, mapped.text);
+            else showNotice(mapped.text);
         } finally {
             submit.disabled = false;
         }

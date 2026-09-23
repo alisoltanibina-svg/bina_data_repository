@@ -54,6 +54,51 @@
                 </label>
                 <button type="submit" class="register-submit" id="login-submit">ورود</button>
             </form>
+            <p class="register-hint" style="margin-top: 12px;">
+                <button type="button" class="auth-back" id="forgot-password">فراموشی رمز عبور</button>
+            </p>
+            <p class="register-hint" style="margin-top: 16px;">
+                <button type="button" class="auth-back" data-auth-back>تغییر شماره</button>
+            </p>
+        </section>
+
+        <section class="register-card" id="auth-otp" hidden>
+            <p class="register-kicker">تأیید شماره</p>
+            <h1>کد پیامک</h1>
+            <p class="register-lead">کد ارسال‌شده به شماره <b id="otp-phone-label" dir="ltr"></b> را وارد کنید.</p>
+            <form id="otp-form" novalidate>
+                <label class="register-field">
+                    <span>کد ۶ رقمی</span>
+                    <input type="text" id="otp-code" name="otp_code" inputmode="numeric" dir="ltr" autocomplete="one-time-code" required maxlength="6">
+                    <em class="register-error" id="err-otp-code" hidden></em>
+                </label>
+                <button type="submit" class="register-submit" id="otp-submit">تأیید کد</button>
+            </form>
+            <p class="register-hint" style="margin-top: 12px;">
+                <button type="button" class="auth-back" id="otp-resend">ارسال دوباره</button>
+            </p>
+            <p class="register-hint" style="margin-top: 16px;">
+                <button type="button" class="auth-back" data-auth-back>تغییر شماره</button>
+            </p>
+        </section>
+
+        <section class="register-card" id="auth-reset" hidden>
+            <p class="register-kicker">بازیابی رمز</p>
+            <h1>رمز عبور جدید</h1>
+            <p class="register-lead">رمز تازه را برای شماره <b id="reset-phone-label" dir="ltr"></b> انتخاب کنید. پس از ذخیره وارد حساب می‌شوید.</p>
+            <form id="reset-form" novalidate>
+                <label class="register-field">
+                    <span>رمز عبور جدید</span>
+                    <input type="password" id="reset-password" name="reset_password" autocomplete="new-password" required minlength="8">
+                    <em class="register-error" id="err-reset-password" hidden></em>
+                </label>
+                <label class="register-field">
+                    <span>تکرار رمز عبور</span>
+                    <input type="password" id="reset-password-confirm" name="reset_password_confirm" autocomplete="new-password" required minlength="8">
+                    <em class="register-error" id="err-reset-password-confirm" hidden></em>
+                </label>
+                <button type="submit" class="register-submit" id="reset-submit">ذخیره و ورود</button>
+            </form>
             <p class="register-hint" style="margin-top: 16px;">
                 <button type="button" class="auth-back" data-auth-back>تغییر شماره</button>
             </p>
@@ -61,8 +106,8 @@
 
         <section class="register-card" id="auth-register" hidden>
             <p class="register-kicker">عضویت</p>
-            <h1>درخواست عضویت</h1>
-            <p class="register-lead">پس از ارسال، درخواست شما بررسی می‌شود. پس از پذیرش می‌توانید وارد شوید.</p>
+            <h1>ساخت حساب</h1>
+            <p class="register-lead">شماره تأیید شد. مشخصات و رمز عبور را وارد کنید.</p>
             <form id="register-form" novalidate>
                 <div class="register-pair">
                     <label class="register-field">
@@ -102,8 +147,8 @@
                         <em class="register-error" id="err-password_confirm" hidden></em>
                     </label>
                 </div>
-                <p class="register-hint">رمز حداقل ۸ نویسه باشد. تا زمان پذیرش، حسابی ساخته نمی‌شود.</p>
-                <button type="submit" class="register-submit" id="register-submit">ارسال درخواست</button>
+                <p class="register-hint">رمز حداقل ۸ نویسه باشد. پس از ثبت، وارد حساب می‌شوید.</p>
+                <button type="submit" class="register-submit" id="register-submit">ساخت حساب و ورود</button>
             </form>
             <p class="register-hint" style="margin-top: 16px;">
                 <button type="button" class="auth-back" data-auth-back>تغییر شماره</button>
