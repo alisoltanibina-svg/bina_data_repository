@@ -6,12 +6,17 @@ import logging
 import sys
 import traceback
 from datetime import datetime, timezone
+from pathlib import Path
 
 from backend.settings import PROJECT_ROOT
 
 log = logging.getLogger("backend.auth")
-AUTH_DEBUG_LOG = PROJECT_ROOT / "auth_debug.log"
 _FA_DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
+_CANDIDATES = (
+    PROJECT_ROOT / "auth_debug.log",
+    Path("/tmp/bina_auth_debug.log"),
+)
+AUTH_DEBUG_LOG = _CANDIDATES[0]
 
 
 def mask_phone(phone: str) -> str:
@@ -19,6 +24,21 @@ def mask_phone(phone: str) -> str:
     if len(digits) < 7:
         return "***"
     return digits[:4] + "***" + digits[-3:]
+
+
+def _open_log():
+    global AUTH_DEBUG_LOG
+    last_error: OSError | None = None
+    for path in _CANDIDATES:
+        try:
+            handle = path.open("a", encoding="utf-8")
+            AUTH_DEBUG_LOG = path
+            return handle
+        except OSError as err:
+            last_error = err
+    if last_error is not None:
+        raise last_error
+    raise OSError("no auth debug log path")
 
 
 def write_auth_log(line: str, exc: BaseException | None = None) -> None:
@@ -39,12 +59,20 @@ def write_auth_log(line: str, exc: BaseException | None = None) -> None:
         except Exception:
             pass
         try:
-            with AUTH_DEBUG_LOG.open("a", encoding="utf-8") as handle:
+            with _open_log() as handle:
                 handle.write(text)
         except OSError as err:
             try:
                 print(f"AUTH_DEBUG file write failed path={AUTH_DEBUG_LOG} err={err}", file=sys.stderr, flush=True)
             except Exception:
                 pass
+    except Exception:
+        pass
+
+
+def init_auth_log() -> None:
+    write_auth_log("auth log ready")
+    try:
+        print(f"AUTH_DEBUG using {AUTH_DEBUG_LOG}", file=sys.stderr, flush=True)
     except Exception:
         pass

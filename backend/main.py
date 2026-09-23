@@ -65,7 +65,7 @@ from backend.membership import (
     update_own_profile,
 )
 from backend.avatars import MAX_BYTES as AVATAR_MAX_BYTES
-from backend.authlog import mask_phone, write_auth_log
+from backend.authlog import init_auth_log, mask_phone, write_auth_log
 from backend.otp import send_otp, verify_otp
 from backend.ratelimit import RateLimitMiddleware
 
@@ -279,6 +279,7 @@ def _warm_cache() -> None:
 
 
 def bootstrap() -> None:
+    init_auth_log()
     check_connection()
     repair_approved_user_hashes()
     seed_admin()
