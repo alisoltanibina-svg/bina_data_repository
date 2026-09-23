@@ -18,11 +18,12 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -235,9 +236,8 @@ _PRODUCTION_ORIGIN = "https://app.rasadbina.ir"
 
 def _cors_origins() -> list[str]:
     raw = os.environ.get("CORS_ORIGINS", "").strip()
-    if raw:
-        return [origin.strip().rstrip("/") for origin in raw.split(",") if origin.strip()]
-    return [
+    configured = [origin.strip().rstrip("/") for origin in raw.split(",") if origin.strip()]
+    defaults = [
         _PRODUCTION_ORIGIN,
         "http://127.0.0.1:8000",
         "http://localhost:8000",
@@ -245,7 +245,16 @@ def _cors_origins() -> list[str]:
         "http://localhost:5500",
         "http://127.0.0.1:5501",
         "http://localhost:5501",
+        "http://127.0.0.1",
+        "http://localhost",
     ]
+    seen: set[str] = set()
+    origins: list[str] = []
+    for origin in configured + defaults:
+        if origin and origin not in seen:
+            seen.add(origin)
+            origins.append(origin)
+    return origins
 
 
 def _expand_thread_pool(size: int | None = None) -> None:
@@ -366,7 +375,7 @@ async def auth_validation_handler(request: Request, exc: RequestValidationError)
 @app.exception_handler(Exception)
 async def auth_unhandled_handler(request: Request, exc: Exception):
     if isinstance(exc, HTTPException):
-        raise exc
+        return await http_exception_handler(request, exc)
     if request.url.path.startswith("/api/auth"):
         write_auth_log(f"unhandled path={request.url.path} method={request.method}", exc)
         return JSONResponse(
@@ -743,7 +752,31 @@ def _set_session_cookie(response: JSONResponse, token: str, request: Request) ->
 
 
 class GateBody(BaseModel):
-    phone: str = Field(min_length=1, max_length=16)
+    phone: str = Field(min_length=1, max_length=32)
+
+    @field_validator("phone", mode="before")
+    @classmethod
+    def _coerce_phone(cls, value):
+        from backend.membership import normalize_phone
+
+        if value is None:
+            return ""
+        if isinstance(value, bool):
+            return str(value)
+        if isinstance(value, (int, float)):
+            digits = str(int(value))
+            if len(digits) == 10 and digits.startswith("9"):
+                digits = "0" + digits
+            return normalize_phone(digits)
+        return normalize_phone(str(value))
+
+
+@app.api_route("/api/auth/gate", methods=["GET", "HEAD"])
+def auth_gate_wrong_method():
+    raise HTTPException(
+        status_code=405,
+        detail={"code": "method", "message": "ارسال شماره باید با POST باشد."},
+    )
 
 
 @app.post("/api/auth/gate")
@@ -838,6 +871,7 @@ _MEMBERSHIP_HTTP = {
     "not-found": 404,
     "not-pending": 409,
     "forbidden": 403,
+    "server": 500,
 }
 
 

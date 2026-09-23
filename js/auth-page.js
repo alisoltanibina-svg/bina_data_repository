@@ -124,6 +124,16 @@ function failDetail(data, fallback) {
     return fallback;
 }
 
+function captureAuthClientLog(entry) {
+    try {
+        const key = 'binaAuthDebug';
+        const prev = JSON.parse(sessionStorage.getItem(key) || '[]');
+        prev.push(Object.assign({ t: new Date().toISOString() }, entry));
+        sessionStorage.setItem(key, JSON.stringify(prev.slice(-20)));
+        console.error('[auth]', entry);
+    } catch (e) {}
+}
+
 function displayName(row) {
     return [row && row.first_name, row && row.last_name].filter(Boolean).join(' ');
 }
@@ -257,17 +267,35 @@ function showStatus(title, text) {
 }
 
 async function apiJson(path, body) {
-    const response = await fetch(`${API_BASE_URL}${path}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(body)
-    });
+    const url = `${API_BASE_URL}${path}`;
+    let response;
+    try {
+        response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(body)
+        });
+    } catch (networkErr) {
+        captureAuthClientLog({
+            url: url,
+            network: String(networkErr && networkErr.message)
+        });
+        throw new Error('ارتباط با سرور برقرار نشد.');
+    }
+    const raw = await response.text();
     let data = null;
-    try { data = await response.json(); } catch (e) { data = null; }
+    try { data = raw ? JSON.parse(raw) : null; } catch (e) { data = null; }
     if (!response.ok) {
-        const err = new Error(failDetail(data, 'انجام این اقدام ممکن نشد.'));
+        captureAuthClientLog({
+            url: url,
+            status: response.status,
+            raw: String(raw || '').slice(0, 500)
+        });
+        const message = failDetail(data, '');
+        const err = new Error(message || ('انجام این اقدام ممکن نشد. (HTTP ' + response.status + ')'));
         err.code = data && data.detail && data.detail.code;
+        err.httpStatus = response.status;
         throw err;
     }
     return data;

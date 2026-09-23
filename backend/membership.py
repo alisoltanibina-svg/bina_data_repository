@@ -10,9 +10,8 @@ from pathlib import Path
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHash, VerificationError, VerifyMismatchError
-from sqlalchemy import func, or_, select
-from sqlalchemy.exc import IntegrityError, ProgrammingError
-from sqlalchemy.orm import load_only, undefer
+from sqlalchemy import func, or_, select, text
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy import inspect as sa_inspect
 
 from backend.avatars import (
@@ -270,32 +269,36 @@ def lookup_auth_gate(phone: str) -> str:
     phone = normalize_phone(phone)
     if not is_mobile_phone(phone):
         raise MembershipError("phone", "شماره موبایل نامعتبر است.")
-    with db_session() as session:
-        user = session.execute(
-            select(User)
-            .options(load_only(User.id, User.phone, User.is_active))
-            .where(or_(User.phone == phone, func.trim(User.phone) == phone))
-        ).scalars().first()
-        requests = session.execute(
-            select(RegistrationRequest)
-            .where(
-                or_(
-                    RegistrationRequest.phone == phone,
-                    func.trim(RegistrationRequest.phone) == phone,
-                )
-            )
-            .order_by(RegistrationRequest.created_at.desc())
-        ).scalars().all()
-        if any(row.status == "pending" for row in requests):
-            return "pending"
-        if user is not None and user.is_active is not False:
-            return "login"
-        latest = requests[0] if requests else None
-        if latest is not None and latest.status == "rejected":
-            return "rejected"
-        if latest is not None and latest.status == "approved":
-            return "login"
-        return "register"
+    # Column-limited SQL: the User ORM still maps deferred profile fields.
+    try:
+        with db_session() as session:
+            user = session.execute(
+                text("SELECT is_active FROM users WHERE btrim(phone) = :p LIMIT 1"),
+                {"p": phone},
+            ).first()
+            requests = session.execute(
+                text(
+                    "SELECT status FROM registration_requests "
+                    "WHERE btrim(phone) = :p ORDER BY id DESC"
+                ),
+                {"p": phone},
+            ).all()
+            statuses = [row[0] for row in requests]
+            if any(status == "pending" for status in statuses):
+                return "pending"
+            if user is not None and user[0] is not False:
+                return "login"
+            latest = statuses[0] if statuses else None
+            if latest == "rejected":
+                return "rejected"
+            if latest == "approved":
+                return "login"
+            return "register"
+    except SQLAlchemyError as err:
+        from backend.authlog import write_auth_log
+
+        write_auth_log("gate sql", err)
+        raise MembershipError("server", "خطای داخلی سرور.") from err
 
 
 def profile_from_session_token(token: str) -> dict | None:
