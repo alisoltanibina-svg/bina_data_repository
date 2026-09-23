@@ -115,6 +115,10 @@ window.closeCurtainAuth = closeCurtainAuth;
 
 function failDetail(data, fallback) {
     if (!data || data.detail == null) return fallback;
+    if (Array.isArray(data.detail) && data.detail.length) {
+        const first = data.detail[0];
+        if (first && first.msg) return first.msg;
+    }
     if (typeof data.detail === 'string') return data.detail;
     if (data.detail.message) return data.detail.message;
     return fallback;

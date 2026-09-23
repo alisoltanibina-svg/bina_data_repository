@@ -166,9 +166,9 @@ class User(Base):
     last_name: Mapped[str] = mapped_column(String(80), nullable=False, server_default="")
     role_title: Mapped[str | None] = mapped_column(String(80))
     organization: Mapped[str | None] = mapped_column(String(120))
-    birth_date: Mapped[date | None] = mapped_column(Date)
-    email: Mapped[str | None] = mapped_column(String(120))
-    address: Mapped[str | None] = mapped_column(String(255))
+    birth_date: Mapped[date | None] = mapped_column(Date, deferred=True)
+    email: Mapped[str | None] = mapped_column(String(120), deferred=True)
+    address: Mapped[str | None] = mapped_column(String(255), deferred=True)
     password_hash: Mapped[str | None] = mapped_column(String(255))
     is_admin: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"

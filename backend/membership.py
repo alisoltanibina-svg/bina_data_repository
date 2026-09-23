@@ -11,7 +11,9 @@ from pathlib import Path
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHash, VerificationError, VerifyMismatchError
 from sqlalchemy import func, or_, select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, ProgrammingError
+from sqlalchemy.orm import load_only, undefer
+from sqlalchemy import inspect as sa_inspect
 
 from backend.avatars import (
     AVATAR_DIR,
@@ -173,13 +175,33 @@ def public_profile(user: User) -> dict:
         "phone": user.phone,
         "role_title": user.role_title or "",
         "organization": user.organization or "",
-        "birth_date": user.birth_date.isoformat() if user.birth_date else "",
-        "email": user.email or "",
-        "address": user.address or "",
+        "birth_date": _safe_birth_date(user),
+        "email": _safe_attr(user, "email") or "",
+        "address": _safe_attr(user, "address") or "",
         "is_admin": bool(user.is_admin),
         "avatar_url": public_url(user.avatar_path),
         "updated_at": _iso(user.updated_at),
     }
+
+
+def _safe_attr(user, name: str):
+    try:
+        state = sa_inspect(user)
+        if name in state.unloaded:
+            return None
+        return getattr(user, name)
+    except Exception:
+        return None
+
+
+def _safe_birth_date(user) -> str:
+    value = _safe_attr(user, "birth_date")
+    if value is None:
+        return ""
+    try:
+        return value.isoformat()
+    except Exception:
+        return ""
 
 
 def _iso(value: datetime | None) -> str | None:
@@ -250,7 +272,9 @@ def lookup_auth_gate(phone: str) -> str:
         raise MembershipError("phone", "شماره موبایل نامعتبر است.")
     with db_session() as session:
         user = session.execute(
-            select(User).where(or_(User.phone == phone, func.trim(User.phone) == phone))
+            select(User)
+            .options(load_only(User.id, User.phone, User.is_active))
+            .where(or_(User.phone == phone, func.trim(User.phone) == phone))
         ).scalars().first()
         requests = session.execute(
             select(RegistrationRequest)
@@ -294,6 +318,10 @@ def profile_from_session_token(token: str) -> dict | None:
         user = session.get(User, row.user_id)
         if user is None or not user.is_active:
             return None
+        try:
+            session.refresh(user, attribute_names=["birth_date", "email", "address"])
+        except Exception:
+            pass
         return public_profile(user)
 
 
@@ -512,9 +540,9 @@ def _profile_snapshot(user: User) -> dict:
         "last_name": user.last_name or "",
         "role_title": user.role_title or "",
         "organization": user.organization or "",
-        "birth_date": user.birth_date.isoformat() if user.birth_date else "",
-        "email": user.email or "",
-        "address": user.address or "",
+        "birth_date": _safe_birth_date(user),
+        "email": _safe_attr(user, "email") or "",
+        "address": _safe_attr(user, "address") or "",
         "avatar_path": user.avatar_path or "",
     }
 
