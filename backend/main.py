@@ -182,6 +182,11 @@ def _static_cache_control(path: str) -> str:
 
 class CachedStaticFiles(StaticFiles):
     async def get_response(self, path: str, scope):
+        relative = (path or "").replace("\\", "/").lstrip("/")
+        if relative.startswith("api/"):
+            write_auth_log(
+                f"static-fallback path=/{relative} method={scope.get('method')}"
+            )
         if not _static_is_public(path):
             return Response(status_code=404, content="Not Found")
         response = await super().get_response(path, scope)
@@ -338,21 +343,26 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 
 class AuthJsonContentTypeMiddleware:
-    """Parse /api/auth POST bodies as JSON even if Content-Type is missing or text/plain."""
+    """Log every /api/auth hit and treat POST bodies as JSON if Content-Type is wrong."""
 
     def __init__(self, app):
         self.app = app
 
     async def __call__(self, scope, receive, send):
-        if (
-            scope["type"] == "http"
-            and (scope.get("method") or "") in {"POST", "PUT", "PATCH"}
-            and (scope.get("path") or "").startswith("/api/auth")
-        ):
+        if scope["type"] == "http" and (scope.get("path") or "").startswith("/api/auth"):
             headers = MutableHeaders(scope=scope)
-            ctype = (headers.get("content-type") or "").split(";")[0].strip().lower()
-            if ctype != "application/json":
-                headers["content-type"] = "application/json"
+            qs = (scope.get("query_string") or b"").decode("latin-1")
+            method = scope.get("method") or ""
+            write_auth_log(
+                "http "
+                f"method={method} path={scope.get('path')} qs={qs!s} "
+                f"origin={headers.get('origin')!s} "
+                f"content_type={headers.get('content-type')!s}"
+            )
+            if method in {"POST", "PUT", "PATCH"}:
+                ctype = (headers.get("content-type") or "").split(";")[0].strip().lower()
+                if ctype != "application/json":
+                    headers["content-type"] = "application/json"
         await self.app(scope, receive, send)
 
 
@@ -815,17 +825,16 @@ class GateBody(BaseModel):
         return normalize_phone(str(value))
 
 
-@app.post("/api/auth/gate")
-@app.post("/api/auth/gate/")
-def auth_gate(body: GateBody, request: Request):
+def _gate_status_response(phone: str, request: Request) -> JSONResponse:
     write_auth_log(
         "gate start "
-        f"phone={mask_phone(body.phone)} origin={request.headers.get('origin')!s} "
+        f"phone={mask_phone(phone)} origin={request.headers.get('origin')!s} "
         f"host={request.headers.get('host')!s} "
-        f"content_type={request.headers.get('content-type')!s}"
+        f"content_type={request.headers.get('content-type')!s} "
+        f"method={request.method}"
     )
     try:
-        status = lookup_auth_gate(body.phone)
+        status = lookup_auth_gate(phone)
     except MembershipError as err:
         write_auth_log(f"gate membership code={err.code} message={err.message}")
         _raise_membership(err)
@@ -834,6 +843,26 @@ def auth_gate(body: GateBody, request: Request):
         raise
     write_auth_log(f"gate ok status={status}")
     return JSONResponse(content={"status": status}, headers=_AUTH_NO_STORE)
+
+
+def auth_gate(body: GateBody, request: Request):
+    return _gate_status_response(body.phone, request)
+
+
+def auth_gate_get(request: Request, phone: str = ""):
+    if not phone:
+        write_auth_log(f"gate GET without phone origin={request.headers.get('origin')!s}")
+        raise HTTPException(
+            status_code=405,
+            detail={"code": "method", "message": "ارسال شماره باید با POST باشد."},
+        )
+    return _gate_status_response(phone, request)
+
+
+app.add_api_route("/api/auth/gate", auth_gate, methods=["POST"])
+app.add_api_route("/api/auth/gate/", auth_gate, methods=["POST"])
+app.add_api_route("/api/auth/gate", auth_gate_get, methods=["GET", "HEAD"])
+app.add_api_route("/api/auth/gate/", auth_gate_get, methods=["GET", "HEAD"])
 
 
 @app.post("/api/auth/login")

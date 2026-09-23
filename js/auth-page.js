@@ -268,40 +268,14 @@ function showStatus(title, text) {
 
 async function apiJson(path, body) {
     const url = `${API_BASE_URL}${path}`;
-    const payload = JSON.stringify(body);
-    const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
-    const post = (target) => fetch(target, {
-        method: 'POST',
-        headers: headers,
-        credentials: 'include',
-        redirect: 'manual',
-        body: payload
-    });
     let response;
     try {
-        response = await post(url);
-        let hops = 0;
-        while (
-            hops < 4
-            && (response.status === 301 || response.status === 302 || response.status === 303
-                || response.status === 307 || response.status === 308)
-        ) {
-            hops += 1;
-            const loc = response.headers.get('Location');
-            if (!loc) break;
-            response = await post(new URL(loc, url).toString());
-        }
-        if (response.type === 'opaqueredirect' && /^http:\/\//i.test(url)) {
-            response = await fetch(url.replace(/^http:\/\//i, 'https://'), {
-                method: 'POST',
-                headers: headers,
-                credentials: 'include',
-                body: payload
-            });
-        }
-        if (response.type === 'opaqueredirect') {
-            throw new Error('ارتباط با سرور برقرار نشد.');
-        }
+        response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(body)
+        });
     } catch (networkErr) {
         captureAuthClientLog({
             url: url,
@@ -328,7 +302,41 @@ async function apiJson(path, body) {
 }
 
 async function lookupPhone(phone) {
-    const data = await apiJson('/api/auth/gate', { phone: phone });
+    try {
+        const data = await apiJson('/api/auth/gate', { phone: phone });
+        if (data && data.status) return data.status;
+    } catch (err) {
+        captureAuthClientLog({
+            step: 'gate-post-failed',
+            message: String(err && err.message)
+        });
+    }
+    const url = `${API_BASE_URL}/api/auth/gate?phone=${encodeURIComponent(phone)}`;
+    let response;
+    try {
+        response = await fetch(url, {
+            credentials: 'include',
+            headers: { Accept: 'application/json' }
+        });
+    } catch (networkErr) {
+        captureAuthClientLog({
+            url: url,
+            network: String(networkErr && networkErr.message)
+        });
+        throw new Error('ارتباط با سرور برقرار نشد.');
+    }
+    const raw = await response.text();
+    let data = null;
+    try { data = raw ? JSON.parse(raw) : null; } catch (e) { data = null; }
+    if (!response.ok) {
+        captureAuthClientLog({
+            url: url,
+            status: response.status,
+            raw: String(raw || '').slice(0, 500)
+        });
+        const message = failDetail(data, '');
+        throw new Error(message || ('انجام این اقدام ممکن نشد. (HTTP ' + response.status + ')'));
+    }
     return data && data.status;
 }
 
