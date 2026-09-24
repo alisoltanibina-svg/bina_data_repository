@@ -35,6 +35,7 @@
 (function (global) {
     var loc = global.location;
     if (loc && /rasadbina\.ir$/i.test(loc.hostname || '') && loc.protocol === 'http:') {
+        global.API_BASE_URL = 'https://' + loc.host;
         loc.replace('https://' + loc.host + loc.pathname + loc.search + loc.hash);
         return;
     }

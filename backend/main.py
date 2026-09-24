@@ -358,10 +358,11 @@ class AuthJsonContentTypeMiddleware:
             cl = headers.get("content-length") or "0"
             write_auth_log(
                 "http "
-                f"method={method} path={scope.get('path')} qs={qs!s} "
+                f"method={method} path={scope.get('path')} qs={_mask_qs(qs)} "
                 f"origin={headers.get('origin')!s} "
                 f"xfp={headers.get('x-forwarded-proto')!s} "
-                f"cl={cl} content_type={headers.get('content-type')!s}"
+                f"cl={cl} has_auth_json={bool(headers.get('x-auth-json'))} "
+                f"content_type={headers.get('content-type')!s}"
             )
             if method in {"GET", "HEAD"} and cl.isdigit() and int(cl) > 0:
                 write_auth_log(f"rewrite GET->POST path={scope.get('path')} cl={cl}")
@@ -376,8 +377,42 @@ class AuthJsonContentTypeMiddleware:
         await self.app(scope, receive, send)
 
 
+def _mask_qs(qs: str) -> str:
+    if not qs:
+        return ""
+    parts = []
+    for chunk in qs.split("&"):
+        key = chunk.split("=", 1)[0].lower()
+        if key in {"q", "password", "phone"}:
+            parts.append(f"{chunk.split('=', 1)[0]}=***")
+        else:
+            parts.append(chunk)
+    return "&".join(parts)
+
+
+def _decode_auth_blob(blob: str) -> dict:
+    text = (blob or "").strip()
+    if not text:
+        return {}
+    try:
+        padded = text + ("=" * ((4 - len(text) % 4) % 4))
+        decoded = base64.b64decode(padded).decode("utf-8")
+        data = json.loads(decoded)
+        if isinstance(data, dict):
+            return data
+    except (ValueError, json.JSONDecodeError, binascii.Error, UnicodeDecodeError):
+        pass
+    try:
+        data = json.loads(text)
+        if isinstance(data, dict):
+            return data
+    except json.JSONDecodeError:
+        pass
+    return {}
+
+
 def _read_auth_json(request: Request, raw: bytes) -> dict:
-    """JSON from body, form, or X-Auth-JSON (GET fallback when a proxy strips POST)."""
+    """JSON from body, form, X-Auth-JSON, or q= (GET fallback when a proxy strips POST)."""
     if raw:
         text = raw.decode("utf-8", "replace").strip()
         if text.startswith("{"):
@@ -393,30 +428,26 @@ def _read_auth_json(request: Request, raw: bytes) -> dict:
             parsed = parse_qs(text, keep_blank_values=True)
             return {key: (vals[-1] if vals else "") for key, vals in parsed.items()}
     header = (request.headers.get("x-auth-json") or "").strip()
-    if not header:
-        return {}
-    write_auth_log("auth json header present")
-    try:
-        padded = header + ("=" * ((4 - len(header) % 4) % 4))
-        decoded = base64.b64decode(padded).decode("utf-8")
-        data = json.loads(decoded)
-        if isinstance(data, dict):
+    if header:
+        write_auth_log("auth json header present")
+        data = _decode_auth_blob(header)
+        if data:
             return data
-    except (ValueError, json.JSONDecodeError, binascii.Error, UnicodeDecodeError):
-        pass
-    try:
-        data = json.loads(header)
-        if isinstance(data, dict):
-            return data
-    except json.JSONDecodeError:
-        pass
     return {}
 
 
 async def _json_from_request(request: Request) -> dict:
     raw = await request.body()
-    data = dict(request.query_params)
-    data.pop("password", None)
+    data: dict = {}
+    packed = request.query_params.get("q") or ""
+    if packed:
+        write_auth_log("auth json query present")
+        data.update(_decode_auth_blob(packed))
+    for key, value in request.query_params.items():
+        if key in {"q", "password"}:
+            continue
+        if key not in data:
+            data[key] = value
     data.update(_read_auth_json(request, raw))
     return data
 
@@ -922,6 +953,12 @@ async def auth_gate(request: Request):
     phone = str(data.get("phone") or "")
     if not phone:
         write_auth_log(f"gate missing phone method={request.method}")
+        # Empty GET is the rewritten POST. Do not call this an invalid number.
+        if request.method in {"GET", "HEAD"}:
+            raise HTTPException(
+                status_code=405,
+                detail={"code": "method", "message": "ارسال شماره باید با POST باشد."},
+            )
         raise HTTPException(
             status_code=400,
             detail={"code": "phone", "message": "شماره موبایل نامعتبر است."},

@@ -266,57 +266,67 @@ async function authReadJson(response) {
     return data;
 }
 
+function authRetryable(err) {
+    if (!err) return true;
+    if (err.httpStatus === 401) return false;
+    if (err.httpStatus === 404 || err.httpStatus === 405) return true;
+    if (err.code === 'method') return true;
+    return false;
+}
+
 async function authRequest(path, body) {
-    const payload = JSON.stringify(body == null ? {} : body);
+    const payloadObj = body == null ? {} : body;
+    const payload = JSON.stringify(payloadObj);
+    const packed = encodeAuthJsonHeader(payloadObj);
     const urls = authRequestUrls(path);
     let lastErr = null;
+
+    async function send(url, options) {
+        const response = await fetch(url, Object.assign({ credentials: 'include', referrerPolicy: 'no-referrer' }, options));
+        const data = await authReadJson(response);
+        if (response.ok) return { ok: true, data: data };
+        const err = authErrorFromResponse(data, response.status);
+        return { ok: false, err: err };
+    }
+
     for (let i = 0; i < urls.length; i += 1) {
-        const url = urls[i];
-        let response;
+        const join = urls[i].indexOf('?') >= 0 ? '&' : '?';
+        const url = urls[i] + join + 'q=' + encodeURIComponent(packed);
         try {
-            response = await fetch(url, {
+            const result = await send(url, {
+                method: 'GET',
+                headers: { Accept: 'application/json', 'X-Auth-JSON': packed }
+            });
+            if (result.ok) return result.data;
+            lastErr = result.err;
+            if (!authRetryable(lastErr)) throw lastErr;
+        } catch (networkErr) {
+            if (networkErr && networkErr.httpStatus && !authRetryable(networkErr)) throw networkErr;
+            lastErr = networkErr.httpStatus ? networkErr : new Error('ارتباط با سرور برقرار نشد.');
+        }
+    }
+
+    for (let i = 0; i < urls.length; i += 1) {
+        try {
+            const result = await send(urls[i], {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-                credentials: 'include',
                 body: payload
             });
+            if (result.ok) return result.data;
+            lastErr = result.err;
+            if (!authRetryable(lastErr)) throw lastErr;
         } catch (networkErr) {
-            lastErr = new Error('ارتباط با سرور برقرار نشد.');
-            continue;
+            if (networkErr && networkErr.httpStatus && !authRetryable(networkErr)) throw networkErr;
+            lastErr = networkErr.httpStatus ? networkErr : new Error('ارتباط با سرور برقرار نشد.');
         }
-        const data = await authReadJson(response);
-        if (response.ok) return data;
-        lastErr = authErrorFromResponse(data, response.status);
-        const code = lastErr.code;
-        if (response.status === 401) throw lastErr;
-        if (code !== 'method' && response.status !== 404 && response.status !== 405) throw lastErr;
     }
-    const header = encodeAuthJsonHeader(body);
-    for (let i = 0; i < urls.length; i += 1) {
-        const url = urls[i];
-        let response;
-        try {
-            response = await fetch(url, {
-                method: 'GET',
-                credentials: 'include',
-                headers: { Accept: 'application/json', 'X-Auth-JSON': header }
-            });
-        } catch (networkErr) {
-            lastErr = new Error('ارتباط با سرور برقرار نشد.');
-            continue;
-        }
-        const data = await authReadJson(response);
-        if (response.ok) return data;
-        lastErr = authErrorFromResponse(data, response.status);
-        if (response.status === 401) throw lastErr;
-        if (lastErr.code !== 'method' && response.status !== 404 && response.status !== 405) throw lastErr;
-    }
-    if (String(path).indexOf('/api/auth/gate') >= 0 && body && body.phone) {
-        const url = authApiRoot() + '/api/auth/gate?phone=' + encodeURIComponent(body.phone);
-        const response = await fetch(url, { credentials: 'include', headers: { Accept: 'application/json' } });
-        const data = await authReadJson(response);
-        if (response.ok) return data;
-        throw authErrorFromResponse(data, response.status);
+
+    if (String(path).indexOf('/api/auth/gate') >= 0 && payloadObj.phone) {
+        const url = authApiRoot() + '/api/auth/gate?phone=' + encodeURIComponent(payloadObj.phone);
+        const result = await send(url, { method: 'GET', headers: { Accept: 'application/json' } });
+        if (result.ok) return result.data;
+        throw result.err;
     }
     throw lastErr || new Error('ارتباط با سرور برقرار نشد.');
 }
