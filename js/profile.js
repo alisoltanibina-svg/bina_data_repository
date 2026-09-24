@@ -206,13 +206,7 @@ function exportCrop(done) {
 }
 
 async function apiJson(path, options) {
-    options = options || {};
-    const method = String(options.method || 'GET').toUpperCase();
-    if (typeof authRequest === 'function' && options.body && typeof options.body === 'string'
-        && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
-        return authRequest(path, JSON.parse(options.body), method);
-    }
-    const response = await fetch(`${API_BASE_URL}${path}`, Object.assign({ credentials: 'include' }, options));
+    const response = await fetch(`${API_BASE_URL}${path}`, Object.assign({ credentials: 'include' }, options || {}));
     if (response.status === 401 || response.status === 403) {
         window.location.href = SITE.page('index.html') + '#auth';
         throw new Error('auth');

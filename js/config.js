@@ -34,22 +34,13 @@
 // برای آفلاین بودن از کامنت دربیاید
 (function (global) {
     var loc = global.location;
-    var host = (loc && loc.hostname) || '';
 
-    // HTTP POST to this host is 301'd to HTTPS; browsers then retry as GET and drop the body.
-    if (/rasadbina\.ir$/i.test(host)) {
-        global.API_BASE_URL = 'https://' + loc.host;
-        if (loc.protocol === 'http:') {
-            loc.replace('https://' + loc.host + loc.pathname + loc.search + loc.hash);
-        }
-        return;
-    }
-
-    if (!loc || host === 'localhost' || host === '127.0.0.1') {
+    if (!loc || loc.hostname === 'localhost' || loc.hostname === '127.0.0.1') {
         // صفحه از لپ‌تاپ باز شده: API همان سایت آنلاین
         global.API_BASE_URL = 'https://app.rasadbina.ir';
         return;
     }
 
-    global.API_BASE_URL = loc.origin || '';
+    // صفحه روی دامنه واقعی: مسیر نسبی /api
+    global.API_BASE_URL = '';
 })(typeof window !== 'undefined' ? window : this);

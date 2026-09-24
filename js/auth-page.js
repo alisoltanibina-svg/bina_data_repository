@@ -267,7 +267,20 @@ function showStatus(title, text) {
 }
 
 async function apiJson(path, body) {
-    return authRequest(path, body);
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body)
+    });
+    let data = null;
+    try { data = await response.json(); } catch (e) { data = null; }
+    if (!response.ok) {
+        const err = new Error(failDetail(data, 'انجام این اقدام ممکن نشد.'));
+        err.code = data && data.detail && data.detail.code;
+        throw err;
+    }
+    return data;
 }
 
 async function lookupPhone(phone) {

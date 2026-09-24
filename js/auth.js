@@ -83,10 +83,9 @@
             clearLocalSession();
             window.location.replace(SITE.page('index.html'));
         };
-        const req = (typeof authRequest === 'function')
-            ? authRequest('/api/auth/logout', {})
-            : fetch(apiBase() + '/api/auth/logout', { method: 'POST', credentials: 'include' });
-        Promise.resolve(req).catch(function () {}).then(done);
+        fetch(apiBase() + '/api/auth/logout', { method: 'POST', credentials: 'include' })
+            .catch(function () {})
+            .then(done);
     }
 
     function isIndexPage() {

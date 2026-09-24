@@ -23,9 +23,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 from fastapi.staticfiles import StaticFiles
-from starlette.datastructures import MutableHeaders
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from backend.database import (
@@ -65,7 +64,7 @@ from backend.membership import (
     update_own_profile,
 )
 from backend.avatars import MAX_BYTES as AVATAR_MAX_BYTES
-from backend.authlog import init_auth_log, mask_phone, write_auth_log
+from backend.authlog import init_auth_log, write_auth_log
 from backend.otp import send_otp, verify_otp
 from backend.ratelimit import RateLimitMiddleware
 
@@ -242,25 +241,9 @@ _PRODUCTION_ORIGIN = "https://app.rasadbina.ir"
 
 def _cors_origins() -> list[str]:
     raw = os.environ.get("CORS_ORIGINS", "").strip()
-    configured = [origin.strip().rstrip("/") for origin in raw.split(",") if origin.strip()]
-    defaults = [
-        _PRODUCTION_ORIGIN,
-        "http://127.0.0.1:8000",
-        "http://localhost:8000",
-        "http://127.0.0.1:5500",
-        "http://localhost:5500",
-        "http://127.0.0.1:5501",
-        "http://localhost:5501",
-        "http://127.0.0.1",
-        "http://localhost",
-    ]
-    seen: set[str] = set()
-    origins: list[str] = []
-    for origin in configured + defaults:
-        if origin and origin not in seen:
-            seen.add(origin)
-            origins.append(origin)
-    return origins
+    if raw:
+        return [origin.strip().rstrip("/") for origin in raw.split(",") if origin.strip()]
+    return [_PRODUCTION_ORIGIN]
 
 
 def _expand_thread_pool(size: int | None = None) -> None:
@@ -305,7 +288,6 @@ app = FastAPI(
     docs_url=None,
     redoc_url=None,
     openapi_url=None,
-    redirect_slashes=False,
 )
 
 _SECURITY_HEADERS = {
@@ -313,18 +295,6 @@ _SECURITY_HEADERS = {
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
-    "Content-Security-Policy": (
-        "default-src 'self'; "
-        "base-uri 'self'; "
-        "form-action 'self'; "
-        "frame-ancestors 'none'; "
-        "object-src 'none'; "
-        "script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net; "
-        "style-src 'self' 'unsafe-inline' https://unpkg.com; "
-        "img-src 'self' data: blob:; "
-        "font-src 'self'; "
-        "connect-src 'self' https://app.rasadbina.ir http://127.0.0.1:8000 http://localhost:8000"
-    ),
 }
 
 
@@ -333,48 +303,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         for name, value in _SECURITY_HEADERS.items():
             response.headers.setdefault(name, value)
-        proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "").split(",")[0].strip()
-        if proto == "https":
-            response.headers.setdefault(
-                "Strict-Transport-Security",
-                "max-age=15552000; includeSubDomains",
-            )
         return response
-
-
-class AuthAccessLogMiddleware:
-    """Log /api/auth hits. Restore JSON content-type if a proxy stripped it from POST/PATCH."""
-
-    def __init__(self, app):
-        self.app = app
-
-    async def __call__(self, scope, receive, send):
-        if scope["type"] == "http" and (scope.get("path") or "").startswith("/api/auth"):
-            headers = MutableHeaders(scope=scope)
-            method = scope.get("method") or ""
-            cl = headers.get("content-length") or "0"
-            write_auth_log(
-                "http "
-                f"method={method} path={scope.get('path')} "
-                f"origin={headers.get('origin')!s} "
-                f"xfp={headers.get('x-forwarded-proto')!s} "
-                f"cl={cl} content_type={headers.get('content-type')!s}"
-            )
-            if method in {"POST", "PUT", "PATCH"}:
-                ctype = (headers.get("content-type") or "").split(";")[0].strip().lower()
-                if ctype not in {
-                    "application/json",
-                    "application/x-www-form-urlencoded",
-                    "multipart/form-data",
-                }:
-                    headers["content-type"] = "application/json"
-        await self.app(scope, receive, send)
-
-
-def _route_auth(path: str, func, methods: list[str]) -> None:
-    app.add_api_route(path, func, methods=methods)
-    if not path.endswith("/"):
-        app.add_api_route(path + "/", func, methods=methods)
 
 
 def _jsonable_errors(errors):
@@ -395,31 +324,37 @@ def _jsonable_errors(errors):
 
 
 # Innermost first: 429s still pass through CORS, gzip, and security headers.
-app.add_middleware(AuthAccessLogMiddleware)
 app.add_middleware(RateLimitMiddleware)
+# برای آنلاین بودن از کامنت دربیاید
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=_cors_origins(),
+#     allow_credentials=False,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+#     expose_headers=[
+#         "ETag",
+#         "Retry-After",
+#         "RateLimit",
+#         "RateLimit-Policy",
+#         "X-RateLimit-Limit",
+#         "X-RateLimit-Remaining",
+#         "X-RateLimit-Reset",
+#     ],
+# )
+
+# برای آفلاین بودن از کامنت دربیاید
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_cors_origins(),
+    allow_origins=[
+        "http://127.0.0.1:5500",
+        "http://localhost:5500",
+        "http://127.0.0.1:5501",
+        "http://localhost:5501",
+    ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=[
-        "Accept",
-        "Content-Type",
-        "If-None-Match",
-        "Authorization",
-        "X-Requested-With",
-        "Cache-Control",
-        "Pragma",
-    ],
-    expose_headers=[
-        "ETag",
-        "Retry-After",
-        "RateLimit",
-        "RateLimit-Policy",
-        "X-RateLimit-Limit",
-        "X-RateLimit-Remaining",
-        "X-RateLimit-Reset",
-    ],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.add_middleware(GZipMiddleware, minimum_size=500)
@@ -791,17 +726,8 @@ _LOGIN_FAIL = "شماره یا رمز نادرست است."
 
 
 def _cookie_secure(request: Request) -> bool:
-    host = (
-        (request.headers.get("x-forwarded-host") or request.url.hostname or "")
-        .split(",")[0]
-        .strip()
-        .split(":")[0]
-        .lower()
-    )
-    if host in {"127.0.0.1", "localhost"}:
-        return False
     proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "").split(",")[0].strip()
-    return proto == "https" or bool(host)
+    return proto == "https"
 
 
 def _set_session_cookie(response: JSONResponse, token: str, request: Request) -> None:
@@ -817,71 +743,29 @@ def _set_session_cookie(response: JSONResponse, token: str, request: Request) ->
 
 
 class GateBody(BaseModel):
-    phone: str = Field(min_length=1, max_length=32)
-
-    @field_validator("phone", mode="before")
-    @classmethod
-    def _coerce_phone(cls, value):
-        from backend.membership import normalize_phone
-
-        if value is None:
-            return ""
-        if isinstance(value, bool):
-            return str(value)
-        if isinstance(value, (int, float)):
-            digits = str(int(value))
-            if len(digits) == 10 and digits.startswith("9"):
-                digits = "0" + digits
-            return normalize_phone(digits)
-        return normalize_phone(str(value))
+    phone: str = Field(min_length=1, max_length=16)
 
 
-def _gate_status_response(phone: str, request: Request) -> JSONResponse:
-    write_auth_log(
-        "gate start "
-        f"phone={mask_phone(phone)} origin={request.headers.get('origin')!s} "
-        f"host={request.headers.get('host')!s} "
-        f"content_type={request.headers.get('content-type')!s} "
-        f"method={request.method}"
-    )
+@app.post("/api/auth/gate")
+def auth_gate(body: GateBody):
     try:
-        status = lookup_auth_gate(phone)
+        status = lookup_auth_gate(body.phone)
     except MembershipError as err:
-        write_auth_log(f"gate membership code={err.code} message={err.message}")
         _raise_membership(err)
-    except Exception as err:
-        write_auth_log("gate crash", err)
-        raise
-    write_auth_log(f"gate ok status={status}")
     return JSONResponse(content={"status": status}, headers=_AUTH_NO_STORE)
 
 
-def auth_gate(body: GateBody, request: Request):
-    return _gate_status_response(body.phone, request)
-
-
-_route_auth("/api/auth/gate", auth_gate, ["POST"])
-
-
+@app.post("/api/auth/login")
 def auth_login(body: LoginBody, request: Request):
-    write_auth_log(
-        "login hit "
-        f"method={request.method} xfp={request.headers.get('x-forwarded-proto')!s} "
-        f"ct={request.headers.get('content-type')!s}"
-    )
     result = authenticate(body.phone, body.password)
     if result is None:
-        write_auth_log("login fail")
         raise HTTPException(status_code=401, detail=_LOGIN_FAIL)
-    write_auth_log(f"login ok phone={mask_phone(body.phone)}")
     response = JSONResponse(content=result["profile"], headers=_AUTH_NO_STORE)
     _set_session_cookie(response, result["token"], request)
     return response
 
 
-_route_auth("/api/auth/login", auth_login, ["POST"])
-
-
+@app.post("/api/auth/logout")
 def auth_logout(request: Request):
     delete_session_token(request.cookies.get(SESSION_COOKIE) or "")
     response = JSONResponse(content={"ok": True}, headers=_AUTH_NO_STORE)
@@ -893,8 +777,6 @@ def auth_logout(request: Request):
     )
     return response
 
-
-_route_auth("/api/auth/logout", auth_logout, ["POST"])
 
 
 @app.get("/api/auth/me")
@@ -987,6 +869,7 @@ class PasswordResetBody(BaseModel):
     password: str = Field(min_length=8, max_length=200)
 
 
+@app.post("/api/auth/otp/send")
 def auth_otp_send(body: OtpSendBody):
     try:
         payload = send_otp(body.phone, body.purpose)
@@ -995,6 +878,7 @@ def auth_otp_send(body: OtpSendBody):
     return JSONResponse(content=payload, headers=_AUTH_NO_STORE)
 
 
+@app.post("/api/auth/otp/verify")
 def auth_otp_verify(body: OtpVerifyBody):
     try:
         payload = verify_otp(body.phone, body.purpose, body.code)
@@ -1003,6 +887,7 @@ def auth_otp_verify(body: OtpVerifyBody):
     return JSONResponse(content=payload, headers=_AUTH_NO_STORE)
 
 
+@app.post("/api/auth/register")
 def auth_register(body: RegisterBody):
     try:
         row = register_after_otp(
@@ -1018,11 +903,7 @@ def auth_register(body: RegisterBody):
     return JSONResponse(content=row, status_code=201, headers=_AUTH_NO_STORE)
 
 
-_route_auth("/api/auth/otp/send", auth_otp_send, ["POST"])
-_route_auth("/api/auth/otp/verify", auth_otp_verify, ["POST"])
-_route_auth("/api/auth/register", auth_register, ["POST"])
-
-
+@app.post("/api/auth/password/reset")
 def auth_password_reset(body: PasswordResetBody, request: Request):
     try:
         result = reset_password_after_otp(body.phone, body.password)
@@ -1032,8 +913,6 @@ def auth_password_reset(body: PasswordResetBody, request: Request):
     _set_session_cookie(response, result["token"], request)
     return response
 
-
-_route_auth("/api/auth/password/reset", auth_password_reset, ["POST"])
 
 
 @app.get("/api/admin/requests")
@@ -1063,6 +942,7 @@ def admin_reject_request(request_id: int, request: Request, body: RejectBody | N
     return JSONResponse(content=row, headers=_AUTH_NO_STORE)
 
 
+@app.patch("/api/auth/profile")
 def auth_update_profile(body: ProfileBody, request: Request):
     user = _require_user(request)
     try:
@@ -1080,8 +960,6 @@ def auth_update_profile(body: ProfileBody, request: Request):
         _raise_membership(err)
     return JSONResponse(content=profile, headers=_AUTH_NO_STORE)
 
-
-_route_auth("/api/auth/profile", auth_update_profile, ["PATCH"])
 
 
 @app.post("/api/auth/profile/avatar")
