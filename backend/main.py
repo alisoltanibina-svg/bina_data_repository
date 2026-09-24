@@ -9,8 +9,6 @@
 
 from __future__ import annotations
 
-import base64
-import binascii
 import hashlib
 import json
 import os
@@ -24,8 +22,8 @@ from fastapi.exception_handlers import http_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
-from pydantic import BaseModel, Field, ValidationError, field_validator
+from fastapi.responses import FileResponse, JSONResponse, Response
+from pydantic import BaseModel, Field, field_validator
 from fastapi.staticfiles import StaticFiles
 from starlette.datastructures import MutableHeaders
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -344,8 +342,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
-class AuthJsonContentTypeMiddleware:
-    """Log /api/auth hits. Restore POST if a proxy turned it into GET but left a body."""
+class AuthAccessLogMiddleware:
+    """Log /api/auth hits. Restore JSON content-type if a proxy stripped it from POST/PATCH."""
 
     def __init__(self, app):
         self.app = app
@@ -353,119 +351,30 @@ class AuthJsonContentTypeMiddleware:
     async def __call__(self, scope, receive, send):
         if scope["type"] == "http" and (scope.get("path") or "").startswith("/api/auth"):
             headers = MutableHeaders(scope=scope)
-            qs = (scope.get("query_string") or b"").decode("latin-1")
             method = scope.get("method") or ""
             cl = headers.get("content-length") or "0"
             write_auth_log(
                 "http "
-                f"method={method} path={scope.get('path')} qs={_mask_qs(qs)} "
+                f"method={method} path={scope.get('path')} "
                 f"origin={headers.get('origin')!s} "
                 f"xfp={headers.get('x-forwarded-proto')!s} "
-                f"cl={cl} has_auth_json={bool(headers.get('x-auth-json'))} "
-                f"content_type={headers.get('content-type')!s}"
+                f"cl={cl} content_type={headers.get('content-type')!s}"
             )
-            if method in {"GET", "HEAD"} and cl.isdigit() and int(cl) > 0:
-                write_auth_log(f"rewrite GET->POST path={scope.get('path')} cl={cl}")
-                scope = dict(scope)
-                scope["method"] = "POST"
-                method = "POST"
             if method in {"POST", "PUT", "PATCH"}:
                 ctype = (headers.get("content-type") or "").split(";")[0].strip().lower()
-                if ctype not in {"application/json", "application/x-www-form-urlencoded", "multipart/form-data"}:
-                    if ctype != "application/x-www-form-urlencoded":
-                        headers["content-type"] = "application/json"
+                if ctype not in {
+                    "application/json",
+                    "application/x-www-form-urlencoded",
+                    "multipart/form-data",
+                }:
+                    headers["content-type"] = "application/json"
         await self.app(scope, receive, send)
 
 
-def _mask_qs(qs: str) -> str:
-    if not qs:
-        return ""
-    parts = []
-    for chunk in qs.split("&"):
-        key = chunk.split("=", 1)[0].lower()
-        if key in {"q", "password", "phone"}:
-            parts.append(f"{chunk.split('=', 1)[0]}=***")
-        else:
-            parts.append(chunk)
-    return "&".join(parts)
-
-
-def _decode_auth_blob(blob: str) -> dict:
-    text = (blob or "").strip()
-    if not text:
-        return {}
-    try:
-        padded = text + ("=" * ((4 - len(text) % 4) % 4))
-        decoded = base64.b64decode(padded).decode("utf-8")
-        data = json.loads(decoded)
-        if isinstance(data, dict):
-            return data
-    except (ValueError, json.JSONDecodeError, binascii.Error, UnicodeDecodeError):
-        pass
-    try:
-        data = json.loads(text)
-        if isinstance(data, dict):
-            return data
-    except json.JSONDecodeError:
-        pass
-    return {}
-
-
-def _read_auth_json(request: Request, raw: bytes) -> dict:
-    """JSON from body, form, X-Auth-JSON, or q= (GET fallback when a proxy strips POST)."""
-    if raw:
-        text = raw.decode("utf-8", "replace").strip()
-        if text.startswith("{"):
-            try:
-                data = json.loads(text)
-            except json.JSONDecodeError:
-                data = None
-            if isinstance(data, dict):
-                return data
-        if text and "=" in text:
-            from urllib.parse import parse_qs
-
-            parsed = parse_qs(text, keep_blank_values=True)
-            return {key: (vals[-1] if vals else "") for key, vals in parsed.items()}
-    header = (request.headers.get("x-auth-json") or "").strip()
-    if header:
-        write_auth_log("auth json header present")
-        data = _decode_auth_blob(header)
-        if data:
-            return data
-    return {}
-
-
-async def _json_from_request(request: Request) -> dict:
-    raw = await request.body()
-    data: dict = {}
-    packed = request.query_params.get("q") or ""
-    if packed:
-        write_auth_log("auth json query present")
-        data.update(_decode_auth_blob(packed))
-    for key, value in request.query_params.items():
-        if key in {"q", "password"}:
-            continue
-        if key not in data:
-            data[key] = value
-    data.update(_read_auth_json(request, raw))
-    return data
-
-
-def _validate_body(model, data: dict):
-    try:
-        return model.model_validate(data)
-    except ValidationError as exc:
-        raise HTTPException(status_code=422, detail=_jsonable_errors(exc.errors())) from exc
-
-
-_AUTH_WRITE_METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH"]
-
-
-def _route_auth(path: str, func) -> None:
-    app.add_api_route(path, func, methods=_AUTH_WRITE_METHODS)
+def _route_auth(path: str, func, methods: list[str]) -> None:
+    app.add_api_route(path, func, methods=methods)
     if not path.endswith("/"):
-        app.add_api_route(path + "/", func, methods=_AUTH_WRITE_METHODS)
+        app.add_api_route(path + "/", func, methods=methods)
 
 
 def _jsonable_errors(errors):
@@ -486,7 +395,7 @@ def _jsonable_errors(errors):
 
 
 # Innermost first: 429s still pass through CORS, gzip, and security headers.
-app.add_middleware(AuthJsonContentTypeMiddleware)
+app.add_middleware(AuthAccessLogMiddleware)
 app.add_middleware(RateLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
@@ -499,7 +408,6 @@ app.add_middleware(
         "If-None-Match",
         "Authorization",
         "X-Requested-With",
-        "X-Auth-JSON",
         "Cache-Control",
         "Pragma",
     ],
@@ -948,71 +856,30 @@ def _gate_status_response(phone: str, request: Request) -> JSONResponse:
     return JSONResponse(content={"status": status}, headers=_AUTH_NO_STORE)
 
 
-async def auth_gate(request: Request):
-    data = await _json_from_request(request)
-    phone = str(data.get("phone") or "")
-    if not phone:
-        write_auth_log(f"gate missing phone method={request.method}")
-        # Empty GET is the rewritten POST. Do not call this an invalid number.
-        if request.method in {"GET", "HEAD"}:
-            raise HTTPException(
-                status_code=405,
-                detail={"code": "method", "message": "ارسال شماره باید با POST باشد."},
-            )
-        raise HTTPException(
-            status_code=400,
-            detail={"code": "phone", "message": "شماره موبایل نامعتبر است."},
-        )
-    return _gate_status_response(phone, request)
+def auth_gate(body: GateBody, request: Request):
+    return _gate_status_response(body.phone, request)
 
 
-_route_auth("/api/auth/gate", auth_gate)
+_route_auth("/api/auth/gate", auth_gate, ["POST"])
 
 
-def _parse_login_payload(raw: bytes, request: Request) -> tuple[str, str]:
-    from backend.membership import normalize_phone
-
-    data = _read_auth_json(request, raw)
-    phone = str(data.get("phone") or request.query_params.get("phone") or "")
-    password = str(data.get("password") or "")
-    return normalize_phone(phone), password
-
-
-async def auth_login(request: Request):
-    raw = await request.body()
+def auth_login(body: LoginBody, request: Request):
     write_auth_log(
         "login hit "
         f"method={request.method} xfp={request.headers.get('x-forwarded-proto')!s} "
-        f"cl={request.headers.get('content-length')!s} body_len={len(raw)} "
-        f"ct={request.headers.get('content-type')!s} "
-        f"accept={request.headers.get('accept')!s}"
+        f"ct={request.headers.get('content-type')!s}"
     )
-    try:
-        phone, password = _parse_login_payload(raw, request)
-    except Exception as err:
-        write_auth_log("login parse", err)
-        raise HTTPException(status_code=400, detail=_LOGIN_FAIL) from err
-    if not phone or not password:
-        write_auth_log(f"login rejected method={request.method} body_len={len(raw)}")
-        raise HTTPException(
-            status_code=405 if request.method in {"GET", "HEAD"} else 400,
-            detail={"code": "method", "message": "ورود باید با POST باشد."},
-        )
-    result = authenticate(phone, password)
+    result = authenticate(body.phone, body.password)
     if result is None:
         write_auth_log("login fail")
         raise HTTPException(status_code=401, detail=_LOGIN_FAIL)
-    write_auth_log(f"login ok phone={mask_phone(phone)}")
-    accept = (request.headers.get("accept") or "").lower()
-    if "text/html" in accept and "application/json" not in accept:
-        response = RedirectResponse("/", status_code=303, headers=_AUTH_NO_STORE)
-    else:
-        response = JSONResponse(content=result["profile"], headers=_AUTH_NO_STORE)
+    write_auth_log(f"login ok phone={mask_phone(body.phone)}")
+    response = JSONResponse(content=result["profile"], headers=_AUTH_NO_STORE)
     _set_session_cookie(response, result["token"], request)
     return response
 
 
-_route_auth("/api/auth/login", auth_login)
+_route_auth("/api/auth/login", auth_login, ["POST"])
 
 
 def auth_logout(request: Request):
@@ -1027,7 +894,7 @@ def auth_logout(request: Request):
     return response
 
 
-_route_auth("/api/auth/logout", auth_logout)
+_route_auth("/api/auth/logout", auth_logout, ["POST"])
 
 
 @app.get("/api/auth/me")
@@ -1120,8 +987,7 @@ class PasswordResetBody(BaseModel):
     password: str = Field(min_length=8, max_length=200)
 
 
-async def auth_otp_send(request: Request):
-    body = _validate_body(OtpSendBody, await _json_from_request(request))
+def auth_otp_send(body: OtpSendBody):
     try:
         payload = send_otp(body.phone, body.purpose)
     except MembershipError as err:
@@ -1129,8 +995,7 @@ async def auth_otp_send(request: Request):
     return JSONResponse(content=payload, headers=_AUTH_NO_STORE)
 
 
-async def auth_otp_verify(request: Request):
-    body = _validate_body(OtpVerifyBody, await _json_from_request(request))
+def auth_otp_verify(body: OtpVerifyBody):
     try:
         payload = verify_otp(body.phone, body.purpose, body.code)
     except MembershipError as err:
@@ -1138,8 +1003,7 @@ async def auth_otp_verify(request: Request):
     return JSONResponse(content=payload, headers=_AUTH_NO_STORE)
 
 
-async def auth_register(request: Request):
-    body = _validate_body(RegisterBody, await _json_from_request(request))
+def auth_register(body: RegisterBody):
     try:
         row = register_after_otp(
             body.first_name,
@@ -1154,13 +1018,12 @@ async def auth_register(request: Request):
     return JSONResponse(content=row, status_code=201, headers=_AUTH_NO_STORE)
 
 
-_route_auth("/api/auth/otp/send", auth_otp_send)
-_route_auth("/api/auth/otp/verify", auth_otp_verify)
-_route_auth("/api/auth/register", auth_register)
+_route_auth("/api/auth/otp/send", auth_otp_send, ["POST"])
+_route_auth("/api/auth/otp/verify", auth_otp_verify, ["POST"])
+_route_auth("/api/auth/register", auth_register, ["POST"])
 
 
-async def auth_password_reset(request: Request):
-    body = _validate_body(PasswordResetBody, await _json_from_request(request))
+def auth_password_reset(body: PasswordResetBody, request: Request):
     try:
         result = reset_password_after_otp(body.phone, body.password)
     except MembershipError as err:
@@ -1170,7 +1033,7 @@ async def auth_password_reset(request: Request):
     return response
 
 
-_route_auth("/api/auth/password/reset", auth_password_reset)
+_route_auth("/api/auth/password/reset", auth_password_reset, ["POST"])
 
 
 @app.get("/api/admin/requests")
@@ -1200,9 +1063,8 @@ def admin_reject_request(request_id: int, request: Request, body: RejectBody | N
     return JSONResponse(content=row, headers=_AUTH_NO_STORE)
 
 
-async def auth_update_profile(request: Request):
+def auth_update_profile(body: ProfileBody, request: Request):
     user = _require_user(request)
-    body = _validate_body(ProfileBody, await _json_from_request(request))
     try:
         profile = update_own_profile(
             user["id"],
@@ -1219,7 +1081,7 @@ async def auth_update_profile(request: Request):
     return JSONResponse(content=profile, headers=_AUTH_NO_STORE)
 
 
-_route_auth("/api/auth/profile", auth_update_profile)
+_route_auth("/api/auth/profile", auth_update_profile, ["PATCH"])
 
 
 @app.post("/api/auth/profile/avatar")

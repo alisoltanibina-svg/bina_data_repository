@@ -214,32 +214,40 @@ function applyBannerAvatar(url) {
 }
 
 function authApiRoot() {
-    if (typeof API_BASE_URL === 'string' && API_BASE_URL) return String(API_BASE_URL).replace(/\/+$/, '');
+    let root = '';
+    if (typeof API_BASE_URL === 'string' && API_BASE_URL) {
+        root = String(API_BASE_URL).replace(/\/+$/, '');
+    } else {
+        try {
+            if (window.location && window.location.origin) root = window.location.origin;
+        } catch (e) {}
+    }
     try {
-        if (window.location && window.location.origin) {
-            if (window.location.protocol === 'http:' && /rasadbina\.ir$/i.test(window.location.hostname || '')) {
-                return window.location.origin.replace(/^http:/i, 'https:');
-            }
-            return window.location.origin;
+        const host = (window.location && window.location.hostname) || '';
+        if (/rasadbina\.ir$/i.test(host) || /rasadbina\.ir/i.test(root)) {
+            if (/^http:\/\//i.test(root)) root = root.replace(/^http:/i, 'https:');
+            if (!root && host) root = 'https://' + window.location.host;
         }
     } catch (e) {}
-    return '';
+    return root;
 }
 
-function authRequestUrls(path) {
-    const root = authApiRoot();
+function authRequestUrl(path) {
     const clean = ('/' + String(path || '').replace(/^\/+/, '')).replace(/\/+$/, '');
-    const urls = [root + clean, root + clean + '/'];
-    if (/^http:\/\//i.test(root)) {
-        const httpsRoot = root.replace(/^http:/i, 'https:');
-        urls.push(httpsRoot + clean, httpsRoot + clean + '/');
-    }
-    return urls.filter((url, i, all) => all.indexOf(url) === i);
+    return authApiRoot() + clean;
 }
 
-function encodeAuthJsonHeader(body) {
-    const json = JSON.stringify(body == null ? {} : body);
-    return btoa(unescape(encodeURIComponent(json)));
+function authRedirectUrl(currentUrl, locationHeader) {
+    if (!locationHeader) return '';
+    try {
+        let next = new URL(locationHeader, currentUrl).href;
+        if (/^http:\/\//i.test(next) && /rasadbina\.ir/i.test(next)) {
+            next = next.replace(/^http:/i, 'https:');
+        }
+        return next;
+    } catch (e) {
+        return '';
+    }
 }
 
 function authFailDetail(data, fallback) {
@@ -266,67 +274,38 @@ async function authReadJson(response) {
     return data;
 }
 
-function authRetryable(err) {
-    if (!err) return true;
-    if (err.httpStatus === 401) return false;
-    if (err.httpStatus === 404 || err.httpStatus === 405) return true;
-    if (err.code === 'method') return true;
-    return false;
-}
+async function authRequest(path, body, method) {
+    const payload = JSON.stringify(body == null ? {} : body);
+    const verb = String(method || 'POST').toUpperCase();
+    let url = authRequestUrl(path);
 
-async function authRequest(path, body) {
-    const payloadObj = body == null ? {} : body;
-    const payload = JSON.stringify(payloadObj);
-    const packed = encodeAuthJsonHeader(payloadObj);
-    const urls = authRequestUrls(path);
-    let lastErr = null;
-
-    async function send(url, options) {
-        const response = await fetch(url, Object.assign({ credentials: 'include', referrerPolicy: 'no-referrer' }, options));
-        const data = await authReadJson(response);
-        if (response.ok) return { ok: true, data: data };
-        const err = authErrorFromResponse(data, response.status);
-        return { ok: false, err: err };
-    }
-
-    for (let i = 0; i < urls.length; i += 1) {
-        const join = urls[i].indexOf('?') >= 0 ? '&' : '?';
-        const url = urls[i] + join + 'q=' + encodeURIComponent(packed);
+    for (let hop = 0; hop < 4; hop += 1) {
+        let response;
         try {
-            const result = await send(url, {
-                method: 'GET',
-                headers: { Accept: 'application/json', 'X-Auth-JSON': packed }
-            });
-            if (result.ok) return result.data;
-            lastErr = result.err;
-            if (!authRetryable(lastErr)) throw lastErr;
-        } catch (networkErr) {
-            if (networkErr && networkErr.httpStatus && !authRetryable(networkErr)) throw networkErr;
-            lastErr = networkErr.httpStatus ? networkErr : new Error('ارتباط با سرور برقرار نشد.');
-        }
-    }
-
-    for (let i = 0; i < urls.length; i += 1) {
-        try {
-            const result = await send(urls[i], {
-                method: 'POST',
+            response = await fetch(url, {
+                method: verb,
                 headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                credentials: 'include',
+                redirect: 'manual',
+                referrerPolicy: 'no-referrer',
                 body: payload
             });
-            if (result.ok) return result.data;
-            lastErr = result.err;
-            if (!authRetryable(lastErr)) throw lastErr;
-        } catch (networkErr) {
-            if (networkErr && networkErr.httpStatus && !authRetryable(networkErr)) throw networkErr;
-            lastErr = networkErr.httpStatus ? networkErr : new Error('ارتباط با سرور برقرار نشد.');
+        } catch (e) {
+            throw new Error('ارتباط با سرور برقرار نشد.');
         }
+        const status = response.status;
+        if (status >= 301 && status <= 308 && status !== 304) {
+            const next = authRedirectUrl(url, response.headers.get('Location'));
+            if (!next || next === url) break;
+            url = next;
+            continue;
+        }
+        if (response.type === 'opaqueredirect') {
+            throw new Error('ارتباط با سرور برقرار نشد.');
+        }
+        const data = await authReadJson(response);
+        if (response.ok) return data;
+        throw authErrorFromResponse(data, status);
     }
-
-    if (String(path).indexOf('/api/auth/gate') >= 0 && payloadObj.phone) {
-        const url = authApiRoot() + '/api/auth/gate?phone=' + encodeURIComponent(payloadObj.phone);
-        const result = await send(url, { method: 'GET', headers: { Accept: 'application/json' } });
-        if (result.ok) return result.data;
-        throw result.err;
-    }
-    throw lastErr || new Error('ارتباط با سرور برقرار نشد.');
+    throw new Error('ارتباط با سرور برقرار نشد.');
 }
