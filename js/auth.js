@@ -8,11 +8,22 @@
 
     function pageFile(url) {
         try {
-            const path = new URL(url, location.href).pathname.split('/').pop() || '';
-            return (path === '' ? 'index.html' : path).toLowerCase();
+            let path = new URL(url, location.href).pathname || '';
+            path = path.replace(/\/+$/, '');
+            let name = (path.split('/').pop() || '').toLowerCase();
+            if (!name || name === 'index' || name === 'index.html') return 'index.html';
+            if (name.slice(-5) !== '.html') name += '.html';
+            return name;
         } catch (e) {
             return '';
         }
+    }
+
+    function currentPageName() {
+        const banner = document.getElementById('top-banner');
+        const fromBanner = banner && banner.getAttribute('data-page');
+        if (fromBanner) return fromBanner;
+        return pageFile(location.href).replace(/\.html$/, '') || 'index';
     }
 
     function isHomeFile(url) {
@@ -132,8 +143,17 @@
     }
 
     function isIndexPage() {
-        const name = (window.location.pathname.split('/').pop() || '').toLowerCase();
-        return name === '' || name === 'index.html';
+        return currentPageName() === 'index';
+    }
+
+    function isProfilePage() {
+        return currentPageName() === 'profile' || isProfileFile(location.href);
+    }
+
+    function homeHref() {
+        const path = location.pathname || '';
+        if (!/\.html$/i.test(path) && !/\/html\//i.test(path)) return '/';
+        return SITE.page('index.html');
     }
 
     function snapshotAppTheme() {
@@ -148,7 +168,7 @@
 
     function goHomeFromProfile() {
         try { sessionStorage.setItem('bina-profile-return', '1'); } catch (e) {}
-        window.location.href = SITE.page('index.html');
+        window.location.href = homeHref();
     }
 
     function setupLogoHome() {
@@ -156,7 +176,7 @@
         if (!logo || isIndexPage()) return;
         logo.addEventListener('click', function () {
             snapshotAppTheme();
-            if (isProfileFile(location.href)) {
+            if (isProfilePage()) {
                 goHomeFromProfile();
                 return;
             }
@@ -178,7 +198,7 @@
     function setup() {
         setupLogoHome();
         playProfileReturn();
-        if (isProfileFile(location.href)) {
+        if (isProfilePage()) {
             document.querySelectorAll('a.auth-back-fab[href]').forEach(function (el) {
                 el.addEventListener('click', function (event) {
                     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
