@@ -300,16 +300,16 @@ html.treat-v1 #top-banner .project-main {
 }
 
 html.treat-v1 #top-banner .banner-seg {
-    border-radius: var(--treat-radius-pill);
+    border-radius: 0;
 }
 
 html.treat-v1 #top-banner .banner-seg-btn {
-    border-radius: var(--treat-radius-pill);
+    border-radius: 5px;
     font-weight: 600;
 }
 
 html.treat-v1 #top-banner .banner-seg-btn.is-current {
-    background-color: var(--topic-accent, #0078d7);
+    background-color: #515811;
     color: #ffffff;
 }
 

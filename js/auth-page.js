@@ -297,6 +297,8 @@ onReady(() => {
     document.querySelectorAll('[data-auth-back]').forEach(btn => {
         btn.addEventListener('click', backToGate);
     });
+    const gateClose = document.getElementById('auth-gate-close');
+    if (gateClose) gateClose.addEventListener('click', closeCurtainAuth);
 
     gateForm.addEventListener('submit', async event => {
         event.preventDefault();

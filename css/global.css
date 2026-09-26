@@ -142,7 +142,7 @@ body {
     position: absolute;
     inset: 0;
     border-radius: inherit;
-    background: #f4eddf;
+    background: #ffffff;
     z-index: -1;
     box-shadow: 0 4px 18px rgba(81, 88, 17, 0.08);
     transition: background-color 0.6s ease, box-shadow 0.6s ease;
@@ -166,9 +166,9 @@ body {
     display: flex;
     align-items: center;
     margin-inline-start: 18px;
-    padding: 4px;
-    border-radius: 999px;
-    background: #eef1f8;
+    padding: 0;
+    border-radius: 0;
+    background: #f7f4ed;
     flex-shrink: 0;
 }
 .banner-seg-btn {
@@ -178,9 +178,9 @@ body {
     height: 34px;
     padding: 0 14px 1px;
     border: 0;
-    border-radius: 999px;
+    border-radius: 5px;
     background: transparent;
-    color: #5c6570;
+    color: #515811;
     font: inherit;
     font-size: 0.82rem;
     font-weight: 600;
@@ -188,9 +188,9 @@ body {
     cursor: pointer;
     white-space: nowrap;
 }
-.banner-seg-btn:hover { color: #1b242e; }
+.banner-seg-btn:hover { color: #515811; }
 .banner-seg-btn.is-current {
-    background: var(--topic-accent, #0078d7);
+    background: #515811;
     color: #ffffff;
 }
 .banner-seg-btn.is-current:hover { color: #ffffff; }
@@ -317,7 +317,7 @@ body {
     }
     .banner-seg {
         margin-inline-start: 8px;
-        padding: 3px;
+        padding: 0;
     }
     .banner-seg-btn {
         height: 28px;

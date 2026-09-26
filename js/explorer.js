@@ -310,9 +310,11 @@ function waitForMosaicImages(root) {
 
 function topicFlipHtml(topic, index, cols) {
     const col = index % cols;
+    const row = Math.floor(index / cols);
+    const tone = (row + col) % 2 === 0 ? 'gold' : 'olive';
     const n = countTopicIndicators(topic);
     return `
-        <article class="ex-room" data-col="${col}" data-topic="${escapeHtml(topic)}">
+        <article class="ex-room" data-col="${col}" data-tone="${tone}" data-topic="${escapeHtml(topic)}">
             <button type="button" class="ex-room-face">
                 <div class="ex-room-visual">
                     <div class="ex-room-photo"></div>
@@ -329,10 +331,20 @@ function topicFlipHtml(topic, index, cols) {
 function bindMosaicInteractions(container) {
     container.querySelectorAll('.ex-room').forEach(card => {
         const topic = card.dataset.topic;
-        card.addEventListener('mouseenter', () => applyExplorerTheme(topic));
+        card.addEventListener('mouseenter', () => {
+            container.classList.add('is-topic-hover');
+            applyExplorerTheme(topic);
+        });
         const face = card.querySelector('.ex-room-face');
         if (face) face.addEventListener('click', () => openTopicIndex(topic));
     });
+    const topicsEl = container.querySelector('.ex-topics');
+    if (topicsEl) {
+        topicsEl.addEventListener('mouseleave', () => {
+            container.classList.remove('is-topic-hover');
+            setTopicChrome('#a18447');
+        });
+    }
 }
 
 function initStaggeredAnimations(container) {
@@ -398,8 +410,7 @@ function renderMosaicMenu() {
 
     const layout = mosaicLayout();
     mosaicLayoutKey = String(layout.cols);
-    const firstTopic = topics[0];
-    if (firstTopic) applyExplorerTheme(firstTopic);
+    setTopicChrome('#a18447');
 
     const topicCards = topics.map((topic, i) => topicFlipHtml(topic, i, layout.cols)).join('');
     const rows = Math.max(1, Math.ceil(topics.length / layout.cols));

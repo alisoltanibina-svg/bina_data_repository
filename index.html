@@ -10,7 +10,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>اطلس — دیده‌بان فرهنگ</title>
-    <link rel="icon" href="assets/images/Logo.webp" type="image/webp">
+    <link rel="icon" href="assets/images/Logo_tab.webp" type="image/webp">
     
     <!-- Leaflet CSS + JS start in the head so the map can init behind the curtain -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous" />
@@ -102,6 +102,9 @@
                     </div>
                     <div class="entry-auth-stage" id="entry-auth-stage" hidden>
                         <section class="register-card" id="auth-gate">
+                            <button type="button" class="auth-back-fab" id="auth-gate-close" aria-label="بازگشت">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
+                            </button>
                             <p class="register-kicker">حساب کاربری</p>
                             <h1>ورود | ثبت نام</h1>
                             <form id="gate-form" novalidate>

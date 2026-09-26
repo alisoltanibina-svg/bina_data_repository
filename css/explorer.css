@@ -32,7 +32,7 @@ html, body.explorer-body {
 
 body.explorer-body {
     font-family: 'PeydaFaNumWeb', Tahoma, sans-serif !important;
-    background: #eef1f8;
+    background: #f7f4ed;
     color: var(--ex-ink);
     overflow: hidden;
     display: flex;
@@ -110,6 +110,11 @@ body.explorer-body {
     font-size: clamp(2rem, 4.6vw, 3.2rem);
     font-weight: 800;
     line-height: 1.2;
+    color: #a18447;
+    transition: color 0.45s ease;
+}
+
+.ex-stage.is-topic-hover .ex-title {
     color: var(--topic-accent, #0078d7);
 }
 
@@ -186,8 +191,12 @@ body.explorer-body {
     background-color: #d7dbe3;
     position: relative;
     overflow: hidden;
+    isolation: isolate;
     box-shadow: 0 10px 28px rgba(27, 36, 46, 0.08);
 }
+
+.ex-room[data-tone="gold"] { --mosaic-shade: #CCAE72; }
+.ex-room[data-tone="olive"] { --mosaic-shade: #C6CC86; }
 
 .ex-room-photo {
     position: absolute;
@@ -199,14 +208,30 @@ body.explorer-body {
     transition: filter 0.45s ease;
 }
 
+.ex-room-visual::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: var(--mosaic-shade, #a18447);
+    mix-blend-mode: multiply;
+    pointer-events: none;
+    transition: opacity 0.45s ease;
+}
+
 .ex-room:hover .ex-room-photo,
 .ex-room-face:focus-visible .ex-room-photo {
     filter: grayscale(0);
 }
 
+.ex-room:hover .ex-room-visual::after,
+.ex-room-face:focus-visible .ex-room-visual::after {
+    opacity: 0;
+}
+
 .ex-room-copy {
     position: relative;
-    z-index: 1;
+    z-index: 2;
     width: 100%;
     height: 100%;
     display: flex;
@@ -513,7 +538,7 @@ body.explorer-body {
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    background: #eef1f8;
+    background: #f7f4ed;
 }
 
 .ex-dash-head {
