@@ -477,6 +477,166 @@ body.profile-body #profile-admin-link {
     border: 0;
 }
 
+body.profile-body .register-field.is-picking {
+    z-index: 50;
+}
+
+body.profile-body #birth_date {
+    cursor: pointer;
+    opacity: 1;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%23a18447' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='4.5' width='18' height='16.5' rx='2'/><path d='M8 2.5v4'/><path d='M16 2.5v4'/><path d='M3 10h18'/></svg>");
+    background-repeat: no-repeat;
+    background-position: 16px 50%;
+    background-size: 18px;
+}
+
+body.profile-body #birth_date:focus,
+body.profile-body #birth_date:not(:placeholder-shown),
+body.profile-body #birth_date.is-filled {
+    padding-inline-start: 42px;
+}
+
+.shamsi-cal {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    left: auto;
+    z-index: 40;
+    display: block;
+    width: max(100%, 17.5rem);
+    padding: 12px;
+    border-radius: 18px;
+    background: #f4eddf;
+    border: 1px solid rgba(81, 88, 17, 0.16);
+    box-shadow: 0 14px 28px rgba(81, 88, 17, 0.16);
+    text-align: center;
+}
+
+.shamsi-cal[hidden] { display: none; }
+
+.shamsi-cal.is-above {
+    top: auto;
+    bottom: calc(100% + 8px);
+}
+
+.shamsi-cal-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.shamsi-cal-head select {
+    flex: 1 1 0;
+    min-width: 0;
+    height: 34px;
+    border: 0;
+    border-radius: 999px;
+    background: #efe6d4;
+    color: #515811;
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-align: center;
+    cursor: pointer;
+}
+
+.shamsi-cal-shift {
+    flex: 0 0 34px;
+    width: 34px;
+    height: 34px;
+    border: 0;
+    border-radius: 50%;
+    background: #efe6d4;
+    color: #515811;
+    font: inherit;
+    font-size: 1.05rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.shamsi-cal-shift:hover,
+.shamsi-cal-head select:hover,
+.shamsi-cal-day:hover:not(.is-selected) {
+    background: #e7d6b5;
+}
+
+.shamsi-cal-week,
+.shamsi-cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+}
+
+.shamsi-cal-week {
+    margin-top: 10px;
+    color: #a18447;
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+
+.shamsi-cal-week span {
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.shamsi-cal-grid {
+    margin-top: 2px;
+}
+
+.shamsi-cal-empty {
+    height: 34px;
+}
+
+.shamsi-cal-day {
+    height: 34px;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: #515811;
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.shamsi-cal-day.is-today {
+    box-shadow: inset 0 0 0 1.5px #a18447;
+}
+
+.shamsi-cal-day.is-selected {
+    background: #515811;
+    color: #fff;
+    box-shadow: none;
+}
+
+.shamsi-cal-day:focus-visible,
+.shamsi-cal-shift:focus-visible,
+.shamsi-cal-head select:focus-visible,
+.shamsi-cal-clear:focus-visible {
+    outline: 2px solid #515811;
+    outline-offset: 2px;
+}
+
+.shamsi-cal-clear {
+    width: 100%;
+    margin-top: 8px;
+    height: 32px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: #a18447;
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.shamsi-cal-clear:hover {
+    text-decoration: underline;
+}
+
 @media (max-width: 767px) {
     body.profile-body .register-workspace {
         padding: calc(64px + 28px) 14px 20px;

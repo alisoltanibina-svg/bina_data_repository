@@ -58,11 +58,12 @@
                 </div>
 
                 <div class="register-pair">
-                    <label class="register-field">
-                        <input type="date" id="birth_date" name="birth_date" autocomplete="bday" dir="ltr" placeholder=" ">
+                    <div class="register-field">
+                        <input type="text" id="birth_date" name="birth_date" autocomplete="bday" dir="ltr" placeholder=" " readonly inputmode="none" aria-haspopup="dialog" aria-expanded="false" aria-controls="birth-cal">
                         <span>تاریخ تولد</span>
                         <em class="register-error" id="err-birth_date" hidden></em>
-                    </label>
+                        <div class="shamsi-cal" id="birth-cal" hidden role="dialog" aria-label="تقویم شمسی"></div>
+                    </div>
                     <label class="register-field">
                         <input type="email" id="email" name="email" autocomplete="email" maxlength="120" dir="ltr" placeholder=" ">
                         <span>ایمیل</span>

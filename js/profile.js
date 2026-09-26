@@ -6,6 +6,10 @@ const ALLOWED = ['image/jpeg', 'image/png', 'image/webp'];
 const CROP_STAGE = 320;
 const CROP_HOLE = 240;
 const CROP_OUT = 512;
+const SHAMSI_DEFAULT_YEAR = 1365;
+const SHAMSI_MIN_YEAR = 1300;
+const SHAMSI_MONTHS = ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور', 'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند'];
+const SHAMSI_WEEK = ['ش', 'ی', 'د', 'س', 'چ', 'پ', 'ج'];
 
 let previewUrl = '';
 let savedAvatarUrl = '';
@@ -33,11 +37,118 @@ function markFilled(el) {
     el.classList.toggle('is-filled', !!String(el.value || '').trim());
 }
 
+function pad2(n) {
+    return String(n).padStart(2, '0');
+}
+
+function gregorianToJalali(gy, gm, gd) {
+    const gdm = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
+    const gy2 = gm > 2 ? gy + 1 : gy;
+    let days = 355666 + (365 * gy) + Math.trunc((gy2 + 3) / 4) - Math.trunc((gy2 + 99) / 100)
+        + Math.trunc((gy2 + 399) / 400) + gd + gdm[gm - 1];
+    let jy = -1595 + (33 * Math.trunc(days / 12053));
+    days %= 12053;
+    jy += 4 * Math.trunc(days / 1461);
+    days %= 1461;
+    if (days > 365) {
+        jy += Math.trunc((days - 1) / 365);
+        days = (days - 1) % 365;
+    }
+    let jm;
+    let jd;
+    if (days < 186) {
+        jm = 1 + Math.trunc(days / 31);
+        jd = 1 + (days % 31);
+    } else {
+        jm = 7 + Math.trunc((days - 186) / 30);
+        jd = 1 + ((days - 186) % 30);
+    }
+    return [jy, jm, jd];
+}
+
+function jalaliToGregorian(jy, jm, jd) {
+    jy += 1595;
+    let days = -355668 + (365 * jy) + (Math.trunc(jy / 33) * 8) + Math.trunc(((jy % 33) + 3) / 4)
+        + jd + (jm < 7 ? (jm - 1) * 31 : ((jm - 7) * 30) + 186);
+    let gy = 400 * Math.trunc(days / 146097);
+    days %= 146097;
+    if (days > 36524) {
+        gy += 100 * Math.trunc(--days / 36524);
+        days %= 36524;
+        if (days >= 365) days += 1;
+    }
+    gy += 4 * Math.trunc(days / 1461);
+    days %= 1461;
+    if (days > 365) {
+        gy += Math.trunc((days - 1) / 365);
+        days = (days - 1) % 365;
+    }
+    let gd = days + 1;
+    const sal = [0, 31, ((gy % 4 === 0 && gy % 100 !== 0) || (gy % 400 === 0)) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let gm = 1;
+    while (gm < 13 && gd > sal[gm]) {
+        gd -= sal[gm];
+        gm += 1;
+    }
+    return [gy, gm, gd];
+}
+
+function jalaliToday() {
+    const n = new Date();
+    const j = gregorianToJalali(n.getFullYear(), n.getMonth() + 1, n.getDate());
+    return { y: j[0], m: j[1], d: j[2] };
+}
+
+function jalaliMonthDays(jy, jm) {
+    if (jm <= 6) return 31;
+    if (jm <= 11) return 30;
+    const g = jalaliToGregorian(jy, 12, 30);
+    const j = gregorianToJalali(g[0], g[1], g[2]);
+    return j[1] === 12 && j[2] === 30 ? 30 : 29;
+}
+
+function jalaliWeekdaySat0(jy, jm, jd) {
+    const g = jalaliToGregorian(jy, jm, jd);
+    const date = new Date(Date.UTC(g[0], g[1] - 1, g[2]));
+    return (date.getUTCDay() + 1) % 7;
+}
+
+function parseShamsi(raw) {
+    const text = String(raw || '').trim().replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d));
+    const m = text.match(/^(\d{3,4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+    if (!m) return null;
+    const y = Number(m[1]);
+    const mo = Number(m[2]);
+    const d = Number(m[3]);
+    if (y < SHAMSI_MIN_YEAR || y > jalaliToday().y + 1 || mo < 1 || mo > 12 || d < 1 || d > jalaliMonthDays(y, mo)) {
+        return null;
+    }
+    return { y: y, m: mo, d: d };
+}
+
+function formatShamsi(y, m, d) {
+    return y + '/' + pad2(m) + '/' + pad2(d);
+}
+
+function isoToShamsi(iso) {
+    const m = String(iso || '').slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return '';
+    const j = gregorianToJalali(Number(m[1]), Number(m[2]), Number(m[3]));
+    return formatShamsi(j[0], j[1], j[2]);
+}
+
+function shamsiToIso(raw) {
+    const parsed = parseShamsi(raw);
+    if (!parsed) return raw ? null : '';
+    const g = jalaliToGregorian(parsed.y, parsed.m, parsed.d);
+    return g[0] + '-' + pad2(g[1]) + '-' + pad2(g[2]);
+}
+
 function fillForm(profile) {
     document.getElementById('first_name').value = profile.first_name || '';
     document.getElementById('last_name').value = profile.last_name || '';
     document.getElementById('phone').value = profile.phone || '';
-    document.getElementById('birth_date').value = profile.birth_date || '';
+    document.getElementById('birth_date').value = isoToShamsi(profile.birth_date);
     document.getElementById('email').value = profile.email || '';
     document.getElementById('address').value = profile.address || '';
     document.getElementById('role_title').value = profile.role_title || '';
@@ -240,6 +351,154 @@ function applySavedProfile(profile) {
     }
 }
 
+function bindBirthCalendar() {
+    const input = document.getElementById('birth_date');
+    const cal = document.getElementById('birth-cal');
+    const field = input && input.closest('.register-field');
+    if (!input || !cal || !field) return;
+
+    const today = jalaliToday();
+    const maxYear = today.y;
+    let view = { y: SHAMSI_DEFAULT_YEAR, m: 1 };
+
+    cal.innerHTML = ''
+        + '<div class="shamsi-cal-head">'
+        + '<button type="button" class="shamsi-cal-shift" data-dir="-1" aria-label="ماه قبل">›</button>'
+        + '<select class="shamsi-cal-month" aria-label="ماه"></select>'
+        + '<select class="shamsi-cal-year" aria-label="سال"></select>'
+        + '<button type="button" class="shamsi-cal-shift" data-dir="1" aria-label="ماه بعد">‹</button>'
+        + '</div>'
+        + '<div class="shamsi-cal-week">' + SHAMSI_WEEK.map(d => '<span>' + d + '</span>').join('') + '</div>'
+        + '<div class="shamsi-cal-grid"></div>'
+        + '<button type="button" class="shamsi-cal-clear">پاک کردن</button>';
+
+    const monthSel = cal.querySelector('.shamsi-cal-month');
+    const yearSel = cal.querySelector('.shamsi-cal-year');
+    const grid = cal.querySelector('.shamsi-cal-grid');
+    SHAMSI_MONTHS.forEach((name, i) => {
+        const opt = document.createElement('option');
+        opt.value = String(i + 1);
+        opt.textContent = name;
+        monthSel.appendChild(opt);
+    });
+    for (let y = maxYear; y >= SHAMSI_MIN_YEAR; y -= 1) {
+        const opt = document.createElement('option');
+        opt.value = String(y);
+        opt.textContent = String(y);
+        yearSel.appendChild(opt);
+    }
+
+    function closeCal() {
+        cal.hidden = true;
+        field.classList.remove('is-picking');
+        input.setAttribute('aria-expanded', 'false');
+    }
+
+    function placeCal() {
+        const rect = input.getBoundingClientRect();
+        cal.classList.toggle('is-above', window.innerHeight - rect.bottom < 320 && rect.top > 320);
+    }
+
+    function paintCal() {
+        monthSel.value = String(view.m);
+        yearSel.value = String(view.y);
+        const selected = parseShamsi(input.value);
+        const offset = jalaliWeekdaySat0(view.y, view.m, 1);
+        const days = jalaliMonthDays(view.y, view.m);
+        const cells = [];
+        for (let i = 0; i < offset; i += 1) cells.push('<span class="shamsi-cal-empty"></span>');
+        for (let d = 1; d <= days; d += 1) {
+            const isSel = selected && selected.y === view.y && selected.m === view.m && selected.d === d;
+            const isToday = today.y === view.y && today.m === view.m && today.d === d;
+            cells.push(
+                '<button type="button" class="shamsi-cal-day'
+                + (isSel ? ' is-selected' : '')
+                + (isToday ? ' is-today' : '')
+                + '" data-day="' + d + '">' + d + '</button>'
+            );
+        }
+        grid.innerHTML = cells.join('');
+    }
+
+    function openCal() {
+        const selected = parseShamsi(input.value);
+        view = selected
+            ? { y: selected.y, m: selected.m }
+            : { y: SHAMSI_DEFAULT_YEAR, m: 1 };
+        if (view.y > maxYear) view.y = maxYear;
+        if (view.y < SHAMSI_MIN_YEAR) view.y = SHAMSI_MIN_YEAR;
+        paintCal();
+        cal.hidden = false;
+        field.classList.add('is-picking');
+        input.setAttribute('aria-expanded', 'true');
+        placeCal();
+    }
+
+    input.addEventListener('click', () => {
+        if (cal.hidden) openCal();
+        else closeCal();
+    });
+    input.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ' || event.key === 'ArrowDown') {
+            event.preventDefault();
+            if (cal.hidden) openCal();
+        }
+    });
+    monthSel.addEventListener('change', () => {
+        view.m = Number(monthSel.value) || 1;
+        paintCal();
+    });
+    yearSel.addEventListener('change', () => {
+        view.y = Number(yearSel.value) || SHAMSI_DEFAULT_YEAR;
+        paintCal();
+    });
+    cal.querySelectorAll('.shamsi-cal-shift').forEach(btn => {
+        btn.addEventListener('click', () => {
+            view.m += Number(btn.getAttribute('data-dir')) || 0;
+            if (view.m < 1) {
+                view.m = 12;
+                view.y -= 1;
+            } else if (view.m > 12) {
+                view.m = 1;
+                view.y += 1;
+            }
+            if (view.y < SHAMSI_MIN_YEAR) {
+                view.y = SHAMSI_MIN_YEAR;
+                view.m = 1;
+            }
+            if (view.y > maxYear) {
+                view.y = maxYear;
+                view.m = 12;
+            }
+            paintCal();
+        });
+    });
+    grid.addEventListener('click', event => {
+        const dayBtn = event.target.closest('[data-day]');
+        if (!dayBtn) return;
+        input.value = formatShamsi(view.y, view.m, Number(dayBtn.getAttribute('data-day')));
+        markFilled(input);
+        setError('birth_date', '');
+        closeCal();
+    });
+    cal.querySelector('.shamsi-cal-clear').addEventListener('click', () => {
+        input.value = '';
+        markFilled(input);
+        setError('birth_date', '');
+        view = { y: SHAMSI_DEFAULT_YEAR, m: 1 };
+        paintCal();
+        closeCal();
+    });
+    document.addEventListener('mousedown', event => {
+        if (cal.hidden) return;
+        if (field.contains(event.target)) return;
+        closeCal();
+    });
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && !cal.hidden) closeCal();
+    });
+}
+
 function bindCrop() {
     const stage = document.getElementById('avatar-crop-stage');
     const zoom = document.getElementById('avatar-crop-zoom');
@@ -307,6 +566,7 @@ onReady(async () => {
     const fileInput = document.getElementById('avatar-file');
     document.getElementById('avatar-pick').addEventListener('click', () => fileInput.click());
     document.getElementById('avatar-clear').addEventListener('click', clearPreview);
+    bindBirthCalendar();
     bindCrop();
 
     fileInput.addEventListener('change', () => {
@@ -336,7 +596,13 @@ onReady(async () => {
         const last = document.getElementById('last_name').value.trim();
         const role = document.getElementById('role_title').value.trim();
         const org = document.getElementById('organization').value.trim();
-        const birth = document.getElementById('birth_date').value.trim();
+        const birthRaw = document.getElementById('birth_date').value.trim();
+        const birth = shamsiToIso(birthRaw);
+        if (birthRaw && birth === null) {
+            setError('birth_date', 'تاریخ تولد نامعتبر است.');
+            document.getElementById('birth_date').focus();
+            return;
+        }
         const email = document.getElementById('email').value.trim();
         const address = document.getElementById('address').value.trim();
         if (first.length < 2) {
