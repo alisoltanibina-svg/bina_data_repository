@@ -124,9 +124,9 @@ body {
     inset: 0;
     z-index: 0;
     background-color: #e8d9b8;
-    background-image: url("../assets/images/bg_curtain.webp");
+    background-image: var(--curtain-image);
     background-size: cover;
-    background-position: center center;
+    background-position: var(--curtain-position, center center);
     background-repeat: no-repeat;
     pointer-events: none;
 }

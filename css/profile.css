@@ -238,9 +238,9 @@ Purpose: Photo picker on the signed-in profile page.
 
 body.profile-body {
     background-color: #e8d9b8;
-    background-image: url("../assets/images/bg_curtain.webp");
+    background-image: var(--curtain-image);
     background-size: cover;
-    background-position: center center;
+    background-position: var(--curtain-position, center center);
     background-repeat: no-repeat;
     overflow: auto;
 }

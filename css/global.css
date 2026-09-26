@@ -11,9 +11,17 @@ Notes: Peyda is loaded via <link href="assets/fonts/peyda.css"> (from html/: ../
     --banner-side-gap: 16px;
     --topic-accent: #0078d7;
     --banner-fg: #515811;
+    --curtain-image: url("../assets/images/bg_curtain.webp");
+    --curtain-position: center center;
 }
 @supports (height: 100dvh) {
     :root { --vvh: 100dvh; }
+}
+@media (max-width: 767px) {
+    :root {
+        --curtain-image: url("../assets/images/bg_curtain_mobile.webp");
+        --curtain-position: center bottom;
+    }
 }
 
 html {
