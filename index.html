@@ -248,37 +248,37 @@
                 </div>
             </section>
         </div>
-        <nav class="entry-dock" id="entry-dock" aria-label="ناوبری صفحه آغاز">
-            <span class="entry-dock-item">
-                <img class="entry-dock-icon" src="assets/images/نمایه.webp" alt="">
-                <span class="entry-dock-copy">
-                    <span class="entry-dock-title">نمایه</span>
-                    <span class="entry-dock-sub">استان‌در یک نما</span>
-                </span>
-            </span>
-            <a class="entry-dock-item" href="html/explorer.html?source=start">
-                <img class="entry-dock-icon" src="assets/images/کاوشگر.webp" alt="">
-                <span class="entry-dock-copy">
-                    <span class="entry-dock-title">کاوشگر</span>
-                    <span class="entry-dock-sub">تغییرات شاخص‌ها</span>
-                </span>
-            </a>
-            <button type="button" class="entry-dock-item" id="btn-dock-atlas">
-                <img class="entry-dock-icon" src="assets/images/اطلس.webp" alt="">
-                <span class="entry-dock-copy">
-                    <span class="entry-dock-title">اطلس</span>
-                    <span class="entry-dock-sub">شاخص‌های ترکیبی</span>
-                </span>
-            </button>
-            <span class="entry-dock-item">
-                <img class="entry-dock-icon" src="assets/images/گونه‌شناسی.webp" alt="">
-                <span class="entry-dock-copy">
-                    <span class="entry-dock-title">گونه‌شناسی</span>
-                    <span class="entry-dock-sub">مقایسه‌های چندوجهی</span>
-                </span>
-            </span>
-        </nav>
     </div>
+    <nav class="entry-dock" id="entry-dock" aria-label="ناوبری صفحه آغاز">
+        <span class="entry-dock-item">
+            <img class="entry-dock-icon" src="assets/images/نمایه.webp" alt="">
+            <span class="entry-dock-copy">
+                <span class="entry-dock-title">نمایه</span>
+                <span class="entry-dock-sub">استان‌در یک نما</span>
+            </span>
+        </span>
+        <a class="entry-dock-item" href="html/explorer.html?source=start">
+            <img class="entry-dock-icon" src="assets/images/کاوشگر.webp" alt="">
+            <span class="entry-dock-copy">
+                <span class="entry-dock-title">کاوشگر</span>
+                <span class="entry-dock-sub">تغییرات شاخص‌ها</span>
+            </span>
+        </a>
+        <button type="button" class="entry-dock-item" id="btn-dock-atlas">
+            <img class="entry-dock-icon" src="assets/images/اطلس.webp" alt="">
+            <span class="entry-dock-copy">
+                <span class="entry-dock-title">اطلس</span>
+                <span class="entry-dock-sub">شاخص‌های ترکیبی</span>
+            </span>
+        </button>
+        <span class="entry-dock-item">
+            <img class="entry-dock-icon" src="assets/images/گونه‌شناسی.webp" alt="">
+            <span class="entry-dock-copy">
+                <span class="entry-dock-title">گونه‌شناسی</span>
+                <span class="entry-dock-sub">مقایسه‌های چندوجهی</span>
+            </span>
+        </span>
+    </nav>
 
     <!-- Main Dashboard Content -->
     <div id="main-content">
@@ -344,10 +344,45 @@
             }
             window.setAtlasView = setAtlasView;
 
+            function homeDock() {
+                return document.getElementById('entry-dock');
+            }
+
+            function concealHomeDock() {
+                const dock = homeDock();
+                if (!dock) return;
+                dock.style.removeProperty('transform');
+                dock.style.removeProperty('opacity');
+                dock.style.removeProperty('visibility');
+                dock.style.removeProperty('pointer-events');
+                dock.classList.add('is-away');
+            }
+
+            function revealHomeDock() {
+                const dock = homeDock();
+                if (!dock) return;
+                dock.classList.remove('is-away');
+                dock.style.transition = 'none';
+                dock.style.transform = 'none';
+                dock.style.opacity = '1';
+                dock.style.visibility = 'visible';
+                dock.style.pointerEvents = 'auto';
+                void dock.offsetWidth;
+                requestAnimationFrame(function () {
+                    dock.style.removeProperty('transition');
+                    dock.style.removeProperty('transform');
+                    dock.style.removeProperty('opacity');
+                    dock.style.removeProperty('visibility');
+                    dock.style.removeProperty('pointer-events');
+                });
+            }
+
             function setAtlasView(on) {
                 document.documentElement.classList.toggle('atlas-view', on);
                 if (entryCurtain) entryCurtain.classList.toggle('curtain-up', on);
                 if (atlasBtn) atlasBtn.classList.toggle('is-current', on);
+                if (on) concealHomeDock();
+                else revealHomeDock();
                 if (on) {
                     updateHeaderButtonsVisibility();
                     if (typeof scheduleMapSync === 'function') {
@@ -372,6 +407,7 @@
                     finished = true;
                     entryCurtain.removeEventListener('transitionend', finish);
                     hideAtlasOnlyButtons();
+                    revealHomeDock();
                 };
                 entryCurtain.addEventListener('transitionend', finish);
                 setTimeout(finish, 1000);

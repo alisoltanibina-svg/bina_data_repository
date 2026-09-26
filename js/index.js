@@ -11,14 +11,24 @@ function curtainScroller() {
     return (curtain && curtain.querySelector('.entry-scroll')) || curtain;
 }
 
+function syncVisualViewportHeight() {
+    const vp = window.visualViewport;
+    const h = Math.round((vp && vp.height) || window.innerHeight || 0);
+    if (h > 0) document.documentElement.style.setProperty('--vvh', h + 'px');
+}
+
 function initCurtainBannerOffset() {
     const curtain = document.getElementById('entry-view-curtain');
     const banner = document.getElementById('top-banner');
     const dock = document.getElementById('entry-dock');
     if (!curtain || !banner) return;
     const sync = () => {
+        syncVisualViewportHeight();
         curtain.style.setProperty('--curtain-banner-h', `${Math.round(banner.getBoundingClientRect().bottom)}px`);
-        if (dock) curtain.style.setProperty('--curtain-dock-h', `${dock.offsetHeight}px`);
+        if (dock) {
+            const dockH = Math.max(76, Math.round(dock.getBoundingClientRect().height) || 0);
+            curtain.style.setProperty('--curtain-dock-h', `${dockH}px`);
+        }
     };
     sync();
     if (typeof ResizeObserver !== 'undefined') {
@@ -28,6 +38,8 @@ function initCurtainBannerOffset() {
     } else {
         window.addEventListener('resize', sync);
     }
+    window.addEventListener('resize', sync);
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', sync);
 }
 
 function initCurtainReveal() {

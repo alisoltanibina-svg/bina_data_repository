@@ -295,48 +295,93 @@ body {
     input, select, textarea {
         font-size: 16px !important;
     }
-    #top-banner {
-        height: auto;
-        min-height: 64px;
-        padding: 8px 10px;
-        padding-top: max(8px, env(safe-area-inset-top));
-        padding-left: max(10px, env(safe-area-inset-left));
-        padding-right: max(10px, env(safe-area-inset-right));
+    html #top-banner {
+        height: 68px;
+        min-height: 68px;
+        flex-wrap: nowrap;
+        align-items: center;
         gap: 8px;
-        flex-wrap: wrap;
+        padding: 8px 12px;
+        padding-top: max(8px, env(safe-area-inset-top));
+        padding-inline-start: 10px;
+        padding-inline-end: 12px;
         width: calc(100% - 16px) !important;
         left: 8px !important;
         right: 8px !important;
     }
-    .project-sub,
-    .user-role {
-        display: none;
+    html #top-banner .project-sub,
+    html #top-banner .user-role {
+        display: none !important;
     }
-    .banner-divider {
-        display: none;
+    html #top-banner .banner-divider {
+        display: block;
+        width: 1.5px;
+        height: 38px;
+        margin: 0 8px;
+        flex-shrink: 0;
     }
-    .banner-right {
-        gap: 8px;
+    html #top-banner .banner-right {
+        gap: 0;
         min-width: 0;
         flex: 1 1 auto;
+        flex-wrap: nowrap;
     }
-    .project-main {
-        font-size: 0.8rem;
+    html #top-banner .banner-left {
+        flex: 0 0 auto;
     }
-    .banner-seg {
-        margin-inline-start: 8px;
+    html #top-banner .institution {
+        gap: 0;
+        margin-inline-start: 0;
+        flex-shrink: 0;
+    }
+    html #top-banner .project-texts {
+        min-width: 0;
+    }
+    html #top-banner .project-main {
+        font-size: 0.78rem;
+        line-height: 1.35;
+        white-space: normal;
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        max-width: 8.4rem;
+    }
+    html #top-banner .banner-seg {
+        margin-inline-start: 4px;
         padding: 0;
+        flex-shrink: 1;
+        min-width: 0;
     }
-    .banner-seg-btn {
-        height: 28px;
-        padding: 0 10px 1px;
+    html #top-banner .banner-seg-btn {
+        height: 26px;
+        padding: 0 7px 1px;
+        font-size: 0.68rem;
+    }
+    html #top-banner .user-box {
+        gap: 8px;
+    }
+    html #top-banner .user-circle {
+        width: 34px;
+        height: 34px;
+    }
+    html #top-banner .user-circle svg {
+        width: 16px;
+        height: 16px;
+    }
+    html #top-banner .banner-auth-btn {
+        height: 32px;
+        padding: 0 12px 1px;
         font-size: 0.72rem;
     }
-    .user-circle {
-        width: 36px;
-        height: 36px;
+    html #top-banner .user-name {
+        font-size: 0.72rem;
+        max-width: 5.5rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
-    #logo-img {
-        height: 32px !important;
+    html #top-banner #logo-img {
+        height: 40px !important;
     }
 }
