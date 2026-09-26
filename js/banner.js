@@ -41,7 +41,8 @@
                         '</svg>' +
                     '</button>' +
                     '<div class="user-menu-dropdown" id="user-menu-dropdown" hidden>' +
-                        '<a href="' + SITE.page('profile.html') + '" class="user-menu-link' + (page === 'profile' ? ' is-current' : '') + '" id="btn-profile">حساب من</a>' +
+                        '<a href="' + SITE.page('profile.html') + '" class="user-menu-link' + (page === 'profile' && window.location.hash !== '#password' ? ' is-current' : '') + '" id="btn-profile">حساب من</a>' +
+                        '<a href="' + SITE.page('profile.html') + '#password" class="user-menu-link' + (page === 'profile' && window.location.hash === '#password' ? ' is-current' : '') + '" id="btn-password">تغییر رمز عبور</a>' +
                         '<a href="' + SITE.page('admin.html') + '" class="user-menu-link' + (page === 'admin' ? ' is-current' : '') + '" id="btn-admin-panel" hidden>پنل مدیریت</a>' +
                         '<button type="button" class="user-exit-btn" id="btn-logout">' +
                             '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +

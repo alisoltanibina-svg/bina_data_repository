@@ -751,14 +751,53 @@ onReady(async () => {
             setOtpSending(false);
             showNotice(err.message || 'ارسال کد ممکن نشد.');
             showProfilePanel('profile-main');
+            clearPasswordHash();
         }
     }
 
-    document.getElementById('profile-password-btn').addEventListener('click', startPasswordOtp);
+    function clearPasswordHash() {
+        if (location.hash === '#password') {
+            history.replaceState(null, '', location.pathname + location.search);
+        }
+        syncPasswordMenu();
+    }
+
+    function syncPasswordMenu() {
+        const onPassword = location.hash === '#password';
+        const profileLink = document.getElementById('btn-profile');
+        const passwordLink = document.getElementById('btn-password');
+        if (profileLink) profileLink.classList.toggle('is-current', !onPassword);
+        if (passwordLink) passwordLink.classList.toggle('is-current', onPassword);
+    }
+
+    function onPasswordHash() {
+        if (location.hash === '#password') startPasswordOtp();
+        else {
+            stopResendTimer();
+            setOtpSending(false);
+            showProfilePanel('profile-main');
+        }
+        syncPasswordMenu();
+    }
+
+    const passwordMenu = document.getElementById('btn-password');
+    if (passwordMenu) {
+        passwordMenu.addEventListener('click', event => {
+            if (location.hash === '#password') {
+                event.preventDefault();
+                startPasswordOtp();
+            }
+        });
+    }
+    window.addEventListener('hashchange', onPasswordHash);
+    if (location.hash === '#password') startPasswordOtp();
+    syncPasswordMenu();
+
     document.getElementById('profile-otp-back').addEventListener('click', () => {
         stopResendTimer();
         setOtpSending(false);
         showProfilePanel('profile-main');
+        clearPasswordHash();
     });
     document.getElementById('profile-reset-back').addEventListener('click', () => {
         showProfilePanel('profile-otp');
@@ -831,6 +870,7 @@ onReady(async () => {
             });
             showNotice('رمز عبور تغییر کرد.', 'ok');
             showProfilePanel('profile-main');
+            clearPasswordHash();
         } catch (err) {
             showNotice(err.message || 'تغییر رمز ممکن نشد.');
         } finally {

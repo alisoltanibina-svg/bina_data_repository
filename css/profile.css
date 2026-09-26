@@ -8,7 +8,7 @@ Purpose: Photo picker on the signed-in profile page.
     flex-direction: column;
     align-items: center;
     gap: 10px;
-    margin: 18px 0 6px;
+    margin: 4px 0 6px;
 }
 
 .profile-photo-btn {
@@ -287,7 +287,7 @@ body.profile-body .register-lead {
 }
 
 body.profile-body .register-card form {
-    margin-top: 18px;
+    margin-top: 8px;
     gap: 12px;
 }
 
@@ -311,6 +311,7 @@ body.profile-body .register-field > span {
     white-space: nowrap;
     transition: top 0.28s cubic-bezier(0.22, 1, 0.36, 1),
                 left 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+                right 0.28s cubic-bezier(0.22, 1, 0.36, 1),
                 transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
                 font-size 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -318,15 +319,17 @@ body.profile-body .register-field > span {
 body.profile-body .register-field input:focus + span,
 body.profile-body .register-field input:not(:placeholder-shown) + span,
 body.profile-body .register-field input.is-filled + span {
-    left: calc(100% - 16px);
-    transform: translate(-100%, -50%);
-    font-size: 0.72rem;
+    top: 7px;
+    left: auto;
+    right: 16px;
+    transform: none;
+    font-size: 0.68rem;
     font-weight: 600;
 }
 
 body.profile-body .register-field input {
     height: 52px;
-    padding: 0 18px;
+    padding: 0 16px;
     border: 0;
     border-radius: 999px;
     background: #f4eddf;
@@ -340,15 +343,20 @@ body.profile-body .register-field input:focus,
 body.profile-body .register-field input:not(:placeholder-shown),
 body.profile-body .register-field input.is-filled {
     text-align: start;
-    padding-inline-start: 8rem;
-    padding-inline-end: 16px;
+    padding-inline: 16px;
+}
+
+body.profile-body .register-field:has(> span) input:focus,
+body.profile-body .register-field:has(> span) input:not(:placeholder-shown),
+body.profile-body .register-field:has(> span) input.is-filled {
+    padding-top: 18px;
+    padding-bottom: 8px;
 }
 
 body.profile-body .register-field input[dir="ltr"]:focus,
-body.profile-body .register-field input[dir="ltr"]:not(:placeholder-shown) {
+body.profile-body .register-field input[dir="ltr"]:not(:placeholder-shown),
+body.profile-body .register-field input[dir="ltr"].is-filled {
     text-align: left;
-    padding-inline-start: 16px;
-    padding-inline-end: 8rem;
 }
 
 body.profile-body .register-field input::placeholder { color: transparent; }
@@ -369,23 +377,6 @@ body.profile-body .register-submit {
 body.profile-body .register-submit:hover:not(:disabled) {
     background: #3f460d;
     filter: none;
-}
-
-body.profile-body .profile-password-btn {
-    width: 100%;
-    height: 52px;
-    border: 0;
-    border-radius: 999px;
-    background: #E7D6B5;
-    color: #515811;
-    font: inherit;
-    font-size: 0.98rem;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-body.profile-body .profile-password-btn:hover {
-    filter: brightness(0.97);
 }
 
 body.profile-body .profile-photo-btn {
@@ -493,7 +484,7 @@ body.profile-body #birth_date {
 body.profile-body #birth_date:focus,
 body.profile-body #birth_date:not(:placeholder-shown),
 body.profile-body #birth_date.is-filled {
-    padding-inline-start: 42px;
+    padding-inline-start: 40px;
 }
 
 .shamsi-cal {
