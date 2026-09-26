@@ -388,6 +388,15 @@ html.curtain-to-profile .entry-launch-home {
     pointer-events: none;
     visibility: hidden;
 }
+html.curtain-to-profile-instant .entry-dock,
+html.curtain-to-profile-instant .entry-dock::before,
+html.curtain-to-profile-instant .entry-scroll,
+html.curtain-to-profile-instant .entry-hero-stack,
+html.curtain-to-profile-instant .entry-launch,
+html.curtain-to-profile-instant .entry-launch-home {
+    transition: none !important;
+    animation: none !important;
+}
 @keyframes auth-stage-in {
     from { opacity: 0; transform: scale(0.96); }
     to { opacity: 1; transform: none; }

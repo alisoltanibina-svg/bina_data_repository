@@ -24,6 +24,14 @@
     <link rel="stylesheet" href="css/treat-v1.css">
     <!-- Page Javascript -->
     <script src="js/force-motion.js"></script>
+    <script>
+        try {
+            if (sessionStorage.getItem('bina-profile-return') === '1' && window.location.hash !== '#atlas') {
+                sessionStorage.removeItem('bina-profile-return');
+                document.documentElement.classList.add('curtain-to-profile', 'curtain-to-profile-instant');
+            }
+        } catch (e) {}
+    </script>
     <script src="js/config.js"></script>
     <script src="js/shared.js"></script>
     <script src="js/index.js" defer></script>

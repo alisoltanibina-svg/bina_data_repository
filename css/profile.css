@@ -290,6 +290,60 @@ body.profile-body .register-lead {
     color: #a18447;
 }
 
+body.profile-body .password-intro-phone {
+    margin: 16px 0 0;
+    color: #515811;
+    font-size: 1.05rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+}
+
+body.profile-body .password-steps {
+    counter-reset: step;
+    margin: 18px 0 8px;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    text-align: start;
+}
+
+body.profile-body .password-steps li {
+    position: relative;
+    padding: 10px 14px 10px 14px;
+    padding-inline-start: 2.6rem;
+    border-radius: 14px;
+    background: rgba(244, 237, 223, 0.72);
+    color: #515811;
+    font-size: 0.9rem;
+    font-weight: 500;
+    line-height: 1.6;
+}
+
+body.profile-body .password-steps li::before {
+    content: counter(step);
+    counter-increment: step;
+    position: absolute;
+    inset-inline-start: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 1.4rem;
+    height: 1.4rem;
+    border-radius: 50%;
+    background: #515811;
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+body.profile-body #profile-password-send {
+    margin-top: 10px;
+}
+
 body.profile-body .register-card form {
     margin-top: 8px;
     gap: 12px;

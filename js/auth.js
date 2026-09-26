@@ -42,7 +42,7 @@
     window.addEventListener('pageswap', function (event) {
         if (!event.viewTransition) return;
         const dest = event.activation && event.activation.entry && event.activation.entry.url;
-        if (!dest || !shouldMorphAccount(location.href, dest) || (isHomeFile(location.href) && !isHomeCurtain())) {
+        if (!dest || !shouldMorphAccount(location.href, dest) || (isHomeFile(location.href) && !isHomeCurtain()) || (isProfileFile(location.href) && isHomeFile(dest))) {
             event.viewTransition.skipTransition();
             return;
         }
@@ -146,17 +146,47 @@
         } catch (e) {}
     }
 
+    function goHomeFromProfile() {
+        try { sessionStorage.setItem('bina-profile-return', '1'); } catch (e) {}
+        window.location.href = SITE.page('index.html');
+    }
+
     function setupLogoHome() {
         const logo = document.getElementById('logo-img');
         if (!logo || isIndexPage()) return;
         logo.addEventListener('click', function () {
             snapshotAppTheme();
+            if (isProfileFile(location.href)) {
+                goHomeFromProfile();
+                return;
+            }
             window.location.href = SITE.page('index.html?curtain=1');
+        });
+    }
+
+    function playProfileReturn() {
+        if (!document.documentElement.classList.contains('curtain-to-profile')) return;
+        if (!document.getElementById('entry-dock')) return;
+        requestAnimationFrame(function () {
+            document.documentElement.classList.remove('curtain-to-profile-instant');
+            requestAnimationFrame(function () {
+                document.documentElement.classList.remove('curtain-to-profile');
+            });
         });
     }
 
     function setup() {
         setupLogoHome();
+        playProfileReturn();
+        if (isProfileFile(location.href)) {
+            document.querySelectorAll('a.auth-back-fab[href]').forEach(function (el) {
+                el.addEventListener('click', function (event) {
+                    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                    event.preventDefault();
+                    goHomeFromProfile();
+                });
+            });
+        }
         applyProfile(readBannerProfile());
         loadProfile();
         window.addEventListener('pageshow', function () {

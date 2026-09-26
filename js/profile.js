@@ -688,7 +688,7 @@ onReady(async () => {
     let resendLeft = 0;
 
     function showProfilePanel(id) {
-        ['profile-main', 'profile-otp', 'profile-reset'].forEach(name => {
+        ['profile-main', 'profile-password-intro', 'profile-otp', 'profile-reset'].forEach(name => {
             const el = document.getElementById(name);
             if (el) el.hidden = name !== id;
         });
@@ -750,9 +750,16 @@ onReady(async () => {
         } catch (err) {
             setOtpSending(false);
             showNotice(err.message || 'ارسال کد ممکن نشد.');
-            showProfilePanel('profile-main');
-            clearPasswordHash();
+            showPasswordIntro();
         }
+    }
+
+    function showPasswordIntro() {
+        const phoneEl = document.getElementById('profile-password-phone');
+        if (phoneEl) phoneEl.textContent = profilePhone();
+        stopResendTimer();
+        setOtpSending(false);
+        showProfilePanel('profile-password-intro');
     }
 
     function clearPasswordHash() {
@@ -771,7 +778,7 @@ onReady(async () => {
     }
 
     function onPasswordHash() {
-        if (location.hash === '#password') startPasswordOtp();
+        if (location.hash === '#password') showPasswordIntro();
         else {
             stopResendTimer();
             setOtpSending(false);
@@ -785,19 +792,24 @@ onReady(async () => {
         passwordMenu.addEventListener('click', event => {
             if (location.hash === '#password') {
                 event.preventDefault();
-                startPasswordOtp();
+                showPasswordIntro();
             }
         });
     }
     window.addEventListener('hashchange', onPasswordHash);
-    if (location.hash === '#password') startPasswordOtp();
+    if (location.hash === '#password') showPasswordIntro();
     syncPasswordMenu();
+
+    document.getElementById('profile-password-intro-back').addEventListener('click', () => {
+        showProfilePanel('profile-main');
+        clearPasswordHash();
+    });
+    document.getElementById('profile-password-send').addEventListener('click', startPasswordOtp);
 
     document.getElementById('profile-otp-back').addEventListener('click', () => {
         stopResendTimer();
         setOtpSending(false);
-        showProfilePanel('profile-main');
-        clearPasswordHash();
+        showPasswordIntro();
     });
     document.getElementById('profile-reset-back').addEventListener('click', () => {
         showProfilePanel('profile-otp');
