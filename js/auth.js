@@ -6,6 +6,54 @@
         return typeof API_BASE_URL === 'string' ? API_BASE_URL : '';
     }
 
+    function pageFile(url) {
+        try {
+            const path = new URL(url, location.href).pathname.split('/').pop() || '';
+            return (path === '' ? 'index.html' : path).toLowerCase();
+        } catch (e) {
+            return '';
+        }
+    }
+
+    function isHomeFile(url) {
+        return pageFile(url) === 'index.html';
+    }
+
+    function isProfileFile(url) {
+        return pageFile(url) === 'profile.html';
+    }
+
+    function shouldMorphAccount(fromUrl, toUrl) {
+        return (isHomeFile(fromUrl) && isProfileFile(toUrl)) || (isProfileFile(fromUrl) && isHomeFile(toUrl));
+    }
+
+    function isHomeCurtain() {
+        if (!document.getElementById('entry-dock') || !document.getElementById('entry-auth-shell')) return false;
+        if (document.documentElement.classList.contains('atlas-view')) return false;
+        const curtain = document.getElementById('entry-view-curtain');
+        if (curtain && curtain.classList.contains('curtain-up')) return false;
+        return true;
+    }
+
+    function canMpaViewTransition() {
+        return typeof document.startViewTransition === 'function' && 'onpageswap' in window;
+    }
+
+    window.addEventListener('pageswap', function (event) {
+        if (!event.viewTransition) return;
+        const dest = event.activation && event.activation.entry && event.activation.entry.url;
+        if (!dest || !shouldMorphAccount(location.href, dest) || (isHomeFile(location.href) && !isHomeCurtain())) {
+            event.viewTransition.skipTransition();
+            return;
+        }
+        try { event.viewTransition.types.add('profile-morph'); } catch (e) {}
+    });
+
+    window.addEventListener('pagereveal', function (event) {
+        if (!event.viewTransition) return;
+        try { event.viewTransition.types.add('profile-morph'); } catch (e) {}
+    });
+
     function displayName(profile) {
         return [profile.first_name, profile.last_name].filter(Boolean).join(' ').trim();
     }
@@ -126,6 +174,15 @@
             btn.classList.remove('is-open');
         }
 
+        function placeMenu() {
+            const rect = btn.getBoundingClientRect();
+            menu.style.top = Math.round(rect.bottom + 10) + 'px';
+            const width = Math.max(menu.offsetWidth, 200);
+            let left = Math.round(rect.left);
+            left = Math.max(8, Math.min(left, window.innerWidth - width - 8));
+            menu.style.left = left + 'px';
+        }
+
         function toggleMenu(event) {
             event.stopPropagation();
             if (!profileReady) return;
@@ -144,6 +201,7 @@
                 menu.hidden = false;
                 btn.setAttribute('aria-expanded', 'true');
                 btn.classList.add('is-open');
+                placeMenu();
             } else {
                 closeMenu();
             }
@@ -158,6 +216,35 @@
         document.addEventListener('keydown', function (event) {
             if (event.key === 'Escape') closeMenu();
         });
+        window.addEventListener('resize', function () {
+            if (!menu.hidden) placeMenu();
+        });
+        window.addEventListener('scroll', function () {
+            if (!menu.hidden) placeMenu();
+        }, true);
+
+        function bindAccountMorph() {
+            function onAccountClick(event) {
+                if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button) return;
+                closeMenu();
+                if (!isHomeCurtain()) return;
+                if (canMpaViewTransition()) return;
+                const link = event.currentTarget;
+                const href = link.getAttribute('href');
+                if (!href) return;
+                event.preventDefault();
+                if (document.documentElement.classList.contains('curtain-to-profile')) return;
+                document.documentElement.classList.add('curtain-to-profile');
+                window.setTimeout(function () {
+                    window.location.href = href;
+                }, 680);
+            }
+            const profileLink = document.getElementById('btn-profile');
+            const openProfile = document.getElementById('btn-open-profile');
+            if (profileLink) profileLink.addEventListener('click', onAccountClick);
+            if (openProfile) openProfile.addEventListener('click', onAccountClick);
+        }
+        bindAccountMorph();
     }
 
     if (document.readyState === 'loading') {

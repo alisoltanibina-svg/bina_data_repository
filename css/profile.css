@@ -256,12 +256,16 @@ body.profile-body .register-card {
     width: min(26rem, 100%);
     padding: 28px 26px 24px;
     text-align: center;
-    background: rgba(232, 217, 185, 0.38);
-    backdrop-filter: blur(18px) saturate(1.15);
-    -webkit-backdrop-filter: blur(18px) saturate(1.15);
-    border: 1px solid rgba(255, 255, 255, 0.5);
+    background: rgba(232, 217, 185, 0.18);
+    backdrop-filter: blur(28px) saturate(1.4);
+    -webkit-backdrop-filter: blur(28px) saturate(1.4);
+    border: 1px solid rgba(255, 255, 255, 0.38);
     border-radius: 28px;
-    box-shadow: 0 12px 32px rgba(81, 88, 17, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.55);
+    box-shadow: 0 12px 32px rgba(81, 88, 17, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.42);
+}
+
+body.profile-body #profile-main {
+    view-transition-name: account-card;
 }
 
 body.profile-body .register-card-wide {

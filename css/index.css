@@ -131,6 +131,11 @@ body {
     pointer-events: none;
 }
 
+html.atlas-view .entry-launch,
+html.atlas-view .entry-dock {
+    view-transition-name: none;
+}
+
 html.atlas-view #entry-view-curtain,
 #entry-view-curtain.curtain-up { 
     transform: translate3d(0, -100%, 0);
@@ -153,6 +158,7 @@ html.atlas-view #entry-view-curtain,
     pointer-events: auto;
     overflow: hidden;
     overscroll-behavior: none;
+    transition: bottom 0.65s cubic-bezier(0.22, 1, 0.36, 1);
 }
 html:not(.atlas-view) #top-banner .top-nav {
     display: none;
@@ -171,6 +177,7 @@ html:not(.atlas-view) #top-banner .top-nav {
     pointer-events: auto;
     padding: 0 12px env(safe-area-inset-bottom, 0px);
     overflow: visible;
+    view-transition-name: entry-dock;
 }
 
 .entry-dock::before {
@@ -287,7 +294,8 @@ span.entry-dock-item {
     display: flex;
     flex-direction: column;
     gap: 12px;
-    transition: padding 0.55s cubic-bezier(0.22, 1, 0.36, 1), border-radius 0.55s ease;
+    transition: padding 0.55s cubic-bezier(0.22, 1, 0.36, 1), border-radius 0.55s ease, min-height 0.65s cubic-bezier(0.22, 1, 0.36, 1), gap 0.55s ease, background 0.55s ease, border-color 0.55s ease;
+    view-transition-name: account-card;
 }
 .entry-launch-home {
     display: flex;
@@ -350,6 +358,35 @@ html.curtain-auth .entry-auth-stage.is-swap {
     transform: translateY(10px);
     animation: none;
     transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+html.curtain-to-profile .entry-dock {
+    transform: translate3d(0, 110%, 0);
+    pointer-events: none;
+}
+html.curtain-to-profile .entry-dock::before { opacity: 0; }
+html.curtain-to-profile .entry-scroll {
+    bottom: 0;
+}
+html.curtain-to-profile .entry-hero-stack {
+    width: min(28rem, calc(100% - 40px));
+}
+html.curtain-to-profile .entry-launch {
+    padding: 28px 26px 24px;
+    gap: 0;
+    min-height: min(36rem, calc(var(--vvh, 100dvh) - 8rem));
+    background: rgba(232, 217, 185, 0.18);
+    backdrop-filter: blur(28px) saturate(1.4);
+    -webkit-backdrop-filter: blur(28px) saturate(1.4);
+    border: 1px solid rgba(255, 255, 255, 0.38);
+}
+html.curtain-to-profile .entry-launch-home {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transform: scale(0.94);
+    pointer-events: none;
+    visibility: hidden;
 }
 @keyframes auth-stage-in {
     from { opacity: 0; transform: scale(0.96); }

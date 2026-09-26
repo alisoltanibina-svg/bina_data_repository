@@ -21,6 +21,48 @@ html {
     text-size-adjust: 100%;
 }
 
+@view-transition {
+    navigation: auto;
+}
+
+::view-transition-group(account-card) {
+    animation-duration: 0.7s;
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+::view-transition-group(entry-dock) {
+    animation-duration: 0.7s;
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+::view-transition-old(entry-dock) {
+    animation: vt-dock-out 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+::view-transition-new(entry-dock) {
+    animation: vt-dock-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+::view-transition-old(account-card),
+::view-transition-new(account-card) {
+    animation-duration: 0.55s;
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+    animation-duration: 0.5s;
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes vt-dock-out {
+    to { transform: translateY(110%); opacity: 0; }
+}
+
+@keyframes vt-dock-in {
+    from { transform: translateY(110%); opacity: 0; }
+}
+
 html,
 body,
 button,
@@ -93,6 +135,7 @@ body {
     z-index: 2000;
     box-shadow: none;
     border-radius: 12px;
+    overflow: visible;
 }
 #top-banner::before {
     content: '';
@@ -153,7 +196,7 @@ body {
 .banner-seg-btn.is-current:hover { color: #ffffff; }
 .banner-seg-btn[aria-disabled="true"] { cursor: default; }
 .user-box { display: flex; align-items: center; gap: 10px; padding-right: 6px; flex-direction: row-reverse; }
-.user-menu { position: relative; flex-shrink: 0; }
+.user-menu { position: relative; flex-shrink: 0; overflow: visible; }
 .user-circle {
     width: 44px; height: 44px; border-radius: 50%;
     background: #515811;
@@ -184,10 +227,16 @@ body {
 .user-circle.has-photo:hover,
 .user-circle.has-photo.is-open { background: #e8eaee; }
 .user-menu-dropdown {
-    position: absolute; top: calc(100% + 10px); left: 0;
-    min-width: 12rem; background: #ffffff; border: 1px solid #e5e7eb;
-    border-radius: 12px; box-shadow: 0 10px 28px rgba(0,0,0,0.18);
-    padding: 6px; z-index: 2300;
+    position: fixed;
+    top: 0;
+    left: 0;
+    min-width: 12.5rem;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 10px 28px rgba(0,0,0,0.18);
+    padding: 6px;
+    z-index: 5000;
 }
 .user-menu-dropdown[hidden] { display: none; }
 .user-menu-link {
