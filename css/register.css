@@ -322,7 +322,7 @@ body.auth-body .register-field input {
     padding: 0 18px;
     border: 0;
     border-radius: 999px;
-    background: #f4eddf;
+    background: #fff;
     color: #515811;
     text-align: center;
     font-weight: 500;
@@ -334,7 +334,7 @@ body.auth-body .register-field input::placeholder {
 }
 
 body.auth-body .register-field input[readonly] {
-    background: #f4eddf;
+    background: #fff;
     color: #515811;
     opacity: 0.85;
 }
@@ -384,7 +384,7 @@ body.auth-body .auth-back-fab {
     height: 34px;
     border: 0;
     border-radius: 50%;
-    background: #f4eddf;
+    background: #fff;
     color: #a18447;
     display: flex;
     align-items: center;
@@ -394,7 +394,8 @@ body.auth-body .auth-back-fab {
 }
 
 body.auth-body .auth-back-fab:hover {
-    background: #efe4ce;
+    background: #fff;
+    filter: brightness(0.97);
 }
 
 body.auth-body .register-error {

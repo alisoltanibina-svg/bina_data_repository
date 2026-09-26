@@ -485,7 +485,7 @@ html.curtain-to-profile-instant .entry-launch-home {
     padding: 0 18px;
     border: 0;
     border-radius: 999px;
-    background: #f4eddf;
+    background: #fff;
     color: #515811;
     text-align: center;
     font: inherit;
@@ -545,7 +545,7 @@ html.curtain-to-profile-instant .entry-launch-home {
     height: 34px;
     border: 0;
     border-radius: 50%;
-    background: #f4eddf;
+    background: #fff;
     color: #a18447;
     display: flex;
     align-items: center;
@@ -631,7 +631,7 @@ html.curtain-to-profile-instant .entry-launch-home {
     width: 34px;
     height: 34px;
     border-radius: 50%;
-    background: #f4eddf;
+    background: #fff;
     color: #a18447;
     display: flex;
     align-items: center;
@@ -650,7 +650,7 @@ html.curtain-to-profile-instant .entry-launch-home {
     height: 44px;
     padding: 0 12px 1px;
     border-radius: 999px;
-    background: #f4eddf;
+    background: #fff;
     color: #a18447;
     font: inherit;
     font-size: 0.9rem;

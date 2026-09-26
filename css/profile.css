@@ -390,7 +390,7 @@ body.profile-body .register-field input {
     padding: 0 16px;
     border: 0;
     border-radius: 999px;
-    background: #f4eddf;
+    background: #fff;
     color: #515811;
     text-align: center;
     font-weight: 500;
@@ -420,7 +420,7 @@ body.profile-body .register-field input[dir="ltr"].is-filled {
 body.profile-body .register-field input::placeholder { color: transparent; }
 
 body.profile-body .register-field input[readonly] {
-    background: #f4eddf;
+    background: #fff;
     color: #515811;
     opacity: 0.85;
 }
@@ -475,7 +475,7 @@ body.profile-body .auth-back-fab {
     height: 34px;
     border: 0;
     border-radius: 50%;
-    background: #f4eddf;
+    background: #fff;
     color: #a18447;
     display: flex;
     align-items: center;
@@ -521,7 +521,7 @@ body.profile-body .otp-spinner {
 }
 
 body.profile-body #profile-admin-link {
-    background: #f4eddf;
+    background: #fff;
     color: #515811;
     border: 0;
 }
@@ -555,7 +555,7 @@ body.profile-body #birth_date.is-filled {
     width: max(100%, 17.5rem);
     padding: 12px;
     border-radius: 18px;
-    background: #f4eddf;
+    background: #fff;
     border: 1px solid rgba(81, 88, 17, 0.16);
     box-shadow: 0 14px 28px rgba(81, 88, 17, 0.16);
     text-align: center;
