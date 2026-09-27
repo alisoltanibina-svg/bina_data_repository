@@ -8,7 +8,7 @@
 <html lang="fa" dir="rtl" class="treat-v1">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=overlays-content">
     <title>اطلس — دیده‌بان فرهنگ</title>
     <link rel="icon" href="assets/images/Logo_tab.webp" type="image/webp">
     
@@ -107,10 +107,10 @@
                             </button>
                             <p class="register-kicker">حساب کاربری</p>
                             <h1>ورود | ثبت نام</h1>
-                            <form id="gate-form" novalidate>
+                            <form id="gate-form" novalidate autocomplete="off">
                                 <label class="register-field">
                                     <span class="visually-hidden">شماره موبایل</span>
-                                    <input type="tel" id="gate-phone" name="gate_phone" inputmode="numeric" dir="ltr" autocomplete="tel" required maxlength="11" placeholder="شماره تماس خود را وارد کنید">
+                                    <input type="text" id="gate-phone" name="gate_phone" inputmode="numeric" dir="ltr" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" required maxlength="11" placeholder="شماره تماس خود را وارد کنید">
                                     <em class="register-error" id="err-gate-phone" hidden></em>
                                 </label>
                                 <button type="submit" class="register-submit" id="gate-submit">ادامه</button>
@@ -123,11 +123,11 @@
                             <p class="register-kicker">حساب کاربری</p>
                             <h1>ورود به حساب</h1>
                             <b id="login-phone-label" class="visually-hidden" dir="ltr"></b>
-                            <form id="login-form" novalidate>
+                            <form id="login-form" novalidate autocomplete="off">
                                 <input type="hidden" id="login-phone" name="phone">
                                 <label class="register-field">
                                     <span class="visually-hidden">رمز عبور</span>
-                                    <input type="password" id="login-password" name="password" autocomplete="current-password" required minlength="8" placeholder="رمز عبور را وارد کنید">
+                                    <input type="password" id="login-password" name="password" autocomplete="off" required minlength="8" placeholder="رمز عبور را وارد کنید">
                                     <em class="register-error" id="err-login-password" hidden></em>
                                 </label>
                                 <button type="submit" class="register-submit" id="login-submit">ورود</button>
@@ -147,7 +147,7 @@
                                 <span class="otp-spinner" aria-hidden="true"></span>
                                 <p>در حال ارسال پیامک…</p>
                             </div>
-                            <form id="otp-form" novalidate>
+                            <form id="otp-form" novalidate autocomplete="off">
                                 <label class="register-field">
                                     <span class="visually-hidden">کد ۶ رقمی</span>
                                     <input type="text" id="otp-code" name="otp_code" inputmode="numeric" dir="ltr" lang="en" autocomplete="one-time-code" required maxlength="6" pattern="[0-9]*" placeholder="کد ۶ رقمی">
@@ -186,15 +186,15 @@
                             </button>
                             <p class="register-kicker">عضویت</p>
                             <h1>درخواست عضویت</h1>
-                            <form id="register-form" novalidate>
+                            <form id="register-form" novalidate autocomplete="off">
                                 <div class="register-pair">
                                     <label class="register-field">
-                                        <input type="text" id="first_name" name="first_name" autocomplete="given-name" required maxlength="40" placeholder=" ">
+                                        <input type="text" id="first_name" name="first_name" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" required maxlength="40" placeholder=" ">
                                         <span>نام</span>
                                         <em class="register-error" id="err-first_name" hidden></em>
                                     </label>
                                     <label class="register-field">
-                                        <input type="text" id="last_name" name="last_name" autocomplete="family-name" required maxlength="40" placeholder=" ">
+                                        <input type="text" id="last_name" name="last_name" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" required maxlength="40" placeholder=" ">
                                         <span>نام خانوادگی</span>
                                         <em class="register-error" id="err-last_name" hidden></em>
                                     </label>
@@ -205,12 +205,12 @@
                                 </label>
                                 <div class="register-pair">
                                     <label class="register-field">
-                                        <input type="text" id="role_title" name="role_title" autocomplete="organization-title" required maxlength="60" placeholder=" ">
+                                        <input type="text" id="role_title" name="role_title" autocomplete="off" required maxlength="60" placeholder=" ">
                                         <span>سمت</span>
                                         <em class="register-error" id="err-role_title" hidden></em>
                                     </label>
                                     <label class="register-field">
-                                        <input type="text" id="organization" name="organization" autocomplete="organization" maxlength="80" placeholder=" ">
+                                        <input type="text" id="organization" name="organization" autocomplete="off" maxlength="80" placeholder=" ">
                                         <span>سازمان (اختیاری)</span>
                                         <em class="register-error" id="err-organization" hidden></em>
                                     </label>

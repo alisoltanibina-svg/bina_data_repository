@@ -155,11 +155,31 @@ function bindOtpInput(input) {
     apply();
 }
 
+function quietMobileField(input) {
+    if (!input) return;
+    input.setAttribute('autocorrect', 'off');
+    input.setAttribute('autocapitalize', 'off');
+    input.setAttribute('spellcheck', 'false');
+    if (input.getAttribute('autocomplete') === 'one-time-code') return;
+    if (window.matchMedia('(max-width: 767px)').matches) {
+        if (!input.getAttribute('autocomplete') || input.getAttribute('autocomplete') === 'tel') {
+            input.setAttribute('autocomplete', 'off');
+        }
+        if (!input.readOnly) {
+            input.setAttribute('readonly', 'readonly');
+            const unlock = () => input.removeAttribute('readonly');
+            input.addEventListener('focus', unlock, { once: true });
+            input.addEventListener('touchstart', unlock, { once: true });
+        }
+    }
+}
+
 function bindPhoneInput(input) {
     if (!input || input.readOnly || input.disabled) return;
     input.setAttribute('maxlength', '11');
     input.setAttribute('inputmode', 'numeric');
-    input.setAttribute('autocomplete', input.getAttribute('autocomplete') || 'tel');
+    if (!input.getAttribute('autocomplete')) input.setAttribute('autocomplete', 'off');
+    quietMobileField(input);
     const apply = () => {
         const next = digitsOnlyPhone(input.value);
         if (input.value !== next) input.value = next;

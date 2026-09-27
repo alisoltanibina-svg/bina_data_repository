@@ -83,8 +83,10 @@ function openCurtainAuth() {
     showPanel('auth-gate');
     stage.hidden = false;
     document.documentElement.classList.add('curtain-auth');
-    const phone = document.getElementById('gate-phone');
-    window.setTimeout(() => { if (phone) phone.focus(); }, 420);
+    if (!window.matchMedia('(max-width: 767px)').matches) {
+        const phone = document.getElementById('gate-phone');
+        window.setTimeout(() => { if (phone) phone.focus(); }, 420);
+    }
     if (window.location.hash !== '#auth') {
         try { history.replaceState(null, '', '#auth'); } catch (e) {}
     }
@@ -312,6 +314,9 @@ onReady(() => {
     if (!gateForm || !gatePhone) return;
     bindPhoneInput(gatePhone);
     bindOtpInput(document.getElementById('otp-code'));
+    ['login-password', 'first_name', 'last_name', 'role_title', 'organization', 'password', 'password_confirm', 'reset-password', 'reset-password-confirm'].forEach(id => {
+        quietMobileField(document.getElementById(id));
+    });
 
     const openBtn = document.getElementById('btn-open-login');
     if (openBtn) openBtn.addEventListener('click', openCurtainAuth);

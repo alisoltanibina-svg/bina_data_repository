@@ -12,6 +12,8 @@ function curtainScroller() {
 }
 
 function syncVisualViewportHeight() {
+    const ae = document.activeElement;
+    if (ae && ae.matches && ae.matches('input, textarea, select')) return;
     const vp = window.visualViewport;
     const h = Math.round((vp && vp.height) || window.innerHeight || 0);
     if (h > 0) document.documentElement.style.setProperty('--vvh', h + 'px');
