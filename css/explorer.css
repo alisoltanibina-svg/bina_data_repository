@@ -798,24 +798,25 @@ body.explorer-body {
     display: flex;
     flex-direction: row;
     align-items: center;
-    justify-content: space-between;
-    gap: 10px;
+    justify-content: center;
+    gap: 22px;
     padding-top: 6px;
-    direction: ltr;
+    direction: rtl;
 }
 
 .ex-insight-open {
+    display: inline-flex;
+    align-items: center;
     height: 32px;
-    padding: 0 16px 1px;
+    padding: 0 4px;
     border: 0;
-    border-radius: var(--ex-pill);
-    background: #515811;
-    color: #fff;
+    border-radius: 0;
+    background: transparent;
+    color: #1b242e;
     font: inherit;
     font-size: 0.78rem;
     font-weight: 600;
     cursor: pointer;
-    direction: rtl;
 }
 
 .ex-chart-legend-btn {
@@ -884,7 +885,7 @@ body.explorer-body {
     flex: 0 0 auto;
     padding: 18px 18px 16px;
     border-radius: 18px;
-    background: var(--topic-accent, #0078d7);
+    background: #515811;
     color: #fff;
 }
 
@@ -1156,34 +1157,27 @@ body.explorer-body {
     }
     .ex-prov-rail {
         order: 1;
-        flex: 0.72 1 0;
+        flex: 0.9 1 0;
         height: auto;
-        max-height: 30vh;
+        max-height: 36vh;
         min-height: 0;
-        padding: 10px 12px 6px;
+        padding: 8px 12px 6px;
         border-radius: 22px;
     }
-    .ex-prov-search input {
-        height: 42px;
-        border: 0;
-        background: #f4f1ea;
-        border-radius: 999px;
-        text-align: right;
-        color: #515811;
-    }
-    .ex-prov-search input::placeholder {
-        color: #a18447;
+    .ex-prov-search {
+        display: none;
     }
     .ex-prov-actions {
-        margin: 10px 0 8px;
-        gap: 8px;
+        margin: 0 0 6px;
+        gap: 6px;
     }
     .ex-prov-actions button {
-        height: 36px;
+        height: 26px;
         border: 0;
         background: #f7f4ed;
         color: #515811;
-        font-size: 0.78rem;
+        font-size: 0.68rem;
+        padding: 0 8px;
     }
     .ex-prov-actions #btn-clear-all-provinces {
         color: #515811;
@@ -1255,6 +1249,8 @@ body.explorer-body {
     .ex-chart-legend-btn {
         height: 28px;
         font-size: 0.72rem;
+        background: transparent;
+        color: #1b242e;
     }
     .chart-mode-btn {
         white-space: nowrap;
