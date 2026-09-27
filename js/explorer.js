@@ -168,7 +168,10 @@ function topicTileSrc(topic) {
 function mosaicLayout() {
     const n = mosaicTopics().length || 9;
     const w = window.innerWidth;
-    if (w < 640) return { cols: 1 };
+    if (w < 768) {
+        if (n % 3 === 0) return { cols: 3 };
+        return { cols: 2 };
+    }
     if (w < 980) return { cols: 2 };
     if (n % 4 === 0) return { cols: 4 };
     if (n % 3 === 0) return { cols: 3 };

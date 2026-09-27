@@ -233,6 +233,28 @@ function authLoginUrl() {
     return SITE.page('index.html') + '#auth';
 }
 
+function isCompactViewport() {
+    return window.matchMedia('(max-width: 767px)').matches;
+}
+
+function placeMobilePageNav() {
+    const slot = document.getElementById('atlas-page-nav') || document.getElementById('explorer-page-nav');
+    const bannerRight = document.querySelector('#top-banner .banner-right');
+    const nav = document.querySelector('#atlas-page-nav .banner-seg, #explorer-page-nav .banner-seg, #top-banner .banner-seg');
+    if (!slot || !bannerRight || !nav) return;
+    const compactApp = isCompactViewport() && (
+        document.documentElement.classList.contains('atlas-view') ||
+        document.body.classList.contains('explorer-body')
+    );
+    if (compactApp) {
+        if (nav.parentElement !== slot) slot.appendChild(nav);
+        slot.hidden = false;
+    } else {
+        if (nav.parentElement !== bannerRight) bannerRight.appendChild(nav);
+        slot.hidden = true;
+    }
+}
+
 function hrefForAuthNext(next) {
     if (!next) return '';
     if (next.page === 'explorer') return SITE.page('explorer.html') + (next.search || '');

@@ -52,6 +52,10 @@ body.explorer-body {
     position: relative;
 }
 
+#explorer-page-nav[hidden] {
+    display: none !important;
+}
+
 .hidden { display: none !important; }
 
 .custom-scrollbar::-webkit-scrollbar { width: 5px; }
@@ -888,12 +892,65 @@ body.explorer-body {
     #canvas-reveal-wrapper { min-height: 240px; }
 }
 
-@media (max-width: 720px) {
-    .explorer-workspace {
-        margin-top: calc(64px + var(--banner-gap));
-        padding: 4px 10px 10px;
+@media (max-width: 767px) {
+    body.explorer-body {
+        overflow: hidden;
     }
-    .ex-hero { padding: 4px 8px 10px; }
+    body.explorer-body #explorer-page-nav:not([hidden]) {
+        display: flex;
+        margin-top: calc(env(safe-area-inset-top, 0px) + var(--banner-gap) + 56px + 8px);
+        flex-shrink: 0;
+    }
+    .explorer-workspace {
+        margin-top: 0;
+        padding: 8px 10px calc(10px + env(safe-area-inset-bottom, 0px));
+        gap: 8px;
+    }
+    .ex-landing {
+        min-height: 0;
+    }
+    .ex-hero {
+        padding: 2px 4px 8px;
+    }
+    .ex-title {
+        font-size: clamp(1.35rem, 6.2vw, 1.8rem);
+        gap: 8px;
+    }
+    .ex-title::before,
+    .ex-title::after {
+        width: 2px;
+        height: 0.7em;
+    }
+    .ex-lead {
+        margin-top: 4px;
+        font-size: 0.78rem;
+        line-height: 1.55;
+        max-width: 22rem;
+    }
+    .ex-topics {
+        gap: 8px;
+    }
+    .ex-room-visual {
+        border-radius: 16px;
+    }
+    .ex-room-copy {
+        padding: 12% 10px 12px;
+    }
+    .ex-room-copy h2 {
+        font-size: clamp(0.82rem, 3.6vw, 1.05rem);
+    }
+    .ex-room-count {
+        font-size: 0.72rem;
+        margin-top: 4px;
+    }
+    .ex-index-panel, .ex-panel-body { min-height: 0; }
+    .ex-panel-empty { min-height: 72px; }
+    .ex-bubble-panel { min-height: 300px; }
+    .ex-dash-nav { flex-wrap: wrap; }
+    .ex-dd-toggle { max-width: none; }
+}
+
+@media (max-width: 720px) {
     .ex-index-panel, .ex-panel-body { min-height: 0; }
     .ex-panel-empty { min-height: 72px; }
     .ex-bubble-panel { min-height: 300px; }

@@ -713,10 +713,15 @@ html.treat-v1 .entry-info-box h3 {
         overflow: hidden;
     }
 
-    html.treat-v1 #chart-wrapper,
-    html.treat-v1 #trend-wrapper {
-        height: auto !important;
-        min-height: 0;
+    html.treat-v1.atlas-view body.map-sheet-charts #chart-wrapper {
+        height: min(46dvh, 420px) !important;
+        min-height: 220px !important;
+        flex: 1.4 1 auto !important;
+    }
+    html.treat-v1.atlas-view body.map-sheet-charts #trend-wrapper {
+        height: min(24dvh, 200px) !important;
+        min-height: 120px !important;
+        flex: 0.9 1 auto !important;
     }
 
     html.treat-v1 #left-popup-panel,
@@ -732,6 +737,60 @@ html.treat-v1 .entry-info-box h3 {
 
     html.treat-v1 .legend-scale-bar {
         height: var(--treat-legend-bar);
+    }
+
+    html.treat-v1.atlas-view #left-popup-panel,
+    html.treat-v1.atlas-view #right-panel,
+    html.treat-v1.atlas-view #right-panel.show-panel {
+        display: none !important;
+    }
+    html.treat-v1.atlas-view body.map-sheet-topics #left-popup-panel,
+    html.treat-v1.atlas-view body.map-sheet-details #right-panel,
+    html.treat-v1.atlas-view body.map-sheet-details #right-panel.show-panel,
+    html.treat-v1.atlas-view body.map-sheet-charts #right-panel,
+    html.treat-v1.atlas-view body.map-sheet-charts #right-panel.show-panel {
+        display: flex !important;
+    }
+    html.treat-v1.atlas-view #map-panel-dock,
+    html.treat-v1.atlas-view #map-panel-dock[hidden] {
+        display: flex !important;
+        position: relative;
+        left: auto;
+        right: auto;
+        bottom: auto;
+        border-radius: 999px;
+        border: 0;
+        box-shadow: 0 6px 18px rgba(81, 88, 17, 0.08);
+        background: #ffffff;
+        gap: 0;
+        padding: 4px;
+    }
+    html.treat-v1.atlas-view .right-card-top {
+        max-height: none;
+        overflow: auto;
+    }
+    html.treat-v1.atlas-view body.map-sheet-details .right-card-bottom,
+    html.treat-v1.atlas-view body.map-sheet-charts .right-card-top {
+        display: none !important;
+    }
+    html.treat-v1.atlas-view body.map-sheet-details #right-panel,
+    html.treat-v1.atlas-view body.map-sheet-details #right-panel.show-panel {
+        justify-content: center !important;
+        align-items: center !important;
+        flex-direction: column !important;
+    }
+    html.treat-v1.atlas-view body.map-sheet-details .right-card-top {
+        display: flex !important;
+        max-height: none !important;
+        flex: 0 0 auto !important;
+        margin-block: auto;
+        overflow: visible;
+    }
+    html.treat-v1.atlas-view body.map-sheet-charts .right-card-bottom {
+        display: flex !important;
+        max-height: none;
+        flex: 1 1 auto;
+        overflow: auto;
     }
 }
 

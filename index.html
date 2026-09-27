@@ -282,6 +282,7 @@
 
     <!-- Main Dashboard Content -->
     <div id="main-content">
+        <nav id="atlas-page-nav" class="page-nav atlas-page-nav" hidden aria-label="ناوبری اصلی"></nav>
         <div id="atlas-stage">
             <div id="left-popup-panel">
                 <h3 id="left-popup-title">شاخص‌ها</h3>
@@ -299,17 +300,12 @@
             <div id="center-column">
                 <div id="map-frame">
                     <div id="map"></div>
-                    <div id="map-legend">
-                        <span class="legend-title" id="legend-title-text">طیف امتیاز شاخص</span>
-                        <div class="legend-scale-wrapper">
-                            <div class="legend-scale-bar" id="legend-bar"><div id="score-pointer"><div id="pointer-label">۰</div></div></div>
-                            <div class="legend-labels"><span>بد</span><span>متوسط</span><span>خوب</span></div>
-                        </div>
-                    </div>
-                    <div id="map-panel-dock" hidden>
-                        <button type="button" class="map-dock-btn is-active" data-sheet="map">نقشه</button>
-                        <button type="button" class="map-dock-btn" data-sheet="details">استان</button>
-                        <button type="button" class="map-dock-btn" data-sheet="topics">شاخص‌ها</button>
+                </div>
+                <div id="map-legend">
+                    <span class="legend-title" id="legend-title-text">طیف امتیاز شاخص</span>
+                    <div class="legend-scale-wrapper">
+                        <div class="legend-scale-bar" id="legend-bar"><div id="score-pointer"><div id="pointer-label">۰</div></div></div>
+                        <div class="legend-labels"><span>۰</span><span>متوسط</span><span>۱۰۰</span></div>
                     </div>
                 </div>
             </div>
@@ -328,6 +324,12 @@
         </div>
 
         <div id="bottom-panel"><ul class="index-list" id="index-list"></ul></div>
+        <div id="map-panel-dock">
+            <button type="button" class="map-dock-btn is-active" data-sheet="map">نقشه</button>
+            <button type="button" class="map-dock-btn" data-sheet="details">توضیحات</button>
+            <button type="button" class="map-dock-btn" data-sheet="topics">تجمیعی</button>
+            <button type="button" class="map-dock-btn" data-sheet="charts">نمودار</button>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous"></script>

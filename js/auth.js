@@ -276,6 +276,8 @@
         });
         window.addEventListener('bina-session-changed', loadProfile);
         bindGatedNav();
+        placeMobilePageNav();
+        window.addEventListener('resize', debounce(placeMobilePageNav, 150));
         const btn = document.getElementById('user-menu-btn');
         const menu = document.getElementById('user-menu-dropdown');
         const logoutBtn = document.getElementById('btn-logout');

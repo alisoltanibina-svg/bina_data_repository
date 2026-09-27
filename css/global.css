@@ -286,6 +286,8 @@ body {
 }
 .banner-auth-btn[hidden] { display: none; }
 
+
+
 /* Lazy image background utilities */
 .lazy-bg { background-size: cover; background-position: center; background-repeat: no-repeat; }
 .bg-placeholder { background-color: #f3f4f6; }
@@ -374,9 +376,7 @@ body {
         height: 16px;
     }
     html #top-banner .banner-auth-btn {
-        height: 32px;
-        padding: 0 12px 1px;
-        font-size: 0.72rem;
+        display: none !important;
     }
     html #top-banner .user-name {
         font-size: 0.72rem;
@@ -388,4 +388,79 @@ body {
     html #top-banner #logo-img {
         height: 40px !important;
     }
+
+    html.atlas-view #top-banner,
+    html body.explorer-body #top-banner {
+        height: auto;
+        min-height: 52px;
+        padding: 6px 10px;
+        padding-top: max(6px, env(safe-area-inset-top, 0px));
+        border-radius: 18px;
+        gap: 8px;
+    }
+    html.atlas-view #top-banner .project-texts,
+    html.atlas-view #top-banner .banner-divider,
+    html.atlas-view #top-banner .banner-auth-btn,
+    html.atlas-view #top-banner .user-texts,
+    html body.explorer-body #top-banner .project-texts,
+    html body.explorer-body #top-banner .banner-divider,
+    html body.explorer-body #top-banner .banner-auth-btn,
+    html body.explorer-body #top-banner .user-texts {
+        display: none !important;
+    }
+    html.atlas-view #top-banner .banner-right,
+    html body.explorer-body #top-banner .banner-right {
+        flex: 0 0 auto;
+        min-width: 0;
+    }
+    html.atlas-view #top-banner .user-circle,
+    html body.explorer-body #top-banner .user-circle {
+        width: 40px;
+        height: 40px;
+    }
+    html.atlas-view #top-banner #logo-img,
+    html body.explorer-body #top-banner #logo-img {
+        height: 36px !important;
+    }
+
+    html.atlas-view .page-nav:not([hidden]),
+    html body.explorer-body .page-nav:not([hidden]),
+    html body.explorer-body #explorer-page-nav:not([hidden]) {
+        display: flex;
+        flex: 0 0 auto;
+        width: calc(100% - 20px);
+        margin-left: 10px;
+        margin-right: 10px;
+        padding: 4px;
+        border-radius: 999px;
+        background: #ffffff;
+        box-shadow: 0 6px 18px rgba(81, 88, 17, 0.08);
+        position: relative;
+        z-index: 1800;
+    }
+    html.atlas-view .page-nav:not([hidden]) {
+        width: 100%;
+        margin: 0;
+    }
+    .page-nav .banner-seg {
+        display: flex;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        background: transparent;
+        gap: 0;
+    }
+    .page-nav .banner-seg-btn {
+        flex: 1 1 0;
+        height: clamp(34px, 5.4vw, 40px);
+        padding: 0 6px 1px;
+        border-radius: 999px;
+        font-size: clamp(0.72rem, 3.2vw, 0.88rem);
+        font-weight: 700;
+        min-width: 0;
+    }
+    .page-nav .banner-seg-btn:nth-child(1) { order: 3; }
+    .page-nav .banner-seg-btn:nth-child(2) { order: 2; }
+    .page-nav .banner-seg-btn:nth-child(3) { order: 1; }
+    .page-nav .banner-seg-btn:nth-child(4) { order: 4; }
 }

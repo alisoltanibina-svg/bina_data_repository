@@ -66,18 +66,33 @@ function isCompactMap() {
 }
 
 function setMapSheet(sheet) {
-    const allowed = ['map', 'details', 'topics'];
+    const allowed = ['map', 'details', 'topics', 'charts'];
     if (!allowed.includes(sheet)) sheet = 'map';
-    document.body.classList.remove('map-sheet-map', 'map-sheet-details', 'map-sheet-topics');
+    document.body.classList.remove('map-sheet-map', 'map-sheet-details', 'map-sheet-topics', 'map-sheet-charts');
     if (!isCompactMap()) return;
     document.body.classList.add('map-sheet-' + sheet);
     document.querySelectorAll('#map-panel-dock .map-dock-btn').forEach(btn => {
         btn.classList.toggle('is-active', btn.dataset.sheet === sheet);
     });
+    const topCard = document.querySelector('.right-card-top');
+    const bottomCard = document.querySelector('.right-card-bottom');
+    if (topCard) topCard.style.removeProperty('display');
+    if (bottomCard) bottomCard.style.removeProperty('display');
     requestAnimationFrame(() => {
-        try { if (map && typeof map.invalidateSize === 'function') map.invalidateSize(true); } catch (e) {}
-        try { refitMapView({ animate: false }); } catch (e) {}
+        if (sheet === 'map') {
+            try { if (map && typeof map.invalidateSize === 'function') map.invalidateSize(true); } catch (e) {}
+            try { refitMapView({ animate: false }); } catch (e) {}
+        }
+        if (sheet === 'topics' && selectedProvince) {
+            renderLeftFloatingPanel(selectedProvince);
+        }
+        try { if (typeof rankingBarChart !== 'undefined' && rankingBarChart && rankingBarChart.resize) rankingBarChart.resize(); } catch (e) {}
+        try { if (typeof trendChartInstance !== 'undefined' && trendChartInstance && trendChartInstance.resize) trendChartInstance.resize(); } catch (e) {}
     });
+}
+
+function placeAtlasNav() {
+    placeMobilePageNav();
 }
 
 function mapOverlayPadding() {
@@ -101,21 +116,13 @@ function mapOverlayPadding() {
     };
 
     let top = inset(document.getElementById('top-banner'), 'top');
-    let bottom = Math.max(
-        inset(document.getElementById('bottom-panel'), 'bottom'),
-        inset(document.getElementById('map-legend'), 'bottom'),
-        inset(document.getElementById('map-panel-dock'), 'bottom')
-    );
+    let bottom = inset(document.getElementById('bottom-panel'), 'bottom');
     let left = 0;
     let right = 0;
 
     if (isCompactMap()) {
-        if (document.body.classList.contains('map-sheet-details')) {
-            bottom = Math.max(bottom, inset(document.getElementById('right-panel'), 'bottom'));
-        }
-        if (document.body.classList.contains('map-sheet-topics')) {
-            bottom = Math.max(bottom, inset(document.getElementById('left-popup-panel'), 'bottom'));
-        }
+        top = 0;
+        bottom = 0;
     } else {
         left = inset(document.getElementById('left-popup-panel'), 'left');
         const rp = document.getElementById('right-panel');
@@ -233,16 +240,31 @@ function bindMapPanelDock() {
         setMapSheet(btn.dataset.sheet);
     });
     const syncDock = () => {
-        if (!isCompactMap()) {
+        const current = [...document.body.classList]
+            .find(name => name.startsWith('map-sheet-'));
+        const sheet = current ? current.slice('map-sheet-'.length) : 'map';
+        const mobileAtlas = isCompactMap() && document.documentElement.classList.contains('atlas-view');
+        if (!mobileAtlas) {
             dock.hidden = true;
-            document.body.classList.remove('map-sheet-map', 'map-sheet-details', 'map-sheet-topics');
+            document.body.classList.remove('map-sheet-map', 'map-sheet-details', 'map-sheet-topics', 'map-sheet-charts');
             return;
         }
         dock.hidden = false;
-        if (![...document.body.classList].some(name => name.startsWith('map-sheet-'))) setMapSheet('map');
+        setMapSheet(sheet);
     };
-    window.addEventListener('resize', debounce(syncDock, 150));
+    window.addEventListener('resize', debounce(function () {
+        placeAtlasNav();
+        syncDock();
+    }, 150));
+    placeAtlasNav();
     syncDock();
+    if (typeof MutationObserver === 'function') {
+        const mo = new MutationObserver(function () {
+            placeAtlasNav();
+            syncDock();
+        });
+        mo.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    }
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -317,7 +339,9 @@ function initLegend() {
         seg.addEventListener('mouseleave', () => { hoveredStageIndex = null; updateMapStyles(); });
         bar.appendChild(seg);
     }
-    document.getElementById('legend-title-text').innerText = `${currentIndex}`;
+    document.getElementById('legend-title-text').innerText = currentIndex
+        ? ('طیف امتیاز | ' + currentIndex)
+        : 'طیف امتیاز';
 }
 
 let topicsData = []; let trendScoreData = []; 
@@ -427,9 +451,9 @@ function initIndicatorSearch() {
                 searchInput.addEventListener('input', function() {
                     const query = this.value.trim();
                     suggestionsBox.innerHTML = '';
+                    suggestionsBox.hidden = true;
                     
                     if (query.length === 0) {
-                        suggestionsBox.style.display = 'none';
                         return;
                     }
 
@@ -456,12 +480,12 @@ function initIndicatorSearch() {
                             suggestionsBox.appendChild(li);
                         });
                     }
-                    suggestionsBox.style.display = 'block';
+                    suggestionsBox.hidden = false;
                 });
 
                 document.addEventListener('click', function(e) {
                     if (!searchInput.contains(e.target) && !suggestionsBox.contains(e.target)) {
-                        suggestionsBox.style.display = 'none';
+                        suggestionsBox.hidden = true;
                     }
                 });
             }
@@ -590,7 +614,6 @@ function initUI() {
 
             if (selectedProvince) updateRightPanel(selectedProvince);
             else updateDefaultPanel();
-            if (isCompactMap()) setMapSheet(selectedProvince ? 'details' : 'map');
         });
         list.appendChild(li);
     });
@@ -611,7 +634,6 @@ function restoreSelectedProvince(provName) {
             if (rp) rp.classList.add('show-panel');
             updateRightPanel(provName);
             renderLeftFloatingPanel(provName);
-            if (isCompactMap()) setMapSheet('details');
         }
     });
     updateMapStyles();
@@ -866,7 +888,6 @@ function renderMapData(geojsonData) {
                 document.getElementById('right-panel').classList.add('show-panel');
                 updateRightPanel(provName);
                 renderLeftFloatingPanel(provName);
-                if (isCompactMap()) setMapSheet('details');
                 const bounds = layer.getBounds();
                 requestAnimationFrame(() => {
                     fitMapTo(bounds, { animate: true, maxZoom: MAP_MAX_ZOOM, duration: 1.6 });
@@ -911,7 +932,10 @@ function updateDefaultPanel() {
     document.getElementById('trend-wrapper').style.display = 'none';
 
     const bottomCard = document.querySelector('.right-card-bottom');
-    if (bottomCard) bottomCard.style.display = 'flex';
+    if (bottomCard) {
+        if (isCompactMap()) bottomCard.style.removeProperty('display');
+        else bottomCard.style.display = 'flex';
+    }
     const hint = document.getElementById('province-pick-hint');
     if (hint) hint.hidden = false;
     const header = document.getElementById('bottom-prov-header');
@@ -926,7 +950,10 @@ function updateRightPanel(provinceName) {
     document.getElementById('right-panel').classList.add('show-panel');
 
     const bottomCard = document.querySelector('.right-card-bottom');
-    if (bottomCard) bottomCard.style.display = 'flex';
+    if (bottomCard) {
+        if (isCompactMap()) bottomCard.style.removeProperty('display');
+        else bottomCard.style.display = 'flex';
+    }
     const hint = document.getElementById('province-pick-hint');
     if (hint) hint.hidden = true;
 
@@ -957,7 +984,24 @@ function updateRightPanel(provinceName) {
 
     if (rankingBarChart) { rankingBarChart.destroy(); }
     const canvasRank = document.getElementById('rankingBarChart');
-    
+    const compactCharts = isCompactMap();
+    const scoreAxis = {
+        min: 0,
+        max: 100,
+        ticks: { font: { size: compactCharts ? 10 : 9 }, color: '#333', stepSize: 25 },
+        grid: { color: 'rgba(0,0,0,0.08)' }
+    };
+    const nameAxis = {
+        ticks: {
+            font: { size: compactCharts ? 9 : 9 },
+            color: '#333',
+            autoSkip: false,
+            maxRotation: compactCharts ? 0 : 90,
+            minRotation: compactCharts ? 0 : 45
+        },
+        grid: { display: false }
+    };
+
     rankingBarChart = new Chart(canvasRank, {
         type: 'bar',
         data: {
@@ -970,11 +1014,11 @@ function updateRightPanel(provinceName) {
             }]
         },
         options: {
+            indexAxis: compactCharts ? 'y' : 'x',
             responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-            scales: {
-                x: { ticks: { font: { size: 9 }, color: '#333', maxRotation: 90, minRotation: 45 }, grid: { display: false } },
-                y: { min: 0, max: 100, ticks: { font: { size: 9 }, color: '#333' } }
-            }
+            scales: compactCharts
+                ? { x: scoreAxis, y: nameAxis }
+                : { x: nameAxis, y: scoreAxis }
         }
     });
 
