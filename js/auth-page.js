@@ -49,9 +49,6 @@ function openCurtainAuth() {
     const stage = document.getElementById('entry-auth-stage');
     const shell = document.getElementById('entry-auth-shell');
     if (!stage || !shell) return;
-    if (typeof window.setAtlasView === 'function' && document.documentElement.classList.contains('atlas-view')) {
-        window.setAtlasView(false);
-    }
     showPanel('auth-gate');
     stage.hidden = false;
     document.documentElement.classList.add('curtain-auth');

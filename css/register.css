@@ -231,13 +231,23 @@ body.register-body {
     .register-workspace {
         padding: calc(64px + 40px) 12px 24px;
         padding-bottom: max(24px, env(safe-area-inset-bottom));
+        align-items: flex-start;
+        overflow: visible;
     }
 
     .register-card {
         padding: 22px 16px 18px;
+        max-height: none;
+        overflow: visible;
     }
 
     .register-card h1 { font-size: 1.25rem; }
+
+    body.auth-body {
+        overflow: auto;
+        height: auto;
+        max-height: none;
+    }
 }
 
 .visually-hidden {

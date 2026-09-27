@@ -316,7 +316,9 @@ body {
         right: 8px !important;
     }
     html #top-banner .project-sub,
-    html #top-banner .user-role {
+    html #top-banner .user-role,
+    html #top-banner .user-name,
+    html #top-banner .user-texts {
         display: none !important;
     }
     html #top-banner .banner-divider {
@@ -398,20 +400,36 @@ body {
         border-radius: 18px;
         gap: 8px;
     }
-    html.atlas-view #top-banner .project-texts,
-    html.atlas-view #top-banner .banner-divider,
     html.atlas-view #top-banner .banner-auth-btn,
-    html.atlas-view #top-banner .user-texts,
-    html body.explorer-body #top-banner .project-texts,
-    html body.explorer-body #top-banner .banner-divider,
-    html body.explorer-body #top-banner .banner-auth-btn,
-    html body.explorer-body #top-banner .user-texts {
+    html body.explorer-body #top-banner .banner-auth-btn {
         display: none !important;
     }
     html.atlas-view #top-banner .banner-right,
     html body.explorer-body #top-banner .banner-right {
-        flex: 0 0 auto;
+        flex: 1 1 auto;
         min-width: 0;
+    }
+    html.atlas-view #top-banner .project-texts,
+    html body.explorer-body #top-banner .project-texts {
+        display: flex !important;
+        min-width: 0;
+        flex: 1 1 auto;
+        flex-shrink: 1;
+    }
+    html.atlas-view #top-banner .project-main,
+    html body.explorer-body #top-banner .project-main {
+        max-width: none;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: block;
+        -webkit-line-clamp: unset;
+        -webkit-box-orient: unset;
+        font-size: 0.82rem;
+    }
+    body.profile-body #top-banner .banner-seg,
+    body.profile-body #top-banner .top-nav {
+        display: none !important;
     }
     html.atlas-view #top-banner .user-circle,
     html body.explorer-body #top-banner .user-circle {
@@ -441,6 +459,9 @@ body {
     html.atlas-view .page-nav:not([hidden]) {
         width: 100%;
         margin: 0;
+    }
+    html.curtain-auth .page-nav {
+        display: none !important;
     }
     .page-nav .banner-seg {
         display: flex;

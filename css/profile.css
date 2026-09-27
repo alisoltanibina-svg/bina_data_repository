@@ -234,6 +234,21 @@ Purpose: Photo picker on the signed-in profile page.
         width: min(320px, calc(100vw - 72px));
         height: auto;
     }
+    body.profile-body {
+        overflow: auto;
+        height: auto;
+        max-height: none;
+    }
+    body.profile-body .register-workspace {
+        align-items: flex-start;
+        min-height: var(--vvh, 100dvh);
+        padding: calc(env(safe-area-inset-top, 0px) + 68px + 16px) 12px max(24px, env(safe-area-inset-bottom, 0px));
+        overflow: visible;
+    }
+    body.profile-body .register-card {
+        max-height: none;
+        overflow: visible;
+    }
 }
 
 body.profile-body {
@@ -262,6 +277,11 @@ body.profile-body .register-card {
     border: 1px solid rgba(255, 255, 255, 0.38);
     border-radius: 28px;
     box-shadow: 0 12px 32px rgba(81, 88, 17, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.42);
+}
+
+body.profile-body #top-banner .banner-seg,
+body.profile-body #top-banner .top-nav {
+    display: none !important;
 }
 
 body.profile-body #profile-main {

@@ -997,7 +997,13 @@ function updateRightPanel(provinceName) {
             color: '#333',
             autoSkip: false,
             maxRotation: compactCharts ? 0 : 90,
-            minRotation: compactCharts ? 0 : 45
+            minRotation: compactCharts ? 0 : 90,
+            callback: compactCharts
+                ? undefined
+                : function (value, index) {
+                    const label = this.getLabelForValue(value);
+                    return index % 2 === 0 ? label : '';
+                }
         },
         grid: { display: false }
     };
