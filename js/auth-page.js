@@ -311,6 +311,7 @@ onReady(() => {
     const gatePhone = document.getElementById('gate-phone');
     if (!gateForm || !gatePhone) return;
     bindPhoneInput(gatePhone);
+    bindOtpInput(document.getElementById('otp-code'));
 
     const openBtn = document.getElementById('btn-open-login');
     if (openBtn) openBtn.addEventListener('click', openCurtainAuth);
@@ -418,7 +419,7 @@ onReady(() => {
     document.getElementById('otp-form').addEventListener('submit', async event => {
         event.preventDefault();
         setError('otp-code', '');
-        const code = (document.getElementById('otp-code').value || '').replace(/\D/g, '');
+        const code = normalizeOtpCode(document.getElementById('otp-code').value);
         if (code.length !== 6) {
             setError('otp-code', 'کد باید ۶ رقم باشد.');
             document.getElementById('otp-code').focus();

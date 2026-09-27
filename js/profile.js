@@ -550,6 +550,7 @@ function bindCrop() {
 }
 
 onReady(async () => {
+    bindOtpInput(document.getElementById('profile-otp-code'));
     try {
         const profile = await apiJson('/api/auth/me');
         applySavedProfile(profile);
@@ -818,7 +819,7 @@ onReady(async () => {
     document.getElementById('profile-otp-form').addEventListener('submit', async event => {
         event.preventDefault();
         setError('profile-otp-code', '');
-        const code = (document.getElementById('profile-otp-code').value || '').replace(/\D/g, '');
+        const code = normalizeOtpCode(document.getElementById('profile-otp-code').value);
         if (code.length !== 6) {
             setError('profile-otp-code', 'کد باید ۶ رقم باشد.');
             return;

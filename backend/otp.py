@@ -261,10 +261,19 @@ def send_otp(phone: str, purpose: str) -> dict:
     return {"ok": True, "ttl_seconds": ttl, "resend_seconds": cooldown}
 
 
+_FA_DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
+_OTP_JUNK = dict.fromkeys(map(ord, "\u200c\u200d\u200e\u200f\u202a\u202b\u202c\u202d\u202e\ufeff \t\r\n"), None)
+
+
+def normalize_otp_code(raw: str) -> str:
+    s = (raw or "").translate(_FA_DIGITS).translate(_OTP_JUNK)
+    return "".join(ch for ch in s if ch in "0123456789")[:6]
+
+
 def verify_otp(phone: str, purpose: str, code: str) -> dict:
     phone = normalize_phone(phone)
     purpose = (purpose or "").strip()
-    code = "".join(ch for ch in (code or "") if ch.isdigit())
+    code = normalize_otp_code(code)
     if not is_mobile_phone(phone):
         raise MembershipError("phone", "شماره موبایل نامعتبر است.")
     if purpose not in PURPOSES:

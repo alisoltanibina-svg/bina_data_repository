@@ -125,7 +125,34 @@ function toEnDigits(raw) {
 }
 
 function digitsOnlyPhone(raw) {
-    return toEnDigits(raw).replace(/\D/g, '').slice(0, 11);
+    return toEnDigits(raw).replace(/[^0-9]/g, '').slice(0, 11);
+}
+
+function normalizeOtpCode(raw) {
+    return toEnDigits(String(raw || ''))
+        .replace(/[\u200c\u200d\u200e\u200f\u202a-\u202e\ufeff]/g, '')
+        .replace(/[^0-9]/g, '')
+        .slice(0, 6);
+}
+
+function bindOtpInput(input) {
+    if (!input) return;
+    input.setAttribute('inputmode', 'numeric');
+    input.setAttribute('autocomplete', 'one-time-code');
+    input.setAttribute('maxlength', '6');
+    input.setAttribute('lang', 'en');
+    input.setAttribute('dir', 'ltr');
+    const apply = () => {
+        const next = normalizeOtpCode(input.value);
+        if (input.value !== next) input.value = next;
+    };
+    input.addEventListener('input', apply);
+    input.addEventListener('blur', apply);
+    input.addEventListener('paste', event => {
+        event.preventDefault();
+        input.value = normalizeOtpCode((event.clipboardData || window.clipboardData).getData('text'));
+    });
+    apply();
 }
 
 function bindPhoneInput(input) {
