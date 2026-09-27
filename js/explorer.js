@@ -639,6 +639,8 @@ function setChartMode(mode) {
             title.textContent = 'روند تغییرات زمانی شاخص';
         }
     }
+    const countryLegend = document.getElementById('btn-country-legend');
+    if (countryLegend) countryLegend.hidden = currentChartMode !== 'trend';
     if (activeIndicatorGlob) refreshActiveChart();
     requestAnimationFrame(() => {
         try { if (currentChartMode === 'trend' && chartInstance) chartInstance.resize(); } catch (e) {}
@@ -668,7 +670,7 @@ function drawScatterProvince() {
     if (!canvas) return;
     const points = getLatestPoints();
     scatterPointsCache = points;
-    const bubbleR = window.matchMedia('(max-width: 767px)').matches ? 5 : 12;
+    const bubbleR = window.matchMedia('(max-width: 767px)').matches ? 5 : 24;
     const data = points.map((p, i) => ({ x: i, y: p.value, province: p.name, r: bubbleR }));
     const colors = points.map(p => provinceColors[p.name] || '#3b82f6');
 
@@ -846,7 +848,29 @@ function drawChart() {
 
         startSweep(chartInstance);
     }
-    isBulkAction = false; 
+    isBulkAction = false;
+    syncCountryLegend();
+}
+
+function syncCountryLegend() {
+    const btn = document.getElementById('btn-country-legend');
+    if (!btn) return;
+    const off = hiddenDatasets['میانگین کل کشور'] === true;
+    btn.classList.toggle('is-off', off);
+    btn.setAttribute('aria-pressed', off ? 'false' : 'true');
+}
+
+function toggleCountryLegend() {
+    const off = hiddenDatasets['میانگین کل کشور'] !== true;
+    hiddenDatasets['میانگین کل کشور'] = off;
+    if (chartInstance) {
+        const index = chartInstance.data.datasets.findIndex(d => d.label === 'میانگین کل کشور');
+        if (index >= 0) {
+            if (off) chartInstance.hide(index);
+            else chartInstance.show(index);
+        }
+    }
+    syncCountryLegend();
 }
 
 function getChartOptions() {
@@ -858,35 +882,7 @@ function getChartOptions() {
         interaction: { mode: 'nearest', intersect: true, axis: 'xy' },
         plugins: {
             datalabels: { display: false },
-            legend: { 
-                position: 'bottom', 
-                labels: { 
-                    font: { family: 'PeydaFaNumWeb', size: 13 }, 
-                    usePointStyle: false, 
-                    boxWidth: 16,
-                    boxHeight: 16,
-                    borderRadius: 4,
-                    padding: 20,
-                    filter: function(item, chart) {
-                        return item.text === 'میانگین کل کشور';
-                    }
-                },
-                onClick: function(e, legendItem, legend) {
-                    const index = legendItem.datasetIndex;
-                    const ci = legend.chart;
-                    const labelText = legendItem.text;
-
-                    if (ci.isDatasetVisible(index)) {
-                        ci.hide(index);
-                        legendItem.hidden = true;
-                        hiddenDatasets[labelText] = true; 
-                    } else {
-                        ci.show(index);
-                        legendItem.hidden = false;
-                        hiddenDatasets[labelText] = false; 
-                    }
-                }
-            },
+            legend: { display: false },
             tooltip: {
                 titleFont: { family: 'PeydaFaNumWeb', size: 14 }, bodyFont: { family: 'PeydaFaNumWeb', size: 13, weight: 'bold' }, rtl: true,
                 backgroundColor: 'rgba(255, 255, 255, 0.95)', titleColor: '#1f2937', bodyColor: '#1f2937',
@@ -932,6 +928,8 @@ function bindExplorerChrome() {
     const clearAll = document.getElementById('btn-clear-all-provinces');
     if (clearAll) clearAll.addEventListener('click', clearAllProvinces);
     const insightLayer = document.getElementById('insight-layer');
+    const countryLegend = document.getElementById('btn-country-legend');
+    if (countryLegend) countryLegend.addEventListener('click', toggleCountryLegend);
     const openInsight = document.getElementById('btn-open-insight');
     const closeInsight = document.getElementById('btn-close-insight');
     function setInsightOpen(on) {
