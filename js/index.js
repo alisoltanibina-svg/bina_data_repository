@@ -992,18 +992,18 @@ function updateRightPanel(provinceName) {
         grid: { color: 'rgba(0,0,0,0.08)' }
     };
     const nameAxis = {
+        type: 'category',
         ticks: {
-            font: { size: compactCharts ? 9 : 9 },
+            font: { size: compactCharts ? 8 : 9 },
             color: '#333',
             autoSkip: false,
             maxRotation: compactCharts ? 0 : 90,
             minRotation: compactCharts ? 0 : 90,
-            callback: compactCharts
-                ? undefined
-                : function (value, index) {
-                    const label = this.getLabelForValue(value);
-                    return index % 2 === 0 ? label : '';
-                }
+            callback: function (value, index) {
+                const label = this.getLabelForValue(value);
+                if (!compactCharts && index % 2 !== 0) return '';
+                return label;
+            }
         },
         grid: { display: false }
     };

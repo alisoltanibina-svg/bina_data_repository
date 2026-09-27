@@ -599,7 +599,7 @@ body.explorer-body {
     padding: 0 16px 1px;
     border: 0;
     border-radius: var(--ex-pill);
-    background: var(--topic-accent, #0078d7);
+    background: #515811;
     color: #fff;
     font: inherit;
     font-size: 0.82rem;
@@ -647,7 +647,7 @@ body.explorer-body {
     overflow: auto;
     padding: 8px 6px;
     border-radius: 16px;
-    background: #f3f4f7;
+    background: #515811;
     box-shadow: 0 12px 28px rgba(27, 36, 46, 0.12);
     z-index: 30;
 }
@@ -661,7 +661,7 @@ body.explorer-body {
     border: 0;
     border-radius: 10px;
     background: transparent;
-    color: #8b949e;
+    color: rgba(255, 255, 255, 0.82);
     font: inherit;
     font-size: 0.82rem;
     font-weight: 500;
@@ -669,10 +669,11 @@ body.explorer-body {
     cursor: pointer;
 }
 
-.ex-dd-menu button:hover { background: rgba(27, 36, 46, 0.04); color: var(--ex-ink); }
+.ex-dd-menu button:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
 .ex-dd-menu button.is-current {
-    color: var(--topic-accent, #0078d7);
+    color: #fff;
     font-weight: 700;
+    background: rgba(255, 255, 255, 0.12);
 }
 
 .ex-meta {
@@ -708,8 +709,10 @@ body.explorer-body {
 .ex-side { grid-area: side; }
 
 .ex-chart-room {
+    position: relative;
     min-width: 0;
     min-height: 0;
+    height: 100%;
     display: flex;
     flex-direction: column;
     background: #ffffff;
@@ -724,9 +727,10 @@ body.explorer-body {
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     margin-bottom: 10px;
     flex-shrink: 0;
+    min-width: 0;
 }
 
 .chart-toolbar h3 {
@@ -734,10 +738,15 @@ body.explorer-body {
     font-size: 0.88rem;
     font-weight: 600;
     color: var(--ex-ink);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .chart-switcher {
     display: flex;
+    flex-shrink: 0;
     border: 0;
     border-radius: var(--ex-pill);
     padding: 3px;
@@ -784,6 +793,67 @@ body.explorer-body {
     height: 100% !important;
 }
 
+.ex-chart-foot {
+    flex-shrink: 0;
+    display: flex;
+    justify-content: center;
+    padding-top: 8px;
+}
+
+.ex-insight-open {
+    height: 32px;
+    padding: 0 16px 1px;
+    border: 0;
+    border-radius: var(--ex-pill);
+    background: #515811;
+    color: #fff;
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.ex-insight-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 40;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 12px;
+    background: rgba(27, 36, 46, 0.28);
+    border-radius: inherit;
+}
+
+.ex-insight-layer[hidden] { display: none; }
+
+.ex-insight-close {
+    position: absolute;
+    top: 10px;
+    inset-inline-start: 10px;
+    width: 32px;
+    height: 32px;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.16);
+    color: #fff;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+}
+
+.ex-insight-card {
+    position: relative;
+    width: min(100%, 28rem);
+    max-height: min(72%, 28rem);
+    overflow: auto;
+    flex: 0 0 auto;
+    padding: 18px 18px 16px;
+    border-radius: 18px;
+    background: var(--topic-accent, #0078d7);
+    color: #fff;
+}
+
 .ex-side {
     width: 100%;
     min-width: 0;
@@ -793,16 +863,9 @@ body.explorer-body {
     min-height: 0;
 }
 
-.ex-insight-card {
-    flex: 0 0 auto;
-    padding: 18px 18px 16px;
-    border-radius: 18px;
-    background: var(--topic-accent, #0078d7);
-    color: #fff;
-}
-
 .ex-insight-card h2 {
     margin: 0 0 10px;
+    padding-inline-start: 36px;
     font-size: 1.15rem;
     font-weight: 800;
     line-height: 1.5;
@@ -820,6 +883,7 @@ body.explorer-body {
 .ex-prov-rail {
     flex: 1 1 auto;
     min-height: 0;
+    height: 100%;
     display: flex;
     flex-direction: column;
     padding: 12px 14px 10px;
@@ -911,7 +975,7 @@ body.explorer-body {
         width: 100%;
         max-height: none;
     }
-    .ex-prov-rail { max-height: 32vh; }
+    .ex-prov-rail { max-height: none; }
     .ex-dd-group { flex-wrap: wrap; justify-content: flex-end; }
     #canvas-reveal-wrapper {
         min-height: 200px;
@@ -974,20 +1038,21 @@ body.explorer-body {
     .ex-panel-empty { min-height: 72px; }
     .ex-bubble-panel { min-height: 300px; }
     .ex-dash {
-        overflow: auto;
-        -webkit-overflow-scrolling: touch;
+        overflow: hidden;
         gap: 10px;
     }
     .ex-dash-head {
+        position: relative;
+        z-index: 80;
         padding: 0 0 2px;
+        overflow: visible;
     }
     .ex-dash-nav {
         flex-wrap: nowrap;
         align-items: center;
         justify-content: flex-start;
         gap: 8px;
-        overflow-x: auto;
-        scrollbar-width: none;
+        overflow: visible;
     }
     .ex-dash-nav::-webkit-scrollbar { display: none; }
     .ex-dash-head #btn-nav-subtopics {
@@ -1008,24 +1073,48 @@ body.explorer-body {
         flex-wrap: nowrap;
         justify-content: flex-start;
         min-width: 0;
-        overflow-x: auto;
-        scrollbar-width: none;
+        overflow: visible;
+        gap: 6px;
     }
-    .ex-dd-group::-webkit-scrollbar { display: none; }
+    .ex-dd {
+        flex: 1 1 0;
+        min-width: 0;
+    }
+    .ex-dd.is-open {
+        z-index: 40;
+    }
     .ex-dd-toggle {
+        width: 100%;
         max-width: none;
         min-height: 40px;
         height: 40px;
-        padding: 0 12px 1px;
+        padding: 0 10px 1px;
         background: #515811;
         font-size: 0.72rem;
-        white-space: nowrap;
+        justify-content: center;
+    }
+    .ex-dd-menu {
+        background: #515811;
+    }
+    .ex-dd-value {
+        display: none;
+    }
+    .ex-dd-kicker::after {
+        display: none;
+    }
+    .ex-dd-menu {
+        z-index: 4000;
+    }
+    .ex-stage.is-pending .ex-room,
+    .ex-stage.is-pending .ex-panel {
+        opacity: 1;
     }
     .ex-dash-body {
         display: flex;
         flex-direction: column;
+        flex: 1 1 auto;
         gap: 10px;
-        overflow: visible;
+        overflow: hidden;
         min-height: 0;
     }
     .ex-side {
@@ -1033,7 +1122,10 @@ body.explorer-body {
     }
     .ex-prov-rail {
         order: 1;
-        max-height: 168px;
+        flex: 1 1 0;
+        height: auto;
+        max-height: none;
+        min-height: 0;
         padding: 12px 14px 8px;
         border-radius: 22px;
     }
@@ -1063,7 +1155,6 @@ body.explorer-body {
         color: #515811;
     }
     .ex-insight-card {
-        order: 2;
         background: #515811;
         border-radius: 22px;
         padding: 18px 18px 16px;
@@ -1087,13 +1178,17 @@ body.explorer-body {
         padding: 3px 12px 4px;
     }
     .ex-chart-room {
-        order: 3;
+        order: 2;
+        flex: 1 1 0;
+        height: auto;
+        min-height: 0;
         padding: 14px 14px 12px;
         border-radius: 22px;
     }
     .chart-toolbar {
         gap: 8px;
         margin-bottom: 8px;
+        flex-wrap: nowrap;
     }
     .chart-toolbar h3 {
         font-size: 0.78rem;
@@ -1114,9 +1209,13 @@ body.explorer-body {
         color: #fff;
     }
     #canvas-reveal-wrapper {
-        min-height: 220px;
-        aspect-ratio: 16 / 10;
+        flex: 1 1 auto;
+        min-height: 0;
+        aspect-ratio: auto;
         max-height: none;
+    }
+    .chart-mode-btn {
+        white-space: nowrap;
     }
 }
 

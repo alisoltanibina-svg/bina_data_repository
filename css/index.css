@@ -1687,6 +1687,8 @@ html.atlas-view .index-item.active .index-item-img {
     }
     html.atlas-view #atlas-page-nav:not([hidden]) {
         display: flex;
+        position: relative;
+        z-index: 4;
         flex: 0 0 auto;
         flex-shrink: 0;
         width: 100%;
@@ -1790,6 +1792,12 @@ html.atlas-view .index-item.active .index-item-img {
     html.treat-v1.atlas-view body.map-sheet-charts #right-panel.show-panel,
     html.treat-v1.atlas-view body.map-sheet-topics #left-popup-panel {
         display: flex !important;
+        position: relative !important;
+        top: auto !important;
+        right: auto !important;
+        bottom: auto !important;
+        left: auto !important;
+        z-index: 1 !important;
         flex: 1 1 auto;
         min-height: 0;
         order: 1;
@@ -1801,7 +1809,7 @@ html.atlas-view .index-item.active .index-item-img {
         box-shadow: 0 10px 28px rgba(27, 36, 46, 0.08);
         overflow: auto;
         -webkit-overflow-scrolling: touch;
-        animation: none;
+        animation: none !important;
     }
     html.atlas-view body.map-sheet-details .right-card-bottom,
     html.atlas-view body.map-sheet-charts .right-card-top {
@@ -1816,6 +1824,12 @@ html.atlas-view .index-item.active .index-item-img {
     html.treat-v1.atlas-view body.map-sheet-details #right-panel,
     html.treat-v1.atlas-view body.map-sheet-details #right-panel.show-panel {
         display: flex !important;
+        position: relative !important;
+        top: auto !important;
+        right: auto !important;
+        bottom: auto !important;
+        left: auto !important;
+        z-index: 1 !important;
         flex-direction: column !important;
         justify-content: center !important;
         align-items: center !important;
@@ -1823,6 +1837,7 @@ html.atlas-view .index-item.active .index-item-img {
         height: auto !important;
         min-height: 0 !important;
         overflow: auto;
+        animation: none !important;
     }
     html.atlas-view body.map-sheet-details .right-card,
     html.atlas-view body.map-sheet-charts .right-card {
@@ -1864,10 +1879,17 @@ html.atlas-view .index-item.active .index-item-img {
         flex: 1 1 auto;
     }
     html.atlas-view body.map-sheet-charts #chart-wrapper,
-    html.atlas-view body.map-sheet-charts #trend-wrapper {
-        height: min(32dvh, 260px) !important;
-        min-height: 140px !important;
-        flex: 1 1 auto !important;
+    html.treat-v1.atlas-view body.map-sheet-charts #chart-wrapper {
+        height: min(52dvh, 460px) !important;
+        min-height: 240px !important;
+        flex: 1.6 1 auto !important;
+        margin-bottom: 8px !important;
+    }
+    html.atlas-view body.map-sheet-charts #trend-wrapper,
+    html.treat-v1.atlas-view body.map-sheet-charts #trend-wrapper {
+        height: min(22dvh, 180px) !important;
+        min-height: 120px !important;
+        flex: 0.9 1 auto !important;
         margin-bottom: 8px !important;
     }
     html.atlas-view body.map-sheet-topics #left-popup-panel h3 {

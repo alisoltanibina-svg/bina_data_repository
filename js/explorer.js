@@ -251,6 +251,28 @@ function syncExplorerDropdowns() {
     });
 }
 
+function placeMobileDropdown(btn, menu) {
+    if (!window.matchMedia('(max-width: 767px)').matches) {
+        menu.style.position = '';
+        menu.style.top = '';
+        menu.style.left = '';
+        menu.style.right = '';
+        menu.style.width = '';
+        menu.style.maxWidth = '';
+        menu.style.zIndex = '';
+        return;
+    }
+    const head = document.querySelector('#view-dashboard .ex-dash-head') || btn;
+    const box = head.getBoundingClientRect();
+    menu.style.position = 'fixed';
+    menu.style.top = Math.round(box.bottom + 6) + 'px';
+    menu.style.left = '10px';
+    menu.style.right = '10px';
+    menu.style.width = 'auto';
+    menu.style.maxWidth = 'none';
+    menu.style.zIndex = '4000';
+}
+
 function bindExplorerDropdowns() {
     document.querySelectorAll('.ex-dd').forEach(dd => {
         const btn = dd.querySelector('.ex-dd-toggle');
@@ -264,6 +286,7 @@ function bindExplorerDropdowns() {
                 dd.classList.add('is-open');
                 btn.setAttribute('aria-expanded', 'true');
                 menu.hidden = false;
+                placeMobileDropdown(btn, menu);
             }
         });
         menu.addEventListener('click', event => event.stopPropagation());
@@ -357,7 +380,7 @@ function bindMosaicInteractions(container) {
 
 function initStaggeredAnimations(container) {
     killMosaicAnimations();
-    if (typeof gsap === 'undefined' || !isLandingVisible()) {
+    if (window.matchMedia('(max-width: 767px)').matches || typeof gsap === 'undefined' || !isLandingVisible()) {
         container.classList.remove('is-pending');
         return;
     }
@@ -441,6 +464,11 @@ function renderMosaicMenu() {
     });
     bindMosaicInteractions(container);
 
+    if (window.matchMedia('(max-width: 767px)').matches) {
+        container.classList.remove('is-pending');
+        return;
+    }
+
     Promise.race([
         waitForMosaicImages(container),
         new Promise(resolve => setTimeout(resolve, 2500))
@@ -513,6 +541,8 @@ async function loadIndicator(indicatorName, topicName) {
 }
 
 function goBackToLanding() {
+    const insightLayer = document.getElementById('insight-layer');
+    if (insightLayer) insightLayer.hidden = true;
     document.getElementById('view-dashboard').classList.add('hidden');
     const header = document.getElementById('main-header');
     if (header) header.classList.add('hidden');
@@ -638,7 +668,8 @@ function drawScatterProvince() {
     if (!canvas) return;
     const points = getLatestPoints();
     scatterPointsCache = points;
-    const data = points.map((p, i) => ({ x: i, y: p.value, province: p.name, r: 26 }));
+    const bubbleR = window.matchMedia('(max-width: 767px)').matches ? 5 : 12;
+    const data = points.map((p, i) => ({ x: i, y: p.value, province: p.name, r: bubbleR }));
     const colors = points.map(p => provinceColors[p.name] || '#3b82f6');
 
     if (scatterProvinceChart) {
@@ -666,11 +697,12 @@ function drawScatterProvince() {
             plugins: {
                 legend: { display: false },
                 datalabels: {
+                    display: () => !window.matchMedia('(max-width: 767px)').matches,
                     color: '#ffffff',
                     align: 'center',
                     anchor: 'center',
                     textAlign: 'center',
-                    clip: false,
+                    clip: true,
                     font: { family: 'PeydaFaNumWeb', size: 8, weight: 'bold' },
                     formatter: (value) => {
                         const name = (value && value.province) || '';
@@ -871,6 +903,7 @@ function getChartOptions() {
 
 // Ensure charts resize smoothly across screen sizes
 const onExplorerResize = debounce(() => {
+    closeExplorerDropdowns();
     try { if (chartInstance && typeof chartInstance.resize === 'function') chartInstance.resize(); } catch (e) {}
     try { if (scatterProvinceChart && typeof scatterProvinceChart.resize === 'function') scatterProvinceChart.resize(); } catch (e) {}
     const layout = mosaicLayout();
@@ -898,6 +931,20 @@ function bindExplorerChrome() {
     if (selectAll) selectAll.addEventListener('click', selectAllProvinces);
     const clearAll = document.getElementById('btn-clear-all-provinces');
     if (clearAll) clearAll.addEventListener('click', clearAllProvinces);
+    const insightLayer = document.getElementById('insight-layer');
+    const openInsight = document.getElementById('btn-open-insight');
+    const closeInsight = document.getElementById('btn-close-insight');
+    function setInsightOpen(on) {
+        if (!insightLayer) return;
+        insightLayer.hidden = !on;
+    }
+    if (openInsight) openInsight.addEventListener('click', () => setInsightOpen(true));
+    if (closeInsight) closeInsight.addEventListener('click', () => setInsightOpen(false));
+    if (insightLayer) {
+        insightLayer.addEventListener('click', (event) => {
+            if (event.target === insightLayer) setInsightOpen(false);
+        });
+    }
 }
 
 function startExplorer() {

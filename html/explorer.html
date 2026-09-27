@@ -85,7 +85,7 @@
             </div>
 
             <div class="ex-dash-body">
-                <aside class="ex-side" aria-label="شرح شاخص و استان‌ها">
+                <aside class="ex-side" aria-label="فیلتر استان‌ها">
                     <section class="ex-prov-rail" aria-label="مقایسه استانی">
                         <div class="ex-prov-search">
                             <input type="text" id="province-search" placeholder="جستجوی استان" autocomplete="off">
@@ -95,14 +95,6 @@
                             <button type="button" id="btn-clear-all-provinces">پاک کردن همه</button>
                         </div>
                         <div class="ex-prov-list custom-scrollbar" id="provinces-list"></div>
-                    </section>
-                    <section class="ex-insight-card">
-                        <h2 id="indicator-title">نام شاخص</h2>
-                        <p id="insight-text">در حال بارگذاری اطلاعات...</p>
-                        <div class="ex-meta">
-                            <span id="indicator-source">منبع: نامشخص</span>
-                            <span id="indicator-period">دوره: نامشخص</span>
-                        </div>
                     </section>
                 </aside>
                 <section class="ex-chart-room">
@@ -120,6 +112,22 @@
                         <div id="compare-chart-wrap" class="chart-pane">
                             <canvas id="scatterProvinceChart"></canvas>
                         </div>
+                    </div>
+                    <div class="ex-chart-foot">
+                        <button type="button" class="ex-insight-open" id="btn-open-insight">توضیحات</button>
+                    </div>
+                    <div class="ex-insight-layer" id="insight-layer" hidden>
+                        <section class="ex-insight-card" role="dialog" aria-modal="true" aria-labelledby="indicator-title">
+                            <button type="button" class="ex-insight-close" id="btn-close-insight" aria-label="بستن">
+                                <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                            </button>
+                            <h2 id="indicator-title">نام شاخص</h2>
+                            <p id="insight-text">در حال بارگذاری اطلاعات...</p>
+                            <div class="ex-meta">
+                                <span id="indicator-source">منبع: نامشخص</span>
+                                <span id="indicator-period">دوره: نامشخص</span>
+                            </div>
+                        </section>
                     </div>
                 </section>
             </div>
