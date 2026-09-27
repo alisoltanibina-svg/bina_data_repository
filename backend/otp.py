@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import secrets
+import threading
 from datetime import datetime, timedelta, timezone
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
@@ -152,11 +153,13 @@ def _send_kavenegar_sms(phone: str, text: str) -> None:
     params = {"receptor": phone, "message": text}
     if sender:
         params["sender"] = sender
-    url = f"https://api.kavenegar.com/v1/{key}/sms/send.json?{urlencode(params)}"
-    request = Request(url, method="GET")
+    body = urlencode(params).encode("utf-8")
+    url = f"https://api.kavenegar.com/v1/{key}/sms/send.json"
+    request = Request(url, data=body, method="POST")
+    request.add_header("Content-Type", "application/x-www-form-urlencoded")
     payload = {}
     try:
-        with urlopen(request, timeout=15) as response:
+        with urlopen(request, timeout=12) as response:
             payload = _read_kavenegar_payload(response.read())
     except HTTPError as err:
         try:
@@ -179,10 +182,14 @@ def send_plain_sms(phone: str, text: str) -> None:
     phone = normalize_phone(phone)
     if not is_mobile_phone(phone) or not text or not _kavenegar_configured():
         return
-    try:
-        _send_kavenegar_sms(phone, text)
-    except MembershipError:
-        log.warning("plain sms not delivered phone=%s", _mask_phone(phone))
+
+    def _run() -> None:
+        try:
+            _send_kavenegar_sms(phone, text)
+        except Exception:
+            log.warning("plain sms not delivered phone=%s", _mask_phone(phone))
+
+    threading.Thread(target=_run, daemon=True, name="kavenegar-sms").start()
 
 
 def notify_registration_filed(phone: str) -> None:
