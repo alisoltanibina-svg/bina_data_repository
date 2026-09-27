@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     kavenegar_api_key: SecretStr = SecretStr("")
     kavenegar_sender: str = ""
     kavenegar_otp_message: str = "سامانه دیده‌بان فرهنگ\nکد ورود شما: {code}"
+    kavenegar_otp_template: str = "binaappotp"
     otp_ttl_seconds: int = 180
     otp_max_attempts: int = 5
     otp_resend_seconds: int = 60

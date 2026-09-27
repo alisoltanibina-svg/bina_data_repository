@@ -22,7 +22,7 @@ log = logging.getLogger("backend.otp")
 
 PURPOSES = frozenset({"register", "reset"})
 DEV_OTP = "123456"
-_DEFAULT_MESSAGE = "سامانه دیده‌بان فرهنگ\nکد ورود شما: {code}"
+_LOOKUP_TEMPLATE_DEFAULT = "binaappotp"
 
 
 def _mask_phone(phone: str) -> str:
@@ -92,30 +92,46 @@ def _kavenegar_configured() -> bool:
     return bool(_kavenegar_key())
 
 
-def _build_message(code: str) -> str:
-    template = (get_settings().kavenegar_otp_message or "").strip() or _DEFAULT_MESSAGE
-    if "{code}" not in template:
-        template = _DEFAULT_MESSAGE
-    return template.replace("{code}", code)
+def _lookup_template() -> str:
+    name = (get_settings().kavenegar_otp_template or "").strip() or _LOOKUP_TEMPLATE_DEFAULT
+    return name
 
 
-def _send_kavenegar(phone: str, text: str) -> None:
+def _read_kavenegar_payload(raw: bytes) -> dict:
+    try:
+        data = json.loads(raw.decode("utf-8"))
+    except (ValueError, json.JSONDecodeError, UnicodeDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _send_kavenegar_lookup(phone: str, code: str) -> None:
     key = _kavenegar_key()
-    sender = (get_settings().kavenegar_sender or "").strip()
-    params = {"receptor": phone, "message": text}
-    if sender:
-        params["sender"] = sender
-    url = f"https://api.kavenegar.com/v1/{key}/sms/send.json?{urlencode(params)}"
+    params = {
+        "receptor": phone,
+        "token": code,
+        "template": _lookup_template(),
+    }
+    url = f"https://api.kavenegar.com/v1/{key}/verify/lookup.json?{urlencode(params)}"
     request = Request(url, method="GET")
+    payload = {}
     try:
         with urlopen(request, timeout=15) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError, OSError):
-        log.warning("kavenegar send failed phone=%s", _mask_phone(phone))
+            payload = _read_kavenegar_payload(response.read())
+    except HTTPError as err:
+        try:
+            payload = _read_kavenegar_payload(err.read() or b"")
+        except Exception:
+            payload = {}
+        status = ((payload or {}).get("return") or {}).get("status")
+        log.warning("kavenegar lookup http failed phone=%s status=%s", _mask_phone(phone), status)
+        raise MembershipError("otp", "ارسال پیامک ممکن نشد.") from None
+    except (URLError, TimeoutError, ValueError, OSError):
+        log.warning("kavenegar lookup failed phone=%s", _mask_phone(phone))
         raise MembershipError("otp", "ارسال پیامک ممکن نشد.") from None
     status = ((payload or {}).get("return") or {}).get("status")
     if status != 200:
-        log.warning("kavenegar status=%s phone=%s", status, _mask_phone(phone))
+        log.warning("kavenegar lookup status=%s phone=%s", status, _mask_phone(phone))
         raise MembershipError("otp", "ارسال پیامک ممکن نشد.")
 
 
@@ -161,7 +177,7 @@ def send_otp(phone: str, purpose: str) -> dict:
 
     code = DEV_OTP if not _kavenegar_configured() else f"{secrets.randbelow(1_000_000):06d}"
     if _kavenegar_configured():
-        _send_kavenegar(phone, _build_message(code))
+        _send_kavenegar_lookup(phone, code)
     else:
         log.info("otp send skipped (no API key) phone=%s purpose=%s", _mask_phone(phone), purpose)
 
