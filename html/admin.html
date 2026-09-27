@@ -32,6 +32,7 @@
             <div class="admin-views" role="tablist" aria-label="بخش پنل">
                 <button type="button" class="admin-view-tab is-active" role="tab" aria-selected="true" data-view="requests">درخواست‌های عضویت</button>
                 <button type="button" class="admin-view-tab" role="tab" aria-selected="false" data-view="users">حساب‌ها و عکس‌ها</button>
+                <button type="button" class="admin-view-tab" role="tab" aria-selected="false" data-view="ops">وضعیت سامانه</button>
             </div>
             <h1 id="admin-title">درخواست‌های عضویت</h1>
             <p class="admin-lead" id="admin-lead">درخواست‌های ثبت‌نام را بررسی کنید. پذیرش، حساب را می‌سازد؛ رد، فقط پرونده را می‌بندد.</p>
@@ -184,6 +185,7 @@
                                     <th scope="col">نام</th>
                                     <th scope="col">شماره</th>
                                     <th scope="col">سمت</th>
+                                    <th scope="col">وضعیت</th>
                                     <th scope="col">عکس</th>
                                 </tr>
                             </thead>
@@ -225,7 +227,9 @@
                             </div>
                         </dl>
                         <div class="admin-detail-actions" id="user-photo-actions"></div>
+                        <p class="admin-detail-status" id="user-detail-status"></p>
                         <div class="admin-detail-actions">
+                            <button type="button" class="admin-btn" id="user-active-btn">غیرفعال کردن حساب</button>
                             <button type="button" class="admin-btn admin-btn-danger" id="user-delete-btn">حذف حساب</button>
                         </div>
                         <div class="admin-revisions" id="user-revisions-wrap">
@@ -234,6 +238,42 @@
                         </div>
                     </div>
                 </aside>
+            </section>
+        </div>
+
+        <div id="view-ops" hidden>
+            <section class="admin-ops" aria-label="وضعیت سامانه">
+                <article class="admin-ops-card">
+                    <h2>ثبت‌نام عمومی</h2>
+                    <p class="admin-ops-copy">با بستن این گزینه، فرم عضویت جدید و ارسال کد ثبت‌نام متوقف می‌شود. حساب‌های موجود همچنان می‌توانند وارد شوند.</p>
+                    <p class="admin-ops-state" id="reg-state">در حال خواندن وضعیت…</p>
+                    <button type="button" class="admin-btn" id="reg-toggle">بستن ثبت‌نام</button>
+                </article>
+                <article class="admin-ops-card">
+                    <h2>کدهای پیامکی امروز</h2>
+                    <p class="admin-stat-value" id="otp-today">۰</p>
+                    <p class="admin-ops-copy">تعداد کدهای یک‌بارمصرف ارسال‌شده از نیمه‌شب به وقت ایران. متن کلید سرویس نمایش داده نمی‌شود.</p>
+                </article>
+                <article class="admin-ops-card admin-ops-card-wide">
+                    <h2>ورود ناموفق</h2>
+                    <p class="admin-ops-copy">خلاصهٔ تلاش‌های ناموفق ورود. شماره به‌صورت ناقص دیده می‌شود.</p>
+                    <p class="admin-ops-kpis">امروز <b id="fail-today">۰</b> · هفت روز اخیر <b id="fail-week">۰</b></p>
+                    <div class="admin-table-wrap">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">زمان</th>
+                                    <th scope="col">شماره</th>
+                                    <th scope="col">علت</th>
+                                </tr>
+                            </thead>
+                            <tbody id="fail-tbody"></tbody>
+                        </table>
+                        <div class="admin-empty" id="fail-empty" hidden>
+                            <p class="admin-empty-title">ورود ناموفقی ثبت نشده</p>
+                        </div>
+                    </div>
+                </article>
             </section>
         </div>
     </main>

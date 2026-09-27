@@ -52,6 +52,9 @@ from backend.membership import (
     list_registration_requests,
     list_users_for_admin,
     lookup_auth_gate,
+    ops_overview,
+    set_registration_open,
+    set_user_active,
     profile_from_session_token,
     register_after_otp,
     reject_registration,
@@ -750,6 +753,14 @@ class RejectBody(BaseModel):
     note: str = ""
 
 
+class RegistrationToggleBody(BaseModel):
+    open: bool
+
+
+class UserActiveBody(BaseModel):
+    active: bool
+
+
 class ProfileBody(BaseModel):
     first_name: str = Field(min_length=1, max_length=80)
     last_name: str = Field(min_length=1, max_length=80)
@@ -773,6 +784,7 @@ _MEMBERSHIP_HTTP = {
     "otp": 400,
     "cooldown": 429,
     "rejected": 403,
+    "closed": 403,
     "pending": 409,
     "exists": 409,
     "not-found": 404,
@@ -969,6 +981,29 @@ def admin_delete_user(user_id: int, request: Request):
     except MembershipError as err:
         _raise_membership(err)
     return JSONResponse(content={"ok": True}, headers=_AUTH_NO_STORE)
+
+
+@app.post("/api/admin/users/{user_id}/active")
+def admin_set_user_active(user_id: int, body: UserActiveBody, request: Request):
+    admin = _require_admin(request)
+    try:
+        profile = set_user_active(user_id, admin["id"], body.active)
+    except MembershipError as err:
+        _raise_membership(err)
+    return JSONResponse(content=profile, headers=_AUTH_NO_STORE)
+
+
+@app.get("/api/admin/ops")
+def admin_ops(request: Request):
+    _require_admin(request)
+    return JSONResponse(content=ops_overview(), headers=_AUTH_NO_STORE)
+
+
+@app.post("/api/admin/ops/registration")
+def admin_set_registration(body: RegistrationToggleBody, request: Request):
+    _require_admin(request)
+    open_ = set_registration_open(body.open)
+    return JSONResponse(content={"registration_open": open_}, headers=_AUTH_NO_STORE)
 
 
 @app.delete("/api/admin/users/{user_id}/avatar")

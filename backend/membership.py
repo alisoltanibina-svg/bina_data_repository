@@ -22,7 +22,15 @@ from backend.avatars import (
     save_user_avatar,
 )
 from backend.database import db_session
-from backend.models import OtpChallenge, ProfileRevision, RegistrationRequest, User, UserSession
+from backend.models import (
+    LoginFailure,
+    OtpChallenge,
+    ProfileRevision,
+    RegistrationRequest,
+    SiteSetting,
+    User,
+    UserSession,
+)
 from backend.settings import get_settings
 
 _PROFILE_FIELDS = (
@@ -177,6 +185,7 @@ def public_profile(user: User) -> dict:
         "email": user.email or "",
         "address": user.address or "",
         "is_admin": bool(user.is_admin),
+        "is_active": user.is_active is not False,
         "avatar_url": public_url(user.avatar_path),
         "updated_at": _iso(user.updated_at),
     }
@@ -229,13 +238,17 @@ def authenticate(phone: str, password: str) -> dict | None:
             select(User).where(or_(User.phone == phone, func.trim(User.phone) == phone))
         ).scalars().first()
         if user is None:
+            record_login_failure(phone, "unknown")
             return None
         if user.is_active is False:
+            record_login_failure(phone, "inactive")
             return None
         stored_hash = (user.password_hash or "").strip()
         if not stored_hash:
+            record_login_failure(phone, "password")
             return None
         if not verify_password(stored_hash, password):
+            record_login_failure(phone, "password")
             return None
         profile = public_profile(user)
         user_id = user.id
@@ -264,13 +277,15 @@ def lookup_auth_gate(phone: str) -> str:
         ).scalars().all()
         if any(row.status == "pending" for row in requests):
             return "pending"
-        if user is not None and user.is_active is not False:
+        if user is not None:
             return "login"
         latest = requests[0] if requests else None
         if latest is not None and latest.status == "rejected":
             return "rejected"
         if latest is not None and latest.status == "approved":
             return "login"
+        if not registration_is_open():
+            return "closed"
         return "register"
 
 
@@ -333,6 +348,8 @@ def submit_registration(
     password = normalize_secret(password)
     if len(password) < 8:
         raise MembershipError("password", "رمز عبور حداقل ۸ نویسه باشد.")
+    if not registration_is_open():
+        raise MembershipError("closed", "ثبت‌نام موقتاً بسته است.")
 
     with db_session() as session:
         user = session.execute(select(User).where(User.phone == phone)).scalar_one_or_none()
@@ -390,6 +407,8 @@ def register_after_otp(
     password = normalize_secret(password)
     if len(password) < 8:
         raise MembershipError("password", "رمز عبور حداقل ۸ نویسه باشد.")
+    if not registration_is_open():
+        raise MembershipError("closed", "ثبت‌نام موقتاً بسته است.")
 
     with db_session() as session:
         existing = session.execute(select(User).where(User.phone == phone)).scalar_one_or_none()
@@ -459,7 +478,7 @@ def approve_registration(request_id: int, admin_id: int) -> dict:
         req = session.get(RegistrationRequest, request_id)
         if req is None:
             raise MembershipError("not-found", "درخواست پیدا نشد.")
-        if req.status != "pending":
+        if req.status not in ("pending", "rejected"):
             raise MembershipError("not-pending", "این درخواست قابل پذیرش نیست.")
         existing = session.execute(select(User).where(User.phone == req.phone)).scalar_one_or_none()
         if existing is not None:
@@ -669,6 +688,112 @@ def delete_user_account(user_id: int, actor_id: int) -> None:
         session.delete(user)
         session.flush()
     delete_avatar_file(avatar_path)
+
+
+def set_user_active(user_id: int, actor_id: int, active: bool) -> dict:
+    if int(user_id) == int(actor_id) and not active:
+        raise MembershipError("forbidden", "نمی‌توانید حساب خودتان را غیرفعال کنید.")
+    now = datetime.now(timezone.utc)
+    with db_session() as session:
+        user = session.get(User, user_id)
+        if user is None:
+            raise MembershipError("not-found", "حساب پیدا نشد.")
+        if user.is_admin and not active:
+            admin_count = session.execute(
+                select(func.count())
+                .select_from(User)
+                .where(User.is_admin.is_(True), User.is_active.is_(True))
+            ).scalar_one()
+            if int(admin_count or 0) <= 1:
+                raise MembershipError("forbidden", "آخرین مدیر فعال را نمی‌توان غیرفعال کرد.")
+        user.is_active = bool(active)
+        user.updated_at = now
+        if not active:
+            for row in session.execute(select(UserSession).where(UserSession.user_id == user_id)).scalars().all():
+                session.delete(row)
+        session.flush()
+        return public_profile(user)
+
+
+def _mask_phone(phone: str) -> str:
+    if len(phone) < 7:
+        return "***"
+    return phone[:4] + "***" + phone[-3:]
+
+
+def record_login_failure(phone: str, reason: str) -> None:
+    try:
+        with db_session() as session:
+            session.add(LoginFailure(phone_mask=_mask_phone(phone), reason=reason[:24]))
+    except Exception:
+        return
+
+
+def registration_is_open() -> bool:
+    with db_session() as session:
+        row = session.get(SiteSetting, "registration_open")
+        if row is None:
+            return True
+        return (row.value or "1").strip() not in ("0", "false", "off", "no")
+
+
+def set_registration_open(open_: bool) -> bool:
+    value = "1" if open_ else "0"
+    with db_session() as session:
+        row = session.get(SiteSetting, "registration_open")
+        if row is None:
+            session.add(SiteSetting(key="registration_open", value=value))
+        else:
+            row.value = value
+        session.flush()
+    return open_
+
+
+def _tehran_day_start_utc():
+    from zoneinfo import ZoneInfo
+
+    now = datetime.now(ZoneInfo("Asia/Tehran"))
+    start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    return start.astimezone(timezone.utc)
+
+
+def ops_overview() -> dict:
+    start_today = _tehran_day_start_utc()
+    start_week = start_today - timedelta(days=6)
+    reason_labels = {
+        "unknown": "شماره ناشناخته",
+        "password": "رمز نادرست",
+        "inactive": "حساب غیرفعال",
+    }
+    with db_session() as session:
+        otp_today = session.execute(
+            select(func.count()).select_from(OtpChallenge).where(OtpChallenge.created_at >= start_today)
+        ).scalar_one()
+        fail_today = session.execute(
+            select(func.count()).select_from(LoginFailure).where(LoginFailure.created_at >= start_today)
+        ).scalar_one()
+        fail_week = session.execute(
+            select(func.count()).select_from(LoginFailure).where(LoginFailure.created_at >= start_week)
+        ).scalar_one()
+        recent = session.execute(
+            select(LoginFailure).order_by(LoginFailure.created_at.desc()).limit(20)
+        ).scalars().all()
+    return {
+        "registration_open": registration_is_open(),
+        "otp_sent_today": int(otp_today or 0),
+        "login_failures": {
+            "today": int(fail_today or 0),
+            "last_7_days": int(fail_week or 0),
+            "recent": [
+                {
+                    "when": _iso(row.created_at),
+                    "phone_mask": row.phone_mask,
+                    "reason": reason_labels.get(row.reason, "نامشخص"),
+                }
+                for row in recent
+            ],
+        },
+    }
 
 
 def list_users_for_admin() -> list[dict]:

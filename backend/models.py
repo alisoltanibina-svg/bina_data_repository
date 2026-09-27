@@ -276,6 +276,26 @@ class OtpChallenge(Base):
     )
 
 
+class SiteSetting(Base):
+    __tablename__ = "site_settings"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str] = mapped_column(String(255), nullable=False, server_default="")
+
+
+class LoginFailure(Base):
+    __tablename__ = "login_failures"
+    __table_args__ = (Index("idx_login_failures_created_at", "created_at"),)
+
+    id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
+    phone_mask: Mapped[str] = mapped_column(String(20), nullable=False)
+    reason: Mapped[str] = mapped_column(String(24), nullable=False)
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+
 class ProfileRevision(Base):
     """Append-only log of profile field and avatar changes."""
 

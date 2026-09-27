@@ -14,7 +14,7 @@ from urllib.request import Request, urlopen
 from sqlalchemy import select
 
 from backend.database import db_session
-from backend.membership import MembershipError, is_mobile_phone, normalize_phone
+from backend.membership import MembershipError, is_mobile_phone, normalize_phone, registration_is_open
 from backend.models import OtpChallenge, RegistrationRequest, User
 from backend.settings import get_settings
 
@@ -51,6 +51,8 @@ def _active_user(session, phone: str) -> User | None:
 def _assert_send_allowed(session, phone: str, purpose: str) -> None:
     user = _active_user(session, phone)
     if purpose == "register":
+        if not registration_is_open():
+            raise MembershipError("closed", "ثبت‌نام موقتاً بسته است.")
         if user is not None:
             raise MembershipError("exists", "برای این شماره قبلاً حساب پذیرفته شده است.")
         pending = session.execute(

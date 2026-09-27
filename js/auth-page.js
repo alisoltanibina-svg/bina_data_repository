@@ -147,6 +147,7 @@ function errorFromRegister(data) {
     const detail = data && data.detail;
     const code = detail && detail.code;
     const message = detail && detail.message;
+    if (code === 'closed') return { field: '', text: message || 'ثبت‌نام موقتاً بسته است' };
     if (code === 'pending') return { field: '', text: message || 'برای این شماره یک درخواست در انتظار بررسی است' };
     if (code === 'exists') return { field: '', text: message || 'برای این شماره قبلاً حساب پذیرفته شده است' };
     if (code === 'otp') return { field: '', text: message || 'ابتدا کد پیامک را تأیید کنید' };
@@ -336,6 +337,10 @@ onReady(() => {
                     'درخواست پذیرفته نشد',
                     'متاسفیم، درخواست عضویت شما مطابق با سیاست‌های مجموعه ما نبوده است. می‌توانید از طریق لینک زیر درخواست بازنگری کنید.'
                 );
+                return;
+            }
+            if (status === 'closed') {
+                showStatus('ثبت‌نام بسته است', 'ثبت‌نام عمومی فعلاً متوقف شده است. اگر حساب دارید، با همان شماره وارد شوید.');
                 return;
             }
             setError('gate-phone', 'بررسی شماره ممکن نشد.');

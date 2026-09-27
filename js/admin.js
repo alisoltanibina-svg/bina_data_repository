@@ -65,6 +65,23 @@ const AdminApi = {
     },
     removeUser(id) {
         return adminFetch('/api/admin/users/' + encodeURIComponent(id), { method: 'DELETE' });
+    },
+    setUserActive(id, active) {
+        return adminFetch('/api/admin/users/' + encodeURIComponent(id) + '/active', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ active: !!active })
+        });
+    },
+    ops() {
+        return adminFetch('/api/admin/ops');
+    },
+    setRegistration(open) {
+        return adminFetch('/api/admin/ops/registration', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ open: !!open })
+        });
     }
 }
 
@@ -203,6 +220,9 @@ function renderTable() {
 }
 
 function rowActionsHtml(row) {
+    if (row.status === 'rejected') {
+        return '<button type="button" class="admin-btn admin-btn-primary" data-act="approve" data-id="' + escapeHtml(row.id) + '">پذیرش</button>';
+    }
     if (row.status !== 'pending') return '';
     return (
         '<button type="button" class="admin-btn admin-btn-primary" data-act="approve" data-id="' + escapeHtml(row.id) + '">پذیرش</button>' +
@@ -235,7 +255,7 @@ function renderDetail() {
         document.getElementById('detail-note').textContent = '';
     }
     const actions = document.getElementById('detail-actions');
-    actions.innerHTML = row.status === 'pending' ? rowActionsHtml(row) : '';
+    actions.innerHTML = (row.status === 'pending' || row.status === 'rejected') ? rowActionsHtml(row) : '';
 }
 
 function renderFilterClear() {
@@ -279,10 +299,24 @@ function openDialog(kind, row) {
     root.dataset.id = row.id;
     note.value = '';
     if (kind === 'approve') {
-        title.textContent = 'پذیرش درخواست';
-        text.textContent = 'با پذیرش، حساب «' + displayName(row) + '» ساخته می‌شود و این فرد می‌تواند وارد بخش‌های نیازمند عضویت شود.';
+        title.textContent = row.status === 'rejected' ? 'پذیرش درخواست ردشده' : 'پذیرش درخواست';
+        text.textContent = row.status === 'rejected'
+            ? 'این پرونده قبلاً رد شده است. با پذیرش، حساب «' + displayName(row) + '» ساخته می‌شود و می‌تواند وارد شود.'
+            : 'با پذیرش، حساب «' + displayName(row) + '» ساخته می‌شود و این فرد می‌تواند وارد بخش‌های نیازمند عضویت شود.';
         noteWrap.hidden = true;
         confirm.textContent = 'تأیید پذیرش';
+        confirm.className = 'admin-btn admin-btn-primary';
+    } else if (kind === 'deactivate') {
+        title.textContent = 'غیرفعال کردن حساب';
+        text.textContent = 'حساب «' + displayName(row) + '» موقتاً بسته می‌شود. ورود قطع می‌شود و بعداً می‌توان دوباره فعالش کرد.';
+        noteWrap.hidden = true;
+        confirm.textContent = 'غیرفعال کردن';
+        confirm.className = 'admin-btn admin-btn-danger';
+    } else if (kind === 'activate') {
+        title.textContent = 'فعال کردن حساب';
+        text.textContent = 'حساب «' + displayName(row) + '» دوباره فعال می‌شود و می‌تواند وارد شود.';
+        noteWrap.hidden = true;
+        confirm.textContent = 'فعال کردن';
         confirm.className = 'admin-btn admin-btn-primary';
     } else if (kind === 'remove-avatar') {
         title.textContent = 'حذف عکس';
@@ -342,12 +376,14 @@ async function confirmDialog() {
             }
             showNotice('عکس حذف شد.', 'ok');
             renderUsers();
-        } else if (kind === 'remove-user') {
-            await AdminApi.removeUser(id);
-            usersState.rows = usersState.rows.filter(item => !sameId(item.id, id));
-            usersState.selectedId = null;
-            usersState.detail = null;
-            showNotice('حساب حذف شد.', 'ok');
+        } else if (kind === 'deactivate' || kind === 'activate') {
+            const profile = await AdminApi.setUserActive(id, kind === 'activate');
+            const idx = usersState.rows.findIndex(item => sameId(item.id, id));
+            if (idx >= 0) usersState.rows[idx] = Object.assign({}, usersState.rows[idx], profile);
+            if (usersState.detail && sameId(usersState.detail.id, id)) {
+                usersState.detail = Object.assign({}, usersState.detail, profile);
+            }
+            showNotice(kind === 'activate' ? 'حساب فعال شد.' : 'حساب غیرفعال شد.', 'ok');
             renderUsers();
         } else {
             const row = await AdminApi.reject(id, note);
@@ -411,6 +447,9 @@ function renderUsersTable() {
             '<td><div class="admin-name">' + escapeHtml(displayName(row)) + '</div></td>' +
             '<td><span class="admin-phone">' + escapeHtml(row.phone || '') + '</span></td>' +
             '<td>' + escapeHtml(row.role_title || '—') + '</td>' +
+            '<td>' + (row.is_active === false
+                ? '<span class="admin-badge is-rejected">غیرفعال</span>'
+                : '<span class="admin-badge is-approved">فعال</span>') + '</td>' +
             '<td>' + (row.avatar_url ? 'دارد' : 'ندارد') + '</td>';
         frag.appendChild(tr);
     });
@@ -434,6 +473,19 @@ function renderUserDetail() {
     }
     pane.hidden = false;
     document.getElementById('user-detail-name').textContent = displayName(row);
+    const statusWrap = document.getElementById('user-detail-status');
+    if (statusWrap) {
+        statusWrap.innerHTML = row.is_active === false
+            ? '<span class="admin-badge is-rejected">غیرفعال</span>'
+            : '<span class="admin-badge is-approved">فعال</span>';
+    }
+    const activeBtn = document.getElementById('user-active-btn');
+    if (activeBtn) {
+        const inactive = row.is_active === false;
+        activeBtn.textContent = inactive ? 'فعال کردن حساب' : 'غیرفعال کردن حساب';
+        activeBtn.className = inactive ? 'admin-btn admin-btn-primary' : 'admin-btn admin-btn-danger';
+        activeBtn.dataset.act = inactive ? 'activate' : 'deactivate';
+    }
     document.getElementById('user-detail-phone').textContent = row.phone || '—';
     document.getElementById('user-detail-role').textContent = row.role_title || '—';
     document.getElementById('user-detail-org').textContent = row.organization || '—';
@@ -512,18 +564,68 @@ async function selectUser(id) {
 }
 
 function setAdminView(view) {
-    const requests = view === 'requests';
-    document.getElementById('view-requests').hidden = !requests;
-    document.getElementById('view-users').hidden = requests;
-    document.getElementById('admin-title').textContent = requests ? 'درخواست‌های عضویت' : 'حساب‌ها و عکس‌ها';
-    document.getElementById('admin-lead').textContent = requests
-        ? 'درخواست‌های ثبت‌نام را بررسی کنید. پذیرش، حساب را می‌سازد؛ رد، فقط پرونده را می‌بندد.'
-        : 'عکس هر حساب را ببینید، دانلود کنید یا حذف کنید. سابقهٔ ویرایش پروفایل هم اینجاست.';
+    document.getElementById('view-requests').hidden = view !== 'requests';
+    document.getElementById('view-users').hidden = view !== 'users';
+    const ops = document.getElementById('view-ops');
+    if (ops) ops.hidden = view !== 'ops';
+    const titles = {
+        requests: 'درخواست‌های عضویت',
+        users: 'حساب‌ها و عکس‌ها',
+        ops: 'وضعیت سامانه'
+    };
+    const leads = {
+        requests: 'درخواست‌های ثبت‌نام را بررسی کنید. پذیرش، حساب را می‌سازد؛ رد را می‌توان بعداً به پذیرش برگرداند.',
+        users: 'حساب را موقتاً غیرفعال کنید، یا در صورت نیاز حذف کنید. عکس و سابقهٔ ویرایش هم اینجاست.',
+        ops: 'ثبت‌نام عمومی، تعداد کدهای امروز، و خلاصهٔ ورودهای ناموفق.'
+    };
+    document.getElementById('admin-title').textContent = titles[view] || titles.requests;
+    document.getElementById('admin-lead').textContent = leads[view] || leads.requests;
     document.querySelectorAll('.admin-view-tab').forEach(btn => {
         const on = btn.dataset.view === view;
         btn.classList.toggle('is-active', on);
         btn.setAttribute('aria-selected', on ? 'true' : 'false');
     });
+}
+
+function renderOps(data) {
+    if (!data) return;
+    const open = data.registration_open !== false;
+    const stateEl = document.getElementById('reg-state');
+    const toggle = document.getElementById('reg-toggle');
+    if (stateEl) stateEl.textContent = open ? 'ثبت‌نام عمومی باز است.' : 'ثبت‌نام عمومی بسته است.';
+    if (toggle) {
+        toggle.textContent = open ? 'بستن ثبت‌نام' : 'باز کردن ثبت‌نام';
+        toggle.className = open ? 'admin-btn admin-btn-danger' : 'admin-btn admin-btn-primary';
+        toggle.dataset.open = open ? '1' : '0';
+    }
+    const otp = document.getElementById('otp-today');
+    if (otp) otp.textContent = toFa(data.otp_sent_today || 0);
+    const fails = data.login_failures || {};
+    const today = document.getElementById('fail-today');
+    const week = document.getElementById('fail-week');
+    if (today) today.textContent = toFa(fails.today || 0);
+    if (week) week.textContent = toFa(fails.last_7_days || 0);
+    const tbody = document.getElementById('fail-tbody');
+    const empty = document.getElementById('fail-empty');
+    const recent = fails.recent || [];
+    if (tbody) {
+        tbody.replaceChildren();
+        recent.forEach(row => {
+            const tr = document.createElement('tr');
+            tr.innerHTML =
+                '<td>' + escapeHtml(formatWhen(row.when)) + '</td>' +
+                '<td><span class="admin-phone">' + escapeHtml(row.phone_mask || '') + '</span></td>' +
+                '<td>' + escapeHtml(row.reason || '—') + '</td>';
+            tbody.appendChild(tr);
+        });
+    }
+    if (empty) empty.hidden = recent.length > 0;
+}
+
+async function loadOps() {
+    const data = await AdminApi.ops();
+    renderOps(data);
+    return data;
 }
 
 async function downloadUserAvatar(row) {
@@ -609,6 +711,9 @@ function bind() {
             if (btn.dataset.view === 'users' && !usersState.rows.length) {
                 try { await loadUsers(); } catch (err) { showNotice('بارگذاری حساب‌ها ممکن نشد.'); }
             }
+            if (btn.dataset.view === 'ops') {
+                try { await loadOps(); } catch (err) { showNotice('بارگذاری وضعیت سامانه ممکن نشد.'); }
+            }
         });
     });
 
@@ -647,9 +752,33 @@ function bind() {
             openDialog('remove-avatar', usersState.detail);
         }
     });
-    document.getElementById('user-delete-btn').addEventListener('click', () => {
-        if (usersState.detail) openDialog('remove-user', usersState.detail);
-    });
+    const activeBtn = document.getElementById('user-active-btn');
+    if (activeBtn) {
+        activeBtn.addEventListener('click', () => {
+            if (!usersState.detail) return;
+            openDialog(usersState.detail.is_active === false ? 'activate' : 'deactivate', usersState.detail);
+        });
+    }
+    const deleteBtn = document.getElementById('user-delete-btn');
+    if (deleteBtn) {
+        deleteBtn.addEventListener('click', () => {
+            if (usersState.detail) openDialog('remove-user', usersState.detail);
+        });
+    }
+    const regToggle = document.getElementById('reg-toggle');
+    if (regToggle) {
+        regToggle.addEventListener('click', async () => {
+            const currentlyOpen = regToggle.dataset.open !== '0';
+            try {
+                const data = await AdminApi.setRegistration(!currentlyOpen);
+                const ops = await AdminApi.ops();
+                renderOps(Object.assign({}, ops, data));
+                showNotice(currentlyOpen ? 'ثبت‌نام بسته شد.' : 'ثبت‌نام باز شد.', 'ok');
+            } catch (err) {
+                showNotice((err && err.message) || 'تغییر وضعیت ثبت‌نام ممکن نشد.');
+            }
+        });
+    }
 }
 
 onReady(async () => {
