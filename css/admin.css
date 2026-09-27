@@ -188,6 +188,10 @@ body.admin-body {
     border-bottom: 1px solid var(--ad-line);
 }
 
+#requests-export {
+    align-self: flex-start;
+}
+
 .admin-tabs {
     display: flex;
     flex-wrap: wrap;
@@ -721,6 +725,22 @@ body.admin-body {
 
 .admin-ops-card-wide {
     grid-column: 1 / -1;
+}
+
+.admin-ops-chart-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.admin-ops-chart-head h2 { margin: 0; }
+
+.admin-ops-chart-wrap {
+    position: relative;
+    height: 280px;
 }
 
 #view-ops {

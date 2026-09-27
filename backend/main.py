@@ -53,6 +53,7 @@ from backend.membership import (
     list_users_for_admin,
     lookup_auth_gate,
     ops_overview,
+    requests_xlsx_bytes,
     set_registration_open,
     set_user_active,
     profile_from_session_token,
@@ -997,6 +998,19 @@ def admin_set_user_active(user_id: int, body: UserActiveBody, request: Request):
 def admin_ops(request: Request):
     _require_admin(request)
     return JSONResponse(content=ops_overview(), headers=_AUTH_NO_STORE)
+
+
+@app.get("/api/admin/requests/export")
+def admin_export_requests(request: Request):
+    _require_admin(request)
+    payload = requests_xlsx_bytes()
+    headers = dict(_AUTH_NO_STORE)
+    headers["Content-Disposition"] = 'attachment; filename="membership-requests.xlsx"'
+    return Response(
+        content=payload,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers=headers,
+    )
 
 
 @app.post("/api/admin/ops/registration")

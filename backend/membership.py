@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 import hashlib
+import io
+import logging
 import re
 import secrets
+import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from xml.sax.saxutils import escape as xml_escape
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHash, VerificationError, VerifyMismatchError
 from sqlalchemy import func, or_, select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, ProgrammingError, OperationalError
 
 from backend.avatars import (
     AVATAR_DIR,
@@ -32,6 +36,8 @@ from backend.models import (
     UserSession,
 )
 from backend.settings import get_settings
+
+log = logging.getLogger("backend.membership")
 
 _PROFILE_FIELDS = (
     "first_name",
@@ -252,6 +258,7 @@ def authenticate(phone: str, password: str) -> dict | None:
             return None
         profile = public_profile(user)
         user_id = user.id
+    record_login_failure(phone, "ok")
     token, expires_at = create_session(user_id)
     return {"profile": profile, "token": token, "expires_at": expires_at}
 
@@ -761,51 +768,253 @@ def set_registration_open(open_: bool) -> bool:
     return open_
 
 
-def _tehran_day_start_utc():
-    from zoneinfo import ZoneInfo
+def _tehran_tz():
+    try:
+        from zoneinfo import ZoneInfo
+        return ZoneInfo("Asia/Tehran")
+    except Exception:
+        return timezone(timedelta(hours=3, minutes=30))
 
-    now = datetime.now(ZoneInfo("Asia/Tehran"))
+
+def _tehran_now():
+    return datetime.now(_tehran_tz())
+
+
+def _tehran_day_start_utc():
+    now = _tehran_now()
     start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     return start.astimezone(timezone.utc)
 
 
-def ops_overview() -> dict:
-    start_today = _tehran_day_start_utc()
-    start_week = start_today - timedelta(days=6)
-    reason_labels = {
+def _fail_reason_label(reason: str) -> str:
+    return {
         "unknown": "شماره ناشناخته",
         "password": "رمز نادرست",
         "inactive": "حساب غیرفعال",
+        "ok": "موفق",
+    }.get(reason, "نامشخص")
+
+
+def _login_trend_range(kind: str) -> dict:
+    now = _tehran_now().replace(second=0, microsecond=0)
+    if kind == "hourly":
+        end = now.replace(minute=0)
+        start = end - timedelta(hours=23)
+        step = timedelta(hours=1)
+        count = 24
+        label_fmt = "%H:00"
+    elif kind == "monthly":
+        end = now.replace(hour=0, minute=0)
+        start = end - timedelta(days=29)
+        step = timedelta(days=1)
+        count = 30
+        label_fmt = "%m/%d"
+    else:
+        end = now.replace(hour=0, minute=0)
+        start = end - timedelta(days=6)
+        step = timedelta(days=1)
+        count = 7
+        label_fmt = "%m/%d"
+    return {"start": start, "end": end, "step": step, "count": count, "label_fmt": label_fmt}
+
+
+def _bucket_login_trend(kind: str, rows: list[LoginFailure]) -> dict:
+    spec = _login_trend_range(kind)
+    tz = _tehran_tz()
+    start = spec["start"]
+    step = spec["step"]
+    labels = []
+    success = []
+    fail = []
+    for i in range(spec["count"]):
+        bucket_start = start + step * i
+        bucket_end = bucket_start + step
+        labels.append(bucket_start.strftime(spec["label_fmt"]))
+        ok_n = 0
+        fail_n = 0
+        for row in rows:
+            when = row.created_at
+            if when is None:
+                continue
+            if when.tzinfo is None:
+                when = when.replace(tzinfo=timezone.utc)
+            local = when.astimezone(tz)
+            if bucket_start <= local < bucket_end:
+                if row.reason == "ok":
+                    ok_n += 1
+                else:
+                    fail_n += 1
+        success.append(ok_n)
+        fail.append(fail_n)
+    return {"labels": labels, "success": success, "fail": fail}
+
+
+def ops_overview() -> dict:
+    empty_trend = {"labels": [], "success": [], "fail": []}
+    payload = {
+        "registration_open": True,
+        "otp_sent_today": 0,
+        "login_failures": {"today": 0, "last_7_days": 0, "recent": []},
+        "login_trend": {"hourly": empty_trend, "weekly": empty_trend, "monthly": empty_trend},
     }
-    with db_session() as session:
-        otp_today = session.execute(
-            select(func.count()).select_from(OtpChallenge).where(OtpChallenge.created_at >= start_today)
-        ).scalar_one()
-        fail_today = session.execute(
-            select(func.count()).select_from(LoginFailure).where(LoginFailure.created_at >= start_today)
-        ).scalar_one()
-        fail_week = session.execute(
-            select(func.count()).select_from(LoginFailure).where(LoginFailure.created_at >= start_week)
-        ).scalar_one()
-        recent = session.execute(
-            select(LoginFailure).order_by(LoginFailure.created_at.desc()).limit(20)
-        ).scalars().all()
-    return {
-        "registration_open": registration_is_open(),
-        "otp_sent_today": int(otp_today or 0),
-        "login_failures": {
+    try:
+        payload["registration_open"] = registration_is_open()
+    except Exception:
+        log.exception("ops registration_open")
+    start_today = _tehran_day_start_utc()
+    start_week = start_today - timedelta(days=6)
+    start_month = _login_trend_range("monthly")["start"].astimezone(timezone.utc)
+    try:
+        with db_session() as session:
+            otp_today = session.execute(
+                select(func.count()).select_from(OtpChallenge).where(OtpChallenge.created_at >= start_today)
+            ).scalar_one()
+            payload["otp_sent_today"] = int(otp_today or 0)
+    except (ProgrammingError, OperationalError):
+        log.warning("ops otp count skipped (schema)")
+    try:
+        with db_session() as session:
+            fail_today = session.execute(
+                select(func.count()).select_from(LoginFailure).where(
+                    LoginFailure.created_at >= start_today,
+                    LoginFailure.reason != "ok",
+                )
+            ).scalar_one()
+            fail_week = session.execute(
+                select(func.count()).select_from(LoginFailure).where(
+                    LoginFailure.created_at >= start_week,
+                    LoginFailure.reason != "ok",
+                )
+            ).scalar_one()
+            recent = session.execute(
+                select(LoginFailure)
+                .where(LoginFailure.reason != "ok")
+                .order_by(LoginFailure.created_at.desc())
+                .limit(20)
+            ).scalars().all()
+            trend_rows = session.execute(
+                select(LoginFailure).where(LoginFailure.created_at >= start_month)
+            ).scalars().all()
+        payload["login_failures"] = {
             "today": int(fail_today or 0),
             "last_7_days": int(fail_week or 0),
             "recent": [
                 {
                     "when": _iso(row.created_at),
                     "phone_mask": row.phone_mask,
-                    "reason": reason_labels.get(row.reason, "نامشخص"),
+                    "reason": _fail_reason_label(row.reason),
                 }
                 for row in recent
             ],
-        },
-    }
+        }
+        payload["login_trend"] = {
+            "hourly": _bucket_login_trend("hourly", trend_rows),
+            "weekly": _bucket_login_trend("weekly", trend_rows),
+            "monthly": _bucket_login_trend("monthly", trend_rows),
+        }
+    except (ProgrammingError, OperationalError):
+        log.warning("ops login stats skipped (schema)")
+    except Exception:
+        log.exception("ops_overview")
+    return payload
+
+
+_REQUEST_STATUS_FA = {
+    "pending": "در انتظار",
+    "approved": "پذیرفته",
+    "rejected": "رد شده",
+}
+
+
+def requests_xlsx_bytes() -> bytes:
+    rows = list_registration_requests()
+    headers = [
+        "شناسه",
+        "نام",
+        "نام خانوادگی",
+        "موبایل",
+        "سمت",
+        "سازمان",
+        "وضعیت",
+        "یادداشت",
+        "تاریخ ثبت",
+        "تاریخ بررسی",
+    ]
+    data = [
+        [
+            str(row.get("id") or ""),
+            row.get("first_name") or "",
+            row.get("last_name") or "",
+            row.get("phone") or "",
+            row.get("role_title") or "",
+            row.get("organization") or "",
+            _REQUEST_STATUS_FA.get(row.get("status"), row.get("status") or ""),
+            row.get("note") or "",
+            row.get("created_at") or "",
+            row.get("reviewed_at") or "",
+        ]
+        for row in rows
+    ]
+    return _xlsx_bytes("requests", headers, data)
+
+
+def _xlsx_bytes(sheet_name: str, headers: list[str], rows: list[list[str]]) -> bytes:
+    def cell_xml(col_idx: int, row_idx: int, value: str) -> str:
+        col = ""
+        n = col_idx
+        while n:
+            n, rem = divmod(n - 1, 26)
+            col = chr(65 + rem) + col
+        ref = f"{col}{row_idx}"
+        text = xml_escape(str(value or ""), {"'": "&apos;", '"': "&quot;"})
+        return f'<c r="{ref}" t="inlineStr"><is><t xml:space="preserve">{text}</t></is></c>'
+
+    sheet_rows = []
+    header_cells = "".join(cell_xml(i + 1, 1, headers[i]) for i in range(len(headers)))
+    sheet_rows.append(f'<row r="1">{header_cells}</row>')
+    for r, values in enumerate(rows, start=2):
+        cells = "".join(cell_xml(i + 1, r, values[i] if i < len(values) else "") for i in range(len(headers)))
+        sheet_rows.append(f'<row r="{r}">{cells}</row>')
+    sheet = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+        f'<sheetData>{"".join(sheet_rows)}</sheetData></worksheet>'
+    )
+    workbook = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+        f'<sheets><sheet name="{xml_escape(sheet_name)}" sheetId="1" r:id="rId1"/></sheets></workbook>'
+    )
+    rels = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+        "</Relationships>"
+    )
+    wb_rels = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+        "</Relationships>"
+    )
+    ctypes = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+        '<Default Extension="xml" ContentType="application/xml"/>'
+        '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+        '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+        "</Types>"
+    )
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("[Content_Types].xml", ctypes)
+        zf.writestr("_rels/.rels", rels)
+        zf.writestr("xl/workbook.xml", workbook)
+        zf.writestr("xl/_rels/workbook.xml.rels", wb_rels)
+        zf.writestr("xl/worksheets/sheet1.xml", sheet)
+    return buf.getvalue()
 
 
 def list_users_for_admin() -> list[dict]:

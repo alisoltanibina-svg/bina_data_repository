@@ -82,6 +82,15 @@ const AdminApi = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ open: !!open })
         });
+    },
+    async exportRequests() {
+        const response = await fetch(`${API_BASE_URL}/api/admin/requests/export`, { credentials: 'include' });
+        if (response.status === 401 || response.status === 403) {
+            window.location.href = SITE.page('index.html') + '#auth';
+            throw new Error('auth');
+        }
+        if (!response.ok) throw new Error('دانلود اکسل ممکن نشد.');
+        return response.blob();
     }
 }
 
@@ -95,6 +104,8 @@ const CHANGE_LABELS = {
     address: 'نشانی',
     avatar_path: 'عکس'
 };
+
+const opsState = { range: 'weekly', trend: {}, chart: null };
 
 const usersState = {
     rows: [],
@@ -629,6 +640,58 @@ function renderOps(data) {
         });
     }
     if (empty) empty.hidden = recent.length > 0;
+    opsState.trend = data.login_trend || {};
+    renderLoginTrend();
+}
+
+function renderLoginTrend() {
+    const canvas = document.getElementById('login-trend-chart');
+    if (!canvas || typeof Chart === 'undefined') return;
+    const pack = (opsState.trend && opsState.trend[opsState.range]) || { labels: [], success: [], fail: [] };
+    const labels = (pack.labels || []).map(toFa);
+    const payload = {
+        labels: labels,
+        datasets: [
+            {
+                label: 'موفق',
+                data: pack.success || [],
+                borderColor: '#515811',
+                backgroundColor: 'rgba(81, 88, 17, 0.18)',
+                fill: true,
+                tension: 0.3,
+                borderWidth: 2
+            },
+            {
+                label: 'ناموفق',
+                data: pack.fail || [],
+                borderColor: '#b91c1c',
+                backgroundColor: 'rgba(185, 28, 28, 0.12)',
+                fill: true,
+                tension: 0.3,
+                borderWidth: 2
+            }
+        ]
+    };
+    if (opsState.chart) {
+        opsState.chart.data = payload;
+        opsState.chart.update();
+        return;
+    }
+    opsState.chart = new Chart(canvas.getContext('2d'), {
+        type: 'line',
+        data: payload,
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { labels: { font: { family: 'PeydaFaNumWeb', size: 12 } } }
+            },
+            scales: {
+                x: { ticks: { font: { family: 'PeydaFaNumWeb', size: 11 } }, grid: { display: false } },
+                y: { beginAtZero: true, ticks: { precision: 0, font: { family: 'PeydaFaNumWeb', size: 11 } } }
+            }
+        }
+    });
 }
 
 async function loadOps() {
@@ -659,8 +722,36 @@ async function downloadUserAvatar(row) {
 function bind() {
     bindPhoneInput(document.getElementById('filter-phone'));
     bindPhoneInput(document.getElementById('user-filter-phone'));
-    document.querySelectorAll('.admin-tab').forEach(btn => {
+    document.querySelectorAll('#view-requests .admin-tab').forEach(btn => {
         btn.addEventListener('click', () => setFilter(btn.dataset.filter));
+    });
+    const exportBtn = document.getElementById('requests-export');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', async () => {
+            try {
+                const blob = await AdminApi.exportRequests();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'membership-requests.xlsx';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+            } catch (err) {
+                if (err.message !== 'auth') showNotice(err.message || 'دانلود اکسل ممکن نشد.');
+            }
+        });
+    }
+    document.querySelectorAll('#view-ops [data-trend]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            opsState.range = btn.dataset.trend || 'weekly';
+            document.querySelectorAll('#view-ops [data-trend]').forEach(item => {
+                const on = item.dataset.trend === opsState.range;
+                item.classList.toggle('is-active', on);
+            });
+            renderLoginTrend();
+        });
     });
 
     document.getElementById('admin-filters').addEventListener('input', event => {

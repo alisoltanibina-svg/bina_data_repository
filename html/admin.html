@@ -18,6 +18,7 @@
     <link rel="stylesheet" href="../css/treat-v1.css">
     <script src="../js/config.js"></script>
     <script src="../js/shared.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous"></script>
     <script src="../js/admin.js" defer></script>
     <script src="../js/auth.js" defer></script>
 </head>
@@ -63,6 +64,7 @@
                         <button type="button" class="admin-tab" role="tab" aria-selected="false" data-filter="rejected">رد شده</button>
                         <button type="button" class="admin-tab" role="tab" aria-selected="false" data-filter="all">همه</button>
                     </div>
+                    <button type="button" class="admin-btn admin-btn-ghost" id="requests-export">دانلود اکسل</button>
                     <div class="admin-filters" id="admin-filters">
                         <label class="admin-filter">
                             <span>نام</span>
@@ -253,6 +255,20 @@
                     <h2>کدهای پیامکی امروز</h2>
                     <p class="admin-stat-value" id="otp-today">۰</p>
                     <p class="admin-ops-copy">تعداد کدهای یک‌بارمصرف ارسال‌شده از نیمه‌شب به وقت ایران. متن کلید سرویس نمایش داده نمی‌شود.</p>
+                </article>
+                <article class="admin-ops-card admin-ops-card-wide">
+                    <div class="admin-ops-chart-head">
+                        <h2>روند ورود</h2>
+                        <div class="admin-tabs" role="tablist" aria-label="بازه نمودار">
+                            <button type="button" class="admin-tab" data-trend="hourly">ساعتی</button>
+                            <button type="button" class="admin-tab is-active" data-trend="weekly">هفتگی</button>
+                            <button type="button" class="admin-tab" data-trend="monthly">ماهانه</button>
+                        </div>
+                    </div>
+                    <p class="admin-ops-copy">تعداد ورودهای موفق و ناموفق در بازه انتخاب‌شده.</p>
+                    <div class="admin-ops-chart-wrap">
+                        <canvas id="login-trend-chart"></canvas>
+                    </div>
                 </article>
                 <article class="admin-ops-card admin-ops-card-wide">
                     <h2>ورود ناموفق</h2>
