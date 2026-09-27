@@ -135,6 +135,64 @@ def _send_kavenegar_lookup(phone: str, code: str) -> None:
         raise MembershipError("otp", "ارسال پیامک ممکن نشد.")
 
 
+SMS_REQUEST_FILED = (
+    "سامانه دیده‌بان فرهنگ\n"
+    "درخواست شما با موفقیت ثبت شد. نتیجه آن از طریق پیامک به شما اعلام خواهد شد."
+)
+SMS_ACCOUNT_APPROVED = (
+    "سامانه دیده‌بان فرهنگ\n"
+    "کاربر گرامی، حساب کاربری شما در سامانه با موفقیت ایجاد شد. لینک سامانه:\n"
+    "https://app.rasadbina.ir"
+)
+
+
+def _send_kavenegar_sms(phone: str, text: str) -> None:
+    key = _kavenegar_key()
+    sender = (get_settings().kavenegar_sender or "").strip()
+    params = {"receptor": phone, "message": text}
+    if sender:
+        params["sender"] = sender
+    url = f"https://api.kavenegar.com/v1/{key}/sms/send.json?{urlencode(params)}"
+    request = Request(url, method="GET")
+    payload = {}
+    try:
+        with urlopen(request, timeout=15) as response:
+            payload = _read_kavenegar_payload(response.read())
+    except HTTPError as err:
+        try:
+            payload = _read_kavenegar_payload(err.read() or b"")
+        except Exception:
+            payload = {}
+        status = ((payload or {}).get("return") or {}).get("status")
+        log.warning("kavenegar sms http failed phone=%s status=%s", _mask_phone(phone), status)
+        raise MembershipError("otp", "ارسال پیامک ممکن نشد.") from None
+    except (URLError, TimeoutError, ValueError, OSError):
+        log.warning("kavenegar sms failed phone=%s", _mask_phone(phone))
+        raise MembershipError("otp", "ارسال پیامک ممکن نشد.") from None
+    status = ((payload or {}).get("return") or {}).get("status")
+    if status != 200:
+        log.warning("kavenegar sms status=%s phone=%s", status, _mask_phone(phone))
+        raise MembershipError("otp", "ارسال پیامک ممکن نشد.")
+
+
+def send_plain_sms(phone: str, text: str) -> None:
+    phone = normalize_phone(phone)
+    if not is_mobile_phone(phone) or not text or not _kavenegar_configured():
+        return
+    try:
+        _send_kavenegar_sms(phone, text)
+    except MembershipError:
+        log.warning("plain sms not delivered phone=%s", _mask_phone(phone))
+
+
+def notify_registration_filed(phone: str) -> None:
+    send_plain_sms(phone, SMS_REQUEST_FILED)
+
+
+def notify_account_approved(phone: str) -> None:
+    send_plain_sms(phone, SMS_ACCOUNT_APPROVED)
+
+
 def send_otp(phone: str, purpose: str) -> dict:
     phone = normalize_phone(phone)
     purpose = (purpose or "").strip()

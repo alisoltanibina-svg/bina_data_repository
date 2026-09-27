@@ -378,7 +378,11 @@ def submit_registration(
         except IntegrityError:
             raise MembershipError("pending", "برای این شماره یک درخواست در انتظار بررسی است.") from None
         session.refresh(row)
-        return serialize_request(row)
+        payload = serialize_request(row)
+        filed_phone = phone
+    from backend.otp import notify_registration_filed
+    notify_registration_filed(filed_phone)
+    return payload
 
 
 def register_after_otp(
@@ -438,7 +442,11 @@ def register_after_otp(
         except IntegrityError:
             raise MembershipError("pending", "برای این شماره یک درخواست در انتظار بررسی است.") from None
         session.refresh(row)
-        return serialize_request(row)
+        payload = serialize_request(row)
+        filed_phone = phone
+    from backend.otp import notify_registration_filed
+    notify_registration_filed(filed_phone)
+    return payload
 
 
 def reset_password_after_otp(phone: str, password: str) -> dict:
@@ -503,7 +511,11 @@ def approve_registration(request_id: int, admin_id: int) -> dict:
         req.reviewed_at = now
         req.reviewed_by = admin_id
         session.flush()
-        return serialize_request(req)
+        payload = serialize_request(req)
+        approved_phone = normalize_phone(req.phone)
+    from backend.otp import notify_account_approved
+    notify_account_approved(approved_phone)
+    return payload
 
 
 def reject_registration(request_id: int, admin_id: int, note: str) -> dict:
