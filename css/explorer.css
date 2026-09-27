@@ -1032,6 +1032,14 @@ body.explorer-body {
         margin-top: calc(env(safe-area-inset-top, 0px) + var(--banner-gap) + 56px + 8px);
         flex-shrink: 0;
     }
+    body.explorer-body #explorer-page-nav .banner-seg {
+        display: flex;
+        width: 100%;
+    }
+    body.explorer-body #explorer-page-nav .banner-seg-btn:nth-child(1) { order: 1; }
+    body.explorer-body #explorer-page-nav .banner-seg-btn:nth-child(2) { order: 2; }
+    body.explorer-body #explorer-page-nav .banner-seg-btn:nth-child(3) { order: 3; }
+    body.explorer-body #explorer-page-nav .banner-seg-btn:nth-child(4) { order: 4; }
     .explorer-workspace {
         margin-top: 0;
         padding: 8px 10px calc(10px + env(safe-area-inset-bottom, 0px));
