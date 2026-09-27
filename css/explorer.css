@@ -1033,13 +1033,15 @@ body.explorer-body {
         flex-shrink: 0;
     }
     body.explorer-body #explorer-page-nav .banner-seg {
-        display: flex;
+        display: grid !important;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        direction: rtl;
         width: 100%;
     }
-    body.explorer-body #explorer-page-nav .banner-seg-btn:nth-child(1) { order: 1; }
-    body.explorer-body #explorer-page-nav .banner-seg-btn:nth-child(2) { order: 2; }
-    body.explorer-body #explorer-page-nav .banner-seg-btn:nth-child(3) { order: 3; }
-    body.explorer-body #explorer-page-nav .banner-seg-btn:nth-child(4) { order: 4; }
+    body.explorer-body #explorer-page-nav .banner-seg-btn[data-nav="atlas"] { grid-column: 1; }
+    body.explorer-body #explorer-page-nav .banner-seg-btn[data-nav="explorer"] { grid-column: 2; }
+    body.explorer-body #explorer-page-nav .banner-seg-btn[data-nav="index"] { grid-column: 3; }
+    body.explorer-body #explorer-page-nav .banner-seg-btn[data-nav="types"] { grid-column: 4; }
     .explorer-workspace {
         margin-top: 0;
         padding: 8px 10px calc(10px + env(safe-area-inset-bottom, 0px));

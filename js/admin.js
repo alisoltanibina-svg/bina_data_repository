@@ -647,51 +647,56 @@ function renderOps(data) {
 function renderLoginTrend() {
     const canvas = document.getElementById('login-trend-chart');
     if (!canvas || typeof Chart === 'undefined') return;
-    const pack = (opsState.trend && opsState.trend[opsState.range]) || { labels: [], success: [], fail: [] };
+    const pack = (opsState.trend && opsState.trend[opsState.range]) || { labels: [], total: [], success: [], fail: [] };
     const labels = (pack.labels || []).map(toFa);
+    const totals = pack.total && pack.total.length
+        ? pack.total
+        : (pack.success || []).map((n, i) => Number(n || 0) + Number((pack.fail || [])[i] || 0));
+    const maxVal = totals.reduce((m, n) => Math.max(m, Number(n) || 0), 0);
     const payload = {
         labels: labels,
         datasets: [
             {
-                label: 'موفق',
-                data: pack.success || [],
+                label: 'ورود',
+                data: totals,
+                backgroundColor: '#515811',
                 borderColor: '#515811',
-                backgroundColor: 'rgba(81, 88, 17, 0.18)',
-                fill: true,
-                tension: 0.3,
-                borderWidth: 2
-            },
-            {
-                label: 'ناموفق',
-                data: pack.fail || [],
-                borderColor: '#b91c1c',
-                backgroundColor: 'rgba(185, 28, 28, 0.12)',
-                fill: true,
-                tension: 0.3,
-                borderWidth: 2
+                borderRadius: 4,
+                maxBarThickness: 28
             }
         ]
     };
+    const yScale = {
+        beginAtZero: true,
+        suggestedMax: Math.max(4, maxVal),
+        ticks: { precision: 0, stepSize: 1, font: { family: 'PeydaFaNumWeb', size: 11 } },
+        title: { display: true, text: 'تعداد ورود', font: { family: 'PeydaFaNumWeb', size: 12 } }
+    };
+    const xScale = {
+        ticks: { font: { family: 'PeydaFaNumWeb', size: 11 }, maxRotation: 0 },
+        grid: { display: false },
+        title: { display: true, text: 'زمان', font: { family: 'PeydaFaNumWeb', size: 12 } }
+    };
     if (opsState.chart) {
         opsState.chart.data = payload;
+        opsState.chart.options.scales.y.suggestedMax = yScale.suggestedMax;
         opsState.chart.update();
+        requestAnimationFrame(() => { try { opsState.chart.resize(); } catch (e) {} });
         return;
     }
     opsState.chart = new Chart(canvas.getContext('2d'), {
-        type: 'line',
+        type: 'bar',
         data: payload,
         options: {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { labels: { font: { family: 'PeydaFaNumWeb', size: 12 } } }
+                legend: { display: false }
             },
-            scales: {
-                x: { ticks: { font: { family: 'PeydaFaNumWeb', size: 11 } }, grid: { display: false } },
-                y: { beginAtZero: true, ticks: { precision: 0, font: { family: 'PeydaFaNumWeb', size: 11 } } }
-            }
+            scales: { x: xScale, y: yScale }
         }
     });
+    requestAnimationFrame(() => { try { opsState.chart.resize(); } catch (e) {} });
 }
 
 async function loadOps() {
@@ -812,7 +817,10 @@ function bind() {
                 try { await loadUsers(); } catch (err) { showNotice('بارگذاری حساب‌ها ممکن نشد.'); }
             }
             if (btn.dataset.view === 'ops') {
-                try { await loadOps(); } catch (err) { showNotice('بارگذاری وضعیت سامانه ممکن نشد.'); }
+                try {
+                    await loadOps();
+                    requestAnimationFrame(() => renderLoginTrend());
+                } catch (err) { showNotice('بارگذاری وضعیت سامانه ممکن نشد.'); }
             }
         });
     });

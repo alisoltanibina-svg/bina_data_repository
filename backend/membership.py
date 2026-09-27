@@ -846,16 +846,24 @@ def _bucket_login_trend(kind: str, rows: list[LoginFailure]) -> dict:
                     fail_n += 1
         success.append(ok_n)
         fail.append(fail_n)
-    return {"labels": labels, "success": success, "fail": fail}
+    return {
+        "labels": labels,
+        "success": success,
+        "fail": fail,
+        "total": [success[i] + fail[i] for i in range(len(success))],
+    }
 
 
 def ops_overview() -> dict:
-    empty_trend = {"labels": [], "success": [], "fail": []}
     payload = {
         "registration_open": True,
         "otp_sent_today": 0,
         "login_failures": {"today": 0, "last_7_days": 0, "recent": []},
-        "login_trend": {"hourly": empty_trend, "weekly": empty_trend, "monthly": empty_trend},
+        "login_trend": {
+            "hourly": _bucket_login_trend("hourly", []),
+            "weekly": _bucket_login_trend("weekly", []),
+            "monthly": _bucket_login_trend("monthly", []),
+        },
     }
     try:
         payload["registration_open"] = registration_is_open()
