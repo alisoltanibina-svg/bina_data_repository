@@ -106,6 +106,10 @@ def _read_kavenegar_payload(raw: bytes) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def _kavenegar_status(payload: dict):
+    return ((payload or {}).get("return") or {}).get("status")
+
+
 def _send_kavenegar_lookup(phone: str, code: str) -> None:
     key = _kavenegar_key()
     params = {
@@ -113,24 +117,28 @@ def _send_kavenegar_lookup(phone: str, code: str) -> None:
         "token": code,
         "template": _lookup_template(),
     }
-    url = f"https://api.kavenegar.com/v1/{key}/verify/lookup.json?{urlencode(params)}"
-    request = Request(url, method="GET")
+    body = urlencode(params).encode("utf-8")
+    url = f"https://api.kavenegar.com/v1/{key}/verify/lookup.json"
+    request = Request(url, data=body, method="POST")
+    request.add_header("Content-Type", "application/x-www-form-urlencoded")
     payload = {}
     try:
-        with urlopen(request, timeout=15) as response:
+        with urlopen(request, timeout=8) as response:
             payload = _read_kavenegar_payload(response.read())
     except HTTPError as err:
         try:
             payload = _read_kavenegar_payload(err.read() or b"")
         except Exception:
             payload = {}
-        status = ((payload or {}).get("return") or {}).get("status")
-        log.warning("kavenegar lookup http failed phone=%s status=%s", _mask_phone(phone), status)
+        status = _kavenegar_status(payload)
+        log.warning("kavenegar lookup http phone=%s status=%s", _mask_phone(phone), status)
+        if status == 200:
+            return
         raise MembershipError("otp", "ارسال پیامک ممکن نشد.") from None
     except (URLError, TimeoutError, ValueError, OSError):
-        log.warning("kavenegar lookup failed phone=%s", _mask_phone(phone))
-        raise MembershipError("otp", "ارسال پیامک ممکن نشد.") from None
-    status = ((payload or {}).get("return") or {}).get("status")
+        log.warning("kavenegar lookup timeout/network phone=%s", _mask_phone(phone))
+        raise TimeoutError("kavenegar lookup timeout") from None
+    status = _kavenegar_status(payload)
     if status != 200:
         log.warning("kavenegar lookup status=%s phone=%s", status, _mask_phone(phone))
         raise MembershipError("otp", "ارسال پیامک ممکن نشد.")
@@ -240,14 +248,8 @@ def send_otp(phone: str, purpose: str) -> dict:
         for row in open_rows:
             row.consumed_at = now
 
-    code = DEV_OTP if not _kavenegar_configured() else f"{secrets.randbelow(1_000_000):06d}"
-    if _kavenegar_configured():
-        _send_kavenegar_lookup(phone, code)
-    else:
-        log.info("otp send skipped (no API key) phone=%s purpose=%s", _mask_phone(phone), purpose)
-
-    salt = secrets.token_hex(8)
-    with db_session() as session:
+        code = DEV_OTP if not _kavenegar_configured() else f"{secrets.randbelow(1_000_000):06d}"
+        salt = secrets.token_hex(8)
         session.add(
             OtpChallenge(
                 phone=phone,
@@ -258,6 +260,22 @@ def send_otp(phone: str, purpose: str) -> dict:
                 attempts=0,
             )
         )
+
+    if not _kavenegar_configured():
+        log.info("otp send skipped (no API key) phone=%s purpose=%s", _mask_phone(phone), purpose)
+        return {"ok": True, "ttl_seconds": ttl, "resend_seconds": cooldown}
+
+    def _deliver() -> None:
+        try:
+            _send_kavenegar_lookup(phone, code)
+        except TimeoutError:
+            log.warning("otp lookup timed out after store phone=%s", _mask_phone(phone))
+        except MembershipError:
+            log.warning("otp lookup rejected after store phone=%s", _mask_phone(phone))
+        except Exception:
+            log.warning("otp lookup failed after store phone=%s", _mask_phone(phone))
+
+    threading.Thread(target=_deliver, daemon=True, name="kavenegar-otp").start()
     return {"ok": True, "ttl_seconds": ttl, "resend_seconds": cooldown}
 
 
