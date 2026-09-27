@@ -41,9 +41,7 @@
     <script>
         const hashAtlas = window.location.hash === '#atlas';
         const curtainEnter = new URLSearchParams(window.location.search).get('curtain') === '1';
-        let cachedSession = false;
-        try { cachedSession = !!readBannerProfile(); } catch (e) {}
-        if ((hashAtlas && cachedSession) || curtainEnter) {
+        if (hashAtlas || curtainEnter) {
             document.documentElement.classList.add('atlas-view');
         }
         // Restore the accent from the page the user just left (Logo), not the Atlas topic.
@@ -67,14 +65,10 @@
     <div id="entry-view-curtain" class="entry-curtain">
         <script>
             if (window.location.hash === '#atlas') {
-                let cachedSession = false;
-                try { cachedSession = !!readBannerProfile(); } catch (e) {}
-                if (cachedSession) {
-                    const curtain = document.getElementById('entry-view-curtain');
-                    curtain.classList.add('curtain-up');
-                    curtain.style.transition = 'none'; // Prevent animation on initial load
-                    setTimeout(() => curtain.style.transition = '', 50);
-                }
+                const curtain = document.getElementById('entry-view-curtain');
+                curtain.classList.add('curtain-up');
+                curtain.style.transition = 'none'; // Prevent animation on initial load
+                setTimeout(() => curtain.style.transition = '', 50);
             }
         </script>
         <div class="entry-scroll">
@@ -441,30 +435,8 @@
 
             const curtainEnter = consumeCurtainEnter() && window.location.hash !== '#atlas';
 
-            function openAtlasView() {
-                if (window.location.hash !== '#atlas') {
-                    history.pushState("", document.title, window.location.pathname + window.location.search + '#atlas');
-                }
-                setAtlasView(true);
-                setExplorerHrefByState();
-                if (typeof topicsData !== 'undefined' && typeof updateTopicColors === 'function' && typeof currentIndex !== 'undefined') {
-                    const topicObj = topicsData.find(t => t.topic_name === currentIndex);
-                    if (topicObj) updateTopicColors(topicObj);
-                }
-                if (typeof clearSelection === 'function') clearSelection();
-            }
-            window.openAtlasView = openAtlasView;
-
-            function requestAtlasView() {
-                if (typeof window.binaRequireAtlas === 'function') {
-                    window.binaRequireAtlas(openAtlasView);
-                    return;
-                }
-                openAtlasView();
-            }
-
             if (window.location.hash === '#atlas') {
-                requestAtlasView();
+                setAtlasView(true);
             } else if (curtainEnter) {
                 if (entryCurtain) entryCurtain.classList.add('curtain-up');
                 if (atlasBtn) atlasBtn.classList.remove('is-current');
@@ -477,7 +449,16 @@
             if (atlasBtn) {
                 atlasBtn.addEventListener('click', (event) => {
                     event.preventDefault();
-                    requestAtlasView();
+                    if (window.location.hash !== '#atlas') {
+                        history.pushState("", document.title, window.location.pathname + window.location.search + '#atlas');
+                    }
+                    setAtlasView(true);
+                    setExplorerHrefByState();
+                    if (typeof topicsData !== 'undefined' && typeof updateTopicColors === 'function' && typeof currentIndex !== 'undefined') {
+                        const topicObj = topicsData.find(t => t.topic_name === currentIndex);
+                        if (topicObj) updateTopicColors(topicObj);
+                    }
+                    if (typeof clearSelection === 'function') clearSelection();
                 });
             }
 

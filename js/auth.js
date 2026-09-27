@@ -116,16 +116,6 @@
         window.location.replace(authLoginUrl());
     }
 
-    window.binaRequireAtlas = function (openFn) {
-        window.binaWhenAuthReady(function (ok) {
-            if (ok) {
-                if (typeof openFn === 'function') openFn();
-                return;
-            }
-            sendToLogin({ page: 'atlas' });
-        });
-    };
-
     function enforceGatedPage(profile) {
         const page = gatedAppPage();
         if (!page) {
@@ -138,15 +128,6 @@
         }
         setAuthNext({ page: page, search: window.location.search || '' });
         window.location.replace(authLoginUrl());
-    }
-
-    function enforceAtlasGate(profile) {
-        if (currentPageName() !== 'index') return;
-        if (profile) return;
-        if (window.location.hash !== '#atlas') return;
-        if (typeof window.setAtlasView === 'function') window.setAtlasView(false);
-        try { history.replaceState(null, '', window.location.pathname + window.location.search); } catch (e) {}
-        sendToLogin({ page: 'atlas' });
     }
 
     function applyProfile(profile) {
@@ -193,13 +174,11 @@
                     window.closeCurtainAuth();
                 }
                 enforceGatedPage(profile);
-                enforceAtlasGate(profile);
                 notifyAuthReady();
             })
             .catch(function () {
                 applyProfile(null);
                 enforceGatedPage(null);
-                enforceAtlasGate(null);
                 notifyAuthReady();
             });
     }

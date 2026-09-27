@@ -371,7 +371,6 @@ def _compute_atlas() -> dict:
 @app.get("/api/init-atlas")
 def get_atlas_data(request: Request):
     """Atlas bootstrap: topics, latest map scores, latest population."""
-    _require_user(request)
     return _cached_json("init-atlas", _compute_atlas, request)
 
 
@@ -395,7 +394,6 @@ def _compute_atlas_trend(province: str, topic: str) -> dict:
 @app.get("/api/atlas/trend")
 def get_atlas_trend(province: str, topic: str, request: Request):
     """Full year series for one province and topic (right-panel trend chart)."""
-    _require_user(request)
     return _cached_json(
         f"atlas-trend::{_name_key(province, topic)}",
         lambda: _compute_atlas_trend(province, topic),

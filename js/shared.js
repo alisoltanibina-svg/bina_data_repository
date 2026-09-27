@@ -198,7 +198,7 @@ function writeBannerProfile(profile) {
 }
 
 const AUTH_NEXT_KEY = 'bina-auth-next';
-const AUTH_NEXT_PAGES = { explorer: true, atlas: true, bubble: true };
+const AUTH_NEXT_PAGES = { explorer: true, bubble: true };
 
 function setAuthNext(spec) {
     try {
@@ -235,7 +235,6 @@ function authLoginUrl() {
 
 function hrefForAuthNext(next) {
     if (!next) return '';
-    if (next.page === 'atlas') return SITE.page('index.html') + '#atlas';
     if (next.page === 'explorer') return SITE.page('explorer.html') + (next.search || '');
     if (next.page === 'bubble') return SITE.page('bubble-chart.html') + (next.search || '');
     return '';

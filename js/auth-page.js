@@ -103,23 +103,6 @@ function displayName(row) {
 function finishSignedIn(profile) {
     writeBannerProfile(profile);
     const next = takeAuthNext();
-    if (next && next.page === 'atlas') {
-        if (document.getElementById('entry-auth-shell')) {
-            closeCurtainAuth();
-            window.dispatchEvent(new Event('bina-session-changed'));
-            if (typeof window.openAtlasView === 'function') {
-                window.openAtlasView();
-            } else if (typeof window.setAtlasView === 'function') {
-                try {
-                    history.pushState('', document.title, window.location.pathname + window.location.search + '#atlas');
-                } catch (e) {}
-                window.setAtlasView(true);
-            }
-            return;
-        }
-        window.location.href = hrefForAuthNext(next);
-        return;
-    }
     if (next && (next.page === 'explorer' || next.page === 'bubble')) {
         window.location.href = hrefForAuthNext(next);
         return;

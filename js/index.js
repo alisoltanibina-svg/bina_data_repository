@@ -402,7 +402,10 @@ function appendHighlightedName(el, title, query) {
 
 function initIndicatorSearch() {
     fetch(`${API_BASE_URL}/api/explorer/init`, { credentials: 'include' })
-        .then(r => r.json())
+        .then(r => {
+            if (!r.ok) throw new Error('explorer init ' + r.status);
+            return r.json();
+        })
         .then(data => {
             let allIndicatorsList = [];
             for (let topic in data.hierarchy) {
@@ -466,17 +469,9 @@ function initIndicatorSearch() {
         .catch(err => console.error("Error loading indicator search data", err));
 }
 
-let atlasDataStarted = false;
-
 async function loadAllData() {
-    if (atlasDataStarted) return;
-    atlasDataStarted = true;
     try {
         const response = await fetch(`${API_BASE_URL}/api/init-atlas`, { credentials: 'include' });
-        if (response.status === 401 || response.status === 403) {
-            atlasDataStarted = false;
-            return;
-        }
         if (!response.ok) throw new Error(`API error: ${response.statusText}`);
         
         const data = await response.json();
@@ -526,7 +521,6 @@ async function loadAllData() {
         initIndicatorSearch();
 
     } catch (err) {
-        if (!topicsData.length) atlasDataStarted = false;
         console.error("Error connecting to FastAPI backend:", err);
         showNotice("خطا در ارتباط با سرور بک‌اند.");
     }
@@ -1031,18 +1025,4 @@ const onGlobalResize = debounce(() => {
 window.addEventListener('resize', onGlobalResize);
 if (window.visualViewport) window.visualViewport.addEventListener('resize', onGlobalResize);
 
-function startAtlasData() {
-    function go() {
-        loadAllData();
-    }
-    if (typeof window.binaWhenAuthReady === 'function') {
-        window.binaWhenAuthReady(function (ok) {
-            if (ok) go();
-        });
-        window.addEventListener('bina-session-changed', go);
-        return;
-    }
-    go();
-}
-
-startAtlasData();
+loadAllData();
