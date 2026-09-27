@@ -67,11 +67,32 @@ function isCompactMap() {
     return window.matchMedia('(max-width: 767px)').matches;
 }
 
+let atlasChartKind = 'rank';
+
+function setAtlasChartKind(kind) {
+    atlasChartKind = kind === 'trend' ? 'trend' : 'rank';
+    document.body.classList.toggle('map-sheet-charts-trend', isCompactMap() && atlasChartKind === 'trend');
+    document.body.classList.toggle('map-sheet-charts-rank', isCompactMap() && atlasChartKind === 'rank');
+    document.querySelectorAll('#atlas-chart-switch .atlas-chart-switch-btn').forEach(btn => {
+        btn.classList.toggle('is-active', btn.dataset.atlasChart === atlasChartKind);
+    });
+    const switcher = document.getElementById('atlas-chart-switch');
+    if (switcher) switcher.hidden = !(isCompactMap() && document.body.classList.contains('map-sheet-charts'));
+    requestAnimationFrame(() => {
+        try { if (typeof rankingBarChart !== 'undefined' && rankingBarChart && rankingBarChart.resize) rankingBarChart.resize(); } catch (e) {}
+        try { if (typeof trendChartInstance !== 'undefined' && trendChartInstance && trendChartInstance.resize) trendChartInstance.resize(); } catch (e) {}
+    });
+}
+
 function setMapSheet(sheet) {
     const allowed = ['map', 'details', 'topics', 'charts'];
     if (!allowed.includes(sheet)) sheet = 'map';
-    document.body.classList.remove('map-sheet-map', 'map-sheet-details', 'map-sheet-topics', 'map-sheet-charts');
-    if (!isCompactMap()) return;
+    document.body.classList.remove('map-sheet-map', 'map-sheet-details', 'map-sheet-topics', 'map-sheet-charts', 'map-sheet-charts-trend', 'map-sheet-charts-rank');
+    if (!isCompactMap()) {
+        const switcher = document.getElementById('atlas-chart-switch');
+        if (switcher) switcher.hidden = true;
+        return;
+    }
     document.body.classList.add('map-sheet-' + sheet);
     document.querySelectorAll('#map-panel-dock .map-dock-btn').forEach(btn => {
         btn.classList.toggle('is-active', btn.dataset.sheet === sheet);
@@ -80,6 +101,7 @@ function setMapSheet(sheet) {
     const bottomCard = document.querySelector('.right-card-bottom');
     if (topCard) topCard.style.removeProperty('display');
     if (bottomCard) bottomCard.style.removeProperty('display');
+    setAtlasChartKind(atlasChartKind);
     requestAnimationFrame(() => {
         if (sheet === 'map') {
             try { if (map && typeof map.invalidateSize === 'function') map.invalidateSize(true); } catch (e) {}
@@ -241,6 +263,14 @@ function bindMapPanelDock() {
         if (!btn || btn.hidden) return;
         setMapSheet(btn.dataset.sheet);
     });
+    const chartSwitch = document.getElementById('atlas-chart-switch');
+    if (chartSwitch) {
+        chartSwitch.addEventListener('click', (event) => {
+            const btn = event.target.closest('[data-atlas-chart]');
+            if (!btn) return;
+            setAtlasChartKind(btn.dataset.atlasChart);
+        });
+    }
     const syncDock = () => {
         const current = [...document.body.classList]
             .find(name => name.startsWith('map-sheet-'));
@@ -248,7 +278,9 @@ function bindMapPanelDock() {
         const mobileAtlas = isCompactMap() && document.documentElement.classList.contains('atlas-view');
         if (!mobileAtlas) {
             dock.hidden = true;
-            document.body.classList.remove('map-sheet-map', 'map-sheet-details', 'map-sheet-topics', 'map-sheet-charts');
+            document.body.classList.remove('map-sheet-map', 'map-sheet-details', 'map-sheet-topics', 'map-sheet-charts', 'map-sheet-charts-trend', 'map-sheet-charts-rank');
+            const switcher = document.getElementById('atlas-chart-switch');
+            if (switcher) switcher.hidden = true;
             return;
         }
         dock.hidden = false;
@@ -341,9 +373,13 @@ function initLegend() {
         seg.addEventListener('mouseleave', () => { hoveredStageIndex = null; updateMapStyles(); });
         bar.appendChild(seg);
     }
-    document.getElementById('legend-title-text').innerText = currentIndex
-        ? ('طیف امتیاز | ' + currentIndex)
-        : 'طیف امتیاز';
+    updateLegendTitle();
+}
+
+function updateLegendTitle() {
+    const el = document.getElementById('legend-title-text');
+    if (!el) return;
+    el.textContent = selectedProvince || currentIndex || '';
 }
 
 let topicsData = []; let trendScoreData = []; 
@@ -636,6 +672,7 @@ function restoreSelectedProvince(provName) {
             if (rp) rp.classList.add('show-panel');
             updateRightPanel(provName);
             renderLeftFloatingPanel(provName);
+            updateLegendTitle();
         }
     });
     updateMapStyles();
@@ -775,6 +812,7 @@ function clearSelection() {
     sessionStorage.removeItem('atlasSelectedProvince');
     if (!selectedProvince) return;
     selectedProvince = null;
+    updateLegendTitle();
 
     updateMapStyles();
     map.closePopup();
@@ -883,6 +921,7 @@ function renderMapData(geojsonData) {
                 
                 // CHANGE 2: Immediately persist choice to browser memory for returning
                 sessionStorage.setItem('atlasSelectedProvince', provName);
+                updateLegendTitle();
 
                 updateMapStyles();
                 updatePointer();

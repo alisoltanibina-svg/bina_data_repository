@@ -670,7 +670,7 @@ function drawScatterProvince() {
     if (!canvas) return;
     const points = getLatestPoints();
     scatterPointsCache = points;
-    const bubbleR = window.matchMedia('(max-width: 767px)').matches ? 5 : 24;
+    const bubbleR = window.matchMedia('(max-width: 767px)').matches ? 8 : 24;
     const data = points.map((p, i) => ({ x: i, y: p.value, province: p.name, r: bubbleR }));
     const colors = points.map(p => provinceColors[p.name] || '#3b82f6');
 

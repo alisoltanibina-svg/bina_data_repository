@@ -197,40 +197,6 @@ body.register-body {
     cursor: not-allowed;
 }
 
-.otp-fill-timer {
-    position: relative;
-    overflow: hidden;
-    isolation: isolate;
-    background: #ffffff !important;
-    color: #515811;
-    border: 1.5px solid #515811;
-    --otp-fill: 0%;
-}
-.otp-fill-timer::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    right: 0;
-    width: var(--otp-fill, 0%);
-    background: #515811;
-    pointer-events: none;
-    z-index: 0;
-}
-.otp-fill-timer > span {
-    position: relative;
-    z-index: 1;
-    background: linear-gradient(to left, #ffffff var(--otp-fill, 0%), #515811 var(--otp-fill, 0%));
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    -webkit-text-fill-color: transparent;
-}
-.otp-fill-timer:hover:not(:disabled) {
-    background: #ffffff !important;
-    filter: none;
-}
-
 .register-link {
     margin-top: 20px;
     width: 100%;

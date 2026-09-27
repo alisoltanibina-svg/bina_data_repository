@@ -135,40 +135,6 @@ function normalizeOtpCode(raw) {
         .slice(0, 6);
 }
 
-const otpFillState = { raf: 0 };
-
-function stopOtpVisualTimer(submitBtn, resendBtn) {
-    if (otpFillState.raf) window.cancelAnimationFrame(otpFillState.raf);
-    otpFillState.raf = 0;
-    if (submitBtn) submitBtn.style.setProperty('--otp-fill', '100%');
-    if (resendBtn) {
-        resendBtn.disabled = false;
-        resendBtn.textContent = 'ارسال دوباره';
-    }
-}
-
-function startOtpVisualTimer(submitBtn, resendBtn, seconds) {
-    stopOtpVisualTimer(submitBtn, resendBtn);
-    const total = Math.max(1, Number(seconds) || 60) * 1000;
-    if (resendBtn) {
-        resendBtn.disabled = true;
-        resendBtn.textContent = 'ارسال دوباره';
-    }
-    if (!submitBtn) return;
-    submitBtn.style.setProperty('--otp-fill', '0%');
-    const t0 = performance.now();
-    const tick = (now) => {
-        const p = Math.min(1, (now - t0) / total);
-        submitBtn.style.setProperty('--otp-fill', (p * 100).toFixed(3) + '%');
-        if (p < 1) otpFillState.raf = window.requestAnimationFrame(tick);
-        else {
-            otpFillState.raf = 0;
-            if (resendBtn) resendBtn.disabled = false;
-        }
-    };
-    otpFillState.raf = window.requestAnimationFrame(tick);
-}
-
 function bindOtpInput(input) {
     if (!input) return;
     input.setAttribute('inputmode', 'numeric');

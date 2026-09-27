@@ -47,11 +47,16 @@
     }
 
     function canMpaViewTransition() {
+        if (window.matchMedia('(max-width: 767px)').matches) return false;
         return typeof document.startViewTransition === 'function' && 'onpageswap' in window;
     }
 
     window.addEventListener('pageswap', function (event) {
         if (!event.viewTransition) return;
+        if (window.matchMedia('(max-width: 767px)').matches) {
+            event.viewTransition.skipTransition();
+            return;
+        }
         const dest = event.activation && event.activation.entry && event.activation.entry.url;
         if (!dest || !shouldMorphAccount(location.href, dest) || (isHomeFile(location.href) && !isHomeCurtain()) || (isProfileFile(location.href) && isHomeFile(dest))) {
             event.viewTransition.skipTransition();
@@ -62,6 +67,10 @@
 
     window.addEventListener('pagereveal', function (event) {
         if (!event.viewTransition) return;
+        if (window.matchMedia('(max-width: 767px)').matches) {
+            event.viewTransition.skipTransition();
+            return;
+        }
         try { event.viewTransition.types.add('profile-morph'); } catch (e) {}
     });
 
@@ -342,6 +351,7 @@
             function onAccountClick(event) {
                 if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button) return;
                 closeMenu();
+                if (window.matchMedia('(max-width: 767px)').matches) return;
                 if (!isHomeCurtain()) return;
                 if (canMpaViewTransition()) return;
                 const link = event.currentTarget;

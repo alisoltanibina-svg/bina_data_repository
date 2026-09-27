@@ -698,15 +698,29 @@ onReady(async () => {
     function stopResendTimer() {
         window.clearInterval(resendTimer);
         resendTimer = 0;
-        stopOtpVisualTimer(document.getElementById('profile-otp-submit'), document.getElementById('profile-otp-resend'));
+        const btn = document.getElementById('profile-otp-resend');
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'ارسال دوباره';
+        }
     }
 
     function startResendTimer(seconds) {
-        startOtpVisualTimer(
-            document.getElementById('profile-otp-submit'),
-            document.getElementById('profile-otp-resend'),
-            seconds || 60
-        );
+        const btn = document.getElementById('profile-otp-resend');
+        if (!btn) return;
+        stopResendTimer();
+        resendLeft = Math.max(0, Number(seconds) || 0);
+        const tick = () => {
+            if (resendLeft <= 0) {
+                stopResendTimer();
+                return;
+            }
+            btn.disabled = true;
+            btn.textContent = 'ارسال دوباره (' + resendLeft + ')';
+            resendLeft -= 1;
+        };
+        tick();
+        if (resendLeft > 0) resendTimer = window.setInterval(tick, 1000);
     }
 
     function setOtpSending(on) {

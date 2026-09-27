@@ -532,9 +532,7 @@ html.curtain-to-profile-instant .entry-launch-home {
     cursor: pointer;
 }
 .entry-auth-stage .register-submit:hover:not(:disabled) { background: #3f460d; }
-.entry-auth-stage .register-submit.otp-fill-timer:hover:not(:disabled) { background: #ffffff !important; }
 .entry-auth-stage .register-submit:disabled { opacity: 0.55; cursor: not-allowed; }
-.entry-auth-stage .otp-fill-timer:disabled { opacity: 1; }
 .entry-auth-stage .register-hint {
     margin: 14px 0 0;
     text-align: center;
@@ -1716,9 +1714,9 @@ html.atlas-view .index-item.active .index-item-img {
         font-weight: 700;
         min-width: 0;
     }
-    html.atlas-view #atlas-page-nav .banner-seg-btn:nth-child(1) { order: 3; }
+    html.atlas-view #atlas-page-nav .banner-seg-btn:nth-child(1) { order: 1; }
     html.atlas-view #atlas-page-nav .banner-seg-btn:nth-child(2) { order: 2; }
-    html.atlas-view #atlas-page-nav .banner-seg-btn:nth-child(3) { order: 1; }
+    html.atlas-view #atlas-page-nav .banner-seg-btn:nth-child(3) { order: 3; }
     html.atlas-view #atlas-page-nav .banner-seg-btn:nth-child(4) { order: 4; }
 
     html.atlas-view #atlas-stage {
@@ -1745,7 +1743,7 @@ html.atlas-view .index-item.active .index-item-img {
         bottom: auto;
         width: 100%;
         margin: 0;
-        padding: 8px 16px 10px;
+        padding: 3px 12px 4px;
         background: #ffffff;
         border-radius: 999px;
         box-shadow: none;
@@ -1755,9 +1753,9 @@ html.atlas-view .index-item.active .index-item-img {
         box-sizing: border-box;
     }
     html.atlas-view .legend-scale-wrapper { width: 100%; max-width: none; }
-    html.atlas-view .legend-scale-bar { height: 10px; border: 0; border-radius: 999px; overflow: hidden; }
-    html.atlas-view .legend-title { font-size: clamp(0.68rem, 2.8vw, 0.8rem); margin-bottom: 4px; color: #515811; }
-    html.atlas-view .legend-labels { font-size: 0.68rem; color: #515811; }
+    html.atlas-view .legend-scale-bar { height: 6px; border: 0; border-radius: 999px; overflow: hidden; }
+    html.atlas-view .legend-title { font-size: 0.62rem; margin-bottom: 1px; color: #515811; line-height: 1.3; }
+    html.atlas-view .legend-labels { font-size: 0.58rem; color: #515811; margin-top: 1px; }
 
     html.atlas-view #left-popup-panel,
     html.atlas-view #right-panel,
@@ -1820,6 +1818,57 @@ html.atlas-view .index-item.active .index-item-img {
     html.atlas-view body.map-sheet-details .right-card-top,
     html.atlas-view body.map-sheet-charts .right-card-bottom {
         display: flex !important;
+        flex-direction: column;
+        min-height: 0;
+        flex: 1 1 auto;
+    }
+    .atlas-chart-switch {
+        display: none;
+    }
+    html.atlas-view body.map-sheet-charts .atlas-chart-switch {
+        display: flex;
+        flex-shrink: 0;
+        gap: 6px;
+        margin-top: 8px;
+        padding: 3px;
+        border-radius: 999px;
+        background: #eef1e4;
+    }
+    .atlas-chart-switch-btn {
+        flex: 1;
+        height: 28px;
+        border: 0;
+        border-radius: 999px;
+        background: transparent;
+        color: #515811;
+        font: inherit;
+        font-size: 0.72rem;
+        font-weight: 700;
+        cursor: pointer;
+    }
+    .atlas-chart-switch-btn.is-active {
+        background: #515811;
+        color: #fff;
+    }
+    html.atlas-view body.map-sheet-charts-rank #trend-wrapper {
+        display: none !important;
+    }
+    html.atlas-view body.map-sheet-charts-trend #chart-wrapper {
+        display: none !important;
+    }
+    html.atlas-view body.map-sheet-charts-rank #chart-wrapper,
+    html.atlas-view body.map-sheet-charts-trend #trend-wrapper,
+    html.treat-v1.atlas-view body.map-sheet-charts-rank #chart-wrapper,
+    html.treat-v1.atlas-view body.map-sheet-charts-trend #trend-wrapper {
+        display: block !important;
+        flex: 1 1 auto !important;
+        height: auto !important;
+        min-height: 220px !important;
+        margin-bottom: 0 !important;
+    }
+    html.treat-v1.atlas-view body.map-sheet-charts-rank #trend-wrapper,
+    html.treat-v1.atlas-view body.map-sheet-charts-trend #chart-wrapper {
+        display: none !important;
     }
     html.atlas-view body.map-sheet-details #right-panel,
     html.atlas-view body.map-sheet-details #right-panel.show-panel,

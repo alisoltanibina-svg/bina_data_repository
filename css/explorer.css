@@ -577,6 +577,10 @@ body.explorer-body {
 }
 
 .ex-dash-head #btn-nav-subtopics:hover { filter: brightness(0.96); }
+.ex-dash-head .ex-back-arrow {
+    transform: none;
+    flex-shrink: 0;
+}
 
 .ex-dd-group {
     display: flex;
@@ -807,12 +811,13 @@ body.explorer-body {
 .ex-insight-open {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     height: 32px;
-    padding: 0 4px;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    color: #1b242e;
+    padding: 0 14px 1px;
+    border: 1px solid #e2e5dc;
+    border-radius: 999px;
+    background: #ffffff;
+    color: #515811;
     font: inherit;
     font-size: 0.78rem;
     font-weight: 600;
@@ -1245,7 +1250,13 @@ body.explorer-body {
     .ex-chart-foot {
         padding-top: 4px;
     }
-    .ex-insight-open,
+    .ex-insight-open {
+        height: 28px;
+        font-size: 0.72rem;
+        background: #ffffff;
+        color: #515811;
+        border: 1px solid #e2e5dc;
+    }
     .ex-chart-legend-btn {
         height: 28px;
         font-size: 0.72rem;
