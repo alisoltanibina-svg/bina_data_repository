@@ -662,6 +662,7 @@ function drawScatterProvince() {
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            resizeDelay: 0,
             plugins: {
                 legend: { display: false },
                 datalabels: {
@@ -818,7 +819,9 @@ function drawChart() {
 
 function getChartOptions() {
     return {
-        responsive: true, maintainAspectRatio: false, 
+        responsive: true,
+        maintainAspectRatio: false,
+        resizeDelay: 0, 
         animation: false, 
         interaction: { mode: 'nearest', intersect: true, axis: 'xy' },
         plugins: {

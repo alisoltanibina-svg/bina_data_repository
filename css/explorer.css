@@ -610,6 +610,16 @@ body.explorer-body {
 .ex-dd-kicker {
     opacity: 0.85;
     font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.ex-dd-kicker::after {
+    content: "";
+    width: 1px;
+    height: 0.9em;
+    background: currentColor;
+    opacity: 0.45;
 }
 
 .ex-dd-value {
@@ -689,13 +699,15 @@ body.explorer-body {
     min-height: 0;
     width: 100%;
     margin: 0;
-    display: flex;
-    flex-direction: row-reverse;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 268px;
+    grid-template-areas: "chart side";
     gap: 14px;
 }
+.ex-chart-room { grid-area: chart; }
+.ex-side { grid-area: side; }
 
 .ex-chart-room {
-    flex: 1;
     min-width: 0;
     min-height: 0;
     display: flex;
@@ -752,8 +764,11 @@ body.explorer-body {
 
 #canvas-reveal-wrapper {
     position: relative;
-    flex: 1;
-    min-height: 280px;
+    width: 100%;
+    flex: 0 1 auto;
+    min-height: 240px;
+    aspect-ratio: 16 / 9;
+    max-height: min(62vh, 560px);
 }
 
 .chart-pane {
@@ -763,11 +778,15 @@ body.explorer-body {
 }
 
 .chart-pane.is-active { display: block; }
-.chart-pane canvas { width: 100% !important; height: 100% !important; }
+.chart-pane canvas {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+}
 
 .ex-side {
-    width: 268px;
-    flex-shrink: 0;
+    width: 100%;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -882,14 +901,22 @@ body.explorer-body {
 }
 
 @media (max-width: 980px) {
-    .ex-dash-body { flex-direction: column; }
+    .ex-dash-body {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+            "side"
+            "chart";
+    }
     .ex-side {
         width: 100%;
         max-height: none;
     }
     .ex-prov-rail { max-height: 32vh; }
     .ex-dd-group { flex-wrap: wrap; justify-content: flex-end; }
-    #canvas-reveal-wrapper { min-height: 240px; }
+    #canvas-reveal-wrapper {
+        min-height: 200px;
+        max-height: min(52vh, 420px);
+    }
 }
 
 @media (max-width: 767px) {
@@ -946,16 +973,157 @@ body.explorer-body {
     .ex-index-panel, .ex-panel-body { min-height: 0; }
     .ex-panel-empty { min-height: 72px; }
     .ex-bubble-panel { min-height: 300px; }
-    .ex-dash-nav { flex-wrap: wrap; }
-    .ex-dd-toggle { max-width: none; }
+    .ex-dash {
+        overflow: auto;
+        -webkit-overflow-scrolling: touch;
+        gap: 10px;
+    }
+    .ex-dash-head {
+        padding: 0 0 2px;
+    }
+    .ex-dash-nav {
+        flex-wrap: nowrap;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 8px;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+    .ex-dash-nav::-webkit-scrollbar { display: none; }
+    .ex-dash-head #btn-nav-subtopics {
+        width: 40px;
+        min-height: 40px;
+        height: 40px;
+        padding: 0;
+        border-radius: 50%;
+        background: #515811;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .ex-dash-head .ex-back-label {
+        display: none;
+    }
+    .ex-dd-group {
+        flex: 1 1 auto;
+        flex-wrap: nowrap;
+        justify-content: flex-start;
+        min-width: 0;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+    .ex-dd-group::-webkit-scrollbar { display: none; }
+    .ex-dd-toggle {
+        max-width: none;
+        min-height: 40px;
+        height: 40px;
+        padding: 0 12px 1px;
+        background: #515811;
+        font-size: 0.72rem;
+        white-space: nowrap;
+    }
+    .ex-dash-body {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        overflow: visible;
+        min-height: 0;
+    }
+    .ex-side {
+        display: contents;
+    }
+    .ex-prov-rail {
+        order: 1;
+        max-height: 168px;
+        padding: 12px 14px 8px;
+        border-radius: 22px;
+    }
+    .ex-prov-search input {
+        height: 42px;
+        border: 0;
+        background: #f4f1ea;
+        border-radius: 999px;
+        text-align: right;
+        color: #515811;
+    }
+    .ex-prov-search input::placeholder {
+        color: #a18447;
+    }
+    .ex-prov-actions {
+        margin: 10px 0 8px;
+        gap: 8px;
+    }
+    .ex-prov-actions button {
+        height: 36px;
+        border: 0;
+        background: #f7f4ed;
+        color: #515811;
+        font-size: 0.78rem;
+    }
+    .ex-prov-actions #btn-clear-all-provinces {
+        color: #515811;
+    }
+    .ex-insight-card {
+        order: 2;
+        background: #515811;
+        border-radius: 22px;
+        padding: 18px 18px 16px;
+    }
+    .ex-insight-card h2 {
+        font-size: 1.15rem;
+        margin-bottom: 8px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.28);
+        display: inline-block;
+    }
+    .ex-insight-card #insight-text {
+        font-size: 0.78rem;
+        line-height: 1.85;
+    }
+    .ex-meta span {
+        background: #ffffff;
+        color: #515811;
+        border: 0;
+        min-height: 28px;
+        padding: 3px 12px 4px;
+    }
+    .ex-chart-room {
+        order: 3;
+        padding: 14px 14px 12px;
+        border-radius: 22px;
+    }
+    .chart-toolbar {
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+    .chart-toolbar h3 {
+        font-size: 0.78rem;
+        color: #1b242e;
+    }
+    .chart-switcher {
+        background: #eef1e4;
+        padding: 3px;
+    }
+    .chart-mode-btn {
+        height: 28px;
+        padding: 0 10px 1px;
+        font-size: 0.68rem;
+        color: #515811;
+    }
+    .chart-mode-btn.active {
+        background: #515811;
+        color: #fff;
+    }
+    #canvas-reveal-wrapper {
+        min-height: 220px;
+        aspect-ratio: 16 / 10;
+        max-height: none;
+    }
 }
 
 @media (max-width: 720px) {
     .ex-index-panel, .ex-panel-body { min-height: 0; }
     .ex-panel-empty { min-height: 72px; }
     .ex-bubble-panel { min-height: 300px; }
-    .ex-dash-nav { flex-wrap: wrap; }
-    .ex-dd-toggle { max-width: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

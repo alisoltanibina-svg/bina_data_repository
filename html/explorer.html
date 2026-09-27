@@ -51,8 +51,8 @@
         <div id="view-dashboard" class="ex-dash hidden">
             <div class="ex-dash-head">
                 <div class="ex-dash-nav">
-                    <button type="button" id="btn-nav-subtopics">
-                        بازگشت به حوزه‌ها
+                    <button type="button" id="btn-nav-subtopics" aria-label="بازگشت به حوزه‌ها">
+                        <span class="ex-back-label">بازگشت به حوزه‌ها</span>
                         <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
                     </button>
                     <div class="ex-dd-group" id="ex-dd-group">
@@ -85,6 +85,26 @@
             </div>
 
             <div class="ex-dash-body">
+                <aside class="ex-side" aria-label="شرح شاخص و استان‌ها">
+                    <section class="ex-prov-rail" aria-label="مقایسه استانی">
+                        <div class="ex-prov-search">
+                            <input type="text" id="province-search" placeholder="جستجوی استان" autocomplete="off">
+                        </div>
+                        <div class="ex-prov-actions">
+                            <button type="button" id="btn-select-all-provinces">انتخاب همه</button>
+                            <button type="button" id="btn-clear-all-provinces">پاک کردن همه</button>
+                        </div>
+                        <div class="ex-prov-list custom-scrollbar" id="provinces-list"></div>
+                    </section>
+                    <section class="ex-insight-card">
+                        <h2 id="indicator-title">نام شاخص</h2>
+                        <p id="insight-text">در حال بارگذاری اطلاعات...</p>
+                        <div class="ex-meta">
+                            <span id="indicator-source">منبع: نامشخص</span>
+                            <span id="indicator-period">دوره: نامشخص</span>
+                        </div>
+                    </section>
+                </aside>
                 <section class="ex-chart-room">
                     <div class="chart-toolbar">
                         <h3 id="chart-panel-title">روند تغییرات زمانی شاخص</h3>
@@ -102,27 +122,6 @@
                         </div>
                     </div>
                 </section>
-
-                <aside class="ex-side" aria-label="شرح شاخص و استان‌ها">
-                    <section class="ex-insight-card">
-                        <h2 id="indicator-title">نام شاخص</h2>
-                        <p id="insight-text">در حال بارگذاری اطلاعات...</p>
-                        <div class="ex-meta">
-                            <span id="indicator-source">منبع: نامشخص</span>
-                            <span id="indicator-period">دوره: نامشخص</span>
-                        </div>
-                    </section>
-                    <section class="ex-prov-rail" aria-label="مقایسه استانی">
-                        <div class="ex-prov-actions">
-                            <button type="button" id="btn-clear-all-provinces">پاک کردن همه</button>
-                            <button type="button" id="btn-select-all-provinces">انتخاب همه</button>
-                        </div>
-                        <div class="ex-prov-search">
-                            <input type="text" id="province-search" placeholder="جستجوی استان..." autocomplete="off">
-                        </div>
-                        <div class="ex-prov-list custom-scrollbar" id="provinces-list"></div>
-                    </section>
-                </aside>
             </div>
         </div>
     </div>
