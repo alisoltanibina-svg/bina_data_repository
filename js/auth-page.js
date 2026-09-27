@@ -9,6 +9,37 @@ let otpPurpose = '';
 let pendingRegister = null;
 let resendTimer = 0;
 let resendLeft = 0;
+const PENDING_REGISTER_KEY = 'bina-pending-register';
+
+function setPendingRegister(values) {
+    pendingRegister = values || null;
+    try {
+        if (values) sessionStorage.setItem(PENDING_REGISTER_KEY, JSON.stringify(values));
+        else sessionStorage.removeItem(PENDING_REGISTER_KEY);
+    } catch (e) {}
+}
+
+function getPendingRegister() {
+    if (pendingRegister && pendingRegister.first_name && pendingRegister.password) return pendingRegister;
+    try {
+        const raw = sessionStorage.getItem(PENDING_REGISTER_KEY);
+        if (!raw) return pendingRegister;
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.first_name && parsed.password) {
+            pendingRegister = parsed;
+            return parsed;
+        }
+    } catch (e) {}
+    const form = document.getElementById('register-form');
+    if (form) {
+        const fromForm = readRegisterForm(form);
+        if (fromForm.first_name && fromForm.password) {
+            pendingRegister = fromForm;
+            return fromForm;
+        }
+    }
+    return pendingRegister;
+}
 
 function setError(name, message) {
     const input = document.getElementById(name);
@@ -65,7 +96,7 @@ function closeCurtainAuth() {
     document.documentElement.classList.remove('curtain-auth', 'curtain-auth-wide');
     currentPhone = '';
     otpPurpose = '';
-    pendingRegister = null;
+    setPendingRegister(null);
     stopResendTimer();
     setOtpSending(false);
     if (stage) {
@@ -217,7 +248,7 @@ function setOtpSending(on) {
 function backToGate() {
     currentPhone = '';
     otpPurpose = '';
-    pendingRegister = null;
+    setPendingRegister(null);
     stopResendTimer();
     setOtpSending(false);
     showPanel('auth-gate');
@@ -323,7 +354,7 @@ onReady(() => {
                 return;
             }
             if (status === 'register') {
-                pendingRegister = null;
+                setPendingRegister(null);
                 showPanel('auth-register');
                 document.getElementById('first_name').focus();
                 return;
@@ -402,20 +433,21 @@ onReady(() => {
                 code: code
             });
             if (otpPurpose === 'register') {
-                if (!pendingRegister) {
+                const pending = getPendingRegister();
+                if (!pending || !pending.first_name || !pending.password) {
                     showPanel('auth-register');
                     document.getElementById('first_name').focus();
                     return;
                 }
                 await apiJson('/api/auth/register', {
-                    first_name: pendingRegister.first_name,
-                    last_name: pendingRegister.last_name,
+                    first_name: pending.first_name,
+                    last_name: pending.last_name,
                     phone: currentPhone,
-                    role_title: pendingRegister.role_title,
-                    organization: pendingRegister.organization,
-                    password: pendingRegister.password
+                    role_title: pending.role_title,
+                    organization: pending.organization,
+                    password: pending.password
                 });
-                pendingRegister = null;
+                setPendingRegister(null);
                 showStatus('در انتظار تایید', 'درخواست عضویت شما درانتظار تایید است');
                 return;
             }
@@ -490,10 +522,10 @@ onReady(() => {
         const submit = document.getElementById('register-submit');
         submit.disabled = true;
         try {
-            pendingRegister = values;
+            setPendingRegister(values);
             await startOtp('register');
         } catch (err) {
-            pendingRegister = null;
+            setPendingRegister(null);
             const mapped = errorFromRegister({ detail: { code: err.code, message: err.message } });
             if (mapped.field) setError(mapped.field, mapped.text);
             else showNotice(mapped.text);

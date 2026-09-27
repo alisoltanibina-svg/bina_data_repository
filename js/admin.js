@@ -385,14 +385,23 @@ async function confirmDialog() {
             }
             showNotice(kind === 'activate' ? 'حساب فعال شد.' : 'حساب غیرفعال شد.', 'ok');
             renderUsers();
-        } else {
+        } else if (kind === 'remove-user') {
+            await AdminApi.removeUser(id);
+            usersState.rows = usersState.rows.filter(item => !sameId(item.id, id));
+            usersState.selectedId = null;
+            usersState.detail = null;
+            showNotice('حساب حذف شد.', 'ok');
+            renderUsers();
+        } else if (kind === 'reject') {
             const row = await AdminApi.reject(id, note);
             const idx = state.rows.findIndex(item => sameId(item.id, id));
             if (idx >= 0) state.rows[idx] = row;
             showNotice('درخواست رد شد.', 'ok');
+        } else {
+            throw new Error('اقدام نامعتبر است.');
         }
         closeDialog();
-        refresh();
+        if (kind === 'approve' || kind === 'reject') refresh();
     } catch (err) {
         showNotice((err && err.message && err.message !== 'auth') ? err.message : 'انجام این اقدام ممکن نشد.');
     } finally {
