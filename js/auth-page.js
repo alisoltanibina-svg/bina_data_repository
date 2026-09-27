@@ -213,29 +213,15 @@ function stopResendTimer() {
     window.clearInterval(resendTimer);
     resendTimer = 0;
     resendLeft = 0;
-    const btn = document.getElementById('otp-resend');
-    if (btn) {
-        btn.disabled = false;
-        btn.textContent = 'ارسال دوباره';
-    }
+    stopOtpVisualTimer(document.getElementById('otp-submit'), document.getElementById('otp-resend'));
 }
 
 function startResendTimer(seconds) {
-    const btn = document.getElementById('otp-resend');
-    if (!btn) return;
-    stopResendTimer();
-    resendLeft = Math.max(0, Number(seconds) || 0);
-    const tick = () => {
-        if (resendLeft <= 0) {
-            stopResendTimer();
-            return;
-        }
-        btn.disabled = true;
-        btn.textContent = 'ارسال دوباره (' + resendLeft + ')';
-        resendLeft -= 1;
-    };
-    tick();
-    if (resendLeft > 0) resendTimer = window.setInterval(tick, 1000);
+    startOtpVisualTimer(
+        document.getElementById('otp-submit'),
+        document.getElementById('otp-resend'),
+        seconds || 60
+    );
 }
 
 function setOtpSending(on) {

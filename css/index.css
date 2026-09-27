@@ -532,7 +532,9 @@ html.curtain-to-profile-instant .entry-launch-home {
     cursor: pointer;
 }
 .entry-auth-stage .register-submit:hover:not(:disabled) { background: #3f460d; }
+.entry-auth-stage .register-submit.otp-fill-timer:hover:not(:disabled) { background: #ffffff !important; }
 .entry-auth-stage .register-submit:disabled { opacity: 0.55; cursor: not-allowed; }
+.entry-auth-stage .otp-fill-timer:disabled { opacity: 1; }
 .entry-auth-stage .register-hint {
     margin: 14px 0 0;
     text-align: center;
