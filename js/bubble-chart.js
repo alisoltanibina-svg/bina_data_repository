@@ -54,7 +54,12 @@ async function fillSubtopicSelect() {
     try {
         let hierarchy = topicsHierarchy;
         if (!hierarchy || !Object.keys(hierarchy).length) {
-            const res = await fetch(`${API_BASE_URL}/api/explorer/init`);
+            const res = await fetch(`${API_BASE_URL}/api/explorer/init`, { credentials: 'include' });
+            if (res.status === 401 || res.status === 403) {
+                setAuthNext({ page: 'bubble', search: window.location.search || '' });
+                window.location.replace(authLoginUrl());
+                return;
+            }
             const data = await res.json();
             hierarchy = data.hierarchy || {};
         }
@@ -288,7 +293,12 @@ function initBubblePreview() {
 
 async function loadPickerCatalog() {
     try {
-        const res = await fetch(`${API_BASE_URL}/api/explorer/init`);
+        const res = await fetch(`${API_BASE_URL}/api/explorer/init`, { credentials: 'include' });
+        if (res.status === 401 || res.status === 403) {
+            setAuthNext({ page: 'bubble', search: window.location.search || '' });
+            window.location.replace(authLoginUrl());
+            return;
+        }
         const data = await res.json();
         topicsHierarchy = data.hierarchy || {};
         topicsColorData = data.colors || [];
@@ -359,7 +369,12 @@ async function loadBubbleData(subtopic, opts) {
     const seq = ++loadSeq;
     const prevSub = urlSubtopic;
     try {
-        const response = await fetch(`${API_BASE_URL}/api/bubble/init?topic=${encodeURIComponent(urlTopic)}&subtopic=${encodeURIComponent(sub)}`);
+        const response = await fetch(`${API_BASE_URL}/api/bubble/init?topic=${encodeURIComponent(urlTopic)}&subtopic=${encodeURIComponent(sub)}`, { credentials: 'include' });
+        if (response.status === 401 || response.status === 403) {
+            setAuthNext({ page: 'bubble', search: window.location.search || '' });
+            window.location.replace(authLoginUrl());
+            return;
+        }
         if (seq !== loadSeq) return;
         if (!response.ok) throw new Error('bubble api ' + response.status);
         const data = await response.json();
@@ -569,7 +584,16 @@ window.addEventListener('popstate', (event) => {
 
 function startBubble() {
     if (!applyChartDefaults()) showNotice('مشکل در بارگذاری نمودار.');
-    init();
+    function go() {
+        init();
+    }
+    if (typeof window.binaWhenAuthReady === 'function') {
+        window.binaWhenAuthReady(function (ok) {
+            if (ok) go();
+        });
+        return;
+    }
+    go();
 }
 
 onReady(startBubble);

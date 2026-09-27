@@ -371,6 +371,7 @@ def _compute_atlas() -> dict:
 @app.get("/api/init-atlas")
 def get_atlas_data(request: Request):
     """Atlas bootstrap: topics, latest map scores, latest population."""
+    _require_user(request)
     return _cached_json("init-atlas", _compute_atlas, request)
 
 
@@ -394,6 +395,7 @@ def _compute_atlas_trend(province: str, topic: str) -> dict:
 @app.get("/api/atlas/trend")
 def get_atlas_trend(province: str, topic: str, request: Request):
     """Full year series for one province and topic (right-panel trend chart)."""
+    _require_user(request)
     return _cached_json(
         f"atlas-trend::{_name_key(province, topic)}",
         lambda: _compute_atlas_trend(province, topic),
@@ -429,6 +431,7 @@ def _compute_explorer_init() -> dict:
 @app.get("/api/explorer/init")
 def get_explorer_init(request: Request):
     """Builds the hierarchy and province list on the server."""
+    _require_user(request)
     return _cached_json("explorer-init", _compute_explorer_init, request)
 
 
@@ -483,6 +486,7 @@ def _compute_explorer_indicator(name: str) -> dict:
 @app.get("/api/explorer/indicator")
 def get_explorer_indicator(name: str, request: Request):
     """Fetches data only for the specifically clicked indicator."""
+    _require_user(request)
     return _cached_json(
         f"explorer-indicator::{_name_key(name)}",
         lambda: _compute_explorer_indicator(name),
@@ -542,6 +546,7 @@ def _compute_bubble_init(topic: str, subtopic: str) -> dict:
 @app.get("/api/bubble/init")
 def get_bubble_init(request: Request, topic: str = "", subtopic: str = ""):
     """Fetches filtered data specifically for the dynamic bubble chart."""
+    _require_user(request)
     return _cached_json(
         f"bubble-init::{_name_key(topic, subtopic)}",
         lambda: _compute_bubble_init(topic, subtopic),

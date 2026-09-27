@@ -29,6 +29,10 @@ html {
     text-size-adjust: 100%;
 }
 
+html.auth-pending body {
+    visibility: hidden;
+}
+
 @view-transition {
     navigation: auto;
 }

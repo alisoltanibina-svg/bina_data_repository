@@ -78,9 +78,78 @@
 
     let signedIn = false;
     let profileReady = false;
+    const authReadyWaiters = [];
+
+    function notifyAuthReady() {
+        profileReady = true;
+        const waiters = authReadyWaiters.splice(0);
+        for (let i = 0; i < waiters.length; i++) {
+            try { waiters[i](signedIn); } catch (e) {}
+        }
+    }
+
+    window.binaWhenAuthReady = function (cb) {
+        if (typeof cb !== 'function') return;
+        if (profileReady) {
+            cb(signedIn);
+            return;
+        }
+        authReadyWaiters.push(cb);
+    };
+    window.binaIsSignedIn = function () {
+        return signedIn;
+    };
+
+    function gatedAppPage() {
+        const page = currentPageName();
+        if (page === 'explorer') return 'explorer';
+        if (page === 'bubble') return 'bubble';
+        return '';
+    }
+
+    function sendToLogin(spec) {
+        if (spec) setAuthNext(spec);
+        if (typeof window.openCurtainAuth === 'function' && isIndexPage()) {
+            window.openCurtainAuth();
+            return;
+        }
+        window.location.replace(authLoginUrl());
+    }
+
+    window.binaRequireAtlas = function (openFn) {
+        window.binaWhenAuthReady(function (ok) {
+            if (ok) {
+                if (typeof openFn === 'function') openFn();
+                return;
+            }
+            sendToLogin({ page: 'atlas' });
+        });
+    };
+
+    function enforceGatedPage(profile) {
+        const page = gatedAppPage();
+        if (!page) {
+            document.documentElement.classList.remove('auth-pending');
+            return;
+        }
+        if (profile) {
+            document.documentElement.classList.remove('auth-pending');
+            return;
+        }
+        setAuthNext({ page: page, search: window.location.search || '' });
+        window.location.replace(authLoginUrl());
+    }
+
+    function enforceAtlasGate(profile) {
+        if (currentPageName() !== 'index') return;
+        if (profile) return;
+        if (window.location.hash !== '#atlas') return;
+        if (typeof window.setAtlasView === 'function') window.setAtlasView(false);
+        try { history.replaceState(null, '', window.location.pathname + window.location.search); } catch (e) {}
+        sendToLogin({ page: 'atlas' });
+    }
 
     function applyProfile(profile) {
-        profileReady = true;
         signedIn = !!profile;
         const authBtn = document.getElementById('banner-auth-btn');
         const texts = document.getElementById('user-texts');
@@ -102,7 +171,7 @@
             if (nameEl) nameEl.textContent = name;
             if (roleEl) roleEl.textContent = roleLine(profile);
             applyBannerAvatar(profile.avatar_url);
-            if (typeof window.closeCurtainAuth === 'function' && document.documentElement.classList.contains('curtain-auth')) {
+            if (typeof window.closeCurtainAuth === 'function' && document.documentElement.classList.contains('curtain-auth') && profileReady) {
                 window.closeCurtainAuth();
             }
             return;
@@ -118,12 +187,26 @@
     function loadProfile() {
         fetch(apiBase() + '/api/auth/me', { credentials: 'include' })
             .then(function (response) { return response.ok ? response.json() : null; })
-            .then(function (profile) { applyProfile(profile); })
-            .catch(function () { applyProfile(null); });
+            .then(function (profile) {
+                applyProfile(profile);
+                if (profile && typeof window.closeCurtainAuth === 'function' && document.documentElement.classList.contains('curtain-auth')) {
+                    window.closeCurtainAuth();
+                }
+                enforceGatedPage(profile);
+                enforceAtlasGate(profile);
+                notifyAuthReady();
+            })
+            .catch(function () {
+                applyProfile(null);
+                enforceGatedPage(null);
+                enforceAtlasGate(null);
+                notifyAuthReady();
+            });
     }
 
     function clearLocalSession() {
         writeBannerProfile(null);
+        try { sessionStorage.removeItem(AUTH_NEXT_KEY); } catch (e) {}
         sessionStorage.removeItem('atlasSelectedTopic');
         sessionStorage.removeItem('atlasSelectedProvince');
         sessionStorage.removeItem('welcomeShown');
@@ -213,6 +296,7 @@
             loadProfile();
         });
         window.addEventListener('bina-session-changed', loadProfile);
+        bindGatedNav();
         const btn = document.getElementById('user-menu-btn');
         const menu = document.getElementById('user-menu-dropdown');
         const logoutBtn = document.getElementById('btn-logout');
@@ -295,6 +379,38 @@
             if (openProfile) openProfile.addEventListener('click', onAccountClick);
         }
         bindAccountMorph();
+    }
+
+    function bindGatedNav() {
+        function explorerSearch(href) {
+            try {
+                return new URL(href, window.location.href).search || '';
+            } catch (e) {
+                return '';
+            }
+        }
+        function onExplorerClick(event) {
+            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button) return;
+            const link = event.currentTarget;
+            const href = link.getAttribute('href') || SITE.page('explorer.html');
+            if (!profileReady) {
+                event.preventDefault();
+                window.binaWhenAuthReady(function (ok) {
+                    if (ok) {
+                        window.location.href = href;
+                        return;
+                    }
+                    sendToLogin({ page: 'explorer', search: explorerSearch(href) });
+                });
+                return;
+            }
+            if (signedIn) return;
+            event.preventDefault();
+            sendToLogin({ page: 'explorer', search: explorerSearch(href) });
+        }
+        document.querySelectorAll('a[href*="explorer.html"]').forEach(function (el) {
+            el.addEventListener('click', onExplorerClick);
+        });
     }
 
     if (document.readyState === 'loading') {

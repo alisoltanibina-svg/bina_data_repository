@@ -90,7 +90,12 @@ const API_BASE_URL = window.API_BASE_URL;
 
 async function loadExplorerData() {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/explorer/init`);
+        const response = await fetch(`${API_BASE_URL}/api/explorer/init`, { credentials: 'include' });
+        if (response.status === 401 || response.status === 403) {
+            setAuthNext({ page: 'explorer', search: window.location.search || '' });
+            window.location.replace(authLoginUrl());
+            return;
+        }
         const data = await response.json();
 
         topicsColorData = data.colors;
@@ -455,7 +460,12 @@ async function loadIndicator(indicatorName, topicName) {
     syncExplorerDropdowns();
 
     try {
-        const response = await fetch(`${API_BASE_URL}/api/explorer/indicator?name=${encodeURIComponent(indicatorName)}`);
+        const response = await fetch(`${API_BASE_URL}/api/explorer/indicator?name=${encodeURIComponent(indicatorName)}`, { credentials: 'include' });
+        if (response.status === 401 || response.status === 403) {
+            setAuthNext({ page: 'explorer', search: window.location.search || '' });
+            window.location.replace(authLoginUrl());
+            return;
+        }
         const data = await response.json();
 
         let srcName = data.description && data.description.source_name ? data.description.source_name : "مرکز آمار و مراجع رسمی";
@@ -889,7 +899,16 @@ function startExplorer() {
     else showNotice('مشکل در بارگذاری نمودار.');
     bindExplorerChrome();
 
-    loadExplorerData();
+    function go() {
+        loadExplorerData();
+    }
+    if (typeof window.binaWhenAuthReady === 'function') {
+        window.binaWhenAuthReady(function (ok) {
+            if (ok) go();
+        });
+        return;
+    }
+    go();
 }
 
 onReady(startExplorer);

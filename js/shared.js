@@ -197,6 +197,50 @@ function writeBannerProfile(profile) {
     } catch (err) {}
 }
 
+const AUTH_NEXT_KEY = 'bina-auth-next';
+const AUTH_NEXT_PAGES = { explorer: true, atlas: true, bubble: true };
+
+function setAuthNext(spec) {
+    try {
+        if (!spec || !AUTH_NEXT_PAGES[spec.page]) {
+            sessionStorage.removeItem(AUTH_NEXT_KEY);
+            return;
+        }
+        const search = typeof spec.search === 'string' && spec.search.charAt(0) === '?'
+            ? spec.search
+            : '';
+        sessionStorage.setItem(AUTH_NEXT_KEY, JSON.stringify({ page: spec.page, search: search }));
+    } catch (err) {}
+}
+
+function takeAuthNext() {
+    try {
+        const raw = sessionStorage.getItem(AUTH_NEXT_KEY);
+        sessionStorage.removeItem(AUTH_NEXT_KEY);
+        if (!raw) return null;
+        const data = JSON.parse(raw);
+        if (!data || !AUTH_NEXT_PAGES[data.page]) return null;
+        const search = typeof data.search === 'string' && data.search.charAt(0) === '?'
+            ? data.search
+            : '';
+        return { page: data.page, search: search };
+    } catch (err) {
+        return null;
+    }
+}
+
+function authLoginUrl() {
+    return SITE.page('index.html') + '#auth';
+}
+
+function hrefForAuthNext(next) {
+    if (!next) return '';
+    if (next.page === 'atlas') return SITE.page('index.html') + '#atlas';
+    if (next.page === 'explorer') return SITE.page('explorer.html') + (next.search || '');
+    if (next.page === 'bubble') return SITE.page('bubble-chart.html') + (next.search || '');
+    return '';
+}
+
 function applyBannerAvatar(url) {
     const img = document.getElementById('user-avatar-img');
     const btn = document.getElementById('user-menu-btn');
