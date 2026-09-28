@@ -748,6 +748,7 @@ class RegisterBody(BaseModel):
     role_title: str = Field(min_length=1, max_length=80)
     organization: str = ""
     password: str = Field(min_length=8, max_length=200)
+    verification_token: str = Field(min_length=43, max_length=43, pattern=r"^[A-Za-z0-9_-]{43}$")
 
 
 class RejectBody(BaseModel):
@@ -829,6 +830,7 @@ class OtpVerifyBody(BaseModel):
 class PasswordResetBody(BaseModel):
     phone: str = Field(min_length=1, max_length=16)
     password: str = Field(min_length=8, max_length=200)
+    verification_token: str = Field(min_length=43, max_length=43, pattern=r"^[A-Za-z0-9_-]{43}$")
 
 
 @app.post("/api/auth/otp/send")
@@ -859,6 +861,7 @@ def auth_register(body: RegisterBody):
             body.role_title,
             body.organization,
             body.password,
+            body.verification_token,
         )
     except MembershipError as err:
         _raise_membership(err)
@@ -868,7 +871,7 @@ def auth_register(body: RegisterBody):
 @app.post("/api/auth/password/reset")
 def auth_password_reset(body: PasswordResetBody, request: Request):
     try:
-        result = reset_password_after_otp(body.phone, body.password)
+        result = reset_password_after_otp(body.phone, body.password, body.verification_token)
     except MembershipError as err:
         _raise_membership(err)
     response = JSONResponse(content=result["profile"], headers=_AUTH_NO_STORE)

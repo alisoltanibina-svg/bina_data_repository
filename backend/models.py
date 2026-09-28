@@ -269,6 +269,7 @@ class OtpChallenge(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    verification_token_hash: Mapped[str | None] = mapped_column(String(64))
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),

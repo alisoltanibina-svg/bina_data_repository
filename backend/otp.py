@@ -12,7 +12,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from backend.database import db_session
 from backend.membership import MembershipError, is_mobile_phone, normalize_phone, registration_is_open
@@ -312,6 +312,8 @@ def verify_otp(phone: str, purpose: str, code: str) -> dict:
                 OtpChallenge.consumed_at.is_(None),
             )
             .order_by(OtpChallenge.created_at.desc())
+            .limit(1)
+            .with_for_update()
         ).scalars().first()
         if row is None:
             raise MembershipError("otp", "کد نامعتبر است.")
@@ -320,35 +322,49 @@ def verify_otp(phone: str, purpose: str, code: str) -> dict:
             expires_at = expires_at.replace(tzinfo=timezone.utc)
         if expires_at < now:
             raise MembershipError("otp", "کد منقضی شده است. دوباره ارسال کنید.")
+        if row.verified_at is not None:
+            raise MembershipError("otp", "این کد قبلاً تأیید شده است. دوباره ارسال کنید.")
         if int(row.attempts or 0) >= max_attempts:
             raise MembershipError("otp", "تعداد تلاش بیش از حد است. دوباره ارسال کنید.")
         if _hash_code(row.salt, code) != row.code_hash:
             row.attempts = int(row.attempts or 0) + 1
             raise MembershipError("otp", "کد نامعتبر است.")
         row.verified_at = now
+        verification_token = secrets.token_urlsafe(32)
+        row.verification_token_hash = hashlib.sha256(verification_token.encode("ascii")).hexdigest()
         row.attempts = int(row.attempts or 0) + 1
-    return {"ok": True, "purpose": purpose}
+    return {"ok": True, "purpose": purpose, "verification_token": verification_token}
 
 
-def consume_verified_otp_in_session(session, phone: str, purpose: str) -> None:
+def consume_verified_otp_in_session(session, phone: str, purpose: str, verification_token: str) -> None:
+    """Consume the caller's proof atomically, in the same transaction as the action.
+
+    A verified phone alone never authorizes an action. Existing challenges without
+    a proof hash cannot be consumed. Resends invalidate proofs through consumed_at.
+    """
     phone = normalize_phone(phone)
     purpose = (purpose or "").strip()
+    if (
+        not isinstance(verification_token, str)
+        or len(verification_token) != 43
+        or any(c not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-" for c in verification_token)
+    ):
+        raise MembershipError("otp", "ابتدا کد پیامک را تأیید کنید.")
+    token_hash = hashlib.sha256(verification_token.encode("ascii")).hexdigest()
     now = _now()
-    row = session.execute(
-        select(OtpChallenge)
+    consumed_id = session.execute(
+        update(OtpChallenge)
         .where(
             OtpChallenge.phone == phone,
             OtpChallenge.purpose == purpose,
             OtpChallenge.consumed_at.is_(None),
             OtpChallenge.verified_at.is_not(None),
+            OtpChallenge.verification_token_hash == token_hash,
+            OtpChallenge.expires_at > now,
         )
-        .order_by(OtpChallenge.created_at.desc())
-    ).scalars().first()
-    if row is None:
-        raise MembershipError("otp", "ابتدا کد پیامک را تأیید کنید.")
-    expires_at = row.expires_at
-    if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
-    if expires_at < now:
-        raise MembershipError("otp", "کد منقضی شده است. دوباره ارسال کنید.")
-    row.consumed_at = now
+        .values(consumed_at=now, verification_token_hash=None)
+        .returning(OtpChallenge.id)
+        .execution_options(synchronize_session=False)
+    ).scalar_one_or_none()
+    if consumed_id is None:
+        raise MembershipError("otp", "تأیید شماره نامعتبر یا منقضی شده است. دوباره کد بگیرید.")

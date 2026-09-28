@@ -399,6 +399,7 @@ def register_after_otp(
     role_title: str,
     organization: str,
     password: str,
+    verification_token: str,
 ) -> dict:
     from backend.otp import consume_verified_otp_in_session
 
@@ -433,7 +434,7 @@ def register_after_otp(
         ).scalar_one_or_none()
         if pending is not None:
             raise MembershipError("pending", "برای این شماره یک درخواست در انتظار بررسی است.")
-        consume_verified_otp_in_session(session, phone, "register")
+        consume_verified_otp_in_session(session, phone, "register", verification_token)
         row = RegistrationRequest(
             phone=phone,
             first_name=first_name,
@@ -456,7 +457,7 @@ def register_after_otp(
     return payload
 
 
-def reset_password_after_otp(phone: str, password: str) -> dict:
+def reset_password_after_otp(phone: str, password: str, verification_token: str) -> dict:
     from backend.otp import consume_verified_otp_in_session
 
     phone = normalize_phone(phone)
@@ -470,7 +471,7 @@ def reset_password_after_otp(phone: str, password: str) -> dict:
         user = session.execute(select(User).where(User.phone == phone)).scalar_one_or_none()
         if user is None or user.is_active is False:
             raise MembershipError("not-found", "حسابی با این شماره پیدا نشد.")
-        consume_verified_otp_in_session(session, phone, "reset")
+        consume_verified_otp_in_session(session, phone, "reset", verification_token)
         user.password_hash = hash_password(password)
         user.updated_at = now
         profile = public_profile(user)

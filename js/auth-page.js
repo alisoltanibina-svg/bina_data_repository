@@ -6,6 +6,21 @@ const PANELS = ['auth-gate', 'auth-login', 'auth-otp', 'auth-reset', 'auth-regis
 
 let currentPhone = '';
 let otpPurpose = '';
+// Keep the proof only in this page's memory, never in a URL or browser storage.
+let otpVerification = null;
+let otpFlowVersion = 0;
+
+function clearOtpVerification() {
+    otpVerification = null;
+    otpFlowVersion += 1;
+}
+
+function verificationToken(purpose) {
+    if (!otpVerification || otpVerification.phone !== currentPhone || otpVerification.purpose !== purpose) {
+        throw new Error('ابتدا کد پیامک را تأیید کنید.');
+    }
+    return otpVerification.token;
+}
 let pendingRegister = null;
 let resendTimer = 0;
 let resendLeft = 0;
@@ -93,6 +108,7 @@ function openCurtainAuth() {
 }
 
 function closeCurtainAuth() {
+    clearOtpVerification();
     const stage = document.getElementById('entry-auth-stage');
     const home = document.getElementById('entry-launch-home');
     document.documentElement.classList.remove('curtain-auth', 'curtain-auth-wide');
@@ -131,6 +147,7 @@ function displayName(row) {
 }
 
 function finishSignedIn(profile) {
+    clearOtpVerification();
     writeBannerProfile(profile);
     const next = takeAuthNext();
     if (next && (next.page === 'explorer' || next.page === 'bubble')) {
@@ -193,6 +210,7 @@ function errorFromRegister(data) {
 }
 
 function applyPhone(phone) {
+    clearOtpVerification();
     currentPhone = phone;
     const nodes = {
         'login-phone': phone,
@@ -248,6 +266,7 @@ function setOtpSending(on) {
 }
 
 function backToGate() {
+    clearOtpVerification();
     currentPhone = '';
     otpPurpose = '';
     setPendingRegister(null);
@@ -287,7 +306,23 @@ async function lookupPhone(phone) {
 }
 
 async function sendOtp(purpose) {
+    clearOtpVerification();
     return apiJson('/api/auth/otp/send', { phone: currentPhone, purpose: purpose });
+}
+
+async function completeRegistration(pending) {
+    await apiJson('/api/auth/register', {
+        first_name: pending.first_name,
+        last_name: pending.last_name,
+        phone: currentPhone,
+        role_title: pending.role_title,
+        organization: pending.organization,
+        password: pending.password,
+        verification_token: verificationToken('register')
+    });
+    clearOtpVerification();
+    setPendingRegister(null);
+    showStatus('در انتظار تایید', 'درخواست عضویت شما درانتظار تایید است');
 }
 
 async function startOtp(purpose) {
@@ -432,12 +467,22 @@ onReady(() => {
         }
         const submit = document.getElementById('otp-submit');
         submit.disabled = true;
+        const flowVersion = otpFlowVersion;
+        const phone = currentPhone;
+        const purpose = otpPurpose;
         try {
-            await apiJson('/api/auth/otp/verify', {
-                phone: currentPhone,
-                purpose: otpPurpose,
-                code: code
-            });
+            if (!otpVerification) {
+                const verified = await apiJson('/api/auth/otp/verify', {
+                    phone: phone,
+                    purpose: purpose,
+                    code: code
+                });
+                if (flowVersion !== otpFlowVersion) return;
+                if (!verified || !/^[A-Za-z0-9_-]{43}$/.test(verified.verification_token || '')) {
+                    throw new Error('تأیید شماره ممکن نشد. دوباره کد بگیرید.');
+                }
+                otpVerification = { phone: phone, purpose: purpose, token: verified.verification_token };
+            }
             if (otpPurpose === 'register') {
                 const pending = getPendingRegister();
                 if (!pending || !pending.first_name || !pending.password) {
@@ -445,21 +490,14 @@ onReady(() => {
                     document.getElementById('first_name').focus();
                     return;
                 }
-                await apiJson('/api/auth/register', {
-                    first_name: pending.first_name,
-                    last_name: pending.last_name,
-                    phone: currentPhone,
-                    role_title: pending.role_title,
-                    organization: pending.organization,
-                    password: pending.password
-                });
-                setPendingRegister(null);
-                showStatus('در انتظار تایید', 'درخواست عضویت شما درانتظار تایید است');
+                await completeRegistration(pending);
                 return;
             }
             showPanel('auth-reset');
             document.getElementById('reset-password').focus();
         } catch (err) {
+            if (flowVersion !== otpFlowVersion) return;
+            if (err.code === 'otp') clearOtpVerification();
             setError('otp-code', err.message || 'کد نامعتبر است.');
         } finally {
             submit.disabled = false;
@@ -503,10 +541,15 @@ onReady(() => {
         try {
             const profile = await apiJson('/api/auth/password/reset', {
                 phone: currentPhone,
-                password: password
+                password: password,
+                verification_token: verificationToken('reset')
             });
             finishSignedIn(profile);
         } catch (err) {
+            if (err.code === 'otp') {
+                clearOtpVerification();
+                showPanel('auth-otp');
+            }
             showNotice(err.message || 'تغییر رمز ممکن نشد.');
         } finally {
             submit.disabled = false;
@@ -529,9 +572,14 @@ onReady(() => {
         submit.disabled = true;
         try {
             setPendingRegister(values);
-            await startOtp('register');
+            if (otpVerification && otpVerification.phone === currentPhone && otpVerification.purpose === 'register') {
+                await completeRegistration(values);
+            } else {
+                await startOtp('register');
+            }
         } catch (err) {
             setPendingRegister(null);
+            if (err.code === 'otp') clearOtpVerification();
             const mapped = errorFromRegister({ detail: { code: err.code, message: err.message } });
             if (mapped.field) setError(mapped.field, mapped.text);
             else showNotice(mapped.text);
