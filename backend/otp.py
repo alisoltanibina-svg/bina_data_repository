@@ -301,7 +301,7 @@ def verify_otp(phone: str, purpose: str, code: str) -> dict:
 
     settings = get_settings()
     max_attempts = max(3, int(settings.otp_max_attempts or 5))
-    now = _now()
+    verification_token = None
 
     with db_session() as session:
         row = session.execute(
@@ -317,6 +317,8 @@ def verify_otp(phone: str, purpose: str, code: str) -> dict:
         ).scalars().first()
         if row is None:
             raise MembershipError("otp", "کد نامعتبر است.")
+        # The row lock serializes attempts, including requests waiting in parallel.
+        now = _now()
         expires_at = row.expires_at
         if expires_at.tzinfo is None:
             expires_at = expires_at.replace(tzinfo=timezone.utc)
@@ -326,13 +328,15 @@ def verify_otp(phone: str, purpose: str, code: str) -> dict:
             raise MembershipError("otp", "این کد قبلاً تأیید شده است. دوباره ارسال کنید.")
         if int(row.attempts or 0) >= max_attempts:
             raise MembershipError("otp", "تعداد تلاش بیش از حد است. دوباره ارسال کنید.")
-        if _hash_code(row.salt, code) != row.code_hash:
-            row.attempts = int(row.attempts or 0) + 1
-            raise MembershipError("otp", "کد نامعتبر است.")
-        row.verified_at = now
-        verification_token = secrets.token_urlsafe(32)
-        row.verification_token_hash = hashlib.sha256(verification_token.encode("ascii")).hexdigest()
         row.attempts = int(row.attempts or 0) + 1
+        if secrets.compare_digest(_hash_code(row.salt, code), row.code_hash):
+            row.verified_at = now
+            verification_token = secrets.token_urlsafe(32)
+            row.verification_token_hash = hashlib.sha256(verification_token.encode("ascii")).hexdigest()
+    # Reject only after db_session commits the attempt. Raising inside the
+    # transaction would roll back the counter and allow unlimited wrong guesses.
+    if verification_token is None:
+        raise MembershipError("otp", "کد نامعتبر است.")
     return {"ok": True, "purpose": purpose, "verification_token": verification_token}
 
 

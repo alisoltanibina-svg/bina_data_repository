@@ -6,6 +6,10 @@ backend/__pycache__/
 .venv/
 venv/
 
+# Local development and review files; not needed on the production server.
+/tests/
+/docs/
+
 benchmark_100_users_report.json
 benchmark_100_users_report_api_only.json
 benchmark_100_users_report_baseline.json
