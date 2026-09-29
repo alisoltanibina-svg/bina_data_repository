@@ -687,6 +687,21 @@ onReady(async () => {
     const profilePhone = () => document.getElementById('phone').value.trim();
     let resendTimer = 0;
     let resendLeft = 0;
+    // Keep the OTP proof in page memory only; never persist it in a URL or storage.
+    let otpVerification = null;
+    let otpFlowVersion = 0;
+
+    function clearOtpVerification() {
+        otpVerification = null;
+        otpFlowVersion += 1;
+    }
+
+    function verifiedResetToken() {
+        if (!otpVerification || otpVerification.phone !== profilePhone()) {
+            throw new Error('ابتدا کد پیامک را تأیید کنید.');
+        }
+        return otpVerification.token;
+    }
 
     function showProfilePanel(id) {
         ['profile-main', 'profile-password-intro', 'profile-otp', 'profile-reset'].forEach(name => {
@@ -733,6 +748,8 @@ onReady(async () => {
     }
 
     async function startPasswordOtp() {
+        clearOtpVerification();
+        const flowVersion = otpFlowVersion;
         const phone = profilePhone();
         document.getElementById('profile-otp-phone').textContent = phone;
         document.getElementById('profile-otp-code').value = '';
@@ -745,10 +762,12 @@ onReady(async () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ phone: phone, purpose: 'reset' })
             });
+            if (flowVersion !== otpFlowVersion) return;
             setOtpSending(false);
             startResendTimer((data && data.resend_seconds) || 60);
             document.getElementById('profile-otp-code').focus();
         } catch (err) {
+            if (flowVersion !== otpFlowVersion) return;
             setOtpSending(false);
             showNotice(err.message || 'ارسال کد ممکن نشد.');
             showPasswordIntro();
@@ -756,6 +775,7 @@ onReady(async () => {
     }
 
     function showPasswordIntro() {
+        clearOtpVerification();
         const phoneEl = document.getElementById('profile-password-phone');
         if (phoneEl) phoneEl.textContent = profilePhone();
         stopResendTimer();
@@ -781,6 +801,7 @@ onReady(async () => {
     function onPasswordHash() {
         if (location.hash === '#password') showPasswordIntro();
         else {
+            clearOtpVerification();
             stopResendTimer();
             setOtpSending(false);
             showProfilePanel('profile-main');
@@ -802,6 +823,7 @@ onReady(async () => {
     syncPasswordMenu();
 
     document.getElementById('profile-password-intro-back').addEventListener('click', () => {
+        clearOtpVerification();
         showProfilePanel('profile-main');
         clearPasswordHash();
     });
@@ -819,6 +841,11 @@ onReady(async () => {
     document.getElementById('profile-otp-form').addEventListener('submit', async event => {
         event.preventDefault();
         setError('profile-otp-code', '');
+        if (otpVerification && otpVerification.phone === profilePhone()) {
+            showProfilePanel('profile-reset');
+            document.getElementById('profile-reset-password').focus();
+            return;
+        }
         const code = normalizeOtpCode(document.getElementById('profile-otp-code').value);
         if (code.length !== 6) {
             setError('profile-otp-code', 'کد باید ۶ رقم باشد.');
@@ -826,15 +853,23 @@ onReady(async () => {
         }
         const submit = document.getElementById('profile-otp-submit');
         submit.disabled = true;
+        const flowVersion = otpFlowVersion;
+        const phone = profilePhone();
         try {
-            await apiJson('/api/auth/otp/verify', {
+            const verified = await apiJson('/api/auth/otp/verify', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone: profilePhone(), purpose: 'reset', code: code })
+                body: JSON.stringify({ phone: phone, purpose: 'reset', code: code })
             });
+            if (flowVersion !== otpFlowVersion) return;
+            if (!verified || !/^[A-Za-z0-9_-]{43}$/.test(verified.verification_token || '')) {
+                throw new Error('تأیید شماره ممکن نشد. دوباره کد بگیرید.');
+            }
+            otpVerification = { phone: phone, token: verified.verification_token };
             showProfilePanel('profile-reset');
             document.getElementById('profile-reset-password').focus();
         } catch (err) {
+            if (flowVersion !== otpFlowVersion) return;
             setError('profile-otp-code', err.message || 'کد نامعتبر است.');
         } finally {
             submit.disabled = false;
@@ -844,6 +879,10 @@ onReady(async () => {
     document.getElementById('profile-otp-resend').addEventListener('click', async () => {
         const btn = document.getElementById('profile-otp-resend');
         if (btn.disabled) return;
+        clearOtpVerification();
+        const flowVersion = otpFlowVersion;
+        document.getElementById('profile-otp-code').value = '';
+        setError('profile-otp-code', '');
         setOtpSending(true);
         try {
             const data = await apiJson('/api/auth/otp/send', {
@@ -851,9 +890,11 @@ onReady(async () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ phone: profilePhone(), purpose: 'reset' })
             });
+            if (flowVersion !== otpFlowVersion) return;
             setOtpSending(false);
             startResendTimer((data && data.resend_seconds) || 60);
         } catch (err) {
+            if (flowVersion !== otpFlowVersion) return;
             setOtpSending(false);
             setError('profile-otp-code', err.message || 'ارسال دوباره ممکن نشد.');
         }
@@ -879,12 +920,21 @@ onReady(async () => {
             await apiJson('/api/auth/password/reset', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone: profilePhone(), password: password })
+                body: JSON.stringify({
+                    phone: profilePhone(),
+                    password: password,
+                    verification_token: verifiedResetToken()
+                })
             });
+            clearOtpVerification();
             showNotice('رمز عبور تغییر کرد.', 'ok');
             showProfilePanel('profile-main');
             clearPasswordHash();
         } catch (err) {
+            if (err.code === 'otp' || !otpVerification) {
+                clearOtpVerification();
+                showProfilePanel('profile-otp');
+            }
             showNotice(err.message || 'تغییر رمز ممکن نشد.');
         } finally {
             submit.disabled = false;
