@@ -53,6 +53,9 @@ _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 SESSION_COOKIE = "bina_session"
 SESSION_DAYS = 14
+LOGIN_FAILURE_LIMIT = 5
+LOGIN_FAILURE_WINDOW = timedelta(minutes=15)
+_ADMIN_STATE_LOCK = 0x526173616442696E
 
 _hasher = PasswordHasher()
 
@@ -229,34 +232,74 @@ def _create_session_in_transaction(session, user_id: int) -> tuple[str, datetime
     return raw, expires_at
 
 
+def _lock_admin_state(session) -> None:
+    """Serialize admin deactivations across app workers."""
+    session.execute(select(func.pg_advisory_xact_lock(_ADMIN_STATE_LOCK))).scalar_one()
+
+
+def _active_admin_count(session) -> int:
+    return int(
+        session.execute(
+            select(func.count())
+            .select_from(User)
+            .where(User.is_admin.is_(True), User.is_active.is_(True))
+        ).scalar_one()
+    )
+
+
+def _clear_login_failures(user: User) -> None:
+    user.login_failed_attempts = 0
+    user.login_failure_window_started_at = None
+
+
+def _record_wrong_password(session, user: User, now: datetime) -> None:
+    started = user.login_failure_window_started_at
+    if started is not None and started.tzinfo is None:
+        started = started.replace(tzinfo=timezone.utc)
+    if started is None or now >= started + LOGIN_FAILURE_WINDOW:
+        user.login_failure_window_started_at = now
+        user.login_failed_attempts = 0
+    user.login_failed_attempts = min(LOGIN_FAILURE_LIMIT, int(user.login_failed_attempts or 0) + 1)
+    if user.login_failed_attempts < LOGIN_FAILURE_LIMIT:
+        return
+    if user.is_admin:
+        _lock_admin_state(session)
+        if _active_admin_count(session) <= 1:
+            return
+    user.is_active = False
+    user.updated_at = now
+    session.execute(delete(UserSession).where(UserSession.user_id == user.id))
+
+
 def authenticate(phone: str, password: str) -> dict | None:
     phone = normalize_phone(phone)
     password = normalize_secret(password)
     if not is_mobile_phone(phone) or not password:
         return None
+    result = None
+    reason = "unknown"
     with db_session() as session:
         user = session.execute(
             select(User)
             .where(or_(User.phone == phone, func.trim(User.phone) == phone))
             .with_for_update()
         ).scalars().first()
-        if user is None:
-            record_login_failure(phone, "unknown")
-            return None
-        if user.is_active is False:
-            record_login_failure(phone, "inactive")
-            return None
-        stored_hash = (user.password_hash or "").strip()
-        if not stored_hash:
-            record_login_failure(phone, "password")
-            return None
-        if not verify_password(stored_hash, password):
-            record_login_failure(phone, "password")
-            return None
-        profile = public_profile(user)
-        token, expires_at = _create_session_in_transaction(session, user.id)
-    record_login_failure(phone, "ok")
-    return {"profile": profile, "token": token, "expires_at": expires_at}
+        if user is not None:
+            if user.is_active is False:
+                reason = "inactive"
+            else:
+                stored_hash = (user.password_hash or "").strip()
+                if not stored_hash or not verify_password(stored_hash, password):
+                    reason = "password"
+                    _record_wrong_password(session, user, datetime.now(timezone.utc))
+                else:
+                    reason = "ok"
+                    _clear_login_failures(user)
+                    profile = public_profile(user)
+                    token, expires_at = _create_session_in_transaction(session, user.id)
+                    result = {"profile": profile, "token": token, "expires_at": expires_at}
+    record_login_failure(phone, reason)
+    return result
 
 
 def lookup_auth_gate(phone: str) -> str:
@@ -472,6 +515,7 @@ def reset_password_after_otp(phone: str, password: str, verification_token: str)
         consume_verified_otp_in_session(session, phone, "reset", verification_token)
         user.password_hash = hash_password(password)
         user.updated_at = now
+        _clear_login_failures(user)
         session.execute(delete(UserSession).where(UserSession.user_id == user.id))
         profile = public_profile(user)
         token, expires_at = _create_session_in_transaction(session, user.id)
@@ -686,15 +730,20 @@ def delete_user_account(user_id: int, actor_id: int) -> None:
         raise MembershipError("forbidden", "نمی‌توانید حساب خودتان را حذف کنید.")
     avatar_path = None
     with db_session() as session:
-        user = session.get(User, user_id)
+        user = session.execute(
+            select(User).where(User.id == user_id).with_for_update()
+        ).scalar_one_or_none()
         if user is None:
             raise MembershipError("not-found", "حساب پیدا نشد.")
         if user.is_admin:
+            _lock_admin_state(session)
             admin_count = session.execute(
                 select(func.count()).select_from(User).where(User.is_admin.is_(True))
             ).scalar_one()
             if int(admin_count or 0) <= 1:
                 raise MembershipError("forbidden", "آخرین مدیر را نمی‌توان حذف کرد.")
+            if user.is_active and _active_admin_count(session) <= 1:
+                raise MembershipError("forbidden", "آخرین مدیر فعال را نمی‌توان حذف کرد.")
         phone = user.phone
         avatar_path = user.avatar_path
         for row in session.execute(select(OtpChallenge).where(OtpChallenge.phone == phone)).scalars().all():
@@ -713,22 +762,21 @@ def set_user_active(user_id: int, actor_id: int, active: bool) -> dict:
         raise MembershipError("forbidden", "نمی‌توانید حساب خودتان را غیرفعال کنید.")
     now = datetime.now(timezone.utc)
     with db_session() as session:
-        user = session.get(User, user_id)
+        user = session.execute(
+            select(User).where(User.id == user_id).with_for_update()
+        ).scalar_one_or_none()
         if user is None:
             raise MembershipError("not-found", "حساب پیدا نشد.")
-        if user.is_admin and not active:
-            admin_count = session.execute(
-                select(func.count())
-                .select_from(User)
-                .where(User.is_admin.is_(True), User.is_active.is_(True))
-            ).scalar_one()
-            if int(admin_count or 0) <= 1:
+        if user.is_admin and user.is_active and not active:
+            _lock_admin_state(session)
+            if _active_admin_count(session) <= 1:
                 raise MembershipError("forbidden", "آخرین مدیر فعال را نمی‌توان غیرفعال کرد.")
         user.is_active = bool(active)
         user.updated_at = now
-        if not active:
-            for row in session.execute(select(UserSession).where(UserSession.user_id == user_id)).scalars().all():
-                session.delete(row)
+        if active:
+            _clear_login_failures(user)
+        else:
+            session.execute(delete(UserSession).where(UserSession.user_id == user_id))
         session.flush()
         return public_profile(user)
 

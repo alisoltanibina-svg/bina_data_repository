@@ -3,8 +3,8 @@ File: backend/ratelimit.py
 Purpose: Per-IP sliding-window rate limiting for /api/* (not static files).
 
 Two policies stack: a per-minute quota and a short per-second cap so a client
-cannot spend the whole minute in one burst. Disable with RATE_LIMIT_ENABLED=0
-for load tests.
+cannot spend the whole minute in one burst. Exceeding either starts a two-hour
+per-IP cooldown. Disable with RATE_LIMIT_ENABLED=0 for load tests.
 
 Env (all optional)
 ------------------
@@ -13,12 +13,15 @@ Env (all optional)
   RATE_LIMIT_API_BURST        e.g. 20/second   (short-window cap)
   RATE_LIMIT_EXPENSIVE        e.g. 30/minute   (uncached / large endpoints)
   RATE_LIMIT_EXPENSIVE_BURST  e.g. 8/second
-  RATE_LIMIT_TRUST_PROXY      default off; honor X-Forwarded-For / X-Real-IP
+
+Client IP comes from the ASGI connection scope. Configure Uvicorn to trust only
+the Nginx peer and have Nginx replace incoming X-Forwarded-For headers.
 """
 
 from __future__ import annotations
 
 import json
+import math
 import os
 import threading
 import time
@@ -30,7 +33,7 @@ from fastapi.responses import Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
 JSON_MEDIA = "application/json"
-_DETAIL = "تعداد درخواست‌ها بیش از حد مجاز است. کمی بعد دوباره تلاش کنید."
+COOLDOWN_SECONDS = 2 * 60 * 60
 
 _EXPENSIVE_PATHS = frozenset(
     {
@@ -105,7 +108,6 @@ class Quota:
 @dataclass(frozen=True)
 class RateLimitConfig:
     enabled: bool
-    trust_proxy: bool
     api: Quota
     api_burst: Quota
     expensive: Quota
@@ -125,7 +127,6 @@ class RateLimitConfig:
         )
         return cls(
             enabled=_env_enabled("RATE_LIMIT_ENABLED", True),
-            trust_proxy=_env_enabled("RATE_LIMIT_TRUST_PROXY", False),
             api=Quota("api", api_limit, api_window),
             api_burst=Quota("api_burst", api_burst_limit, api_burst_window),
             expensive=Quota("expensive", exp_limit, exp_window),
@@ -148,11 +149,12 @@ class LimitDecision:
 
 
 class SlidingWindowStore:
-    """Thread-safe sliding windows with a hard cap so spoofed IPs cannot grow RAM."""
+    """Thread-safe sliding windows and bounded, per-IP cooldowns."""
 
     def __init__(self, max_keys: int = 8192) -> None:
         self._lock = threading.Lock()
         self._windows: dict[str, _Window] = {}
+        self._cooldowns: dict[str, tuple[float, Quota]] = {}
         self._max_keys = max_keys
         self._ops = 0
 
@@ -162,6 +164,18 @@ class SlidingWindowStore:
             self._ops += 1
             if self._ops % 64 == 0:
                 self._prune(now)
+            cooldown = self._cooldowns.get(client)
+            if cooldown is not None:
+                remaining = cooldown[0] - now
+                if remaining > 0:
+                    return LimitDecision(
+                        allowed=False,
+                        quota=cooldown[1],
+                        remaining=0,
+                        retry_after=math.ceil(remaining),
+                        reset_unix=math.ceil(wall + remaining),
+                    )
+                self._cooldowns.pop(client, None)
             snapshots: list[tuple[Quota, _Window, int]] = []
             blocking: LimitDecision | None = None
             for quota in quotas:
@@ -190,7 +204,17 @@ class SlidingWindowStore:
                         reset_unix=int(wall + wait),
                     )
             if blocking is not None:
-                return blocking
+                if len(self._cooldowns) >= self._max_keys:
+                    oldest_client = min(self._cooldowns, key=lambda key: self._cooldowns[key][0])
+                    self._cooldowns.pop(oldest_client, None)
+                self._cooldowns[client] = (now + COOLDOWN_SECONDS, blocking.quota)
+                return LimitDecision(
+                    allowed=False,
+                    quota=blocking.quota,
+                    remaining=0,
+                    retry_after=COOLDOWN_SECONDS,
+                    reset_unix=math.ceil(wall + COOLDOWN_SECONDS),
+                )
             tightest: LimitDecision | None = None
             for quota, window, remaining in snapshots:
                 window.times.append(now)
@@ -239,16 +263,13 @@ class SlidingWindowStore:
         ]
         for key in stale:
             self._windows.pop(key, None)
+        expired_cooldowns = [client for client, (until, _) in self._cooldowns.items() if until <= now]
+        for client in expired_cooldowns:
+            self._cooldowns.pop(client, None)
 
 
-def _client_ip(request: Request, trust_proxy: bool) -> str:
-    if trust_proxy:
-        forwarded = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
-        if forwarded:
-            return forwarded
-        real_ip = (request.headers.get("x-real-ip") or "").strip()
-        if real_ip:
-            return real_ip
+def _client_ip(request: Request) -> str:
+    """Use only the address resolved by the server's trusted-proxy policy."""
     host = request.client.host if request.client else "unknown"
     if host.startswith("::ffff:"):
         return host[7:]
@@ -283,8 +304,13 @@ def _limit_headers(decision: LimitDecision, *, rejected: bool) -> dict[str, str]
 
 
 def _reject(decision: LimitDecision) -> Response:
+    wait = decision.retry_after
+    if wait >= 60:
+        detail = f"تعداد درخواست‌ها بیش از حد مجاز است. {math.ceil(wait / 60)} دقیقه دیگر دوباره تلاش کنید."
+    else:
+        detail = f"تعداد درخواست‌ها بیش از حد مجاز است. {wait} ثانیه دیگر دوباره تلاش کنید."
     return Response(
-        content=json.dumps({"detail": _DETAIL}, ensure_ascii=False).encode("utf-8"),
+        content=json.dumps({"detail": detail, "retry_after": wait}, ensure_ascii=False).encode("utf-8"),
         status_code=429,
         media_type=JSON_MEDIA,
         headers=_limit_headers(decision, rejected=True),
@@ -311,7 +337,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         try:
             decision = self.store.consume(
                 time.monotonic(),
-                _client_ip(request, config.trust_proxy),
+                _client_ip(request),
                 quotas,
             )
         except Exception:
