@@ -14,7 +14,7 @@ from xml.sax.saxutils import escape as xml_escape
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHash, VerificationError, VerifyMismatchError
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError, ProgrammingError, OperationalError
 
 from backend.avatars import (
@@ -140,7 +140,7 @@ def repair_approved_user_hashes() -> None:
 
 
 def seed_admin() -> None:
-    """Create or refresh the env admin so login has one is_admin account."""
+    """Create the initial env admin without changing an existing account."""
     settings = get_settings()
     phone = normalize_phone(settings.admin_phone)
     password = settings.admin_password.get_secret_value()
@@ -148,28 +148,26 @@ def seed_admin() -> None:
         return
     if not is_mobile_phone(phone):
         raise RuntimeError("ADMIN_PHONE must be an 11-digit Iranian mobile like 09121234567.")
-    if len(password) < 8:
-        raise RuntimeError("ADMIN_PASSWORD must be at least 8 characters.")
 
-    password_hash = hash_password(password)
     with db_session() as session:
         user = session.execute(select(User).where(User.phone == phone)).scalar_one_or_none()
-        if user is None:
-            session.add(
-                User(
-                    phone=phone,
-                    first_name="مدیر",
-                    last_name="سامانه",
-                    role_title="مدیر",
-                    password_hash=password_hash,
-                    is_admin=True,
-                    is_active=True,
-                )
-            )
+        if user is not None:
+            if not user.is_admin:
+                raise RuntimeError("ADMIN_PHONE belongs to a non-admin account; choose another phone.")
             return
-        user.password_hash = password_hash
-        user.is_admin = True
-        user.is_active = True
+        if len(password) < 8:
+            raise RuntimeError("ADMIN_PASSWORD must be at least 8 characters to create the admin.")
+        session.add(
+            User(
+                phone=phone,
+                first_name="مدیر",
+                last_name="سامانه",
+                role_title="مدیر",
+                password_hash=hash_password(password),
+                is_admin=True,
+                is_active=True,
+            )
+        )
 
 
 class MembershipError(Exception):
@@ -224,13 +222,10 @@ def _token_hash(raw: str) -> str:
     return hashlib.sha256(raw.encode("ascii")).hexdigest()
 
 
-def create_session(user_id: int) -> tuple[str, datetime]:
+def _create_session_in_transaction(session, user_id: int) -> tuple[str, datetime]:
     raw = secrets.token_urlsafe(32)
     expires_at = datetime.now(timezone.utc) + timedelta(days=SESSION_DAYS)
-    with db_session() as session:
-        session.add(
-            UserSession(user_id=user_id, token_hash=_token_hash(raw), expires_at=expires_at)
-        )
+    session.add(UserSession(user_id=user_id, token_hash=_token_hash(raw), expires_at=expires_at))
     return raw, expires_at
 
 
@@ -241,7 +236,9 @@ def authenticate(phone: str, password: str) -> dict | None:
         return None
     with db_session() as session:
         user = session.execute(
-            select(User).where(or_(User.phone == phone, func.trim(User.phone) == phone))
+            select(User)
+            .where(or_(User.phone == phone, func.trim(User.phone) == phone))
+            .with_for_update()
         ).scalars().first()
         if user is None:
             record_login_failure(phone, "unknown")
@@ -257,9 +254,8 @@ def authenticate(phone: str, password: str) -> dict | None:
             record_login_failure(phone, "password")
             return None
         profile = public_profile(user)
-        user_id = user.id
+        token, expires_at = _create_session_in_transaction(session, user.id)
     record_login_failure(phone, "ok")
-    token, expires_at = create_session(user_id)
     return {"profile": profile, "token": token, "expires_at": expires_at}
 
 
@@ -468,15 +464,17 @@ def reset_password_after_otp(phone: str, password: str, verification_token: str)
         raise MembershipError("password", "رمز عبور حداقل ۸ نویسه باشد.")
     now = datetime.now(timezone.utc)
     with db_session() as session:
-        user = session.execute(select(User).where(User.phone == phone)).scalar_one_or_none()
+        user = session.execute(
+            select(User).where(User.phone == phone).with_for_update()
+        ).scalar_one_or_none()
         if user is None or user.is_active is False:
             raise MembershipError("not-found", "حسابی با این شماره پیدا نشد.")
         consume_verified_otp_in_session(session, phone, "reset", verification_token)
         user.password_hash = hash_password(password)
         user.updated_at = now
+        session.execute(delete(UserSession).where(UserSession.user_id == user.id))
         profile = public_profile(user)
-        user_id = user.id
-    token, expires_at = create_session(user_id)
+        token, expires_at = _create_session_in_transaction(session, user.id)
     return {"profile": profile, "token": token, "expires_at": expires_at}
 
 
