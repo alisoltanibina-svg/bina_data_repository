@@ -167,6 +167,12 @@ def build(source_root: Path, output: Path, requested_version: str | None = None)
             encoding="utf-8",
         )
 
+        # tempfile.mkdtemp() creates the staging root as 0700 on Linux. Static
+        # files must be traversable/readable by the Nginx worker after rename.
+        staging.chmod(0o755)
+        for path in staging.rglob("*"):
+            path.chmod(0o755 if path.is_dir() else 0o644)
+
         if backup.exists():
             shutil.rmtree(backup)
         if output.exists():
