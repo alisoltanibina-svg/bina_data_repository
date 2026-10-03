@@ -955,9 +955,8 @@ body.explorer-body {
     }
     .ex-chart-room {
         order: 2;
-        flex: 1.55 1 0;
+        flex: 0 0 auto;
         height: auto;
-        min-height: 0;
         padding: 10px 12px 8px;
         border-radius: 22px;
     }
@@ -985,8 +984,9 @@ body.explorer-body {
         color: #fff;
     }
     #canvas-reveal-wrapper {
-        flex: 1 1 auto;
-        min-height: 180px;
+        flex: 0 0 auto;
+        height: clamp(180px, 52vw, 260px);
+        min-height: 0;
         aspect-ratio: auto;
         max-height: none;
     }
