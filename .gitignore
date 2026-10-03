@@ -2,7 +2,19 @@ __pycache__/
 *.py[cod]
 *.pyo
 backend/__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyright/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+*.egg-info/
+
 .env
+.env.*
+!.env.example
 .venv/
 venv/
 
@@ -33,6 +45,18 @@ uvicorn.bat
 .grok/
 
 _restore
+/dist/
+/.dist-staging-*/
+/.dist-previous/
+/build/
+
+*.log
+*.tmp
+*.swp
+*~
+.DS_Store
+Thumbs.db
+.idea/
 
 assets/images/avatars/*
 !assets/images/avatars/.gitkeep

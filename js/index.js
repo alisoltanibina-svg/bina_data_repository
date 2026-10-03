@@ -571,7 +571,7 @@ async function loadAllData() {
         updateDefaultPanel();
         initMap();
 
-        const geoRes = await fetch('data/iran.geojson');
+        const geoRes = await fetch(SITE.staticFile('data/iran.geojson'));
         if (!geoRes.ok) throw new Error("GeoJSON not found");
         renderMapData(await geoRes.json());
         if (map && typeof map.whenReady === 'function') {

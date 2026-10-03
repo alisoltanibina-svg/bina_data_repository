@@ -6,7 +6,20 @@
 (function (global) {
     var path = (global.location && global.location.pathname) || '';
     var inHtmlDir = /(^|\/)html\//.test(path);
+    var assetVersion = '__ASSET_VERSION__';
+    if (/^__.*__$/.test(assetVersion)) assetVersion = '';
+
+    function versioned(url) {
+        var value = String(url || '');
+        if (!assetVersion || /^(?:[a-z]+:)?\/\//i.test(value) || value.indexOf('data:') === 0) return value;
+        var hashAt = value.indexOf('#');
+        var hash = hashAt >= 0 ? value.slice(hashAt) : '';
+        var base = hashAt >= 0 ? value.slice(0, hashAt) : value;
+        return base + (base.indexOf('?') >= 0 ? '&' : '?') + 'v=' + encodeURIComponent(assetVersion) + hash;
+    }
+
     global.SITE = {
+        version: assetVersion,
         html: inHtmlDir ? '' : 'html/',
         root: inHtmlDir ? '../' : '',
         page: function (file) {
@@ -19,7 +32,10 @@
             return this.html + base + rest;
         },
         asset: function (rel) {
-            return this.root + 'assets/' + String(rel || '').replace(/^\/+/, '');
+            return versioned(this.root + 'assets/' + String(rel || '').replace(/^\/+/, ''));
+        },
+        staticFile: function (rel) {
+            return versioned(this.root + String(rel || '').replace(/^\/+/, ''));
         }
     };
 })(typeof window !== 'undefined' ? window : this);

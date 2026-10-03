@@ -84,6 +84,7 @@ _CACHE_HEADERS = {
 
 _HTML_CACHE_CONTROL = "public, max-age=0, must-revalidate"
 _MEDIA_CACHE_CONTROL = "public, max-age=604800, stale-while-revalidate=2592000"
+_IMMUTABLE_STATIC_CACHE_CONTROL = "public, max-age=31536000, immutable"
 
 _MEDIA_SUFFIXES = {
     ".webp",
@@ -101,6 +102,7 @@ _MEDIA_SUFFIXES = {
 _CODE_SUFFIXES = {".js", ".css"}
 _HTML_SUFFIXES = {".html", ""}
 _PUBLIC_ROOT_SUFFIXES = _HTML_SUFFIXES | _CODE_SUFFIXES
+_PUBLIC_ROOT_NAMES = {"webmanifest.json", "release.json"}
 _PUBLIC_ASSET_SUFFIXES = _MEDIA_SUFFIXES | _CODE_SUFFIXES
 _BLOCKED_SUFFIXES = {
     ".db",
@@ -166,7 +168,13 @@ def _static_is_public(path: str) -> bool:
         return suffix == ".geojson"
     if lower.startswith("assets/"):
         return suffix in _PUBLIC_ASSET_SUFFIXES
-    return "/" not in lower and suffix in _PUBLIC_ROOT_SUFFIXES
+    if lower.startswith("html/"):
+        return suffix == ".html"
+    if lower.startswith("css/"):
+        return suffix == ".css"
+    if lower.startswith("js/"):
+        return suffix == ".js"
+    return "/" not in lower and (suffix in _PUBLIC_ROOT_SUFFIXES or name in _PUBLIC_ROOT_NAMES)
 
 
 def _static_cache_control(path: str) -> str:
@@ -185,7 +193,16 @@ class CachedStaticFiles(StaticFiles):
             return Response(status_code=404, content="Not Found")
         response = await super().get_response(path, scope)
         if response.status_code in (200, 304):
-            response.headers["Cache-Control"] = _static_cache_control(path)
+            query = scope.get("query_string", b"").decode("ascii", "ignore")
+            versioned = any(
+                part.startswith("v=")
+                and len(part) == 14
+                and all(char in "0123456789abcdef" for char in part[2:].lower())
+                for part in query.split("&")
+            )
+            response.headers["Cache-Control"] = (
+                _IMMUTABLE_STATIC_CACHE_CONTROL if versioned else _static_cache_control(path)
+            )
         return response
 
 
@@ -1034,8 +1051,9 @@ def admin_delete_avatar(user_id: int, request: Request):
 
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_STATIC_ROOT = Path(os.getenv("STATIC_ROOT", str(_PROJECT_ROOT))).resolve()
 app.mount(
     "/",
-    CachedStaticFiles(directory=str(_PROJECT_ROOT), html=True),
+    CachedStaticFiles(directory=str(_STATIC_ROOT), html=True),
     name="static",
 )
