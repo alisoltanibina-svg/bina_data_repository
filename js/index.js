@@ -317,6 +317,60 @@ window.addEventListener('DOMContentLoaded', () => {
 
 applyChartDefaults();
 
+// Chart.js is normally loaded by the page before this deferred script runs.
+// On a cold visit the CDN request can occasionally fail; retry from a second
+// CDN only in that case, without adding work to the normal loading path.
+let atlasChartLibraryPromise = null;
+
+function ensureAtlasChartLibrary() {
+    if (typeof Chart !== 'undefined') {
+        applyChartDefaults();
+        return Promise.resolve();
+    }
+    if (atlasChartLibraryPromise) return atlasChartLibraryPromise;
+
+    const fallbackUrls = [
+        'https://unpkg.com/chart.js@4.5.1/dist/chart.umd.min.js',
+        'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js'
+    ];
+
+    atlasChartLibraryPromise = new Promise((resolve, reject) => {
+        let fallbackIndex = 0;
+
+        function tryNextFallback() {
+            if (fallbackIndex >= fallbackUrls.length) {
+                reject(new Error('Chart.js could not be loaded'));
+                return;
+            }
+
+            const script = document.createElement('script');
+            script.src = fallbackUrls[fallbackIndex++];
+            script.async = true;
+            script.onload = () => {
+                if (typeof Chart === 'undefined') {
+                    script.remove();
+                    tryNextFallback();
+                    return;
+                }
+                applyChartDefaults();
+                resolve();
+            };
+            script.onerror = () => {
+                script.remove();
+                tryNextFallback();
+            };
+            document.head.appendChild(script);
+        }
+
+        tryNextFallback();
+    }).catch(err => {
+        atlasChartLibraryPromise = null;
+        throw err;
+    });
+
+    return atlasChartLibraryPromise;
+}
+
 const API_BASE_URL = window.API_BASE_URL;
 
 const atlasTrendCache = {};
@@ -684,8 +738,8 @@ function restoreSelectedProvince(provName) {
 
             const rp = document.getElementById('right-panel');
             if (rp) rp.classList.add('show-panel');
-            updateRightPanel(provName);
             renderLeftFloatingPanel(provName);
+            updateRightPanel(provName);
             updateLegendTitle();
         }
     });
@@ -941,8 +995,8 @@ function renderMapData(geojsonData) {
                 updatePointer();
                 
                 document.getElementById('right-panel').classList.add('show-panel');
-                updateRightPanel(provName);
                 renderLeftFloatingPanel(provName);
+                updateRightPanel(provName);
                 const bounds = layer.getBounds();
                 requestAnimationFrame(() => {
                     fitMapTo(bounds, { animate: true, maxZoom: MAP_MAX_ZOOM, duration: 1.6 });
@@ -1031,6 +1085,24 @@ function updateRightPanel(provinceName) {
 
     document.getElementById('chart-wrapper').style.display = 'block';
     document.getElementById('trend-wrapper').style.display = 'block';
+
+    if (typeof Chart === 'undefined') {
+        const requestedTopic = currentIndex;
+        document.getElementById('chart-wrapper').style.display = 'none';
+        document.getElementById('trend-wrapper').style.display = 'none';
+        ensureAtlasChartLibrary().then(() => {
+            if (selectedProvince === provinceName && currentIndex === requestedTopic) {
+                updateRightPanel(provinceName);
+            }
+        }).catch(err => {
+            console.error('Error loading Chart.js for Atlas', err);
+            if (selectedProvince === provinceName && currentIndex === requestedTopic && hint) {
+                hint.textContent = 'نمایش نمودارها ممکن نشد. دوباره تلاش کنید.';
+                hint.hidden = false;
+            }
+        });
+        return;
+    }
 
     const topicRows = mapScoresByTopic[currentIndex] || [];
     let sortedProvs = topicRows.map(m => ({ name: m.province_name, score: Number(m.index_score) }));
