@@ -119,8 +119,16 @@ function showNotice(message, kind, anchor) {
 
 document.addEventListener('click', (event) => {
     const button = event.target.closest('[data-unavailable-page]');
-    if (!button) return;
-    showNotice('متأسفیم؛ این صفحه فعلاً در دسترس نیست', 'error', button);
+    if (button) {
+        showNotice('متأسفیم؛ این صفحه فعلاً در دسترس نیست', 'error', button);
+        return;
+    }
+
+    const notice = document.getElementById('app-notice');
+    if (notice && notice.dataset.anchored === 'true') {
+        notice.hidden = true;
+        clearTimeout(showNotice._timer);
+    }
 });
 
 function applyChartDefaults() {
