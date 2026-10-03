@@ -15,12 +15,9 @@ Purpose: Explorer catalog landing and indicator desk, in the dashboard visual id
     --topic-accent: #0078d7;
     --ex-ink: #1b242e;
     --ex-muted: #5c6570;
-    --ex-paper: #f4f5f7;
     --ex-line: rgba(27, 36, 46, 0.12);
-    --ex-shadow: 0 10px 24px rgba(27, 36, 46, 0.08);
     --ex-radius: 14px;
     --ex-pill: 999px;
-    --ex-ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 * { box-sizing: border-box; }
@@ -97,14 +94,6 @@ body.explorer-body {
     padding: 4px 16px 14px;
 }
 
-.ex-kicker {
-    margin: 0 0 14px;
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: var(--topic-accent, #0078d7);
-    transition: color 0.6s ease;
-}
-
 .ex-title {
     margin: 0;
     display: flex;
@@ -138,25 +127,6 @@ body.explorer-body {
     font-weight: 400;
     line-height: 1.7;
     color: var(--ex-muted);
-}
-
-.ex-cue {
-    margin-top: 28px;
-    color: var(--ex-ink);
-    opacity: 0.7;
-}
-.ex-cue i {
-    display: block;
-    width: 10px;
-    height: 10px;
-    border-right: 1.5px solid currentColor;
-    border-bottom: 1.5px solid currentColor;
-    transform: rotate(45deg);
-    animation: ex-cue-bounce 1.4s var(--ex-ease) infinite;
-}
-@keyframes ex-cue-bounce {
-    0%, 100% { transform: rotate(45deg) translate(0, 0); opacity: 0.35; }
-    50% { transform: rotate(45deg) translate(3px, 3px); opacity: 1; }
 }
 
 .ex-topics {
@@ -263,272 +233,7 @@ body.explorer-body {
     text-shadow: 0 1px 8px rgba(0, 0, 0, 0.35);
 }
 
-.ex-room-meta {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 7px;
-    font-size: 0.75rem;
-    font-weight: 400;
-    color: var(--ex-muted);
-}
-
-.ex-room-pearl {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--topic-accent, #0078d7);
-    flex-shrink: 0;
-}
-
-.ex-panel {
-    position: relative;
-    isolation: isolate;
-    overflow: hidden;
-    border-radius: var(--ex-radius);
-    border: 1px solid var(--ex-line);
-    background: rgba(255, 255, 255, 0.78);
-    box-shadow: inset 0 1px rgba(255, 255, 255, 0.9), var(--ex-shadow);
-}
-
-.ex-panel-grain {
-    pointer-events: none;
-    position: absolute;
-    inset: 0;
-    z-index: 4;
-    opacity: 0.07;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.72' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-    background-size: 180px 180px;
-}
-
-.ex-index-panel {
-    min-height: 0;
-}
-
-.ex-panel-body {
-    position: relative;
-    z-index: 2;
-    padding: 12px 16px 14px;
-}
-
-.ex-panel-empty {
-    min-height: 88px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    gap: 4px;
-    padding: 8px 0;
-}
-
-.ex-panel-empty .ex-kicker { margin: 0; }
-.ex-panel-empty p {
-    margin: 0;
-    color: var(--ex-muted);
-    font-size: 0.85rem;
-    line-height: 1.6;
-}
-
-.ex-sheet-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 0 0 6px;
-}
-
-.ex-sheet-head h3 {
-    margin: 0;
-    font-size: 0.95rem;
-    font-weight: 600;
-}
-
-.ex-sheet-close {
-    width: 30px;
-    height: 30px;
-    border-radius: var(--ex-pill);
-    border: 1px solid var(--ex-line);
-    background: rgba(255, 255, 255, 0.8);
-    color: var(--ex-ink);
-    cursor: pointer;
-    display: grid;
-    place-items: center;
-}
-
-.ex-sheet-close:hover { transform: translateY(-2px); }
-
-.ex-sub {
-    padding: 6px 0 4px;
-}
-
-.ex-sub + .ex-sub {
-    border-top: 1px solid var(--ex-line);
-}
-
-.ex-sub-name {
-    display: block;
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: var(--ex-muted);
-    margin-bottom: 6px;
-}
-
-.ex-inds {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-}
-
-.mosaic-ind {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    margin: 0;
-    padding: 4px 10px 5px;
-    border: 1px solid var(--ex-line);
-    border-radius: var(--ex-pill);
-    background: rgba(255, 255, 255, 0.86);
-    font: inherit;
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--ex-ink);
-    cursor: pointer;
-    text-align: right;
-}
-
-.mosaic-ind:hover {
-    transform: translateY(-2px);
-    background: #fff;
-}
-
-.mosaic-ind-dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--topic-accent, #0078d7);
-    flex-shrink: 0;
-}
-
-.ex-bubble-panel {
-    min-height: 340px;
-    display: flex;
-    flex-direction: column;
-}
-
-.ex-bubbles {
-    position: relative;
-    z-index: 2;
-    flex: 1;
-    min-height: 240px;
-    margin: 12px 16px 0;
-}
-
-.ex-bubble-axis {
-    position: absolute;
-    pointer-events: none;
-    background: var(--ex-ink);
-    opacity: 0.18;
-}
-.ex-bubble-axis-x {
-    left: 8%;
-    right: 8%;
-    bottom: 14%;
-    height: 2px;
-    border-radius: 99px;
-}
-.ex-bubble-axis-y {
-    top: 10%;
-    bottom: 14%;
-    right: 8%;
-    width: 2px;
-    border-radius: 99px;
-}
-
-.ex-bubble {
-    position: absolute;
-    border-radius: 50%;
-    border: 2.2px solid var(--ex-ink);
-    background:
-        radial-gradient(circle at 32% 30%, rgba(255, 255, 255, 0.85) 0 18%, transparent 42%),
-        color-mix(in srgb, var(--topic-accent, #0078d7) 52%, #ffffff);
-    color: var(--ex-ink);
-    font-family: inherit;
-    font-size: 0.72rem;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    line-height: 1.25;
-    padding: 4px;
-    cursor: grab;
-    user-select: none;
-    box-shadow: 0 8px 18px rgba(27, 36, 46, 0.12);
-    animation: ex-bubble-float 4.8s ease-in-out infinite;
-    touch-action: none;
-}
-.ex-bubble:nth-child(2n) { animation-duration: 5.4s; }
-.ex-bubble:nth-child(3n) { animation-duration: 4.2s; animation-delay: -1.1s; }
-.ex-bubble:active { cursor: grabbing; animation-play-state: paused; }
-.ex-bubble:hover {
-    z-index: 6;
-    transform: scale(1.08);
-}
-
-@keyframes ex-bubble-float {
-    0%, 100% { translate: 0 0; }
-    50% { translate: 0 -10px; }
-}
-
-.ex-panel-copy {
-    position: relative;
-    z-index: 3;
-    padding: 16px 22px 20px;
-}
-
-.ex-panel-copy h3 {
-    margin: 0;
-    font-size: 1.05rem;
-    font-weight: 600;
-}
-
-.ex-panel-copy p {
-    margin: 8px 0 14px;
-    max-width: 28rem;
-    font-size: 0.88rem;
-    line-height: 1.9;
-    color: var(--ex-muted);
-}
-
-.ex-build,
-.bubble-build-bar {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    min-height: 42px;
-    padding: 8px 20px 10px;
-    border-radius: var(--ex-pill);
-    background: var(--topic-accent, #0078d7);
-    color: #fff;
-    text-decoration: none;
-    font-family: inherit;
-    font-size: 0.9rem;
-    font-weight: 600;
-    box-shadow: var(--ex-shadow);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    width: max-content;
-    transition: transform 0.3s var(--ex-ease);
-}
-
-.ex-build:hover,
-.bubble-build-bar:hover {
-    transform: translateY(-3px);
-}
-
-.ex-stage.is-pending .ex-room,
-.ex-stage.is-pending .ex-panel {
+.ex-stage.is-pending .ex-room {
     opacity: 0;
 }
 
@@ -1084,9 +789,6 @@ body.explorer-body {
         font-size: 0.72rem;
         margin-top: 4px;
     }
-    .ex-index-panel, .ex-panel-body { min-height: 0; }
-    .ex-panel-empty { min-height: 72px; }
-    .ex-bubble-panel { min-height: 300px; }
     .ex-dash {
         overflow: hidden;
         gap: 6px;
@@ -1155,8 +857,7 @@ body.explorer-body {
     .ex-dd-menu {
         z-index: 4000;
     }
-    .ex-stage.is-pending .ex-room,
-    .ex-stage.is-pending .ex-panel {
+    .ex-stage.is-pending .ex-room {
         opacity: 1;
     }
     .ex-dash-body {
@@ -1278,14 +979,8 @@ body.explorer-body {
     }
 }
 
-@media (max-width: 720px) {
-    .ex-index-panel, .ex-panel-body { min-height: 0; }
-    .ex-panel-empty { min-height: 72px; }
-    .ex-bubble-panel { min-height: 300px; }
-}
+
 
 @media (prefers-reduced-motion: reduce) {
-    .ex-cue i,
-    .ex-room-face,
-    .ex-bubble { animation: none; }
+    .ex-room-face { animation: none; }
 }
