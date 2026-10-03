@@ -71,7 +71,26 @@ function initLazyBackgrounds(root) {
     lazyEls.forEach(applyBg);
 }
 
-function showNotice(message, kind) {
+function positionNoticeByAnchor(notice, anchor) {
+    const anchorRect = anchor.getBoundingClientRect();
+    const noticeRect = notice.getBoundingClientRect();
+    const edgeGap = 8;
+    const anchorGap = 10;
+    const left = Math.min(
+        window.innerWidth - noticeRect.width - edgeGap,
+        Math.max(edgeGap, anchorRect.left + (anchorRect.width - noticeRect.width) / 2)
+    );
+    const above = anchorRect.top - noticeRect.height - anchorGap;
+    const below = anchorRect.bottom + anchorGap;
+    const top = above >= edgeGap
+        ? above
+        : Math.min(below, window.innerHeight - noticeRect.height - edgeGap);
+
+    notice.style.left = `${Math.round(left)}px`;
+    notice.style.top = `${Math.round(Math.max(edgeGap, top))}px`;
+}
+
+function showNotice(message, kind, anchor) {
     kind = kind || 'error';
     let el = document.getElementById('app-notice');
     if (!el) {
@@ -84,11 +103,25 @@ function showNotice(message, kind) {
     el.textContent = message;
     el.dataset.kind = kind;
     el.hidden = false;
+    if (anchor && typeof anchor.getBoundingClientRect === 'function') {
+        el.dataset.anchored = 'true';
+        positionNoticeByAnchor(el, anchor);
+    } else {
+        delete el.dataset.anchored;
+        el.style.removeProperty('left');
+        el.style.removeProperty('top');
+    }
     clearTimeout(showNotice._timer);
     showNotice._timer = setTimeout(() => {
         el.hidden = true;
     }, 4200);
 }
+
+document.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-unavailable-page]');
+    if (!button) return;
+    showNotice('متأسفیم؛ این صفحه فعلاً در دسترس نیست', 'error', button);
+});
 
 function applyChartDefaults() {
     if (typeof Chart === 'undefined') return false;

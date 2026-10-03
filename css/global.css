@@ -100,6 +100,7 @@ body {
 
 #app-notice {
     position: fixed;
+    box-sizing: border-box;
     bottom: 28px;
     left: 50%;
     transform: translateX(-50%);
@@ -121,6 +122,10 @@ body {
 }
 #app-notice[data-kind="error"] {
     background: #3f2a2a;
+}
+#app-notice[data-anchored="true"] {
+    bottom: auto;
+    transform: none;
 }
 
 /* Leaflet ships Helvetica/Arial on the map pane; keep Peyda there too. */

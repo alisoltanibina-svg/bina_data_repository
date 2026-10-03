@@ -61,9 +61,4 @@
                 '</div>' +
             '</div>' +
         '</div>';
-    root.querySelectorAll('[data-unavailable-page]').forEach((button) => {
-        button.addEventListener('click', () => {
-            showNotice('متأسفیم؛  این صفحه فعلا در درسترس نیست', 'error');
-        });
-    });
 })();
