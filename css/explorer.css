@@ -730,7 +730,8 @@ body.explorer-body {
 
 @media (max-width: 767px) {
     body.explorer-body {
-        overflow: hidden;
+        overflow-x: hidden;
+        overflow-y: auto;
     }
     body.explorer-body #explorer-page-nav:not([hidden]) {
         display: flex;
@@ -751,6 +752,7 @@ body.explorer-body {
         margin-top: 0;
         padding: 8px 10px calc(10px + env(safe-area-inset-bottom, 0px));
         gap: 8px;
+        overflow: visible;
     }
     .ex-landing {
         min-height: 0;
@@ -790,7 +792,8 @@ body.explorer-body {
         margin-top: 4px;
     }
     .ex-dash {
-        overflow: hidden;
+        min-height: calc(100% + 92px);
+        overflow: visible;
         gap: 6px;
     }
     .ex-dash-head {
@@ -800,14 +803,17 @@ body.explorer-body {
         overflow: visible;
     }
     .ex-dash-nav {
-        flex-wrap: nowrap;
+        display: grid;
+        grid-template-columns: 40px minmax(0, 1fr);
+        grid-template-rows: repeat(3, 40px);
         align-items: center;
-        justify-content: flex-start;
-        gap: 8px;
+        gap: 6px;
         overflow: visible;
     }
     .ex-dash-nav::-webkit-scrollbar { display: none; }
     .ex-dash-head #btn-nav-subtopics {
+        grid-column: 1;
+        grid-row: 1;
         width: 40px;
         min-height: 40px;
         height: 40px;
@@ -821,16 +827,22 @@ body.explorer-body {
         display: none;
     }
     .ex-dd-group {
-        flex: 1 1 auto;
-        flex-wrap: nowrap;
-        justify-content: flex-start;
-        min-width: 0;
-        overflow: visible;
-        gap: 6px;
+        display: contents;
     }
     .ex-dd {
-        flex: 1 1 0;
         min-width: 0;
+    }
+    .ex-dd[data-dd="topic"] {
+        grid-column: 2;
+        grid-row: 1;
+    }
+    .ex-dd[data-dd="subtopic"] {
+        grid-column: 1 / -1;
+        grid-row: 2;
+    }
+    .ex-dd[data-dd="indicator"] {
+        grid-column: 1 / -1;
+        grid-row: 3;
     }
     .ex-dd.is-open {
         z-index: 40;
@@ -843,16 +855,16 @@ body.explorer-body {
         padding: 0 10px 1px;
         background: #515811;
         font-size: 0.72rem;
-        justify-content: center;
+        justify-content: flex-start;
     }
     .ex-dd-menu {
         background: #515811;
     }
     .ex-dd-value {
-        display: none;
-    }
-    .ex-dd-kicker::after {
-        display: none;
+        display: block;
+        flex: 1 1 auto;
+        min-width: 0;
+        text-align: right;
     }
     .ex-dd-menu {
         z-index: 4000;
@@ -865,7 +877,7 @@ body.explorer-body {
         flex-direction: column;
         flex: 1 1 auto;
         gap: 6px;
-        overflow: hidden;
+        overflow: visible;
         min-height: 0;
     }
     .ex-side {
