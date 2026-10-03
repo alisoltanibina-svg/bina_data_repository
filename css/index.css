@@ -1361,7 +1361,6 @@ body.immersive-mode #map { background: #dce5ec; }
     box-shadow: 0 8px 20px rgba(27, 36, 46, 0.12);
 }
 .index-item.active .index-item-text { color: #ffffff; }
-.index-item.active .index-item-img { filter: brightness(0) invert(1); }
 
 .heat-table { width: 100%; border-collapse: collapse; margin-bottom: 0; font-size: 0.75rem; text-align: center; }
 .heat-table th { background: #f0f0f0; padding: 8px 4px; color: #333; border: 1px solid #ddd; font-weight: bold; position: sticky; top: 0; z-index: 2; }
@@ -1674,10 +1673,6 @@ html.atlas-view .index-item.active::after {
 
 html.atlas-view .index-item.active .index-item-text {
     color: #ffffff;
-}
-
-html.atlas-view .index-item.active .index-item-img {
-    filter: brightness(0) invert(1);
 }
 
 @media (max-width: 767px) {

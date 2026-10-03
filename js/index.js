@@ -610,6 +610,16 @@ function getHeatmapColor(score) {
     return interpolateColor(currentLowerRgb, currentUpperRgb, factor);
 }
 
+function setTopicItemActive(item, isActive) {
+    item.classList.toggle('active', isActive);
+    const logo = item.querySelector('.index-item-img');
+    if (!logo) return;
+
+    const logoUrl = isActive ? logo.dataset.activeBg : logo.dataset.normalBg;
+    if (logo.hasAttribute('data-bg')) logo.dataset.bg = logoUrl;
+    else logo.style.backgroundImage = cssUrl(logoUrl);
+}
+
 function initUI() {
     const list = document.getElementById('index-list');
     list.innerHTML = '';
@@ -618,11 +628,16 @@ function initUI() {
     
     topicsData.forEach(t => {
         const li = document.createElement('li');
-        li.className = 'index-item' + (t.topic_name === currentIndex ? ' active' : '');
+        const isActive = t.topic_name === currentIndex;
+        li.className = 'index-item' + (isActive ? ' active' : '');
         
         const img = document.createElement('div');
         img.className = 'index-item-img lazy-bg bg-placeholder';
-        img.dataset.bg = SITE.asset(`images/تاپیک ${t.topic_name}.webp`);
+        img.dataset.normalBg = SITE.asset(`images/تاپیک ${t.topic_name}.webp`);
+        img.dataset.activeBg = SITE.asset(`images/تاپیک ${t.topic_name}-active.webp`);
+        img.dataset.bg = isActive ? img.dataset.activeBg : img.dataset.normalBg;
+        const activeLogoPreloader = new Image();
+        activeLogoPreloader.src = img.dataset.activeBg;
         const label = document.createElement('span');
         label.className = 'index-item-text';
         label.textContent = t.topic_name;
@@ -636,8 +651,7 @@ function initUI() {
         }
 
         li.addEventListener('click', () => {
-            document.querySelectorAll('.index-item').forEach(el => el.classList.remove('active'));
-            li.classList.add('active');
+            document.querySelectorAll('.index-item').forEach(el => setTopicItemActive(el, el === li));
             currentIndex = t.topic_name;
             
             // Save active topic context for seamless returns
