@@ -1,0 +1,25 @@
+{
+  "name": "دیده‌بان فرهنگ",
+  "short_name": "دیده‌بان",
+  "description": "سامانه دیده‌بان فرهنگ",
+  "lang": "fa",
+  "dir": "rtl",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#515811",
+  "background_color": "#f7f4ed",
+  "icons": [
+    {
+      "src": "/assets/images/pwa-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/assets/images/pwa-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

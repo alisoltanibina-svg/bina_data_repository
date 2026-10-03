@@ -848,6 +848,7 @@ body.explorer-body {
         z-index: 40;
     }
     .ex-dd-toggle {
+        box-sizing: border-box;
         width: 100%;
         max-width: none;
         min-height: 40px;
@@ -885,12 +886,19 @@ body.explorer-body {
     }
     .ex-prov-rail {
         order: 1;
-        flex: 0.9 1 0;
-        height: auto;
+        flex: 0 0 36vh;
+        height: 36vh;
         max-height: 36vh;
         min-height: 0;
         padding: 8px 12px 6px;
         border-radius: 22px;
+    }
+    @supports (height: 1svh) {
+        .ex-prov-rail {
+            flex-basis: 36svh;
+            height: 36svh;
+            max-height: 36svh;
+        }
     }
     .ex-prov-search {
         display: none;
