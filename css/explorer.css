@@ -732,6 +732,12 @@ body.explorer-body {
     body.explorer-body {
         overflow-x: hidden;
         overflow-y: auto;
+        height: 100vh;
+    }
+    @supports (height: 100svh) {
+        body.explorer-body {
+            height: 100svh;
+        }
     }
     body.explorer-body #explorer-page-nav:not([hidden]) {
         display: flex;
@@ -806,6 +812,8 @@ body.explorer-body {
         display: grid;
         grid-template-columns: 40px minmax(0, 1fr);
         grid-template-rows: repeat(3, 40px);
+        width: 100%;
+        min-width: 0;
         align-items: center;
         gap: 6px;
         overflow: visible;
@@ -830,6 +838,8 @@ body.explorer-body {
         display: contents;
     }
     .ex-dd {
+        width: 100%;
+        max-width: 100%;
         min-width: 0;
     }
     .ex-dd[data-dd="topic"] {
@@ -859,6 +869,8 @@ body.explorer-body {
         justify-content: flex-start;
     }
     .ex-dd-menu {
+        box-sizing: border-box;
+        min-width: 0;
         background: #515811;
     }
     .ex-dd-value {
