@@ -279,7 +279,22 @@ function bindMapPanelDock() {
         chartSwitch.addEventListener('click', (event) => {
             const btn = event.target.closest('[data-atlas-chart]');
             if (!btn) return;
-            setAtlasChartKind(btn.dataset.atlasChart);
+            const requestedKind = btn.dataset.atlasChart === 'trend' ? 'trend' : 'rank';
+            const requestedProvince = selectedProvince;
+            setAtlasChartKind(requestedKind);
+
+            if (isCompactMap() && requestedProvince) {
+                // On iOS Safari the newly revealed canvas must be recreated
+                // after its wrapper has completed the display change.
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        const stillCurrent = atlasChartKind === requestedKind
+                            && selectedProvince === requestedProvince
+                            && document.body.classList.contains('map-sheet-charts');
+                        if (stillCurrent) updateRightPanel(requestedProvince);
+                    });
+                });
+            }
         });
     }
     const syncDock = () => {
