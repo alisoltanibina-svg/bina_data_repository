@@ -13,6 +13,7 @@ from sqlalchemy import (
     ForeignKey,
     Identity,
     Index,
+    LargeBinary,
     Integer,
     String,
     Text,
@@ -280,6 +281,30 @@ class OtpChallenge(Base):
         server_default=func.now(),
     )
 
+
+class CaptchaChallenge(Base):
+    """One-time, backend-rendered CAPTCHA for the login operation."""
+
+    __tablename__ = "captcha_challenges"
+    __table_args__ = (
+        CheckConstraint("purpose = 'login'", name="ck_captcha_challenges_purpose"),
+        Index("idx_captcha_challenges_binding_created", "binding_hash", "created_at"),
+        Index("idx_captcha_challenges_ip_created", "ip_hash", "created_at"),
+        Index("idx_captcha_challenges_expires", "expires_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    purpose: Mapped[str] = mapped_column(String(16), nullable=False)
+    binding_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    ip_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    answer_hmac: Mapped[str] = mapped_column(String(64), nullable=False)
+    image_png: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
 
 class SiteSetting(Base):
     __tablename__ = "site_settings"

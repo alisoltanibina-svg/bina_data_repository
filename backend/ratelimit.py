@@ -42,6 +42,7 @@ _EXPENSIVE_PATHS = frozenset(
         "/api/atlas/topic-trends",
         "/api/bubble/init",
         "/api/auth/login",
+        "/api/auth/captcha",
         "/api/auth/register",
         "/api/auth/gate",
         "/api/auth/otp/send",
@@ -278,7 +279,9 @@ def _client_ip(request: Request) -> str:
 
 def _is_expensive(path: str) -> bool:
     normalized = path.rstrip("/") or "/"
-    return normalized in _EXPENSIVE_PATHS
+    return normalized in _EXPENSIVE_PATHS or (
+        normalized.startswith("/api/auth/captcha/") and normalized.endswith("/image")
+    )
 
 
 def _limit_headers(decision: LimitDecision, *, rejected: bool) -> dict[str, str]:

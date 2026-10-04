@@ -140,8 +140,15 @@
                                     <em class="register-error" id="err-login-password" hidden></em>
                                 </label>
                                 <div class="login-captcha" id="login-captcha" hidden aria-live="polite">
-                                    <div id="login-captcha-widget"></div>
-                                    <em class="register-error" id="err-login-captcha" hidden></em>
+                                    <div class="login-captcha-row">
+                                        <img id="login-captcha-image" alt="کد امنیتی پنج‌نویسه" width="220" height="76">
+                                        <button type="button" class="login-captcha-refresh" id="login-captcha-refresh" aria-label="تغییر کد امنیتی">↻</button>
+                                    </div>
+                                    <label class="register-field login-captcha-answer">
+                                        <span class="visually-hidden">کد امنیتی</span>
+                                        <input type="text" id="login-captcha-answer" inputmode="text" dir="ltr" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" maxlength="5" placeholder="کد امنیتی پنج‌نویسه">
+                                        <em class="register-error" id="err-login-captcha-answer" hidden></em>
+                                    </label>
                                 </div>
                                 <button type="submit" class="register-submit" id="login-submit">ورود</button>
                             </form>

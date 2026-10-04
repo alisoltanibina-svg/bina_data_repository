@@ -29,16 +29,11 @@ class Settings(BaseSettings):
     otp_ttl_seconds: int = 180
     otp_max_attempts: int = 5
     otp_resend_seconds: int = 60
-    # Deliberately opt-in so local development has no third-party dependency.
-    turnstile_enabled: bool = False
-    turnstile_site_key: str = ""
-    turnstile_secret: SecretStr = SecretStr("")
-    turnstile_hostnames: str = "app.rasadbina.ir"
-
-    @property
-    def turnstile_hostname_list(self) -> tuple[str, ...]:
-        return tuple(host.strip().lower() for host in self.turnstile_hostnames.split(",") if host.strip())
-
+    captcha_enabled: bool = True
+    captcha_hmac_secret: SecretStr = SecretStr("")
+    captcha_ttl_seconds: int = 300
+    captcha_max_per_phone: int = 10
+    captcha_max_per_ip: int = 20
 
 def _require_postgres_url(url: str) -> str:
     raw = (url or "").strip()
@@ -71,9 +66,11 @@ def get_settings() -> Settings:
             "The app will not fall back to a local SQLite file."
         ) from None
     _require_postgres_url(settings.database_url.get_secret_value())
-    if settings.turnstile_enabled:
-        if not settings.turnstile_site_key or not settings.turnstile_secret.get_secret_value():
-            raise RuntimeError("TURNSTILE_ENABLED requires TURNSTILE_SITE_KEY and TURNSTILE_SECRET.")
-        if not settings.turnstile_hostname_list:
-            raise RuntimeError("TURNSTILE_ENABLED requires at least one TURNSTILE_HOSTNAMES value.")
+    if settings.captcha_enabled:
+        if len(settings.captcha_hmac_secret.get_secret_value()) < 32:
+            raise RuntimeError("CAPTCHA_HMAC_SECRET must contain at least 32 characters when CAPTCHA_ENABLED=1.")
+        if not 120 <= settings.captcha_ttl_seconds <= 300:
+            raise RuntimeError("CAPTCHA_TTL_SECONDS must be between 120 and 300.")
+        if settings.captcha_max_per_phone < 1 or settings.captcha_max_per_ip < 1:
+            raise RuntimeError("CAPTCHA rate limits must be positive.")
     return settings

@@ -67,7 +67,7 @@ from backend.membership import (
 )
 from backend.otp import send_otp, verify_otp
 from backend.ratelimit import RateLimitMiddleware
-from backend.turnstile import TurnstileError, public_config as turnstile_public_config, verify_login_token
+from backend.captcha import CaptchaError, CaptchaRateLimit, captcha_image, issue_login_challenge, verify_login_challenge
 
 JSON_MEDIA = "application/json"
 # Data and assets change rarely. Browsers may reuse copies:
@@ -692,17 +692,38 @@ def get_curtain_race():
 class LoginBody(BaseModel):
     phone: str = Field(min_length=1)
     password: str = Field(min_length=1)
-    captcha_token: str = Field(default="", max_length=2048)
-
+    captcha_id: str = Field(min_length=1, max_length=64)
+    captcha_answer: str = Field(min_length=1, max_length=16)
 
 _AUTH_NO_STORE = {"Cache-Control": "no-store", "Vary": "Accept-Encoding"}
 _LOGIN_FAIL = "شماره یا رمز نادرست است."
 
 
-@app.get("/api/auth/captcha/config")
-def auth_captcha_config():
-    return JSONResponse(content=turnstile_public_config(), headers=_AUTH_NO_STORE)
+class CaptchaIssueBody(BaseModel):
+    phone: str = Field(min_length=1, max_length=16)
 
+
+@app.post("/api/auth/captcha")
+def auth_captcha_issue(body: CaptchaIssueBody, request: Request):
+    try:
+        payload = issue_login_challenge(body.phone, request.client.host if request.client else "")
+    except CaptchaRateLimit as err:
+        raise HTTPException(status_code=429, detail="Please wait before requesting another CAPTCHA.") from err
+    except CaptchaError as err:
+        raise HTTPException(status_code=400, detail="Invalid CAPTCHA request.") from err
+    return JSONResponse(content=payload, headers=_AUTH_NO_STORE)
+
+
+@app.get("/api/auth/captcha/{captcha_id}/image")
+def auth_captcha_image(captcha_id: str):
+    image = captcha_image(captcha_id)
+    if image is None:
+        raise HTTPException(status_code=404, detail="Not found")
+    return Response(
+        content=image,
+        media_type="image/png",
+        headers={"Cache-Control": "no-store, no-cache, max-age=0", "Pragma": "no-cache"},
+    )
 
 def _cookie_secure(request: Request) -> bool:
     proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "").split(",")[0].strip()
@@ -736,10 +757,8 @@ def auth_gate(body: GateBody):
 
 @app.post("/api/auth/login")
 def auth_login(body: LoginBody, request: Request):
-    try:
-        verify_login_token(body.captcha_token)
-    except TurnstileError as err:
-        raise HTTPException(status_code=403, detail={"code": "captcha", "message": str(err)}) from err
+    if not verify_login_challenge(body.captcha_id, body.captcha_answer, body.phone):
+        raise HTTPException(status_code=400, detail={"code": "captcha", "message": "Invalid or expired CAPTCHA."})
     result = authenticate(body.phone, body.password)
     if result is None:
         raise HTTPException(status_code=401, detail=_LOGIN_FAIL)

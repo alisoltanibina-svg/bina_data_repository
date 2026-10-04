@@ -10,69 +10,30 @@ let otpPurpose = '';
 let otpVerification = null;
 let otpFlowVersion = 0;
 
-let captchaConfigPromise = null;
-let captchaToken = '';
-let captchaWidgetId = null;
+let captchaId = '';
 
-function loadTurnstileScript() {
-    if (window.turnstile) return Promise.resolve();
-    const existing = document.getElementById('turnstile-api');
-    if (existing) return new Promise((resolve, reject) => {
-        existing.addEventListener('load', resolve, { once: true });
-        existing.addEventListener('error', reject, { once: true });
-    });
-    return new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.id = 'turnstile-api';
-        script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
-        script.async = true;
-        script.defer = true;
-        script.onload = resolve;
-        script.onerror = reject;
-        document.head.appendChild(script);
-    });
+function invalidateLoginCaptcha() {
+    captchaId = '';
+    const image = document.getElementById('login-captcha-image');
+    if (image) image.removeAttribute('src');
 }
 
-async function initializeLoginCaptcha() {
+async function refreshLoginCaptcha() {
     const box = document.getElementById('login-captcha');
-    const widget = document.getElementById('login-captcha-widget');
-    if (!box || !widget) return false;
-    if (!captchaConfigPromise) {
-        captchaConfigPromise = fetch(`${API_BASE_URL}/api/auth/captcha/config`, { credentials: 'include' })
-            .then(response => response.ok ? response.json() : Promise.reject(new Error('بارگذاری تأیید امنیتی ممکن نشد.')));
+    const image = document.getElementById('login-captcha-image');
+    const answer = document.getElementById('login-captcha-answer');
+    if (!box || !image || !answer) return;
+    invalidateLoginCaptcha();
+    answer.value = '';
+    setError('login-captcha-answer', '');
+    const challenge = await apiJson('/api/auth/captcha', { phone: currentPhone });
+    if (!challenge || !/^[A-Za-z0-9_-]{43}$/.test(challenge.captcha_id || '')) {
+        throw new Error('دریافت کد امنیتی ممکن نشد.');
     }
-    const config = await captchaConfigPromise;
-    if (!config || !config.enabled) {
-        box.hidden = true;
-        return false;
-    }
+    captchaId = challenge.captcha_id;
+    image.src = `${API_BASE_URL}/api/auth/captcha/${encodeURIComponent(captchaId)}/image?challenge=${encodeURIComponent(captchaId)}`;
     box.hidden = false;
-    if (captchaWidgetId !== null) return true;
-    try {
-        await loadTurnstileScript();
-        if (!window.turnstile) throw new Error('Turnstile unavailable');
-        captchaWidgetId = window.turnstile.render(widget, {
-            sitekey: config.site_key,
-            action: config.action,
-            language: 'fa',
-            callback: token => {
-                captchaToken = token;
-                setError('login-captcha', '');
-            },
-            'expired-callback': () => { captchaToken = ''; },
-            'error-callback': () => { captchaToken = ''; }
-        });
-    } catch (err) {
-        throw new Error('بارگذاری تأیید امنیتی ممکن نشد. اتصال خود را بررسی کنید.');
-    }
-    return true;
 }
-
-function resetLoginCaptcha() {
-    captchaToken = '';
-    if (captchaWidgetId !== null && window.turnstile) window.turnstile.reset(captchaWidgetId);
-}
-
 function clearOtpVerification() {
     otpVerification = null;
     otpFlowVersion += 1;
@@ -410,6 +371,11 @@ onReady(() => {
     const gateSubmit = document.getElementById('gate-submit');
     const gatePhone = document.getElementById('gate-phone');
     if (!gateForm || !gatePhone) return;
+    const captchaRefresh = document.getElementById('login-captcha-refresh');
+    if (captchaRefresh) captchaRefresh.addEventListener('click', async () => {
+        try { await refreshLoginCaptcha(); }
+        catch (err) { showNotice(err.message || 'دریافت کد امنیتی ممکن نشد.'); }
+    });
     bindPhoneInput(gatePhone);
     bindOtpInput(document.getElementById('otp-code'));
     ['login-password', 'first_name', 'last_name', 'role_title', 'organization', 'password', 'password_confirm', 'reset-password', 'reset-password-confirm'].forEach(id => {
@@ -454,7 +420,7 @@ onReady(() => {
             applyPhone(phone);
             if (status === 'login') {
                 showPanel('auth-login');
-                void initializeLoginCaptcha().catch(() => {});
+                void refreshLoginCaptcha().catch(err => showNotice(err.message || 'دریافت کد امنیتی ممکن نشد.'));
                 document.getElementById('login-password').focus();
                 return;
             }
@@ -496,26 +462,22 @@ onReady(() => {
             document.getElementById('login-password').focus();
             return;
         }
-        let captchaEnabled = false;
-        try {
-            captchaEnabled = await initializeLoginCaptcha();
-        } catch (err) {
-            showNotice(err.message || 'بارگذاری تأیید امنیتی ممکن نشد.');
-            return;
-        }
-        if (captchaEnabled && !captchaToken) {
-            setError('login-captcha', 'تأیید امنیتی را انجام دهید.');
+        const captchaAnswer = String(document.getElementById('login-captcha-answer').value || '').trim().toUpperCase();
+        if (!captchaId || !/^[A-Z2-9]{5}$/.test(captchaAnswer)) {
+            setError('login-captcha-answer', 'کد امنیتی پنج‌نویسه را وارد کنید.');
+            document.getElementById('login-captcha-answer').focus();
             return;
         }
         const submit = document.getElementById('login-submit');
         submit.disabled = true;
         try {
-            const profile = await apiJson('/api/auth/login', { phone: currentPhone, password: password, captcha_token: captchaToken });
+            const profile = await apiJson('/api/auth/login', { phone: currentPhone, password: password, captcha_id: captchaId, captcha_answer: captchaAnswer });
             finishSignedIn(profile);
         } catch (err) {
             showNotice(err.message || 'ورود ناموفق بود.');
+            try { await refreshLoginCaptcha(); }
+            catch (refreshError) { showNotice(refreshError.message || 'دریافت کد امنیتی ممکن نشد.'); }
         } finally {
-            if (captchaEnabled) resetLoginCaptcha();
             submit.disabled = false;
         }
     });
