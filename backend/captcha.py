@@ -102,7 +102,7 @@ def _captcha_png(answer: str) -> bytes:
 def issue_login_challenge(phone_raw: str, client_ip: str) -> dict[str, object]:
     phone = normalize_phone(phone_raw)
     if not is_mobile_phone(phone):
-        raise CaptchaError("Invalid or expired CAPTCHA")
+        raise CaptchaError("کد امنیتی اشتباه یا منقضی شده است")
     settings = get_settings()
     now = _now()
     cutoff = now - timedelta(minutes=10)
