@@ -110,6 +110,17 @@ function setMapSheet(sheet) {
         if (sheet === 'topics' && selectedProvince) {
             renderLeftFloatingPanel(selectedProvince);
         }
+        if (sheet === 'charts' && selectedProvince) {
+            // Mobile Safari can keep a zero-sized canvas when Chart.js first
+            // renders inside the hidden card. Recreate it after the chart
+            // sheet has completed layout, just as a topic change already does.
+            requestAnimationFrame(() => {
+                if (document.body.classList.contains('map-sheet-charts') && selectedProvince) {
+                    updateRightPanel(selectedProvince);
+                }
+            });
+            return;
+        }
         try { if (typeof rankingBarChart !== 'undefined' && rankingBarChart && rankingBarChart.resize) rankingBarChart.resize(); } catch (e) {}
         try { if (typeof trendChartInstance !== 'undefined' && trendChartInstance && trendChartInstance.resize) trendChartInstance.resize(); } catch (e) {}
     });
