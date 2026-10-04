@@ -673,6 +673,55 @@ a.entry-ghost-btn {
     cursor: pointer;
     text-decoration: none;
 }
+.entry-ghost-btn {
+    border: 0;
+    text-decoration: none;
+    transition: transform 0.2s ease, background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+.entry-ghost-btn:not([aria-disabled="true"]) { cursor: pointer; }
+.entry-ghost-btn:not([aria-disabled="true"]):hover {
+    transform: translateY(-2px);
+    background: #515811;
+    color: #ffffff;
+    box-shadow: 0 8px 16px rgba(81, 88, 17, 0.2);
+}
+.entry-ghost-btn:not([aria-disabled="true"]):active { transform: translateY(0); }
+.entry-contact-popover {
+    display: grid;
+    justify-items: center;
+    gap: 12px;
+    max-height: 0;
+    margin-top: 0;
+    overflow: hidden;
+    opacity: 0;
+    transform: translateY(-8px);
+    transition: max-height 0.25s ease, margin-top 0.25s ease, opacity 0.2s ease, transform 0.25s ease;
+}
+.entry-contact-popover.is-open { max-height: 10rem; margin-top: 14px; opacity: 1; transform: translateY(0); }
+.entry-contact-actions { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.entry-contact-icon {
+    width: 42px;
+    height: 42px;
+    display: inline-grid;
+    place-items: center;
+    border: 1px solid rgba(81, 88, 17, 0.16);
+    border-radius: 50%;
+    padding: 0;
+    background: #ffffff;
+    color: #515811;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(81, 88, 17, 0.1);
+    transition: transform 0.18s ease, color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
+}
+.entry-contact-icon:hover,
+.entry-contact-icon:focus-visible,
+.entry-contact-icon.is-selected { background: #515811; color: #ffffff; box-shadow: 0 7px 14px rgba(81, 88, 17, 0.2); }
+.entry-contact-icon:hover { transform: translateY(-2px); }
+.entry-contact-icon:focus-visible { outline: 2px solid #515811; outline-offset: 2px; }
+.entry-contact-icon svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.entry-contact-detail { min-height: 1.55rem; margin: 0; color: #515811; font-size: 0.78rem; font-weight: 600; line-height: 1.85; text-align: center; }
+.entry-contact-detail:empty { display: none; }
+.entry-contact-detail[dir="ltr"] { direction: ltr; unicode-bidi: plaintext; }
 .entry-launch-split {
     flex: 0 0 1px;
     width: 1px;

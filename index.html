@@ -43,7 +43,7 @@
     </script>
     <script src="js/config.js"></script>
     <script src="js/shared.js"></script>
-    <script src="js/index.js?v=topic-trend-3" defer></script>
+    <script src="js/index.js?v=contact-panel-5" defer></script>
     <script src="js/auth-page.js?v=auth-mobile-2" defer></script>
     <script src="js/auth.js" defer></script>
 
@@ -104,9 +104,18 @@
                             <span>حساب من</span>
                         </a>
                         <div class="entry-launch-row">
-                            <span class="entry-ghost-btn" aria-disabled="true">ارتباط با ما</span>
+                            <button type="button" class="entry-ghost-btn" id="entry-contact-toggle" aria-expanded="false" aria-controls="entry-contact-popover">ارتباط با ما</button>
                             <span class="entry-launch-split" aria-hidden="true"></span>
                             <a class="entry-ghost-btn" href="https://www.rasadbina.ir/about-us/" target="_blank" rel="noopener noreferrer">درباره ما</a>
+                        </div>
+                        <div class="entry-contact-popover" id="entry-contact-popover" hidden>
+                            <div class="entry-contact-actions" aria-label="راه‌های ارتباطی">
+                                <button type="button" class="entry-contact-icon" data-contact-detail="address" aria-label="نشانی"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10.5c0 5.1-8 11-8 11s-8-5.9-8-11a8 8 0 1 1 16 0Z"></path><circle cx="12" cy="10.5" r="2.75"></circle></svg></button>
+                                <button type="button" class="entry-contact-icon" data-contact-detail="phone" aria-label="تلفن"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.6 2.9 9.4 6l-1.8 2.8c1.1 2.3 3 4.2 5.3 5.3l2.8-1.8 3.1 2.8-1.2 4.1c-.3.9-1.2 1.5-2.2 1.4C8.2 19.7 4.3 15.8 3.4 8.6c-.1-1 .5-1.9 1.4-2.2Z"></path></svg></button>
+                                <button type="button" class="entry-contact-icon" data-contact-detail="email" aria-label="ایمیل"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="m4 7 8 6 8-6"></path></svg></button>
+                                <button type="button" class="entry-contact-icon" data-contact-detail="mailbox" aria-label="صندوق پستی"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V9a5 5 0 0 1 10 0v10"></path><path d="M14 11h4a2 2 0 0 1 2 2v6H4"></path><path d="M4 15h16"></path><path d="M8 9h3"></path></svg></button>
+                            </div>
+                            <p class="entry-contact-detail" id="entry-contact-detail" aria-live="polite"></p>
                         </div>
                     </div>
                     <div class="entry-auth-stage" id="entry-auth-stage" hidden>

@@ -327,10 +327,73 @@ function bindMapPanelDock() {
     }
 }
 
+function initCurtainContactPanel() {
+    const toggle = document.getElementById('entry-contact-toggle');
+    const popover = document.getElementById('entry-contact-popover');
+    const detail = document.getElementById('entry-contact-detail');
+    if (!toggle || !popover || !detail) return;
+
+    const details = {
+        address: 'تهران، میدان ولیعصر، بلوار کریمخان زند، خیابان پازند، پلاک ۲۷۶',
+        phone: '۰۲۱–۸۸۹۴۶۶۱۸',
+        email: 'rasadbinagram@gmail.com',
+        mailbox: '۱۵۹۸۷۴۳۱۳۶'
+    };
+    let closeTimer = 0;
+    let typingVersion = 0;
+
+    const clearDetail = () => {
+        typingVersion += 1;
+        detail.textContent = '';
+        detail.removeAttribute('dir');
+        popover.querySelectorAll('.entry-contact-icon').forEach(button => button.classList.remove('is-selected'));
+    };
+    const close = () => {
+        if (popover.hidden) return;
+        clearDetail();
+        toggle.setAttribute('aria-expanded', 'false');
+        popover.classList.remove('is-open');
+        window.clearTimeout(closeTimer);
+        closeTimer = window.setTimeout(() => { popover.hidden = true; }, 260);
+    };
+    const open = () => {
+        window.clearTimeout(closeTimer);
+        popover.hidden = false;
+        toggle.setAttribute('aria-expanded', 'true');
+        requestAnimationFrame(() => popover.classList.add('is-open'));
+    };
+    const typeDetail = (key, button) => {
+        const value = details[key];
+        if (!value) return;
+        const version = ++typingVersion;
+        detail.textContent = '';
+        detail.dir = key === 'email' || key === 'phone' ? 'ltr' : 'rtl';
+        popover.querySelectorAll('.entry-contact-icon').forEach(icon => icon.classList.toggle('is-selected', icon === button));
+        const characters = Array.from(value);
+        let cursor = 0;
+        const tick = () => {
+            if (version !== typingVersion) return;
+            detail.textContent += characters.slice(cursor, cursor + 2).join('');
+            cursor += 2;
+            if (cursor < characters.length) window.setTimeout(tick, 18);
+        };
+        tick();
+    };
+
+    toggle.addEventListener('click', () => (popover.hidden ? open() : close()));
+    popover.querySelectorAll('[data-contact-detail]').forEach(button => {
+        button.addEventListener('click', () => typeDetail(button.dataset.contactDetail, button));
+    });
+    document.addEventListener('click', event => {
+        if (!popover.hidden && !popover.contains(event.target) && !toggle.contains(event.target)) close();
+    });
+    document.addEventListener('keydown', event => { if (event.key === 'Escape') close(); });
+}
 window.addEventListener('DOMContentLoaded', () => {
     initCurtainBannerOffset();
     initCurtainReveal();
     bindMapPanelDock();
+    initCurtainContactPanel();
     if (!sessionStorage.getItem('welcomeShown')) {
         const overlay = document.getElementById('welcome-overlay');
         if (overlay) {
