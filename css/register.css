@@ -349,7 +349,7 @@ body.auth-body .register-field input[readonly] {
     opacity: 0.85;
 }
 
-body.auth-body .login-captcha {
+body.auth-body .auth-captcha,`nbody.auth-body .login-captcha {
     display: flex;
     justify-content: center;
     min-height: 65px;
@@ -387,7 +387,7 @@ body.auth-body .login-captcha-answer {
     width: min(220px, 100%);
     margin: 8px auto 0;
 }
-body.auth-body .login-captcha .register-error {
+body.auth-body .auth-captcha .register-error,`nbody.auth-body .login-captcha .register-error {
     margin-top: 4px;
 }
 

@@ -2,7 +2,7 @@
 // Purpose: Phone gate, password login, OTP for register/reset, then session cookie.
 
 const REGISTER_FIELDS = ['first_name', 'last_name', 'role_title', 'organization', 'password', 'password_confirm'];
-const PANELS = ['auth-gate', 'auth-login', 'auth-otp', 'auth-reset', 'auth-register', 'auth-status', 'auth-done'];
+const PANELS = ['auth-gate', 'auth-login', 'auth-reset-captcha', 'auth-otp', 'auth-reset', 'auth-register', 'auth-status', 'auth-done'];
 
 let currentPhone = '';
 let otpPurpose = '';
@@ -10,29 +10,38 @@ let otpPurpose = '';
 let otpVerification = null;
 let otpFlowVersion = 0;
 
-let captchaId = '';
+const captchaSlots = {
+    gate: { purpose: 'gate', id: '', box: 'gate-captcha', image: 'gate-captcha-image', answer: 'gate-captcha-answer' },
+    login: { purpose: 'login', id: '', box: 'login-captcha', image: 'login-captcha-image', answer: 'login-captcha-answer' },
+    reset: { purpose: 'reset', id: '', box: 'reset-captcha', image: 'reset-captcha-image', answer: 'reset-captcha-answer' }
+};
 
-function invalidateLoginCaptcha() {
-    captchaId = '';
-    const image = document.getElementById('login-captcha-image');
+function captchaSlot(name) { return captchaSlots[name]; }
+function clearCaptcha(name) {
+    const slot = captchaSlot(name);
+    slot.id = '';
+    const image = document.getElementById(slot.image);
     if (image) image.removeAttribute('src');
 }
-
-async function refreshLoginCaptcha() {
-    const box = document.getElementById('login-captcha');
-    const image = document.getElementById('login-captcha-image');
-    const answer = document.getElementById('login-captcha-answer');
-    if (!box || !image || !answer) return;
-    invalidateLoginCaptcha();
+async function refreshCaptcha(name, phone) {
+    const slot = captchaSlot(name);
+    const box = document.getElementById(slot.box);
+    const image = document.getElementById(slot.image);
+    const answer = document.getElementById(slot.answer);
+    if (!slot || !box || !image || !answer) return;
+    clearCaptcha(name);
     answer.value = '';
-    setError('login-captcha-answer', '');
-    const challenge = await apiJson('/api/auth/captcha', { phone: currentPhone });
-    if (!challenge || !/^[A-Za-z0-9_-]{43}$/.test(challenge.captcha_id || '')) {
-        throw new Error('دریافت کد امنیتی ممکن نشد.');
-    }
-    captchaId = challenge.captcha_id;
-    image.src = `${API_BASE_URL}/api/auth/captcha/${encodeURIComponent(captchaId)}/image?challenge=${encodeURIComponent(captchaId)}`;
+    setError(slot.answer, '');
+    const challenge = await apiJson('/api/auth/captcha', { phone: phone, purpose: slot.purpose });
+    if (!challenge || !/^[A-Za-z0-9_-]{43}$/.test(challenge.captcha_id || '')) throw new Error('دریافت کد امنیتی ممکن نشد.');
+    slot.id = challenge.captcha_id;
+    image.src = `${API_BASE_URL}/api/auth/captcha/${encodeURIComponent(slot.id)}/image?challenge=${encodeURIComponent(slot.id)}`;
     box.hidden = false;
+}
+function readCaptcha(name) {
+    const slot = captchaSlot(name);
+    const answer = String((document.getElementById(slot.answer) || {}).value || '').trim().toUpperCase();
+    return { id: slot.id, answer: answer, valid: !!slot.id && /^[A-Z2-9]{5}$/.test(answer) };
 }
 function clearOtpVerification() {
     otpVerification = null;
@@ -324,16 +333,17 @@ async function apiJson(path, body) {
     return data;
 }
 
-async function lookupPhone(phone) {
-    const data = await apiJson('/api/auth/gate', { phone: phone });
+async function lookupPhone(phone, captcha) {
+    const data = await apiJson('/api/auth/gate', { phone: phone, captcha_id: captcha.id, captcha_answer: captcha.answer });
     return data && data.status;
 }
 
-async function sendOtp(purpose) {
+async function sendOtp(purpose, captcha) {
     clearOtpVerification();
-    return apiJson('/api/auth/otp/send', { phone: currentPhone, purpose: purpose });
+    const body = { phone: currentPhone, purpose: purpose };
+    if (captcha) { body.captcha_id = captcha.id; body.captcha_answer = captcha.answer; }
+    return apiJson('/api/auth/otp/send', body);
 }
-
 async function completeRegistration(pending) {
     await apiJson('/api/auth/register', {
         first_name: pending.first_name,
@@ -349,14 +359,14 @@ async function completeRegistration(pending) {
     showStatus('در انتظار تایید', 'درخواست عضویت شما درانتظار تایید است');
 }
 
-async function startOtp(purpose) {
+async function startOtp(purpose, captcha) {
     otpPurpose = purpose;
     document.getElementById('otp-code').value = '';
     setError('otp-code', '');
     showPanel('auth-otp');
     setOtpSending(true);
     try {
-        const data = await sendOtp(purpose);
+        const data = await sendOtp(purpose, captcha);
         setOtpSending(false);
         startResendTimer((data && data.resend_seconds) || 60);
         document.getElementById('otp-code').focus();
@@ -365,18 +375,23 @@ async function startOtp(purpose) {
         throw err;
     }
 }
-
 onReady(() => {
     const gateForm = document.getElementById('gate-form');
     const gateSubmit = document.getElementById('gate-submit');
     const gatePhone = document.getElementById('gate-phone');
     if (!gateForm || !gatePhone) return;
-    const captchaRefresh = document.getElementById('login-captcha-refresh');
-    if (captchaRefresh) captchaRefresh.addEventListener('click', async () => {
-        try { await refreshLoginCaptcha(); }
-        catch (err) { showNotice(err.message || 'دریافت کد امنیتی ممکن نشد.'); }
+    document.querySelectorAll('[data-captcha-refresh]').forEach(button => {
+        button.addEventListener('click', async () => {
+            const name = button.getAttribute('data-captcha-refresh');
+            try { await refreshCaptcha(name, currentPhone || digitsOnlyPhone(gatePhone.value)); }
+            catch (err) { showNotice(err.message || 'دریافت کد امنیتی ممکن نشد.'); }
+        });
     });
-    bindPhoneInput(gatePhone);
+    const loginRefresh = document.getElementById('login-captcha-refresh');
+    if (loginRefresh) loginRefresh.addEventListener('click', async () => {
+        try { await refreshCaptcha('login', currentPhone); }
+        catch (err) { showNotice(err.message || 'دریافت کد امنیتی ممکن نشد.'); }
+    });    bindPhoneInput(gatePhone);
     bindOtpInput(document.getElementById('otp-code'));
     ['login-password', 'first_name', 'last_name', 'role_title', 'organization', 'password', 'password_confirm', 'reset-password', 'reset-password-confirm'].forEach(id => {
         quietMobileField(document.getElementById(id));
@@ -409,91 +424,60 @@ onReady(() => {
         event.preventDefault();
         setError('gate-phone', '');
         const phone = digitsOnlyPhone(gatePhone.value);
-        if (!/^09\d{9}$/.test(phone)) {
-            setError('gate-phone', 'شماره موبایل باید ۱۱ رقم و با ۰۹ شروع شود.');
-            gatePhone.focus();
+        if (!/^09\d{9}$/.test(phone)) { setError('gate-phone', 'شماره موبایل باید ۱۱ رقم و با ۰۹ شروع شود.'); gatePhone.focus(); return; }
+        const captcha = readCaptcha('gate');
+        if (!captcha.valid) {
+            if (captcha.id) {
+                setError('gate-captcha-answer', 'کد امنیتی پنج‌نویسه را وارد کنید.');
+            } else {
+                try { await refreshCaptcha('gate', phone); }
+                catch (err) { setError('gate-phone', err.message || 'دریافت کد امنیتی ممکن نشد.'); return; }
+            }
+            document.getElementById('gate-captcha-answer').focus();
             return;
         }
         gateSubmit.disabled = true;
         try {
-            const status = await lookupPhone(phone);
+            const status = await lookupPhone(phone, captcha);
+            clearCaptcha('gate');
             applyPhone(phone);
-            if (status === 'login') {
-                showPanel('auth-login');
-                void refreshLoginCaptcha().catch(err => showNotice(err.message || 'دریافت کد امنیتی ممکن نشد.'));
-                document.getElementById('login-password').focus();
-                return;
-            }
-            if (status === 'register') {
-                setPendingRegister(null);
-                showPanel('auth-register');
-                document.getElementById('first_name').focus();
-                return;
-            }
-            if (status === 'pending') {
-                showStatus('در انتظار تایید', 'درخواست عضویت شما درانتظار تایید است');
-                return;
-            }
-            if (status === 'rejected') {
-                showStatus(
-                    'درخواست پذیرفته نشد',
-                    'متاسفیم، درخواست عضویت شما مطابق با سیاست‌های مجموعه ما نبوده است. می‌توانید از طریق لینک زیر درخواست بازنگری کنید.'
-                );
-                return;
-            }
-            if (status === 'closed') {
-                showStatus('ثبت‌نام بسته است', 'ثبت‌نام عمومی فعلاً متوقف شده است. اگر حساب دارید، با همان شماره وارد شوید.');
-                return;
-            }
+            if (status === 'login') { showPanel('auth-login'); void refreshCaptcha('login', phone).catch(err => showNotice(err.message || 'دریافت کد امنیتی ممکن نشد.')); document.getElementById('login-password').focus(); return; }
+            if (status === 'register') { setPendingRegister(null); showPanel('auth-register'); document.getElementById('first_name').focus(); return; }
+            if (status === 'pending') { showStatus('در انتظار تایید', 'درخواست عضویت شما درانتظار تایید است'); return; }
+            if (status === 'rejected') { showStatus('درخواست پذیرفته نشد', 'متاسفیم، درخواست عضویت شما پذیرفته نشد.'); return; }
+            if (status === 'closed') { showStatus('ثبت‌نام بسته است', 'ثبت‌نام عمومی فعلاً متوقف شده است.'); return; }
             setError('gate-phone', 'بررسی شماره ممکن نشد.');
         } catch (err) {
-            setError('gate-phone', err.message || 'ارتباط با سرور برقرار نشد.');
-        } finally {
-            gateSubmit.disabled = false;
-        }
+            setError('gate-captcha-answer', err.message || 'کد امنیتی نامعتبر یا منقضی است.');
+            try { await refreshCaptcha('gate', phone); } catch (refreshError) {}
+        } finally { gateSubmit.disabled = false; }
     });
-
     document.getElementById('login-form').addEventListener('submit', async event => {
-        event.preventDefault();
-        setError('login-password', '');
+        event.preventDefault(); setError('login-password', '');
         const password = document.getElementById('login-password').value;
-        if (password.length < 8) {
-            setError('login-password', 'رمز عبور حداقل ۸ نویسه باشد.');
-            document.getElementById('login-password').focus();
-            return;
-        }
-        const captchaAnswer = String(document.getElementById('login-captcha-answer').value || '').trim().toUpperCase();
-        if (!captchaId || !/^[A-Z2-9]{5}$/.test(captchaAnswer)) {
-            setError('login-captcha-answer', 'کد امنیتی اشتباه است');
-            document.getElementById('login-captcha-answer').focus();
-            return;
-        }
-        const submit = document.getElementById('login-submit');
-        submit.disabled = true;
-        try {
-            const profile = await apiJson('/api/auth/login', { phone: currentPhone, password: password, captcha_id: captchaId, captcha_answer: captchaAnswer });
-            finishSignedIn(profile);
-        } catch (err) {
-            showNotice(err.message || 'ورود ناموفق بود.');
-            try { await refreshLoginCaptcha(); }
-            catch (refreshError) { showNotice(refreshError.message || 'دریافت کد امنیتی ممکن نشد.'); }
-        } finally {
-            submit.disabled = false;
-        }
+        if (password.length < 8) { setError('login-password', 'رمز عبور حداقل ۸ نویسه باشد.'); document.getElementById('login-password').focus(); return; }
+        const captcha = readCaptcha('login');
+        if (!captcha.valid) { setError('login-captcha-answer', 'کد امنیتی پنج‌نویسه را وارد کنید.'); document.getElementById('login-captcha-answer').focus(); return; }
+        const submit = document.getElementById('login-submit'); submit.disabled = true;
+        try { const profile = await apiJson('/api/auth/login', { phone: currentPhone, password: password, captcha_id: captcha.id, captcha_answer: captcha.answer }); finishSignedIn(profile); }
+        catch (err) { showNotice(err.message || 'ورود ناموفق بود.'); try { await refreshCaptcha('login', currentPhone); } catch (refreshError) {} }
+        finally { submit.disabled = false; }
     });
-
     document.getElementById('forgot-password').addEventListener('click', async () => {
-        const btn = document.getElementById('forgot-password');
-        btn.disabled = true;
-        try {
-            await startOtp('reset');
-        } catch (err) {
-            showNotice(err.message || 'ارسال کد ممکن نشد.');
-        } finally {
-            btn.disabled = false;
-        }
+        showPanel('auth-reset-captcha');
+        try { await refreshCaptcha('reset', currentPhone); }
+        catch (err) { showNotice(err.message || 'دریافت کد امنیتی ممکن نشد.'); }
     });
 
+    document.getElementById('reset-captcha-form').addEventListener('submit', async event => {
+        event.preventDefault();
+        const captcha = readCaptcha('reset');
+        if (!captcha.valid) { setError('reset-captcha-answer', 'کد امنیتی پنج‌نویسه را وارد کنید.'); return; }
+        const submit = document.getElementById('reset-captcha-submit'); submit.disabled = true;
+        try { await startOtp('reset', captcha); clearCaptcha('reset'); }
+        catch (err) { showNotice(err.message || 'کد امنیتی نامعتبر یا منقضی است.'); showPanel('auth-reset-captcha'); try { await refreshCaptcha('reset', currentPhone); } catch (refreshError) {} }
+        finally { submit.disabled = false; }
+    });
     document.getElementById('otp-form').addEventListener('submit', async event => {
         event.preventDefault();
         setError('otp-code', '');
@@ -545,6 +529,12 @@ onReady(() => {
     document.getElementById('otp-resend').addEventListener('click', async () => {
         const btn = document.getElementById('otp-resend');
         if (btn.disabled) return;
+        if (otpPurpose === 'reset') {
+            showPanel('auth-reset-captcha');
+            try { await refreshCaptcha('reset', currentPhone); }
+            catch (err) { showNotice(err.message || 'دریافت کد امنیتی ممکن نشد.'); }
+            return;
+        }
         setError('otp-code', '');
         setOtpSending(true);
         try {

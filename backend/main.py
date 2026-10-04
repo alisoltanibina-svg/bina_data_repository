@@ -67,7 +67,7 @@ from backend.membership import (
 )
 from backend.otp import send_otp, verify_otp
 from backend.ratelimit import RateLimitMiddleware
-from backend.captcha import CaptchaError, CaptchaRateLimit, captcha_image, issue_login_challenge, verify_login_challenge
+from backend.captcha import CaptchaError, CaptchaRateLimit, captcha_image, issue_challenge, verify_challenge
 
 JSON_MEDIA = "application/json"
 # Data and assets change rarely. Browsers may reuse copies:
@@ -701,18 +701,18 @@ _LOGIN_FAIL = "شماره یا رمز نادرست است."
 
 class CaptchaIssueBody(BaseModel):
     phone: str = Field(min_length=1, max_length=16)
+    purpose: str = Field(min_length=1, max_length=16)
 
 
 @app.post("/api/auth/captcha")
 def auth_captcha_issue(body: CaptchaIssueBody, request: Request):
     try:
-        payload = issue_login_challenge(body.phone, request.client.host if request.client else "")
+        payload = issue_challenge(body.phone, body.purpose, request.client.host if request.client else "")
     except CaptchaRateLimit as err:
         raise HTTPException(status_code=429, detail="Please wait before requesting another CAPTCHA.") from err
     except CaptchaError as err:
         raise HTTPException(status_code=400, detail="Invalid CAPTCHA request.") from err
     return JSONResponse(content=payload, headers=_AUTH_NO_STORE)
-
 
 @app.get("/api/auth/captcha/{captcha_id}/image")
 def auth_captcha_image(captcha_id: str):
@@ -744,20 +744,23 @@ def _set_session_cookie(response: JSONResponse, token: str, request: Request) ->
 
 class GateBody(BaseModel):
     phone: str = Field(min_length=1, max_length=16)
+    captcha_id: str = Field(min_length=1, max_length=64)
+    captcha_answer: str = Field(min_length=1, max_length=16)
 
 
 @app.post("/api/auth/gate")
 def auth_gate(body: GateBody):
+    if not verify_challenge(body.captcha_id, body.captcha_answer, body.phone, "gate"):
+        raise HTTPException(status_code=400, detail={"code": "captcha", "message": "Invalid or expired CAPTCHA."})
     try:
         status = lookup_auth_gate(body.phone)
     except MembershipError as err:
         _raise_membership(err)
     return JSONResponse(content={"status": status}, headers=_AUTH_NO_STORE)
 
-
 @app.post("/api/auth/login")
 def auth_login(body: LoginBody, request: Request):
-    if not verify_login_challenge(body.captcha_id, body.captcha_answer, body.phone):
+    if not verify_challenge(body.captcha_id, body.captcha_answer, body.phone, "login"):
         raise HTTPException(status_code=400, detail={"code": "captcha", "message": "Invalid or expired CAPTCHA."})
     result = authenticate(body.phone, body.password)
     if result is None:
@@ -866,7 +869,8 @@ def _require_admin(request: Request) -> dict:
 class OtpSendBody(BaseModel):
     phone: str = Field(min_length=1, max_length=16)
     purpose: str = Field(min_length=1, max_length=16)
-
+    captcha_id: str = Field(default="", max_length=64)
+    captcha_answer: str = Field(default="", max_length=16)
 
 class OtpVerifyBody(BaseModel):
     phone: str = Field(min_length=1, max_length=16)
@@ -882,12 +886,15 @@ class PasswordResetBody(BaseModel):
 
 @app.post("/api/auth/otp/send")
 def auth_otp_send(body: OtpSendBody):
+    if body.purpose == "reset" and not verify_challenge(
+        body.captcha_id, body.captcha_answer, body.phone, "reset"
+    ):
+        raise HTTPException(status_code=400, detail={"code": "captcha", "message": "Invalid or expired CAPTCHA."})
     try:
         payload = send_otp(body.phone, body.purpose)
     except MembershipError as err:
         _raise_membership(err)
     return JSONResponse(content=payload, headers=_AUTH_NO_STORE)
-
 
 @app.post("/api/auth/otp/verify")
 def auth_otp_verify(body: OtpVerifyBody):
