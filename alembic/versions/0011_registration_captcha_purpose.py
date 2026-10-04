@@ -6,7 +6,7 @@ Revises: 0010_captcha_purposes
 
 from alembic import op
 
-revision = "0011_registration_captcha_purpose"
+revision = "0011_register_captcha"
 down_revision = "0010_captcha_purposes"
 branch_labels = None
 depends_on = None
