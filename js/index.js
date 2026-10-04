@@ -1134,7 +1134,9 @@ function updateRightPanel(provinceName) {
     let sortedProvs = topicRows.map(m => ({ name: m.province_name, score: Number(m.index_score) }));
     sortedProvs.sort((a, b) => b.score - a.score);
     let rgbUpperStr = `rgba(${currentUpperRgb.r}, ${currentUpperRgb.g}, ${currentUpperRgb.b}`;
-
+    const topicAccent = (tObj && tObj.master_color) || `rgb(${currentUpperRgb.r}, ${currentUpperRgb.g}, ${currentUpperRgb.b})`;
+    const topicAccentRgb = hexToRgb(tObj && tObj.master_color, currentUpperRgb);
+    const topicAccentFill = `rgba(${topicAccentRgb.r}, ${topicAccentRgb.g}, ${topicAccentRgb.b}, 0.12)`;
     if (rankingBarChart) { rankingBarChart.destroy(); }
     const canvasRank = document.getElementById('rankingBarChart');
     const compactCharts = isCompactMap();
@@ -1196,10 +1198,10 @@ function updateRightPanel(provinceName) {
                 datasets: [{
                     label: 'روند زمانی',
                     data: pTrends.map(tr => Number(tr.index_score)),
-                    borderColor: '#e11d48',
-                    backgroundColor: 'rgba(225, 29, 72, 0.1)',
+                    borderColor: topicAccent,
+                    backgroundColor: topicAccentFill,
                     borderWidth: 2, fill: true,
-                    pointBackgroundColor: '#e11d48', pointRadius: 4, tension: 0.3
+                    pointBackgroundColor: topicAccent, pointRadius: 4, tension: 0.3
                 }]
             },
             options: {
