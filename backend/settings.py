@@ -29,6 +29,15 @@ class Settings(BaseSettings):
     otp_ttl_seconds: int = 180
     otp_max_attempts: int = 5
     otp_resend_seconds: int = 60
+    # Deliberately opt-in so local development has no third-party dependency.
+    turnstile_enabled: bool = False
+    turnstile_site_key: str = ""
+    turnstile_secret: SecretStr = SecretStr("")
+    turnstile_hostnames: str = "app.rasadbina.ir"
+
+    @property
+    def turnstile_hostname_list(self) -> tuple[str, ...]:
+        return tuple(host.strip().lower() for host in self.turnstile_hostnames.split(",") if host.strip())
 
 
 def _require_postgres_url(url: str) -> str:
@@ -62,4 +71,9 @@ def get_settings() -> Settings:
             "The app will not fall back to a local SQLite file."
         ) from None
     _require_postgres_url(settings.database_url.get_secret_value())
+    if settings.turnstile_enabled:
+        if not settings.turnstile_site_key or not settings.turnstile_secret.get_secret_value():
+            raise RuntimeError("TURNSTILE_ENABLED requires TURNSTILE_SITE_KEY and TURNSTILE_SECRET.")
+        if not settings.turnstile_hostname_list:
+            raise RuntimeError("TURNSTILE_ENABLED requires at least one TURNSTILE_HOSTNAMES value.")
     return settings

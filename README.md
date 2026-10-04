@@ -67,6 +67,8 @@ proxy_set_header X-Forwarded-Proto $scheme;
 CORS پیش‌فرض فقط `https://app.rasadbina.ir` است (HTTPS). برای عوض کردن، `CORS_ORIGINS` را در `.env` بگذارید (چند مبدأ با ویرگول). فرانت روی همان دامنه همیشه `https://app.rasadbina.ir` را برای API می‌گیرد.
 
 پیامک OTP (عضویت و فراموشی رمز) از Kavenegar است. در `.env`:
+برای محافظت از ورود، Turnstile به‌صورت اختیاری پشتیبانی می‌شود. پس از ساختن یک widget ورود در Cloudflare، `TURNSTILE_ENABLED=1`، `TURNSTILE_SITE_KEY`، `TURNSTILE_SECRET` و `TURNSTILE_HOSTNAMES` را در `.env` تنظیم کنید. در حالت فعال، اعتبارسنجی سمت‌سرور اجباری و fail-closed است؛ توکن‌های Turnstile پنج دقیقه اعتبار دارند و فقط یک‌بار مصرف می‌شوند. این سرویس CAPTCHA متنی پنج‌نویسه نیست و داده‌های چالش را Cloudflare پردازش می‌کند؛ آن را در اطلاعیهٔ حریم خصوصی درج کنید.
+
 
 ```
 KAVENEGAR_API_KEY=

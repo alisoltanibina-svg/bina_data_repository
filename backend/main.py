@@ -67,6 +67,7 @@ from backend.membership import (
 )
 from backend.otp import send_otp, verify_otp
 from backend.ratelimit import RateLimitMiddleware
+from backend.turnstile import TurnstileError, public_config as turnstile_public_config, verify_login_token
 
 JSON_MEDIA = "application/json"
 # Data and assets change rarely. Browsers may reuse copies:
@@ -691,10 +692,16 @@ def get_curtain_race():
 class LoginBody(BaseModel):
     phone: str = Field(min_length=1)
     password: str = Field(min_length=1)
+    captcha_token: str = Field(default="", max_length=2048)
 
 
 _AUTH_NO_STORE = {"Cache-Control": "no-store", "Vary": "Accept-Encoding"}
 _LOGIN_FAIL = "شماره یا رمز نادرست است."
+
+
+@app.get("/api/auth/captcha/config")
+def auth_captcha_config():
+    return JSONResponse(content=turnstile_public_config(), headers=_AUTH_NO_STORE)
 
 
 def _cookie_secure(request: Request) -> bool:
@@ -729,6 +736,10 @@ def auth_gate(body: GateBody):
 
 @app.post("/api/auth/login")
 def auth_login(body: LoginBody, request: Request):
+    try:
+        verify_login_token(body.captcha_token)
+    except TurnstileError as err:
+        raise HTTPException(status_code=403, detail={"code": "captcha", "message": str(err)}) from err
     result = authenticate(body.phone, body.password)
     if result is None:
         raise HTTPException(status_code=401, detail=_LOGIN_FAIL)

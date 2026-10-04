@@ -10,6 +10,69 @@ let otpPurpose = '';
 let otpVerification = null;
 let otpFlowVersion = 0;
 
+let captchaConfigPromise = null;
+let captchaToken = '';
+let captchaWidgetId = null;
+
+function loadTurnstileScript() {
+    if (window.turnstile) return Promise.resolve();
+    const existing = document.getElementById('turnstile-api');
+    if (existing) return new Promise((resolve, reject) => {
+        existing.addEventListener('load', resolve, { once: true });
+        existing.addEventListener('error', reject, { once: true });
+    });
+    return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.id = 'turnstile-api';
+        script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+        script.async = true;
+        script.defer = true;
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+    });
+}
+
+async function initializeLoginCaptcha() {
+    const box = document.getElementById('login-captcha');
+    const widget = document.getElementById('login-captcha-widget');
+    if (!box || !widget) return false;
+    if (!captchaConfigPromise) {
+        captchaConfigPromise = fetch(`${API_BASE_URL}/api/auth/captcha/config`, { credentials: 'include' })
+            .then(response => response.ok ? response.json() : Promise.reject(new Error('بارگذاری تأیید امنیتی ممکن نشد.')));
+    }
+    const config = await captchaConfigPromise;
+    if (!config || !config.enabled) {
+        box.hidden = true;
+        return false;
+    }
+    box.hidden = false;
+    if (captchaWidgetId !== null) return true;
+    try {
+        await loadTurnstileScript();
+        if (!window.turnstile) throw new Error('Turnstile unavailable');
+        captchaWidgetId = window.turnstile.render(widget, {
+            sitekey: config.site_key,
+            action: config.action,
+            language: 'fa',
+            callback: token => {
+                captchaToken = token;
+                setError('login-captcha', '');
+            },
+            'expired-callback': () => { captchaToken = ''; },
+            'error-callback': () => { captchaToken = ''; }
+        });
+    } catch (err) {
+        throw new Error('بارگذاری تأیید امنیتی ممکن نشد. اتصال خود را بررسی کنید.');
+    }
+    return true;
+}
+
+function resetLoginCaptcha() {
+    captchaToken = '';
+    if (captchaWidgetId !== null && window.turnstile) window.turnstile.reset(captchaWidgetId);
+}
+
 function clearOtpVerification() {
     otpVerification = null;
     otpFlowVersion += 1;
@@ -391,6 +454,7 @@ onReady(() => {
             applyPhone(phone);
             if (status === 'login') {
                 showPanel('auth-login');
+                void initializeLoginCaptcha().catch(() => {});
                 document.getElementById('login-password').focus();
                 return;
             }
@@ -432,14 +496,26 @@ onReady(() => {
             document.getElementById('login-password').focus();
             return;
         }
+        let captchaEnabled = false;
+        try {
+            captchaEnabled = await initializeLoginCaptcha();
+        } catch (err) {
+            showNotice(err.message || 'بارگذاری تأیید امنیتی ممکن نشد.');
+            return;
+        }
+        if (captchaEnabled && !captchaToken) {
+            setError('login-captcha', 'تأیید امنیتی را انجام دهید.');
+            return;
+        }
         const submit = document.getElementById('login-submit');
         submit.disabled = true;
         try {
-            const profile = await apiJson('/api/auth/login', { phone: currentPhone, password: password });
+            const profile = await apiJson('/api/auth/login', { phone: currentPhone, password: password, captcha_token: captchaToken });
             finishSignedIn(profile);
         } catch (err) {
             showNotice(err.message || 'ورود ناموفق بود.');
         } finally {
+            if (captchaEnabled) resetLoginCaptcha();
             submit.disabled = false;
         }
     });
