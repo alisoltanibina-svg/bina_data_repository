@@ -11,8 +11,8 @@ let otpVerification = null;
 let otpFlowVersion = 0;
 
 const captchaSlots = {
-    gate: { purpose: 'gate', id: '', box: 'gate-captcha', image: 'gate-captcha-image', answer: 'gate-captcha-answer' },
     login: { purpose: 'login', id: '', box: 'login-captcha', image: 'login-captcha-image', answer: 'login-captcha-answer' },
+    register: { purpose: 'register', id: '', box: 'register-captcha', image: 'register-captcha-image', answer: 'register-captcha-answer' },
     reset: { purpose: 'reset', id: '', box: 'reset-captcha', image: 'reset-captcha-image', answer: 'reset-captcha-answer' }
 };
 
@@ -333,8 +333,8 @@ async function apiJson(path, body) {
     return data;
 }
 
-async function lookupPhone(phone, captcha) {
-    const data = await apiJson('/api/auth/gate', { phone: phone, captcha_id: captcha.id, captcha_answer: captcha.answer });
+async function lookupPhone(phone) {
+    const data = await apiJson('/api/auth/gate', { phone: phone });
     return data && data.status;
 }
 
@@ -425,31 +425,18 @@ onReady(() => {
         setError('gate-phone', '');
         const phone = digitsOnlyPhone(gatePhone.value);
         if (!/^09\d{9}$/.test(phone)) { setError('gate-phone', 'شماره موبایل باید ۱۱ رقم و با ۰۹ شروع شود.'); gatePhone.focus(); return; }
-        const captcha = readCaptcha('gate');
-        if (!captcha.valid) {
-            if (captcha.id) {
-                setError('gate-captcha-answer', 'کد امنیتی پنج‌نویسه را وارد کنید.');
-            } else {
-                try { await refreshCaptcha('gate', phone); }
-                catch (err) { setError('gate-phone', err.message || 'دریافت کد امنیتی ممکن نشد.'); return; }
-            }
-            document.getElementById('gate-captcha-answer').focus();
-            return;
-        }
         gateSubmit.disabled = true;
         try {
-            const status = await lookupPhone(phone, captcha);
-            clearCaptcha('gate');
+            const status = await lookupPhone(phone);
             applyPhone(phone);
             if (status === 'login') { showPanel('auth-login'); void refreshCaptcha('login', phone).catch(err => showNotice(err.message || 'دریافت کد امنیتی ممکن نشد.')); document.getElementById('login-password').focus(); return; }
-            if (status === 'register') { setPendingRegister(null); showPanel('auth-register'); document.getElementById('first_name').focus(); return; }
+            if (status === 'register') { setPendingRegister(null); showPanel('auth-register'); void refreshCaptcha('register', phone).catch(err => showNotice(err.message || 'دریافت کد امنیتی ممکن نشد.')); document.getElementById('first_name').focus(); return; }
             if (status === 'pending') { showStatus('در انتظار تایید', 'درخواست عضویت شما درانتظار تایید است'); return; }
             if (status === 'rejected') { showStatus('درخواست پذیرفته نشد', 'متاسفیم، درخواست عضویت شما پذیرفته نشد.'); return; }
             if (status === 'closed') { showStatus('ثبت‌نام بسته است', 'ثبت‌نام عمومی فعلاً متوقف شده است.'); return; }
             setError('gate-phone', 'بررسی شماره ممکن نشد.');
         } catch (err) {
-            setError('gate-captcha-answer', err.message || 'کد امنیتی نامعتبر یا منقضی است.');
-            try { await refreshCaptcha('gate', phone); } catch (refreshError) {}
+            setError('gate-phone', err.message || 'بررسی شماره ممکن نشد.');
         } finally { gateSubmit.disabled = false; }
     });
     document.getElementById('login-form').addEventListener('submit', async event => {
@@ -520,6 +507,7 @@ onReady(() => {
         } catch (err) {
             if (flowVersion !== otpFlowVersion) return;
             if (err.code === 'otp') clearOtpVerification();
+            if (err.code === 'captcha') { showPanel('auth-register'); try { await refreshCaptcha('register', currentPhone); } catch (refreshError) {} }
             setError('otp-code', err.message || 'کد نامعتبر است.');
         } finally {
             submit.disabled = false;
@@ -529,9 +517,10 @@ onReady(() => {
     document.getElementById('otp-resend').addEventListener('click', async () => {
         const btn = document.getElementById('otp-resend');
         if (btn.disabled) return;
-        if (otpPurpose === 'reset') {
-            showPanel('auth-reset-captcha');
-            try { await refreshCaptcha('reset', currentPhone); }
+        if (otpPurpose === 'reset' || otpPurpose === 'register') {
+            const captchaName = otpPurpose;
+            showPanel(captchaName === 'reset' ? 'auth-reset-captcha' : 'auth-register');
+            try { await refreshCaptcha(captchaName, currentPhone); }
             catch (err) { showNotice(err.message || 'دریافت کد امنیتی ممکن نشد.'); }
             return;
         }
@@ -587,6 +576,7 @@ onReady(() => {
     document.getElementById('register-form').addEventListener('submit', async event => {
         event.preventDefault();
         REGISTER_FIELDS.forEach(name => setError(name, ''));
+        setError('register-captcha-answer', '');
         const form = event.currentTarget;
         const values = readRegisterForm(form);
         const errors = validateRegister(values);
@@ -596,6 +586,8 @@ onReady(() => {
             document.getElementById(names[0]).focus();
             return;
         }
+        const captcha = readCaptcha('register');
+        if (!captcha.valid) { setError('register-captcha-answer', 'کد امنیتی پنج‌نویسه را وارد کنید.'); document.getElementById('register-captcha-answer').focus(); return; }
         const submit = document.getElementById('register-submit');
         submit.disabled = true;
         try {
@@ -603,11 +595,13 @@ onReady(() => {
             if (otpVerification && otpVerification.phone === currentPhone && otpVerification.purpose === 'register') {
                 await completeRegistration(values);
             } else {
-                await startOtp('register');
+                await startOtp('register', captcha);
+                clearCaptcha('register');
             }
         } catch (err) {
             setPendingRegister(null);
             if (err.code === 'otp') clearOtpVerification();
+            if (err.code === 'captcha') { showPanel('auth-register'); try { await refreshCaptcha('register', currentPhone); } catch (refreshError) {} }
             const mapped = errorFromRegister({ detail: { code: err.code, message: err.message } });
             if (mapped.field) setError(mapped.field, mapped.text);
             else showNotice(mapped.text);

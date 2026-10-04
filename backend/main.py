@@ -744,14 +744,10 @@ def _set_session_cookie(response: JSONResponse, token: str, request: Request) ->
 
 class GateBody(BaseModel):
     phone: str = Field(min_length=1, max_length=16)
-    captcha_id: str = Field(min_length=1, max_length=64)
-    captcha_answer: str = Field(min_length=1, max_length=16)
 
 
 @app.post("/api/auth/gate")
 def auth_gate(body: GateBody):
-    if not verify_challenge(body.captcha_id, body.captcha_answer, body.phone, "gate"):
-        raise HTTPException(status_code=400, detail={"code": "captcha", "message": "Invalid or expired CAPTCHA."})
     try:
         status = lookup_auth_gate(body.phone)
     except MembershipError as err:
@@ -886,8 +882,8 @@ class PasswordResetBody(BaseModel):
 
 @app.post("/api/auth/otp/send")
 def auth_otp_send(body: OtpSendBody):
-    if body.purpose == "reset" and not verify_challenge(
-        body.captcha_id, body.captcha_answer, body.phone, "reset"
+    if body.purpose in {"register", "reset"} and not verify_challenge(
+        body.captcha_id, body.captcha_answer, body.phone, body.purpose
     ):
         raise HTTPException(status_code=400, detail={"code": "captcha", "message": "Invalid or expired CAPTCHA."})
     try:

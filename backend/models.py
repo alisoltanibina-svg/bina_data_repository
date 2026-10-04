@@ -287,7 +287,7 @@ class CaptchaChallenge(Base):
 
     __tablename__ = "captcha_challenges"
     __table_args__ = (
-        CheckConstraint("purpose IN ('gate', 'login', 'reset')", name="ck_captcha_challenges_purpose"),
+        CheckConstraint("purpose IN ('login', 'register', 'reset')", name="ck_captcha_challenges_purpose"),
         Index("idx_captcha_challenges_binding_created", "binding_hash", "created_at"),
         Index("idx_captcha_challenges_ip_created", "ip_hash", "created_at"),
         Index("idx_captcha_challenges_expires", "expires_at"),

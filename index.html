@@ -122,17 +122,6 @@
                                     <input type="text" id="gate-phone" name="gate_phone" inputmode="numeric" dir="ltr" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" required maxlength="11" placeholder="شماره تماس خود را وارد کنید">
                                     <em class="register-error" id="err-gate-phone" hidden></em>
                                 </label>
-                                <div class="auth-captcha" id="gate-captcha" hidden aria-live="polite">
-                                    <div class="login-captcha-row">
-                                        <img id="gate-captcha-image" alt="کد امنیتی" width="220" height="76">
-                                        <button type="button" class="login-captcha-refresh" data-captcha-refresh="gate" aria-label="تغییر کد امنیتی">↻</button>
-                                    </div>
-                                    <label class="register-field login-captcha-answer">
-                                        <span class="visually-hidden">کد امنیتی</span>
-                                        <input type="text" id="gate-captcha-answer" inputmode="text" dir="ltr" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" maxlength="5" placeholder="کد امنیتی">
-                                        <em class="register-error" id="err-gate-captcha-answer" hidden></em>
-                                    </label>
-                                </div>
                                 <button type="submit" class="register-submit" id="gate-submit">ادامه</button>
                             </form>
                         </section>
@@ -278,6 +267,17 @@
                                         <input type="password" id="password_confirm" name="password_confirm" autocomplete="new-password" required minlength="8" placeholder=" ">
                                         <span>تکرار رمز عبور</span>
                                         <em class="register-error" id="err-password_confirm" hidden></em>
+                                    </label>
+                                </div>
+                                <div class="login-captcha auth-captcha" id="register-captcha" hidden aria-live="polite">
+                                    <div class="login-captcha-row">
+                                        <img id="register-captcha-image" alt="کد امنیتی" width="220" height="76">
+                                        <button type="button" class="login-captcha-refresh" data-captcha-refresh="register" aria-label="تغییر کد امنیتی">↻</button>
+                                    </div>
+                                    <label class="register-field login-captcha-answer">
+                                        <span class="visually-hidden">کد امنیتی</span>
+                                        <input type="text" id="register-captcha-answer" inputmode="text" dir="ltr" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" maxlength="5" placeholder="کد امنیتی">
+                                        <em class="register-error" id="err-register-captcha-answer" hidden></em>
                                     </label>
                                 </div>
                                 <button type="submit" class="register-submit" id="register-submit">ورود</button>

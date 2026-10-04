@@ -17,7 +17,7 @@ from backend.membership import is_mobile_phone, lookup_auth_gate, normalize_phon
 from backend.models import CaptchaChallenge
 from backend.settings import get_settings
 
-CAPTCHA_PURPOSES = frozenset({"gate", "login", "reset"})
+CAPTCHA_PURPOSES = frozenset({"login", "register", "reset"})
 CAPTCHA_LENGTH = 5
 CAPTCHA_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 CAPTCHA_ID_RE = re.compile(r"^[A-Za-z0-9_-]{43}$")
