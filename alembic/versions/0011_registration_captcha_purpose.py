@@ -13,6 +13,9 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # Gate challenges are short-lived, single-use data. They cannot be valid under
+    # the replacement constraint, so invalidate only these obsolete challenges.
+    op.execute("DELETE FROM captcha_challenges WHERE purpose = 'gate'")
     op.drop_constraint("ck_captcha_challenges_purpose", "captcha_challenges", type_="check")
     op.create_check_constraint(
         "ck_captcha_challenges_purpose",
