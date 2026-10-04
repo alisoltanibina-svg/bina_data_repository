@@ -669,6 +669,10 @@ html.curtain-to-profile-instant .entry-launch-home {
     font-weight: 600;
     cursor: default;
 }
+a.entry-ghost-btn {
+    cursor: pointer;
+    text-decoration: none;
+}
 .entry-launch-split {
     flex: 0 0 1px;
     width: 1px;
