@@ -464,7 +464,7 @@ onReady(() => {
         }
         const captchaAnswer = String(document.getElementById('login-captcha-answer').value || '').trim().toUpperCase();
         if (!captchaId || !/^[A-Z2-9]{5}$/.test(captchaAnswer)) {
-            setError('login-captcha-answer', 'کد امنیتی پنج‌نویسه را وارد کنید.');
+            setError('login-captcha-answer', 'کد امنیتی اشتباه است');
             document.getElementById('login-captcha-answer').focus();
             return;
         }
