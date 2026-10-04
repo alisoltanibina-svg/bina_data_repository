@@ -8,6 +8,7 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "icons": [
     {
       "src": "/assets/images/pwa-icon-192.png",

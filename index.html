@@ -8,7 +8,7 @@
 <html lang="fa" dir="rtl" class="treat-v1">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=overlays-content">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
     <title>اطلس — دیده‌بان فرهنگ</title>
     <link rel="icon" href="assets/images/Logo_tab.webp" type="image/webp">
     <link rel="manifest" href="/webmanifest.json">
@@ -43,8 +43,8 @@
     </script>
     <script src="js/config.js"></script>
     <script src="js/shared.js"></script>
-    <script src="js/index.js" defer></script>
-    <script src="js/auth-page.js?v=otp-proof-1" defer></script>
+    <script src="js/index.js?v=auth-mobile-2" defer></script>
+    <script src="js/auth-page.js?v=auth-mobile-2" defer></script>
     <script src="js/auth.js" defer></script>
 
     <script>
@@ -134,9 +134,10 @@
                             <b id="login-phone-label" class="visually-hidden" dir="ltr"></b>
                             <form id="login-form" novalidate autocomplete="off">
                                 <input type="hidden" id="login-phone" name="phone">
-                                <label class="register-field">
+                                <label class="register-field password-field">
                                     <span class="visually-hidden">رمز عبور</span>
                                     <input type="password" id="login-password" name="password" autocomplete="off" required minlength="8" placeholder="رمز عبور را وارد کنید">
+                                    <button type="button" class="password-toggle" data-password-toggle="login-password" aria-label="نمایش رمز عبور" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6S2.5 12 2.5 12Z"></path><circle cx="12" cy="12" r="2.75"></circle></svg></button>
                                     <em class="register-error" id="err-login-password" hidden></em>
                                 </label>
                                 <div class="login-captcha auth-captcha" id="login-captcha" hidden aria-live="polite">
@@ -209,14 +210,16 @@
                             <h1>رمز عبور جدید</h1>
                             <p class="register-lead">برای شماره <b id="reset-phone-label" dir="ltr"></b></p>
                             <form id="reset-form" novalidate>
-                                <label class="register-field">
+                                <label class="register-field password-field">
                                     <span class="visually-hidden">رمز عبور جدید</span>
                                     <input type="password" id="reset-password" name="reset_password" autocomplete="new-password" required minlength="8" placeholder="رمز عبور جدید">
+                                    <button type="button" class="password-toggle" data-password-toggle="reset-password" aria-label="نمایش رمز عبور" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6S2.5 12 2.5 12Z"></path><circle cx="12" cy="12" r="2.75"></circle></svg></button>
                                     <em class="register-error" id="err-reset-password" hidden></em>
                                 </label>
-                                <label class="register-field">
+                                <label class="register-field password-field">
                                     <span class="visually-hidden">تکرار رمز عبور</span>
                                     <input type="password" id="reset-password-confirm" name="reset_password_confirm" autocomplete="new-password" required minlength="8" placeholder="تکرار رمز عبور">
+                                    <button type="button" class="password-toggle" data-password-toggle="reset-password-confirm" aria-label="نمایش رمز عبور" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6S2.5 12 2.5 12Z"></path><circle cx="12" cy="12" r="2.75"></circle></svg></button>
                                     <em class="register-error" id="err-reset-password-confirm" hidden></em>
                                 </label>
                                 <button type="submit" class="register-submit" id="reset-submit">ذخیره و ورود</button>
@@ -258,13 +261,15 @@
                                     </label>
                                 </div>
                                 <div class="register-pair">
-                                    <label class="register-field">
+                                    <label class="register-field password-field">
                                         <input type="password" id="password" name="password" autocomplete="new-password" required minlength="8" placeholder=" ">
+                                    <button type="button" class="password-toggle" data-password-toggle="password" aria-label="نمایش رمز عبور" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6S2.5 12 2.5 12Z"></path><circle cx="12" cy="12" r="2.75"></circle></svg></button>
                                         <span>رمز عبور</span>
                                         <em class="register-error" id="err-password" hidden></em>
                                     </label>
-                                    <label class="register-field">
+                                    <label class="register-field password-field">
                                         <input type="password" id="password_confirm" name="password_confirm" autocomplete="new-password" required minlength="8" placeholder=" ">
+                                    <button type="button" class="password-toggle" data-password-toggle="password_confirm" aria-label="نمایش رمز عبور" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6S2.5 12 2.5 12Z"></path><circle cx="12" cy="12" r="2.75"></circle></svg></button>
                                         <span>تکرار رمز عبور</span>
                                         <em class="register-error" id="err-password_confirm" hidden></em>
                                     </label>

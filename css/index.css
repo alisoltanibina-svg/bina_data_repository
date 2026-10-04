@@ -466,8 +466,8 @@ html.curtain-to-profile-instant .entry-launch-home {
                 transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
                 font-size 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
-#auth-register .register-field input:focus + span,
-#auth-register .register-field input:not(:placeholder-shown) + span {
+#auth-register .register-field input:focus ~ span,
+#auth-register .register-field input:not(:placeholder-shown) ~ span {
     left: calc(100% - 16px);
     transform: translate(-100%, -50%);
     font-size: 0.72rem;
@@ -2065,3 +2065,55 @@ html.atlas-view .index-item.active .index-item-text {
     html.atlas-view .instruction { margin-top: 12px; font-size: 0.82rem; }
 }
 
+
+.entry-auth-stage .register-field.password-field {
+    position: relative;
+}
+.entry-auth-stage .register-field.password-field input {
+    padding-inline-end: 3.6rem;
+}
+#auth-register .register-field.password-field input:focus,
+#auth-register .register-field.password-field input:not(:placeholder-shown) {
+    padding-inline-end: 3.6rem;
+}
+.entry-auth-stage .password-toggle {
+    position: absolute;
+    inset-inline-end: 12px;
+    top: 26px;
+    transform: translateY(-50%);
+    z-index: 1;
+    width: 34px;
+    height: 34px;
+    display: inline-grid;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    padding: 0;
+    background: transparent;
+    color: #727a2a;
+    cursor: pointer;
+}
+.entry-auth-stage .password-toggle:hover { background: rgba(81, 88, 17, 0.09); }
+.entry-auth-stage .password-toggle:focus-visible {
+    outline: 2px solid #515811;
+    outline-offset: 1px;
+}
+.entry-auth-stage .password-toggle svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.entry-auth-stage .password-toggle[aria-pressed="true"] { color: #515811; }
+
+@media (max-width: 767px) {
+    html.curtain-auth.auth-keyboard-open .entry-scroll {
+        scroll-padding-block: 20px max(28px, env(safe-area-inset-bottom, 0px));
+    }
+    html.curtain-auth.auth-keyboard-open .entry-hero {
+        padding-bottom: max(28px, env(safe-area-inset-bottom, 0px));
+    }
+}

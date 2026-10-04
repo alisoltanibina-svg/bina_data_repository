@@ -131,6 +131,7 @@ function openCurtainAuth() {
     showPanel('auth-gate');
     stage.hidden = false;
     document.documentElement.classList.add('curtain-auth');
+    preferPortraitOnMobile();
     if (!window.matchMedia('(max-width: 767px)').matches) {
         const phone = document.getElementById('gate-phone');
         window.setTimeout(() => { if (phone) phone.focus(); }, 420);
@@ -375,11 +376,53 @@ async function startOtp(purpose, captcha) {
         throw err;
     }
 }
+function initPasswordToggles() {
+    document.querySelectorAll('[data-password-toggle]').forEach(button => {
+        const input = document.getElementById(button.getAttribute('data-password-toggle'));
+        if (!input) return;
+        button.addEventListener('click', () => {
+            const visible = input.type === 'password';
+            input.type = visible ? 'text' : 'password';
+            button.setAttribute('aria-pressed', String(visible));
+            button.setAttribute('aria-label', visible ? 'پنهان کردن رمز عبور' : 'نمایش رمز عبور');
+            input.focus({ preventScroll: true });
+        });
+    });
+}
+
+function revealFocusedAuthField(input) {
+    if (!window.matchMedia('(max-width: 767px)').matches) return;
+    const stage = document.getElementById('entry-auth-stage');
+    if (!stage || !stage.contains(input) || !document.documentElement.classList.contains('curtain-auth')) return;
+    document.documentElement.classList.add('auth-keyboard-open');
+    [0, 180, 380].forEach(delay => window.setTimeout(() => {
+        if (document.activeElement === input) input.scrollIntoView({ block: 'center', inline: 'nearest', behavior: delay ? 'smooth' : 'auto' });
+    }, delay));
+}
+
+function initAuthMobileFieldVisibility() {
+    const stage = document.getElementById('entry-auth-stage');
+    if (!stage) return;
+    stage.querySelectorAll('input, textarea, select').forEach(input => {
+        input.addEventListener('focus', () => revealFocusedAuthField(input));
+        input.addEventListener('blur', () => window.setTimeout(() => {
+            if (!stage.contains(document.activeElement)) document.documentElement.classList.remove('auth-keyboard-open');
+        }, 120));
+    });
+}
+
+function preferPortraitOnMobile() {
+    if (!window.matchMedia('(max-width: 767px)').matches) return;
+    const orientation = window.screen && window.screen.orientation;
+    if (orientation && typeof orientation.lock === 'function') orientation.lock('portrait').catch(() => {});
+}
 onReady(() => {
     const gateForm = document.getElementById('gate-form');
     const gateSubmit = document.getElementById('gate-submit');
     const gatePhone = document.getElementById('gate-phone');
     if (!gateForm || !gatePhone) return;
+    initPasswordToggles();
+    initAuthMobileFieldVisibility();
     document.querySelectorAll('[data-captcha-refresh]').forEach(button => {
         button.addEventListener('click', async () => {
             const name = button.getAttribute('data-captcha-refresh');
