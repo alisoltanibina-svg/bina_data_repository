@@ -71,6 +71,7 @@ from backend.membership import (
 )
 from backend.otp import cleanup_expired_challenges as cleanup_expired_otp_challenges, send_otp, verify_otp
 from backend.ratelimit import RateLimitMiddleware
+from backend.settings import get_settings
 from backend.captcha import (
     CaptchaError,
     CaptchaRateLimit,
@@ -322,10 +323,7 @@ async def lifespan(app: FastAPI):
     _expand_thread_pool()
     bootstrap()
     settings = get_settings()
-    await asyncio.to_thread(cleanup_expired_challenges)
-    await asyncio.to_thread(cleanup_expired_sessions)
-    await asyncio.to_thread(cleanup_expired_otp_challenges)
-    await asyncio.to_thread(cleanup_expired_login_events)
+    await asyncio.to_thread(_cleanup_security_data)
     cleanup_task = asyncio.create_task(
         _security_data_cleanup_loop(settings.captcha_cleanup_interval_seconds)
     )
