@@ -15,6 +15,7 @@ import json
 import logging
 import os
 import random
+import time
 from contextlib import asynccontextmanager, suppress
 
 from pathlib import Path
@@ -233,25 +234,30 @@ def _name_key(*parts: str) -> str:
     return "::".join(normalize_fa_name(part) or (part or "").strip() for part in parts)
 
 
-def _etag_for(key: str) -> str:
+def _etag_for(key: str, ttl_seconds: float | None = None) -> str:
     mtime, size = get_cache().fingerprint()
-    digest = hashlib.sha1(f"{mtime}:{size}:{key}".encode("utf-8")).hexdigest()
+    cache_window = int(time.monotonic() // ttl_seconds) if ttl_seconds is not None else ""
+    digest = hashlib.sha1(f"{mtime}:{size}:{cache_window}:{key}".encode("utf-8")).hexdigest()
     return f'"{digest}"'
 
-
-def _cached_json(key: str, factory, request: Request | None = None) -> Response:
-    etag = _etag_for(key)
+def _cached_json(
+    key: str,
+    factory,
+    request: Request | None = None,
+    *,
+    ttl_seconds: float | None = None,
+) -> Response:
+    etag = _etag_for(key, ttl_seconds)
     if request is not None:
         incoming = request.headers.get("if-none-match", "").strip()
         if incoming == etag or incoming == f"W/{etag}":
             return Response(status_code=304, headers={"ETag": etag, **_CACHE_HEADERS})
-    body = get_cache().get(key, lambda: _json_bytes(factory()))
+    body = get_cache().get(key, lambda: _json_bytes(factory()), ttl_seconds=ttl_seconds)
     return Response(
         content=body,
         media_type=JSON_MEDIA,
         headers={"ETag": etag, **_CACHE_HEADERS},
     )
-
 
 def _thread_pool_size() -> int:
     raw = os.environ.get("THREAD_POOL_SIZE", "256")
@@ -456,12 +462,17 @@ def _compute_atlas_trend(province: str, topic: str) -> dict:
 @app.get("/api/atlas/trend")
 def get_atlas_trend(province: str, topic: str, request: Request):
     """Full year series for one province and topic (right-panel trend chart)."""
+    provinces = get_cache().get("trend-provinces", _compute_trend_provinces)
+    topic_canon = resolve_catalog_name(topic, _topic_names())
+    province_canon = resolve_catalog_name(province, provinces)
+    if not topic_canon or not province_canon:
+        raise HTTPException(status_code=404, detail="موضوع یا استان یافت نشد")
     return _cached_json(
-        f"atlas-trend::{_name_key(province, topic)}",
-        lambda: _compute_atlas_trend(province, topic),
+        f"atlas-trend::{_name_key(province_canon, topic_canon)}",
+        lambda: _compute_atlas_trend(province_canon, topic_canon),
         request,
+        ttl_seconds=3600,
     )
-
 
 def _compute_explorer_init() -> dict:
     with db_connection() as conn:
@@ -547,12 +558,15 @@ def _compute_explorer_indicator(name: str) -> dict:
 def get_explorer_indicator(name: str, request: Request):
     """Fetches data only for the specifically clicked indicator."""
     _require_user(request)
+    canon = resolve_catalog_name(name, get_cache().get("indicator-names", _compute_indicator_names))
+    if not canon:
+        raise HTTPException(status_code=404, detail="شاخص یافت نشد")
     return _cached_json(
-        f"explorer-indicator::{_name_key(name)}",
-        lambda: _compute_explorer_indicator(name),
+        f"explorer-indicator::{_name_key(canon)}",
+        lambda: _compute_explorer_indicator(canon),
         request,
+        ttl_seconds=3600,
     )
-
 
 def _compute_subtopic_names() -> list[str]:
     with db_connection() as conn:
@@ -607,12 +621,18 @@ def _compute_bubble_init(topic: str, subtopic: str) -> dict:
 def get_bubble_init(request: Request, topic: str = "", subtopic: str = ""):
     """Fetches filtered data specifically for the dynamic bubble chart."""
     _require_user(request)
-    return _cached_json(
-        f"bubble-init::{_name_key(topic, subtopic)}",
-        lambda: _compute_bubble_init(topic, subtopic),
-        request,
+    topic_canon = resolve_catalog_name(topic, _topic_names())
+    subtopic_canon = resolve_catalog_name(
+        subtopic, get_cache().get("subtopic-names", _compute_subtopic_names)
     )
-
+    if not topic_canon or not subtopic_canon:
+        raise HTTPException(status_code=404, detail="موضوع یا زیرموضوع یافت نشد")
+    return _cached_json(
+        f"bubble-init::{_name_key(topic_canon, subtopic_canon)}",
+        lambda: _compute_bubble_init(topic_canon, subtopic_canon),
+        request,
+        ttl_seconds=3600,
+    )
 
 def _compute_topics_min() -> list[dict]:
     with db_connection() as conn:

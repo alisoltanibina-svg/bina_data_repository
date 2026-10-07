@@ -10,6 +10,8 @@ so ORDER BY id keeps the same display order the API used with ORDER BY rowid.
 from __future__ import annotations
 
 import threading
+import time
+from collections import OrderedDict
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from typing import Any, Callable, TypeVar
@@ -191,21 +193,31 @@ def list_dashboard_provinces(conn: DbConn) -> list[str]:
 
 
 class ResultCache:
-    """Thread-safe memo keyed by string. Process-lifetime (no SQLite file stamp)."""
+    """Thread-safe, bounded LRU memo for computed dashboard results."""
 
-    def __init__(self) -> None:
+    def __init__(self, max_entries: int = 512) -> None:
+        if max_entries < 1:
+            raise ValueError("max_entries must be at least 1")
         self._lock = threading.Lock()
-        self._values: dict[str, object] = {}
+        self._values: OrderedDict[str, tuple[object, float | None]] = OrderedDict()
         self._waiters: dict[str, threading.Event] = {}
         self._stamp = 1
+        self._max_entries = max_entries
 
     def fingerprint(self) -> tuple[int, int]:
         return (self._stamp, 0)
 
-    def get(self, key: str, factory: Callable[[], T]) -> T:
+    def get(self, key: str, factory: Callable[[], T], *, ttl_seconds: float | None = None) -> T:
+        if ttl_seconds is not None and ttl_seconds <= 0:
+            raise ValueError("ttl_seconds must be positive when provided")
         with self._lock:
-            if key in self._values:
-                return self._values[key]  # type: ignore[return-value]
+            cached = self._values.get(key)
+            if cached is not None:
+                value, expires_at = cached
+                if expires_at is None or expires_at > time.monotonic():
+                    self._values.move_to_end(key)
+                    return value  # type: ignore[return-value]
+                self._values.pop(key, None)
             waiter = self._waiters.get(key)
             owner = waiter is None
             if owner:
@@ -215,9 +227,14 @@ class ResultCache:
         if not owner:
             waiter.wait(timeout=120)
             with self._lock:
-                if key in self._values:
-                    return self._values[key]  # type: ignore[return-value]
-            return self.get(key, factory)
+                cached = self._values.get(key)
+                if cached is not None:
+                    value, expires_at = cached
+                    if expires_at is None or expires_at > time.monotonic():
+                        self._values.move_to_end(key)
+                        return value  # type: ignore[return-value]
+                    self._values.pop(key, None)
+            return self.get(key, factory, ttl_seconds=ttl_seconds)
 
         try:
             value = factory()
@@ -228,11 +245,13 @@ class ResultCache:
             raise
 
         with self._lock:
-            self._values[key] = value
+            while len(self._values) >= self._max_entries:
+                self._values.popitem(last=False)
+            expires_at = time.monotonic() + ttl_seconds if ttl_seconds is not None else None
+            self._values[key] = (value, expires_at)
             self._waiters.pop(key, None)
         waiter.set()
         return value
-
 
 _CACHE = ResultCache()
 
