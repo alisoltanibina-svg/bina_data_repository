@@ -979,23 +979,25 @@ def ops_overview() -> dict:
             trend_rows = session.execute(
                 select(LoginFailure).where(LoginFailure.created_at >= start_month)
             ).scalars().all()
-        payload["login_failures"] = {
-            "today": int(fail_today or 0),
-            "last_7_days": int(fail_week or 0),
-            "recent": [
-                {
-                    "when": _iso(row.created_at),
-                    "phone_mask": row.phone_mask,
-                    "reason": _fail_reason_label(row.reason),
-                }
-                for row in recent
-            ],
-        }
-        payload["login_trend"] = {
-            "hourly": _bucket_login_trend("hourly", trend_rows),
-            "weekly": _bucket_login_trend("weekly", trend_rows),
-            "monthly": _bucket_login_trend("monthly", trend_rows),
-        }
+            # ORM attributes expire when db_session commits, so serialize rows
+            # before leaving this context.
+            payload["login_failures"] = {
+                "today": int(fail_today or 0),
+                "last_7_days": int(fail_week or 0),
+                "recent": [
+                    {
+                        "when": _iso(row.created_at),
+                        "phone_mask": row.phone_mask,
+                        "reason": _fail_reason_label(row.reason),
+                    }
+                    for row in recent
+                ],
+            }
+            payload["login_trend"] = {
+                "hourly": _bucket_login_trend("hourly", trend_rows),
+                "weekly": _bucket_login_trend("weekly", trend_rows),
+                "monthly": _bucket_login_trend("monthly", trend_rows),
+            }
     except Exception:
         # Do not present a database/read failure as genuine zero activity.
         payload["login_stats_available"] = False
