@@ -52,7 +52,7 @@ _PROFILE_FIELDS = (
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 SESSION_COOKIE = "bina_session"
-SESSION_DAYS = 14
+SESSION_DAYS = 1
 LOGIN_FAILURE_LIMIT = 5
 LOGIN_FAILURE_WINDOW = timedelta(minutes=15)
 _ADMIN_STATE_LOCK = 0x526173616442696E
@@ -230,6 +230,34 @@ def _create_session_in_transaction(session, user_id: int) -> tuple[str, datetime
     expires_at = datetime.now(timezone.utc) + timedelta(days=SESSION_DAYS)
     session.add(UserSession(user_id=user_id, token_hash=_token_hash(raw), expires_at=expires_at))
     return raw, expires_at
+
+
+def cleanup_expired_sessions(now: datetime | None = None) -> int:
+    """Delete session records whose login lifetime has ended."""
+    cutoff = now or datetime.now(timezone.utc)
+    with db_session() as session:
+        maximum_age = cutoff - timedelta(days=SESSION_DAYS)
+        result = session.execute(
+            delete(UserSession).where(
+                or_(
+                    UserSession.expires_at <= cutoff,
+                    UserSession.created_at <= maximum_age,
+                )
+            )
+        )
+        return int(result.rowcount or 0)
+
+
+def cleanup_expired_login_events(now: datetime | None = None) -> int:
+    """Keep masked login-event data only for the configured retention window."""
+    cutoff = (now or datetime.now(timezone.utc)) - timedelta(
+        days=get_settings().login_event_retention_days
+    )
+    with db_session() as session:
+        result = session.execute(
+            delete(LoginFailure).where(LoginFailure.created_at < cutoff)
+        )
+        return int(result.rowcount or 0)
 
 
 def _lock_admin_state(session) -> None:
@@ -905,6 +933,7 @@ def ops_overview() -> dict:
     payload = {
         "registration_open": True,
         "otp_sent_today": 0,
+        "login_stats_available": True,
         "login_failures": {"today": 0, "last_7_days": 0, "recent": []},
         "login_trend": {
             "hourly": _bucket_login_trend("hourly", []),
@@ -967,10 +996,10 @@ def ops_overview() -> dict:
             "weekly": _bucket_login_trend("weekly", trend_rows),
             "monthly": _bucket_login_trend("monthly", trend_rows),
         }
-    except (ProgrammingError, OperationalError):
-        log.warning("ops login stats skipped (schema)")
     except Exception:
-        log.exception("ops_overview")
+        # Do not present a database/read failure as genuine zero activity.
+        payload["login_stats_available"] = False
+        log.exception("ops login statistics unavailable")
     return payload
 
 

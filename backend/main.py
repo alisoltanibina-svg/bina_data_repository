@@ -9,11 +9,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
+import logging
 import os
 import random
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from pathlib import Path
 
@@ -46,6 +48,8 @@ from backend.membership import (
     authenticate,
     avatar_download,
     clear_user_avatar,
+    cleanup_expired_sessions,
+    cleanup_expired_login_events,
     delete_session_token,
     delete_user_account,
     get_user_for_admin,
@@ -65,9 +69,18 @@ from backend.membership import (
     set_user_avatar,
     update_own_profile,
 )
-from backend.otp import send_otp, verify_otp
+from backend.otp import cleanup_expired_challenges as cleanup_expired_otp_challenges, send_otp, verify_otp
 from backend.ratelimit import RateLimitMiddleware
-from backend.captcha import CaptchaError, CaptchaRateLimit, captcha_image, issue_challenge, verify_challenge
+from backend.captcha import (
+    CaptchaError,
+    CaptchaRateLimit,
+    captcha_image,
+    cleanup_expired_challenges,
+    issue_challenge,
+    verify_challenge,
+)
+
+log = logging.getLogger("backend.main")
 
 JSON_MEDIA = "application/json"
 # Data and assets change rarely. Browsers may reuse copies:
@@ -286,12 +299,43 @@ def bootstrap() -> None:
     _warm_cache()
 
 
+def _cleanup_security_data() -> None:
+    for cleanup in (
+        cleanup_expired_challenges,
+        cleanup_expired_sessions,
+        cleanup_expired_otp_challenges,
+        cleanup_expired_login_events,
+    ):
+        try:
+            cleanup()
+        except Exception:
+            log.exception("security data cleanup failed: %s", cleanup.__name__)
+
+
+async def _security_data_cleanup_loop(interval_seconds: int) -> None:
+    while True:
+        await asyncio.sleep(interval_seconds)
+        await asyncio.to_thread(_cleanup_security_data)
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _expand_thread_pool()
     bootstrap()
-    yield
-    dispose_engine()
+    settings = get_settings()
+    await asyncio.to_thread(cleanup_expired_challenges)
+    await asyncio.to_thread(cleanup_expired_sessions)
+    await asyncio.to_thread(cleanup_expired_otp_challenges)
+    await asyncio.to_thread(cleanup_expired_login_events)
+    cleanup_task = asyncio.create_task(
+        _security_data_cleanup_loop(settings.captcha_cleanup_interval_seconds)
+    )
+    try:
+        yield
+    finally:
+        cleanup_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await cleanup_task
+        dispose_engine()
 
 
 app = FastAPI(

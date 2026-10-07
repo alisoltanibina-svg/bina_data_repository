@@ -12,7 +12,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, or_, select, update
 
 from backend.database import db_session
 from backend.membership import MembershipError, is_mobile_phone, normalize_phone, registration_is_open
@@ -38,6 +38,21 @@ def _hash_code(salt: str, code: str) -> str:
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def cleanup_expired_challenges(now: datetime | None = None) -> int:
+    """Delete expired and already-consumed OTP challenges."""
+    cutoff = now or _now()
+    with db_session() as session:
+        result = session.execute(
+            delete(OtpChallenge).where(
+                or_(
+                    OtpChallenge.expires_at <= cutoff,
+                    OtpChallenge.consumed_at.is_not(None),
+                )
+            )
+        )
+        return int(result.rowcount or 0)
 
 
 def _active_user(session, phone: str) -> User | None:

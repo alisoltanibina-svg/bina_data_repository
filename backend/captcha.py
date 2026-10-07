@@ -10,7 +10,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 from PIL import Image, ImageDraw, ImageFont
-from sqlalchemy import func, select, text, update
+from sqlalchemy import delete, func, select, text, update
 
 from backend.database import db_session
 from backend.membership import is_mobile_phone, lookup_auth_gate, normalize_phone
@@ -97,6 +97,21 @@ def _captcha_png(answer: str) -> bytes:
     output = io.BytesIO()
     image.save(output, format="PNG", optimize=True)
     return output.getvalue()
+
+
+def cleanup_expired_challenges(now: datetime | None = None) -> int:
+    """Delete CAPTCHA data that can no longer be used.
+
+    A consumed challenge is retained only until its normal expiration time. This
+    keeps the rate-limit window intact while ensuring the PNG payloads do not
+    accumulate indefinitely.
+    """
+    cutoff = now or _now()
+    with db_session() as session:
+        result = session.execute(
+            delete(CaptchaChallenge).where(CaptchaChallenge.expires_at <= cutoff)
+        )
+        return int(result.rowcount or 0)
 
 
 def issue_challenge(phone_raw: str, purpose: str, client_ip: str) -> dict[str, object]:

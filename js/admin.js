@@ -621,6 +621,8 @@ function renderOps(data) {
     const otp = document.getElementById('otp-today');
     if (otp) otp.textContent = toFa(data.otp_sent_today || 0);
     const fails = data.login_failures || {};
+    const statsUnavailable = document.getElementById('login-stats-unavailable');
+    if (statsUnavailable) statsUnavailable.hidden = data.login_stats_available !== false;
     const today = document.getElementById('fail-today');
     const week = document.getElementById('fail-week');
     if (today) today.textContent = toFa(fails.today || 0);

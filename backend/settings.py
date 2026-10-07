@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     captcha_ttl_seconds: int = 300
     captcha_max_per_phone: int = 10
     captcha_max_per_ip: int = 20
+    captcha_cleanup_interval_seconds: int = 18_000
+    login_event_retention_days: int = 90
 
 def _require_postgres_url(url: str) -> str:
     raw = (url or "").strip()
@@ -73,4 +75,8 @@ def get_settings() -> Settings:
             raise RuntimeError("CAPTCHA_TTL_SECONDS must be between 120 and 300.")
         if settings.captcha_max_per_phone < 1 or settings.captcha_max_per_ip < 1:
             raise RuntimeError("CAPTCHA rate limits must be positive.")
+        if settings.captcha_cleanup_interval_seconds < 60:
+            raise RuntimeError("CAPTCHA_CLEANUP_INTERVAL_SECONDS must be at least 60.")
+    if settings.login_event_retention_days < 1:
+        raise RuntimeError("LOGIN_EVENT_RETENTION_DAYS must be positive.")
     return settings
