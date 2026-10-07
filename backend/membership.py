@@ -864,14 +864,57 @@ def _add_months(value: datetime, months: int) -> datetime:
     return value.replace(year=month_index // 12, month=month_index % 12 + 1)
 
 
+def _gregorian_to_jalali(year: int, month: int, day: int) -> tuple[int, int, int]:
+    """Convert a Gregorian date to Solar Hijri without an external dependency."""
+    month_days = (0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334)
+    if year > 1600:
+        jalali_year = 979
+        year -= 1600
+    else:
+        jalali_year = 0
+        year -= 621
+    adjusted_year = year + 1 if month > 2 else year
+    days = (
+        365 * year
+        + (adjusted_year + 3) // 4
+        - (adjusted_year + 99) // 100
+        + (adjusted_year + 399) // 400
+        - 80
+        + day
+        + month_days[month - 1]
+    )
+    jalali_year += 33 * (days // 12053)
+    days %= 12053
+    jalali_year += 4 * (days // 1461)
+    days %= 1461
+    if days > 365:
+        jalali_year += (days - 1) // 365
+        days = (days - 1) % 365
+    if days < 186:
+        return jalali_year, 1 + days // 31, 1 + days % 31
+    return jalali_year, 7 + (days - 186) // 30, 1 + (days - 186) % 30
+
+
+def _jalali_label(value: datetime, include_year: bool = False, include_hour: bool = False) -> str:
+    year, month, day = _gregorian_to_jalali(value.year, value.month, value.day)
+    date_label = f"{year:04d}/{month:02d}/{day:02d}" if include_year else f"{month:02d}/{day:02d}"
+    return f"{date_label} {value:%H}:00" if include_hour else date_label
 def _login_trend_buckets(kind: str) -> list[tuple[datetime, datetime, str]]:
     now = _tehran_now()
-    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    hour_start = now.replace(minute=0, second=0, microsecond=0)
+    day_start = hour_start.replace(hour=0)
+    if kind == "hourly":
+        start = hour_start - timedelta(hours=23)
+        return [
+            (start + timedelta(hours=index), start + timedelta(hours=index + 1),
+             _jalali_label(start + timedelta(hours=index), include_hour=True))
+            for index in range(24)
+        ]
     if kind == "daily":
         start = day_start - timedelta(days=29)
         return [
             (start + timedelta(days=index), start + timedelta(days=index + 1),
-             (start + timedelta(days=index)).strftime("%m/%d"))
+             _jalali_label(start + timedelta(days=index)))
             for index in range(30)
         ]
     if kind == "weekly":
@@ -879,17 +922,16 @@ def _login_trend_buckets(kind: str) -> list[tuple[datetime, datetime, str]]:
         start = week_start - timedelta(weeks=11)
         return [
             (start + timedelta(weeks=index), start + timedelta(weeks=index + 1),
-             (start + timedelta(weeks=index)).strftime("%m/%d"))
+             _jalali_label(start + timedelta(weeks=index)))
             for index in range(12)
         ]
     month_start = day_start.replace(day=1)
     start = _add_months(month_start, -11)
     return [
         (_add_months(start, index), _add_months(start, index + 1),
-         _add_months(start, index).strftime("%Y/%m"))
+         _jalali_label(_add_months(start, index), include_year=True))
         for index in range(12)
     ]
-
 
 def _bucket_login_trend(kind: str, rows: list[LoginFailure]) -> dict:
     tz = _tehran_tz()
@@ -928,6 +970,7 @@ def ops_overview() -> dict:
         "login_stats_available": True,
         "login_failures": {"today": 0, "last_7_days": 0, "recent": []},
         "login_trend": {
+            "hourly": _bucket_login_trend("hourly", []),
             "daily": _bucket_login_trend("daily", []),
             "weekly": _bucket_login_trend("weekly", []),
             "monthly": _bucket_login_trend("monthly", []),
@@ -986,6 +1029,7 @@ def ops_overview() -> dict:
                 ],
             }
             payload["login_trend"] = {
+                "hourly": _bucket_login_trend("hourly", trend_rows),
                 "daily": _bucket_login_trend("daily", trend_rows),
                 "weekly": _bucket_login_trend("weekly", trend_rows),
                 "monthly": _bucket_login_trend("monthly", trend_rows),
