@@ -49,7 +49,6 @@ from backend.membership import (
     avatar_download,
     clear_user_avatar,
     cleanup_expired_sessions,
-    cleanup_expired_login_events,
     delete_session_token,
     delete_user_account,
     get_user_for_admin,
@@ -305,7 +304,6 @@ def _cleanup_security_data() -> None:
         cleanup_expired_challenges,
         cleanup_expired_sessions,
         cleanup_expired_otp_challenges,
-        cleanup_expired_login_events,
     ):
         try:
             cleanup()

@@ -105,7 +105,7 @@ const CHANGE_LABELS = {
     avatar_path: 'عکس'
 };
 
-const opsState = { range: 'weekly', trend: {}, chart: null };
+const opsState = { range: 'daily', chartType: 'bar', trend: {}, chart: null, renderedChartType: '' };
 
 const usersState = {
     rows: [],
@@ -654,20 +654,21 @@ function renderLoginTrend() {
     const totals = pack.total && pack.total.length
         ? pack.total
         : (pack.success || []).map((n, i) => Number(n || 0) + Number((pack.fail || [])[i] || 0));
-    const maxVal = totals.reduce((m, n) => Math.max(m, Number(n) || 0), 0);
-    const payload = {
-        labels: labels,
-        datasets: [
-            {
-                label: 'ورود',
-                data: totals,
-                backgroundColor: '#515811',
-                borderColor: '#515811',
-                borderRadius: 4,
-                maxBarThickness: 28
-            }
-        ]
+    const maxVal = totals.reduce((max, value) => Math.max(max, Number(value) || 0), 0);
+    const isLine = opsState.chartType === 'line';
+    const dataset = {
+        label: 'ورود',
+        data: totals,
+        borderColor: '#515811',
+        backgroundColor: isLine ? 'rgba(81, 88, 17, 0.12)' : '#515811',
+        borderWidth: 2,
     };
+    if (isLine) {
+        Object.assign(dataset, { tension: 0.28, pointRadius: 3, pointHoverRadius: 5, fill: true });
+    } else {
+        Object.assign(dataset, { borderRadius: 4, maxBarThickness: 28 });
+    }
+    const payload = { labels, datasets: [dataset] };
     const yScale = {
         beginAtZero: true,
         suggestedMax: Math.max(4, maxVal),
@@ -679,25 +680,28 @@ function renderLoginTrend() {
         grid: { display: false },
         title: { display: true, text: 'زمان', font: { family: 'PeydaFaNumWeb', size: 12 } }
     };
+    if (opsState.chart && opsState.renderedChartType !== opsState.chartType) {
+        opsState.chart.destroy();
+        opsState.chart = null;
+    }
     if (opsState.chart) {
         opsState.chart.data = payload;
-        opsState.chart.options.scales.y.suggestedMax = yScale.suggestedMax;
+        opsState.chart.options.scales = { x: xScale, y: yScale };
         opsState.chart.update();
         requestAnimationFrame(() => { try { opsState.chart.resize(); } catch (e) {} });
         return;
     }
     opsState.chart = new Chart(canvas.getContext('2d'), {
-        type: 'bar',
+        type: opsState.chartType,
         data: payload,
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false }
-            },
+            plugins: { legend: { display: false } },
             scales: { x: xScale, y: yScale }
         }
     });
+    opsState.renderedChartType = opsState.chartType;
     requestAnimationFrame(() => { try { opsState.chart.resize(); } catch (e) {} });
 }
 
@@ -752,10 +756,20 @@ function bind() {
     }
     document.querySelectorAll('#view-ops [data-trend]').forEach(btn => {
         btn.addEventListener('click', () => {
-            opsState.range = btn.dataset.trend || 'weekly';
+            opsState.range = btn.dataset.trend || 'daily';
             document.querySelectorAll('#view-ops [data-trend]').forEach(item => {
                 const on = item.dataset.trend === opsState.range;
                 item.classList.toggle('is-active', on);
+            });
+            renderLoginTrend();
+        });
+    });
+
+    document.querySelectorAll('#view-ops [data-chart-type]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            opsState.chartType = btn.dataset.chartType === 'line' ? 'line' : 'bar';
+            document.querySelectorAll('#view-ops [data-chart-type]').forEach(item => {
+                item.classList.toggle('is-active', item.dataset.chartType === opsState.chartType);
             });
             renderLoginTrend();
         });

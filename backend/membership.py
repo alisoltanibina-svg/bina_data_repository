@@ -248,17 +248,6 @@ def cleanup_expired_sessions(now: datetime | None = None) -> int:
         return int(result.rowcount or 0)
 
 
-def cleanup_expired_login_events(now: datetime | None = None) -> int:
-    """Keep masked login-event data only for the configured retention window."""
-    cutoff = (now or datetime.now(timezone.utc)) - timedelta(
-        days=get_settings().login_event_retention_days
-    )
-    with db_session() as session:
-        result = session.execute(
-            delete(LoginFailure).where(LoginFailure.created_at < cutoff)
-        )
-        return int(result.rowcount or 0)
-
 
 def _lock_admin_state(session) -> None:
     """Serialize admin deactivations across app workers."""
@@ -870,41 +859,45 @@ def _fail_reason_label(reason: str) -> str:
     }.get(reason, "نامشخص")
 
 
-def _login_trend_range(kind: str) -> dict:
-    now = _tehran_now().replace(second=0, microsecond=0)
-    if kind == "hourly":
-        end = now.replace(minute=0)
-        start = end - timedelta(hours=23)
-        step = timedelta(hours=1)
-        count = 24
-        label_fmt = "%H:00"
-    elif kind == "monthly":
-        end = now.replace(hour=0, minute=0)
-        start = end - timedelta(days=29)
-        step = timedelta(days=1)
-        count = 30
-        label_fmt = "%m/%d"
-    else:
-        end = now.replace(hour=0, minute=0)
-        start = end - timedelta(days=6)
-        step = timedelta(days=1)
-        count = 7
-        label_fmt = "%m/%d"
-    return {"start": start, "end": end, "step": step, "count": count, "label_fmt": label_fmt}
+def _add_months(value: datetime, months: int) -> datetime:
+    month_index = value.year * 12 + value.month - 1 + months
+    return value.replace(year=month_index // 12, month=month_index % 12 + 1)
+
+
+def _login_trend_buckets(kind: str) -> list[tuple[datetime, datetime, str]]:
+    now = _tehran_now()
+    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    if kind == "daily":
+        start = day_start - timedelta(days=29)
+        return [
+            (start + timedelta(days=index), start + timedelta(days=index + 1),
+             (start + timedelta(days=index)).strftime("%m/%d"))
+            for index in range(30)
+        ]
+    if kind == "weekly":
+        week_start = day_start - timedelta(days=day_start.weekday())
+        start = week_start - timedelta(weeks=11)
+        return [
+            (start + timedelta(weeks=index), start + timedelta(weeks=index + 1),
+             (start + timedelta(weeks=index)).strftime("%m/%d"))
+            for index in range(12)
+        ]
+    month_start = day_start.replace(day=1)
+    start = _add_months(month_start, -11)
+    return [
+        (_add_months(start, index), _add_months(start, index + 1),
+         _add_months(start, index).strftime("%Y/%m"))
+        for index in range(12)
+    ]
 
 
 def _bucket_login_trend(kind: str, rows: list[LoginFailure]) -> dict:
-    spec = _login_trend_range(kind)
     tz = _tehran_tz()
-    start = spec["start"]
-    step = spec["step"]
     labels = []
     success = []
     fail = []
-    for i in range(spec["count"]):
-        bucket_start = start + step * i
-        bucket_end = bucket_start + step
-        labels.append(bucket_start.strftime(spec["label_fmt"]))
+    for bucket_start, bucket_end, label in _login_trend_buckets(kind):
+        labels.append(label)
         ok_n = 0
         fail_n = 0
         for row in rows:
@@ -925,9 +918,8 @@ def _bucket_login_trend(kind: str, rows: list[LoginFailure]) -> dict:
         "labels": labels,
         "success": success,
         "fail": fail,
-        "total": [success[i] + fail[i] for i in range(len(success))],
+        "total": [success[index] + fail[index] for index in range(len(success))],
     }
-
 
 def ops_overview() -> dict:
     payload = {
@@ -936,7 +928,7 @@ def ops_overview() -> dict:
         "login_stats_available": True,
         "login_failures": {"today": 0, "last_7_days": 0, "recent": []},
         "login_trend": {
-            "hourly": _bucket_login_trend("hourly", []),
+            "daily": _bucket_login_trend("daily", []),
             "weekly": _bucket_login_trend("weekly", []),
             "monthly": _bucket_login_trend("monthly", []),
         },
@@ -947,7 +939,7 @@ def ops_overview() -> dict:
         log.exception("ops registration_open")
     start_today = _tehran_day_start_utc()
     start_week = start_today - timedelta(days=6)
-    start_month = _login_trend_range("monthly")["start"].astimezone(timezone.utc)
+    start_month = _login_trend_buckets("monthly")[0][0].astimezone(timezone.utc)
     try:
         with db_session() as session:
             otp_today = session.execute(
@@ -994,7 +986,7 @@ def ops_overview() -> dict:
                 ],
             }
             payload["login_trend"] = {
-                "hourly": _bucket_login_trend("hourly", trend_rows),
+                "daily": _bucket_login_trend("daily", trend_rows),
                 "weekly": _bucket_login_trend("weekly", trend_rows),
                 "monthly": _bucket_login_trend("monthly", trend_rows),
             }
