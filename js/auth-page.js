@@ -362,7 +362,7 @@ async function completeRegistration(pending) {
 
 async function startOtp(purpose, captcha) {
     otpPurpose = purpose;
-    document.getElementById('otp-code').value = '';
+    setOtpValue(document.getElementById('otp-code'), '');
     setError('otp-code', '');
     showPanel('auth-otp');
     setOtpSending(true);
@@ -370,7 +370,7 @@ async function startOtp(purpose, captcha) {
         const data = await sendOtp(purpose, captcha);
         setOtpSending(false);
         startResendTimer((data && data.resend_seconds) || 60);
-        document.getElementById('otp-code').focus();
+        focusOtpInput(document.getElementById('otp-code'));
     } catch (err) {
         setOtpSending(false);
         throw err;
@@ -514,7 +514,7 @@ onReady(() => {
         const code = normalizeOtpCode(document.getElementById('otp-code').value);
         if (code.length !== 6) {
             setError('otp-code', 'کد باید ۶ رقم باشد.');
-            document.getElementById('otp-code').focus();
+            focusOtpInput(document.getElementById('otp-code'));
             return;
         }
         const submit = document.getElementById('otp-submit');

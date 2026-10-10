@@ -752,7 +752,7 @@ onReady(async () => {
         const flowVersion = otpFlowVersion;
         const phone = profilePhone();
         document.getElementById('profile-otp-phone').textContent = phone;
-        document.getElementById('profile-otp-code').value = '';
+        setOtpValue(document.getElementById('profile-otp-code'), '');
         setError('profile-otp-code', '');
         showProfilePanel('profile-otp');
         setOtpSending(true);
@@ -765,7 +765,7 @@ onReady(async () => {
             if (flowVersion !== otpFlowVersion) return;
             setOtpSending(false);
             startResendTimer((data && data.resend_seconds) || 60);
-            document.getElementById('profile-otp-code').focus();
+            focusOtpInput(document.getElementById('profile-otp-code'));
         } catch (err) {
             if (flowVersion !== otpFlowVersion) return;
             setOtpSending(false);
@@ -881,7 +881,7 @@ onReady(async () => {
         if (btn.disabled) return;
         clearOtpVerification();
         const flowVersion = otpFlowVersion;
-        document.getElementById('profile-otp-code').value = '';
+        setOtpValue(document.getElementById('profile-otp-code'), '');
         setError('profile-otp-code', '');
         setOtpSending(true);
         try {

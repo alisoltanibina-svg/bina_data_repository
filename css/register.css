@@ -152,6 +152,40 @@ body.register-body {
 
 .register-error[hidden] { display: none; }
 
+.otp-code { width: 100%; }
+
+.otp-code input[type="hidden"] { display: none; }
+
+.otp-digits {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    direction: ltr;
+}
+
+.register-field .otp-digits .otp-digit {
+    width: min(3rem, calc((100vw - 6rem) / 6));
+    height: 52px;
+    min-width: 0;
+    padding: 0;
+    border: 1px solid var(--rg-line);
+    border-radius: 11px;
+    background: #fff;
+    color: var(--rg-ink);
+    font: 600 1.35rem/1 Arial, sans-serif;
+    text-align: center;
+    caret-color: var(--rg-ink);
+}
+
+.register-field .otp-digits .otp-digit:focus-visible {
+    outline: 2px solid var(--rg-ink);
+    outline-offset: 2px;
+}
+
+.otp-code.is-invalid .otp-digit {
+    border-color: color-mix(in srgb, var(--rg-danger) 55%, var(--rg-line));
+}
+
 .register-hint {
     margin: 0;
     font-size: 0.8rem;

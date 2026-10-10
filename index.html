@@ -202,7 +202,10 @@
                             <form id="otp-form" novalidate autocomplete="off">
                                 <label class="register-field">
                                     <span class="visually-hidden">کد ۶ رقمی</span>
-                                    <input type="text" id="otp-code" name="otp_code" inputmode="numeric" dir="ltr" lang="en" autocomplete="one-time-code" required maxlength="6" pattern="[0-9]*" placeholder="کد ۶ رقمی">
+                                    <div class="otp-code" data-otp-boxes>
+                                        <input type="hidden" id="otp-code" name="otp_code" value="">
+                                        <div class="otp-digits" dir="ltr" role="group" aria-label="کد ۶ رقمی" aria-describedby="err-otp-code"></div>
+                                    </div>
                                     <em class="register-error" id="err-otp-code" hidden></em>
                                 </label>
                                 <button type="submit" class="register-submit" id="otp-submit">تأیید کد</button>

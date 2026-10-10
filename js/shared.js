@@ -176,26 +176,100 @@ function normalizeOtpCode(raw) {
         .slice(0, 6);
 }
 
-function bindOtpInput(input) {
+function setOtpValue(input, raw) {
     if (!input) return;
-    input.setAttribute('inputmode', 'numeric');
-    input.setAttribute('autocomplete', 'one-time-code');
-    input.setAttribute('maxlength', '6');
-    input.setAttribute('lang', 'en');
-    input.setAttribute('dir', 'ltr');
-    const apply = () => {
-        const next = normalizeOtpCode(input.value);
-        if (input.value !== next) input.value = next;
-    };
-    input.addEventListener('input', apply);
-    input.addEventListener('blur', apply);
-    input.addEventListener('paste', event => {
-        event.preventDefault();
-        input.value = normalizeOtpCode((event.clipboardData || window.clipboardData).getData('text'));
-    });
-    apply();
+    if (typeof input._setOtpValue === 'function') {
+        input._setOtpValue(raw);
+        return;
+    }
+    input.value = normalizeOtpCode(raw);
 }
 
+function focusOtpInput(input) {
+    if (!input) return;
+    if (typeof input._focusOtpInput === 'function') {
+        input._focusOtpInput();
+        return;
+    }
+    input.focus();
+}
+
+function bindOtpInput(input) {
+    if (!input || input.dataset.otpBound === 'true') return;
+    const container = input.closest('[data-otp-boxes]');
+    const digits = container && container.querySelector('.otp-digits');
+    if (!container || !digits) return;
+
+    input.dataset.otpBound = 'true';
+    const boxes = Array.from({ length: 6 }, (_, index) => {
+        const box = document.createElement('input');
+        box.type = 'text';
+        box.className = 'otp-digit';
+        box.inputMode = 'numeric';
+        box.autocomplete = index === 0 ? 'one-time-code' : 'off';
+        box.maxLength = index === 0 ? 6 : 1;
+        box.pattern = '[0-9]*';
+        box.lang = 'en';
+        box.dir = 'ltr';
+        box.setAttribute('aria-label', `رقم ${index + 1} از ۶`);
+        digits.appendChild(box);
+        return box;
+    });
+
+    const write = raw => {
+        const values = Array.isArray(raw)
+            ? raw.map(value => normalizeOtpCode(value).slice(0, 1))
+            : normalizeOtpCode(raw).split('');
+        while (values.length < boxes.length) values.push('');
+        input.value = values.join('');
+        boxes.forEach((box, index) => { box.value = values[index] || ''; });
+    };
+    const focusAt = index => boxes[Math.max(0, Math.min(5, index))].focus();
+    const replaceFrom = (index, raw) => {
+        const value = normalizeOtpCode(raw);
+        const current = boxes.map(box => box.value);
+        if (!value) current[index] = '';
+        else value.split('').forEach((digit, offset) => {
+            if (index + offset < boxes.length) current[index + offset] = digit;
+        });
+        write(current);
+        if (value) focusAt(Math.min(index + value.length, boxes.length - 1));
+    };
+
+    boxes.forEach((box, index) => {
+        box.addEventListener('focus', () => box.select());
+        box.addEventListener('input', () => replaceFrom(index, box.value));
+        box.addEventListener('paste', event => {
+            event.preventDefault();
+            const pasted = normalizeOtpCode((event.clipboardData || window.clipboardData).getData('text'));
+            if (pasted.length >= boxes.length) write(pasted);
+            else replaceFrom(index, pasted);
+            focusAt(Math.min(pasted.length >= boxes.length ? 5 : index + pasted.length, 5));
+        });
+        box.addEventListener('keydown', event => {
+            if (event.key === 'Backspace') {
+                event.preventDefault();
+                if (box.value) replaceFrom(index, '');
+                else if (index > 0) { replaceFrom(index - 1, ''); focusAt(index - 1); }
+                return;
+            }
+            if (event.key === 'Delete') { event.preventDefault(); replaceFrom(index, ''); return; }
+            if (event.key === 'ArrowLeft' && index > 0) { event.preventDefault(); focusAt(index - 1); return; }
+            if (event.key === 'ArrowRight' && index < boxes.length - 1) { event.preventDefault(); focusAt(index + 1); return; }
+            if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !/^[0-9۰-۹٠-٩]$/.test(event.key)) event.preventDefault();
+        });
+    });
+
+    input._setOtpValue = write;
+    input._focusOtpInput = () => {
+        const firstEmpty = boxes.findIndex(box => !box.value);
+        focusAt(firstEmpty === -1 ? boxes.length - 1 : firstEmpty);
+    };
+    new MutationObserver(() => {
+        container.classList.toggle('is-invalid', input.getAttribute('aria-invalid') === 'true');
+    }).observe(input, { attributes: true, attributeFilter: ['aria-invalid'] });
+    write(input.value);
+}
 function quietMobileField(input) {
     if (!input) return;
     input.setAttribute('autocorrect', 'off');

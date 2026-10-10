@@ -136,7 +136,11 @@
             </div>
             <form id="profile-otp-form" novalidate>
                 <label class="register-field">
-                    <input type="text" id="profile-otp-code" inputmode="numeric" dir="ltr" lang="en" autocomplete="one-time-code" required maxlength="6" pattern="[0-9]*" placeholder="کد ۶ رقمی">
+                    <span class="visually-hidden">کد ۶ رقمی</span>
+                    <div class="otp-code" data-otp-boxes>
+                        <input type="hidden" id="profile-otp-code" value="">
+                        <div class="otp-digits" dir="ltr" role="group" aria-label="کد ۶ رقمی" aria-describedby="err-profile-otp-code"></div>
+                    </div>
                     <em class="register-error" id="err-profile-otp-code" hidden></em>
                 </label>
                 <button type="submit" class="register-submit" id="profile-otp-submit">تأیید کد</button>
