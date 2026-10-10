@@ -152,38 +152,60 @@ body.register-body {
 
 .register-error[hidden] { display: none; }
 
-.otp-code { width: 100%; }
+.otp-code {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
 
 .otp-code input[type="hidden"] { display: none; }
 
 .otp-digits {
-    display: flex;
-    justify-content: center;
+    display: grid;
+    grid-template-columns: repeat(6, 40px);
     gap: 8px;
+    width: max-content;
     direction: ltr;
 }
 
 .register-field .otp-digits .otp-digit {
-    width: min(3rem, calc((100vw - 6rem) / 6));
-    height: 52px;
+    width: 40px;
+    height: 40px;
     min-width: 0;
     padding: 0;
-    border: 1px solid var(--rg-line);
-    border-radius: 11px;
-    background: #fff;
-    color: var(--rg-ink);
-    font: 600 1.35rem/1 Arial, sans-serif;
+    border: 1px solid rgba(81, 88, 17, 0.48);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.92);
+    color: #515811;
+    font: 600 1.1rem/1 Arial, sans-serif;
     text-align: center;
-    caret-color: var(--rg-ink);
+    caret-color: #515811;
+    transition: border-color 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
+}
+
+.register-field .otp-digits .otp-digit:hover {
+    border-color: rgba(81, 88, 17, 0.72);
 }
 
 .register-field .otp-digits .otp-digit:focus-visible {
-    outline: 2px solid var(--rg-ink);
-    outline-offset: 2px;
+    outline: 0;
+    border-color: #515811;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(81, 88, 17, 0.16);
 }
 
 .otp-code.is-invalid .otp-digit {
-    border-color: color-mix(in srgb, var(--rg-danger) 55%, var(--rg-line));
+    border-color: color-mix(in srgb, var(--rg-danger) 65%, var(--rg-line));
+}
+
+@media (max-width: 359px) {
+    .otp-digits {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 6px;
+        width: 100%;
+    }
+
+    .register-field .otp-digits .otp-digit { width: 100%; }
 }
 
 .register-hint {
