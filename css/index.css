@@ -2170,3 +2170,59 @@ html.atlas-view .index-item.active .index-item-text {
         padding-bottom: max(28px, env(safe-area-inset-bottom, 0px));
     }
 }
+/* Compact six-cell OTP control for the authentication curtain. */
+.entry-auth-stage .otp-code {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
+
+.entry-auth-stage .otp-code input[type="hidden"] { display: none; }
+
+.entry-auth-stage .otp-digits {
+    display: grid;
+    grid-template-columns: repeat(6, 40px);
+    gap: 8px;
+    width: max-content;
+    direction: ltr;
+}
+
+.entry-auth-stage .register-field .otp-digits .otp-digit {
+    width: 40px;
+    height: 40px;
+    min-width: 0;
+    padding: 0;
+    border: 1px solid rgba(81, 88, 17, 0.48);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.92);
+    color: #515811;
+    font: 600 1.1rem/1 Arial, sans-serif;
+    text-align: center;
+    caret-color: #515811;
+    transition: border-color 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
+}
+
+.entry-auth-stage .register-field .otp-digits .otp-digit:hover {
+    border-color: rgba(81, 88, 17, 0.72);
+}
+
+.entry-auth-stage .register-field .otp-digits .otp-digit:focus-visible {
+    outline: 0;
+    border-color: #515811;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(81, 88, 17, 0.16);
+}
+
+.entry-auth-stage .otp-code.is-invalid .otp-digit {
+    border-color: color-mix(in srgb, var(--rg-danger) 65%, var(--rg-line));
+}
+
+@media (max-width: 359px) {
+    .entry-auth-stage .otp-digits {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 6px;
+        width: 100%;
+    }
+
+    .entry-auth-stage .register-field .otp-digits .otp-digit { width: 100%; }
+}
