@@ -20,10 +20,11 @@
         window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};
         plausible.init({ hashBasedRouting: true });
     </script>
-    
-    <!-- Leaflet CSS + JS start in the head so the map can init behind the curtain -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous" defer></script>
+    <!-- Local Leaflet 1.9.4 (BSD-2-Clause; assets/vendor/leaflet/LICENSE). -->
+    <link rel="preload" href="assets/vendor/leaflet/leaflet.css" as="style">
+    <link rel="stylesheet" href="assets/vendor/leaflet/leaflet.css">
+    <link rel="preload" href="assets/vendor/leaflet/leaflet.js" as="script">
+    <script src="assets/vendor/leaflet/leaflet.js" defer></script>
     <!-- Peyda (Farsi numerals) -->
     <link rel="stylesheet" href="assets/fonts/peyda.css">
     <!-- Page CSS -->
@@ -32,7 +33,11 @@
     <!-- Reversible revayat treatment. Restore: drop class treat-v1 and this link. -->
     <link rel="stylesheet" href="css/treat-v1.css">
     <!-- Page Javascript -->
-    <script src="js/force-motion.js"></script>
+    <script src="js/force-motion.js" defer></script>
+    <!-- The Atlas ranking and trend charts share Chart.js. Fetch it early, run it after motion setup. -->
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js" as="script" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous" defer></script>
     <script>
         try {
             if (sessionStorage.getItem('bina-profile-return') === '1' && window.location.hash !== '#atlas') {
@@ -41,8 +46,9 @@
             }
         } catch (e) {}
     </script>
-    <script src="js/config.js"></script>
-    <script src="js/shared.js"></script>
+    <script src="js/config.js" defer></script>
+    <script src="js/shared.js" defer></script>
+    <script src="js/banner.js" defer></script>
     <script src="js/index.js?v=contact-panel-5" defer></script>
     <script src="js/auth-page.js?v=auth-mobile-2" defer></script>
     <script src="js/auth.js" defer></script>
@@ -65,10 +71,8 @@
     </script>
 </head>
 <body>
-
-    <!-- Header Banner -->
+    <!-- Header Banner (filled by the deferred banner script after parsing). -->
     <div id="top-banner" data-page="index"></div>
-    <script src="js/banner.js"></script>
 
     <!-- Entry / Welcome Curtain View -->
     <div id="entry-view-curtain" class="entry-curtain">
@@ -408,7 +412,7 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous"></script>
+    <!-- Chart.js is preloaded and deferred in the head for both Atlas charts. -->
 
     <script>
         document.addEventListener("DOMContentLoaded", function() {
