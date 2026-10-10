@@ -839,6 +839,13 @@ def auth_logout(request: Request):
     return response
 
 
+@app.get("/api/auth/session")
+def auth_session(request: Request):
+    """Return the current profile or null without treating guests as an error."""
+    profile = profile_from_session_token(request.cookies.get(SESSION_COOKIE) or "")
+    return JSONResponse(content=profile, headers=_AUTH_NO_STORE)
+
+
 @app.get("/api/auth/me")
 def auth_me(request: Request):
     profile = profile_from_session_token(request.cookies.get(SESSION_COOKIE) or "")

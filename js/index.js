@@ -406,9 +406,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
 applyChartDefaults();
 
-// Chart.js is normally loaded by the page before this deferred script runs.
-// On a cold visit the CDN request can occasionally fail; retry from a second
-// CDN only in that case, without adding work to the normal loading path.
+// Chart.js is normally loaded locally by the page before this deferred script runs.
+// A CDN retry remains available only if that local asset is unavailable.
 let atlasChartLibraryPromise = null;
 
 function ensureAtlasChartLibrary() {
@@ -605,7 +604,12 @@ function appendHighlightedName(el, title, query) {
     el.appendChild(document.createTextNode(title.slice(idx + query.length)));
 }
 
+let indicatorSearchInitStarted = false;
+
 function initIndicatorSearch() {
+    if (indicatorSearchInitStarted) return;
+    indicatorSearchInitStarted = true;
+
     fetch(`${API_BASE_URL}/api/explorer/init`, { credentials: 'include' })
         .then(r => {
             if (!r.ok) throw new Error('explorer init ' + r.status);
@@ -723,7 +727,12 @@ async function loadAllData() {
             scheduleMapSync({ animate: false });
         }
 
-        initIndicatorSearch();
+        // Explorer data is protected. Avoid an expected 401 for signed-out visitors.
+        if (typeof window.binaWhenAuthReady === 'function') {
+            window.binaWhenAuthReady((signedIn) => {
+                if (signedIn) initIndicatorSearch();
+            });
+        }
 
     } catch (err) {
         console.error("Error connecting to FastAPI backend:", err);

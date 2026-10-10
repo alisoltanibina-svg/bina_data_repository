@@ -34,10 +34,9 @@
     <link rel="stylesheet" href="css/treat-v1.css">
     <!-- Page Javascript -->
     <script src="js/force-motion.js" defer></script>
-    <!-- The Atlas ranking and trend charts share Chart.js. Fetch it early, run it after motion setup. -->
-    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-    <link rel="preload" href="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js" as="script" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous" defer></script>
+    <!-- Local Chart.js 4.5.1 for the Atlas ranking and trend charts (MIT; assets/vendor/chart.js/LICENSE.md). -->
+    <link rel="preload" href="assets/vendor/chart.js/chart.umd.min.js" as="script">
+    <script src="assets/vendor/chart.js/chart.umd.min.js" defer></script>
     <script>
         try {
             if (sessionStorage.getItem('bina-profile-return') === '1' && window.location.hash !== '#atlas') {

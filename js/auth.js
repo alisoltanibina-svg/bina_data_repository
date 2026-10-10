@@ -175,7 +175,7 @@
     }
 
     function loadProfile() {
-        fetch(apiBase() + '/api/auth/me', { credentials: 'include' })
+        fetch(apiBase() + '/api/auth/session', { credentials: 'include' })
             .then(function (response) { return response.ok ? response.json() : null; })
             .then(function (profile) {
                 applyProfile(profile);
