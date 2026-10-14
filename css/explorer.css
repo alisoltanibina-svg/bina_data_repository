@@ -506,7 +506,7 @@ body.explorer-body {
 
 #map-chart-wrap { overflow: hidden; border: 1px solid #e2e8f0; border-radius: 14px; background: linear-gradient(145deg, #fcfdf9, #f4f6ed); }
 #explorer-leaflet-map { position: absolute; inset: 0; z-index: 0; background: #bcdfe5; }
-#map-chart-wrap .leaflet-tile-pane { opacity: .28; filter: saturate(.62) contrast(.92); }
+#map-chart-wrap .leaflet-tile-pane { opacity: .18; filter: saturate(.62) contrast(.92); }
 #map-chart-wrap .leaflet-control-attribution { background: rgba(255,255,255,.68); font-size: 9px; }
 .explorer-province-label { color: #17210c; direction: ltr; font-family: PeydaFaNumWeb, Peyda, sans-serif; font-size: clamp(8px, 1.1vw, 12px); font-weight: 800; line-height: 1.22; text-align: center; pointer-events: none; white-space: normal; }
 .explorer-province-label span { position: absolute; top: 0; left: 0; direction: rtl; text-align: center; }
