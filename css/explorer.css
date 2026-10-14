@@ -505,13 +505,24 @@ body.explorer-body {
 #table-chart-wrap { overflow: hidden; }
 
 #map-chart-wrap { overflow: hidden; border: 1px solid #e2e8f0; border-radius: 14px; background: linear-gradient(145deg, #fcfdf9, #f4f6ed); }
-.explorer-geo-map { display: block; width: 100%; height: 100%; }
+#explorer-leaflet-map { position: absolute; inset: 0; z-index: 0; background: #edf0df; }
+#map-chart-wrap .leaflet-tile-pane { opacity: .48; filter: saturate(.72) contrast(.94); }
+#map-chart-wrap .leaflet-control-attribution { background: rgba(255,255,255,.68); font-size: 9px; }
+.explorer-province-label { color: #17210c; font-family: PeydaFaNumWeb, Peyda, sans-serif; font-size: clamp(8px, 1.1vw, 12px); font-weight: 800; line-height: 1.22; text-align: center; text-shadow: 0 1px 2px rgba(255,255,255,.95), 0 -1px 2px rgba(255,255,255,.95), 1px 0 2px rgba(255,255,255,.95), -1px 0 2px rgba(255,255,255,.95); pointer-events: none; white-space: normal; }
+.explorer-province-label span { transform: translateY(-50%); }
+.explorer-map-legend { position: absolute; right: 12px; bottom: 12px; z-index: 1000; display: grid; gap: 4px; min-width: 122px; padding: 7px 9px; border: 1px solid #dfe4d1; border-radius: 10px; background: rgba(255,255,255,.92); color: #515811; font-family: PeydaFaNumWeb, Peyda, sans-serif; font-size: .67rem; font-weight: 700; pointer-events: none; }
+.explorer-map-legend-title { text-align: right; }
+.explorer-map-legend-bar { display: block; height: 8px; border-radius: 999px; background: linear-gradient(90deg, rgb(238,240,210), rgb(81,88,17)); }
+.explorer-map-legend-range { display: flex; direction: ltr; justify-content: space-between; gap: 8px; color: #586174; font-size: .61rem; }
+.explorer-map-legend-range b { font-weight: 700; }
+.explorer-geo-map { display: none; }
 .explorer-geo-province { stroke: #fff; stroke-width: .065; vector-effect: non-scaling-stroke; transition: fill 180ms ease, stroke 180ms ease; cursor: pointer; outline: none; }
 .explorer-geo-province:hover, .explorer-geo-province:focus { stroke: #27300b; stroke-width: 2.25px; }
-.explorer-map-status { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; padding: 1rem; text-align: center; color: var(--ex-muted); background: rgba(255,255,255,.82); font-size: .84rem; }
+.explorer-map-status { position: absolute; inset: 0; z-index: 1100; display: grid; place-items: center; padding: 1rem; text-align: center; color: var(--ex-muted); background: rgba(255,255,255,.82); font-size: .84rem; }
 .explorer-map-status[hidden] { display: none; }
-.explorer-map-year { position: absolute; top: 12px; right: 12px; z-index: 1; padding: 5px 11px 4px; border: 1px solid #dfe4d1; border-radius: 999px; background: rgba(255,255,255,.92); color: #515811; font-family: PeydaFaNumWeb, Peyda, sans-serif; font-size: .78rem; font-weight: 700; }
-.explorer-map-play { position: absolute; left: 12px; bottom: 12px; z-index: 2; display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 5px 12px; border: 0; border-radius: 999px; background: #515811; color: #fff; box-shadow: 0 4px 14px rgba(39,48,11,.22); font: inherit; font-size: .76rem; font-weight: 700; cursor: pointer; }
+.explorer-map-year { position: absolute; top: 12px; right: 12px; z-index: 1000; padding: 5px 11px 4px; border: 1px solid #dfe4d1; border-radius: 999px; background: rgba(255,255,255,.92); color: #515811; font-family: PeydaFaNumWeb, Peyda, sans-serif; font-size: .78rem; font-weight: 700; }
+.explorer-map-play { position: absolute; left: 12px; bottom: 12px; z-index: 1001; display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 5px 12px; border: 0; border-radius: 999px; background: #515811; color: #fff; box-shadow: 0 4px 14px rgba(39,48,11,.22); font: inherit; font-size: .76rem; font-weight: 700; cursor: pointer; }
+.explorer-score-tooltip { border: 1px solid #dfe4d1; border-radius: 8px; background: rgba(255,255,255,.96); color: #27300b; font-weight: 700; text-align: center; }
 .explorer-map-play:hover { background: #3d430c; }
 .explorer-map-play:focus-visible { outline: 3px solid rgba(81,88,17,.3); outline-offset: 2px; }
 

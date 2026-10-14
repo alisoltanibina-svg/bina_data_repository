@@ -79,6 +79,11 @@ let explorerMapViewBox = null;
 let explorerMapLoadPromise = null;
 let explorerMapYearIndex = 0;
 let explorerMapPlaybackTimer = null;
+let explorerLeafletMap = null;
+let explorerMapGeoLayer = null;
+let explorerMapLabelsLayer = null;
+let explorerMapFitted = false;
+let explorerMapBounds = null;
 
 let isBulkAction = true; 
 let hiddenDatasets = {};
@@ -834,14 +839,10 @@ function renderIndicatorTable() {
     });
 }
 
-const SVG_NS = 'http://www.w3.org/2000/svg';
 const NATIONAL_PROVINCE_KEY = '\u06a9\u0644\u06a9\u0634\u0648\u0631';
 
 function normalizeMapProvinceName(value) {
-    return String(value || '').normalize('NFKC')
-        .replace(/[\u064A\u0649]/g, '\u06CC')
-        .replace(/\u0643/g, '\u06A9')
-        .replace(/[\s\u200C]+/g, '');
+    return String(value || '').normalize('NFKC').replace(/[\u064A\u0649]/g, '\u06CC').replace(/\u0643/g, '\u06A9').replace(/[\s\u200C]+/g, '');
 }
 
 function setExplorerMapStatus(message, visible) {
@@ -851,34 +852,109 @@ function setExplorerMapStatus(message, visible) {
     status.hidden = !visible;
 }
 
-function collectGeoCoordinates(coords, output) {
-    if (!Array.isArray(coords) || !coords.length) return;
-    if (typeof coords[0] === 'number') {
-        const lon = Number(coords[0]); const lat = Number(coords[1]);
-        if (Number.isFinite(lon) && Number.isFinite(lat)) output.push([lon, lat]);
-    } else coords.forEach(part => collectGeoCoordinates(part, output));
+function geometryPolygons(geometry) {
+    if (!geometry) return [];
+    if (geometry.type === 'Polygon') return [geometry.coordinates || []];
+    if (geometry.type === 'MultiPolygon') return geometry.coordinates || [];
+    return [];
 }
 
-function geoPath(geometry) {
-    if (!geometry) return '';
-    const polygons = geometry.type === 'Polygon' ? [geometry.coordinates] : geometry.type === 'MultiPolygon' ? geometry.coordinates : [];
-    return polygons.map(polygon => polygon.map(ring => {
-        const points = ring.filter(point => Array.isArray(point) && Number.isFinite(Number(point[0])) && Number.isFinite(Number(point[1])));
-        return points.length ? `M ${points.map(point => `${Number(point[0]).toFixed(4)} ${(-Number(point[1])).toFixed(4)}`).join(' L ')} Z` : '';
-    }).join(' ')).join(' ');
+function ringArea(ring) {
+    let area = 0;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) area += (ring[j][0] * ring[i][1]) - (ring[i][0] * ring[j][1]);
+    return Math.abs(area / 2);
+}
+
+function pointToSegmentDistanceSquared(point, start, end) {
+    let x = start[0], y = start[1], dx = end[0] - x, dy = end[1] - y;
+    if (dx || dy) {
+        const t = ((point[0] - x) * dx + (point[1] - y) * dy) / ((dx * dx) + (dy * dy));
+        if (t > 1) { x = end[0]; y = end[1]; }
+        else if (t > 0) { x += dx * t; y += dy * t; }
+    }
+    dx = point[0] - x; dy = point[1] - y;
+    return (dx * dx) + (dy * dy);
+}
+
+function pointToPolygonDistance(point, polygon) {
+    let inside = false;
+    let minDistanceSquared = Infinity;
+    polygon.forEach(ring => {
+        for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+            const a = ring[i], b = ring[j];
+            if (((a[1] > point[1]) !== (b[1] > point[1])) && (point[0] < ((b[0] - a[0]) * (point[1] - a[1]) / (b[1] - a[1])) + a[0])) inside = !inside;
+            minDistanceSquared = Math.min(minDistanceSquared, pointToSegmentDistanceSquared(point, a, b));
+        }
+    });
+    return (inside ? 1 : -1) * Math.sqrt(minDistanceSquared);
+}
+
+function makeInteriorCell(x, y, halfSize, polygon) {
+    const distance = pointToPolygonDistance([x, y], polygon);
+    return { x, y, h: halfSize, d: distance, max: distance + (halfSize * Math.SQRT2) };
+}
+
+function heapPush(heap, cell) {
+    heap.push(cell);
+    let index = heap.length - 1;
+    for (; index > 0;) {
+        const parent = Math.floor((index - 1) / 2);
+        if (heap[parent].max >= cell.max) break;
+        heap[index] = heap[parent]; index = parent;
+    }
+    heap[index] = cell;
+}
+
+function heapPop(heap) {
+    const top = heap[0], last = heap.pop();
+    if (!heap.length) return top;
+    let index = 0;
+    while (true) {
+        let child = (index * 2) + 1;
+        if (child >= heap.length) break;
+        if (child + 1 < heap.length && heap[child + 1].max > heap[child].max) child += 1;
+        if (heap[child].max <= last.max) break;
+        heap[index] = heap[child]; index = child;
+    }
+    heap[index] = last;
+    return top;
+}
+
+function interiorPointForPolygon(polygon, precision = 0.008) {
+    const outer = polygon[0] || [];
+    if (!outer.length) return { point: [0, 0], distance: 0 };
+    let minX = outer[0][0], minY = outer[0][1], maxX = minX, maxY = minY;
+    outer.forEach(point => { minX = Math.min(minX, point[0]); minY = Math.min(minY, point[1]); maxX = Math.max(maxX, point[0]); maxY = Math.max(maxY, point[1]); });
+    const cellSize = Math.min(maxX - minX, maxY - minY) || 1;
+    const heap = [];
+    for (let x = minX; x < maxX; x += cellSize) for (let y = minY; y < maxY; y += cellSize) heapPush(heap, makeInteriorCell(x + (cellSize / 2), y + (cellSize / 2), cellSize / 2, polygon));
+    let best = makeInteriorCell((minX + maxX) / 2, (minY + maxY) / 2, 0, polygon);
+    outer.forEach(point => { const candidate = makeInteriorCell(point[0], point[1], 0, polygon); if (candidate.d > best.d) best = candidate; });
+    while (heap.length) {
+        const cell = heapPop(heap);
+        if (cell.d > best.d) best = cell;
+        if (cell.max - best.d <= precision) continue;
+        const half = cell.h / 2;
+        heapPush(heap, makeInteriorCell(cell.x - half, cell.y - half, half, polygon));
+        heapPush(heap, makeInteriorCell(cell.x + half, cell.y - half, half, polygon));
+        heapPush(heap, makeInteriorCell(cell.x - half, cell.y + half, half, polygon));
+        heapPush(heap, makeInteriorCell(cell.x + half, cell.y + half, half, polygon));
+    }
+    return { point: [best.x, best.y], distance: best.d };
+}
+
+function interiorPointForGeometry(geometry) {
+    const polygons = geometryPolygons(geometry).filter(polygon => polygon[0] && polygon[0].length);
+    if (!polygons.length) return { point: [0, 0], distance: 0 };
+    const polygon = polygons.reduce((largest, candidate) => ringArea(candidate[0]) > ringArea(largest[0]) ? candidate : largest, polygons[0]);
+    return interiorPointForPolygon(polygon);
 }
 
 function prepareExplorerMap(geoJson) {
-    const coordinates = [];
-    explorerMapFeatures = (Array.isArray(geoJson && geoJson.features) ? geoJson.features : []).map(feature => {
-        collectGeoCoordinates(feature.geometry && feature.geometry.coordinates, coordinates);
-        return { name: (feature.properties && (feature.properties.ProvincNam || feature.properties.ADM1_FA || feature.properties.Name)) || '', path: geoPath(feature.geometry) };
-    }).filter(feature => feature.name && feature.path);
-    if (!coordinates.length || !explorerMapFeatures.length) throw new Error('Iran GeoJSON has no drawable province boundaries.');
-    const lons = coordinates.map(point => point[0]); const lats = coordinates.map(point => point[1]);
-    const minLon = Math.min(...lons); const maxLon = Math.max(...lons); const minLat = Math.min(...lats); const maxLat = Math.max(...lats);
-    const pad = Math.max(maxLon - minLon, maxLat - minLat) * 0.035;
-    explorerMapViewBox = `${minLon - pad} ${-(maxLat + pad)} ${(maxLon - minLon) + (pad * 2)} ${(maxLat - minLat) + (pad * 2)}`;
+    const features = Array.isArray(geoJson && geoJson.features) ? geoJson.features : [];
+    if (!features.length) throw new Error('Iran GeoJSON has no province boundaries.');
+    explorerMapBounds = L.geoJSON(geoJson).getBounds();
+    if (!explorerMapBounds.isValid()) throw new Error('Iran GeoJSON has invalid province boundaries.');
 }
 
 function ensureExplorerMapGeoJson() {
@@ -899,6 +975,47 @@ function mapColorForScore(score, min, max) {
     return `rgb(${low.map((value, index) => Math.round(value + ((high[index] - value) * ratio))).join(', ')})`;
 }
 
+function updateExplorerMapLegend(min, max, hasValues) {
+    const minLabel = document.getElementById('explorer-map-legend-min');
+    const maxLabel = document.getElementById('explorer-map-legend-max');
+    if (!minLabel || !maxLabel) return;
+    minLabel.textContent = hasValues ? toFaFixed(min, 2) : '—';
+    maxLabel.textContent = hasValues ? toFaFixed(max, 2) : '—';
+}
+
+function escapeMapLabel(value) {
+    const el = document.createElement('div');
+    el.textContent = value;
+    return el.innerHTML;
+}
+
+function explorerProvinceLabel(name, feature) {
+    const position = feature.__explorerInteriorPoint || (feature.__explorerInteriorPoint = interiorPointForGeometry(feature.geometry));
+    const latLng = [position.point[1], position.point[0]];
+    const center = explorerLeafletMap.project(latLng, explorerLeafletMap.getZoom());
+    const edge = explorerLeafletMap.project([latLng[0], latLng[1] + position.distance], explorerLeafletMap.getZoom());
+    const width = Math.max(28, Math.min(136, Math.abs(edge.x - center.x) * 1.55));
+    const fontSize = Math.max(6, Math.min(12, width / Math.max(String(name).length * 0.62, 4)));
+    return L.marker(latLng, {
+        interactive: false,
+        keyboard: false,
+        icon: L.divIcon({ className: 'explorer-province-label', html: `<span style="display:block;width:${width.toFixed(0)}px;font-size:${fontSize.toFixed(1)}px">${escapeMapLabel(name)}</span>`, iconSize: [0, 0], iconAnchor: [width / 2, 0] })
+    });
+}
+
+function initExplorerLeafletMap() {
+    if (explorerLeafletMap) return explorerLeafletMap;
+    if (typeof L === 'undefined') throw new Error('Leaflet did not load.');
+    const target = document.getElementById('explorer-leaflet-map');
+    if (!target) throw new Error('Explorer map container is missing.');
+    explorerLeafletMap = L.map(target, { zoomControl: false, scrollWheelZoom: false, doubleClickZoom: true, attributionControl: true, preferCanvas: true, minZoom: 4, maxZoom: 9, zoomSnap: 0.25 }).setView([32, 53], 5);
+    L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&hl=fa&x={x}&y={y}&z={z}', { subdomains: ['0', '1', '2', '3'], attribution: '&copy; Google', maxZoom: 19, noWrap: true, errorTileUrl: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7' }).addTo(explorerLeafletMap);
+    explorerLeafletMap.on('zoomend', () => {
+        if (explorerMapFitted && currentChartMode === 'map' && explorerMapGeoJson) requestAnimationFrame(renderExplorerMap);
+    });
+    return explorerLeafletMap;
+}
+
 function updateExplorerMapPlaybackControl() {
     const button = document.getElementById('btn-explorer-map-play');
     if (!button) return;
@@ -906,8 +1023,7 @@ function updateExplorerMapPlaybackControl() {
     button.setAttribute('aria-pressed', playing ? 'true' : 'false');
     button.setAttribute('aria-label', playing ? 'توقف پخش سال‌ها' : 'پخش سال‌ها');
     const label = button.querySelector('span'); if (label) label.textContent = playing ? 'توقف' : 'پخش سال‌ها';
-    const icon = button.querySelector('i');
-    if (icon) { icon.classList.toggle('fa-play', !playing); icon.classList.toggle('fa-pause', playing); }
+    const icon = button.querySelector('i'); if (icon) { icon.classList.toggle('fa-play', !playing); icon.classList.toggle('fa-pause', playing); }
 }
 
 function stopExplorerMapPlayback() {
@@ -918,17 +1034,12 @@ function stopExplorerMapPlayback() {
 function toggleExplorerMapPlayback() {
     if (!currentChartYears.length) return;
     if (explorerMapPlaybackTimer !== null) { stopExplorerMapPlayback(); return; }
-    explorerMapPlaybackTimer = window.setInterval(() => {
-        explorerMapYearIndex = (explorerMapYearIndex + 1) % currentChartYears.length;
-        renderExplorerMap();
-    }, 1400);
+    explorerMapPlaybackTimer = window.setInterval(() => { explorerMapYearIndex = (explorerMapYearIndex + 1) % currentChartYears.length; renderExplorerMap(); }, 1400);
     updateExplorerMapPlaybackControl();
 }
 
 function renderExplorerMap() {
-    const svg = document.getElementById('explorer-geo-map');
-    if (!svg) return;
-    if (!currentChartYears.length) { svg.replaceChildren(); setExplorerMapStatus('برای این شاخص، دادهٔ سالانه‌ای موجود نیست.', true); return; }
+    if (!currentChartYears.length) { setExplorerMapStatus('برای این شاخص، دادهٔ سالانه‌ای موجود نیست.', true); return; }
     if (!explorerMapGeoJson) {
         setExplorerMapStatus('در حال بارگذاری نقشه...', true);
         ensureExplorerMapGeoJson().then(() => { if (currentChartMode === 'map') renderExplorerMap(); }).catch(error => {
@@ -937,6 +1048,8 @@ function renderExplorerMap() {
         });
         return;
     }
+    let map;
+    try { map = initExplorerLeafletMap(); } catch (error) { console.error('Unable to initialize Explorer map', error); setExplorerMapStatus('راه‌اندازی نقشه ممکن نشد.', true); return; }
     explorerMapYearIndex = Math.min(Math.max(explorerMapYearIndex, 0), currentChartYears.length - 1);
     const year = currentChartYears[explorerMapYearIndex], scores = new Map();
     kscoreData.forEach(record => {
@@ -945,18 +1058,26 @@ function renderExplorerMap() {
         if (key && key !== NATIONAL_PROVINCE_KEY && Number.isFinite(score)) scores.set(key, score);
     });
     const values = Array.from(scores.values()), min = values.length ? Math.min(...values) : 0, max = values.length ? Math.max(...values) : 1;
-    svg.replaceChildren(); svg.setAttribute('viewBox', explorerMapViewBox || '0 0 1 1'); svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-    const group = document.createElementNS(SVG_NS, 'g'); group.setAttribute('fill-rule', 'evenodd');
-    explorerMapFeatures.forEach(feature => {
-        const score = scores.get(normalizeMapProvinceName(feature.name));
-        const path = document.createElementNS(SVG_NS, 'path');
-        path.setAttribute('d', feature.path); path.setAttribute('class', 'explorer-geo-province'); path.setAttribute('fill', mapColorForScore(score, min, max)); path.setAttribute('tabindex', '0');
-        const scoreText = Number.isFinite(score) ? `امتیاز: ${toFaFixed(score, 2)}` : 'داده‌ای ثبت نشده است';
-        path.setAttribute('aria-label', `${feature.name}، ${scoreText}`);
-        const title = document.createElementNS(SVG_NS, 'title'); title.textContent = `${feature.name} — ${scoreText}`; path.appendChild(title); group.appendChild(path);
-    });
-    svg.appendChild(group);
+    map.invalidateSize({ animate: false, pan: false });
+    if (!explorerMapFitted && explorerMapBounds) { map.fitBounds(explorerMapBounds, { padding: [18, 18], animate: false }); explorerMapFitted = true; }
+    if (explorerMapGeoLayer) explorerMapGeoLayer.remove();
+    if (explorerMapLabelsLayer) explorerMapLabelsLayer.remove();
+    explorerMapLabelsLayer = L.layerGroup().addTo(map);
+    explorerMapGeoLayer = L.geoJSON(explorerMapGeoJson, {
+        style: feature => {
+            const name = feature.properties && (feature.properties.ProvincNam || feature.properties.ADM1_FA || feature.properties.Name);
+            return { color: '#ffffff', weight: 1.25, opacity: 1, fillColor: mapColorForScore(scores.get(normalizeMapProvinceName(name)), min, max), fillOpacity: 0.78 };
+        },
+        onEachFeature: (feature, layer) => {
+            const name = (feature.properties && (feature.properties.ProvincNam || feature.properties.ADM1_FA || feature.properties.Name)) || '';
+            const score = scores.get(normalizeMapProvinceName(name));
+            const scoreText = Number.isFinite(score) ? `امتیاز: ${toFaFixed(score, 2)}` : 'داده‌ای ثبت نشده است';
+            layer.bindTooltip(`${escapeMapLabel(name)}<br>${scoreText}`, { sticky: true, direction: 'top', className: 'explorer-score-tooltip' });
+            explorerProvinceLabel(name, feature).addTo(explorerMapLabelsLayer);
+        }
+    }).addTo(map);
     const yearLabel = document.getElementById('explorer-map-year'); if (yearLabel) yearLabel.textContent = `سال ${toFa(year)}`;
+    updateExplorerMapLegend(min, max, values.length > 0);
     setExplorerMapStatus('', false); updateExplorerMapPlaybackControl();
 }
 function drawChart() {
