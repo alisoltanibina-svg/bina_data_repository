@@ -1003,7 +1003,7 @@ function ensureExplorerMapGeoJson() {
 function ensureExplorerWorldGeoJson() {
     if (explorerWorldGeoJson) return Promise.resolve(explorerWorldGeoJson);
     if (explorerWorldLoadPromise) return explorerWorldLoadPromise;
-    const url = (typeof SITE !== 'undefined' && SITE.staticFile) ? SITE.staticFile('data/world.geojson') : 'data/world.geojson';
+    const url = (typeof SITE !== 'undefined' && SITE.staticFile) ? SITE.staticFile('data/world-context.geojson') : 'data/world-context.geojson';
     explorerWorldLoadPromise = fetch(url, { credentials: 'same-origin' })
         .then(response => { if (!response.ok) throw new Error(`World map data request failed (${response.status})`); return response.json(); })
         .then(data => {
