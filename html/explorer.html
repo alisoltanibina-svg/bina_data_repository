@@ -113,6 +113,7 @@
                             <button type="button" class="chart-mode-btn active" id="btn-chart-trend" data-mode="trend">نمودار روندی</button>
                             <button type="button" class="chart-mode-btn" id="btn-chart-compare" data-mode="compare">نمودار مقایسه‌ای</button>
                             <button type="button" class="chart-mode-btn" id="btn-chart-table" data-mode="table">جدول</button>
+                            <button type="button" class="chart-mode-btn" id="btn-chart-map" data-mode="map">پراکندگی جغرافیایی</button>
                         </div>
                     </div>
                     <div id="canvas-reveal-wrapper">
@@ -130,6 +131,12 @@
                                     <tbody></tbody>
                                 </table>
                             </div>
+                        </div>
+                        <div id="map-chart-wrap" class="chart-pane" aria-live="polite">
+                            <div class="explorer-map-status" id="explorer-map-status">در حال آماده‌سازی نقشه...</div>
+                            <svg id="explorer-geo-map" class="explorer-geo-map" role="img" aria-label="نقشه پراکندگی امتیاز استان‌ها"></svg>
+                            <div class="explorer-map-year" id="explorer-map-year"></div>
+                            <button type="button" class="explorer-map-play" id="btn-explorer-map-play" aria-pressed="false" aria-label="پخش سال‌ها"><i class="fa-solid fa-play" aria-hidden="true"></i><span>پخش سال‌ها</span></button>
                         </div>
                     </div>
                     <div class="ex-chart-foot">

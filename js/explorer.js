@@ -73,6 +73,12 @@ let currentChartYears = [];
 let currentChartMode = 'trend';
 let latestYearGlob = null;
 let latestScoresGlob = [];
+let explorerMapGeoJson = null;
+let explorerMapFeatures = [];
+let explorerMapViewBox = null;
+let explorerMapLoadPromise = null;
+let explorerMapYearIndex = 0;
+let explorerMapPlaybackTimer = null;
 
 let isBulkAction = true; 
 let hiddenDatasets = {};
@@ -511,6 +517,8 @@ async function loadIndicator(indicatorName, topicName) {
         
         let uniqueYears = [...new Set(kscoreData.map(d => Number(d.year)))].sort((a,b)=>a-b);
         currentChartYears = uniqueYears;
+        stopExplorerMapPlayback();
+        explorerMapYearIndex = Math.max(0, uniqueYears.length - 1);
         if (latestYearGlob == null && uniqueYears.length) latestYearGlob = uniqueYears[uniqueYears.length - 1];
 
         if(uniqueYears.length > 0) {
@@ -617,34 +625,39 @@ function setProvinceFilterEnabled(enabled) {
 function refreshActiveChart() {
     if (currentChartMode === 'compare') drawScatterProvince();
     else if (currentChartMode === 'table') renderIndicatorTable();
+    else if (currentChartMode === 'map') renderExplorerMap();
     else drawChart();
 }
 
 function setChartMode(mode) {
-    currentChartMode = ['trend', 'compare', 'table'].includes(mode) ? mode : 'trend';
+    const nextMode = ['trend', 'compare', 'table', 'map'].includes(mode) ? mode : 'trend';
+    if (nextMode !== 'map') stopExplorerMapPlayback();
+    currentChartMode = nextMode;
     const trendBtn = document.getElementById('btn-chart-trend');
     const compareBtn = document.getElementById('btn-chart-compare');
     const tableBtn = document.getElementById('btn-chart-table');
+    const mapBtn = document.getElementById('btn-chart-map');
     const trendWrap = document.getElementById('trend-chart-wrap');
     const compareWrap = document.getElementById('compare-chart-wrap');
     const tableWrap = document.getElementById('table-chart-wrap');
+    const mapWrap = document.getElementById('map-chart-wrap');
     const title = document.getElementById('chart-panel-title');
     if (trendBtn) trendBtn.classList.toggle('active', currentChartMode === 'trend');
     if (compareBtn) compareBtn.classList.toggle('active', currentChartMode === 'compare');
     if (tableBtn) tableBtn.classList.toggle('active', currentChartMode === 'table');
+    if (mapBtn) mapBtn.classList.toggle('active', currentChartMode === 'map');
     if (trendWrap) trendWrap.classList.toggle('is-active', currentChartMode === 'trend');
     if (compareWrap) compareWrap.classList.toggle('is-active', currentChartMode === 'compare');
     if (tableWrap) tableWrap.classList.toggle('is-active', currentChartMode === 'table');
+    if (mapWrap) mapWrap.classList.toggle('is-active', currentChartMode === 'map');
     setProvinceFilterEnabled(currentChartMode === 'trend');
     if (title) {
         if (currentChartMode === 'compare') {
             const yearTxt = latestYearGlob != null ? ` — سال ${toFa(latestYearGlob)}` : '';
             title.textContent = `مقایسه استانی آخرین سال${yearTxt}`;
-        } else if (currentChartMode === 'table') {
-            title.textContent = 'جدول امتیاز استان‌ها بر اساس سال';
-        } else {
-            title.textContent = 'روند تغییرات زمانی شاخص';
-        }
+        } else if (currentChartMode === 'table') title.textContent = 'جدول امتیاز استان‌ها بر اساس سال';
+        else if (currentChartMode === 'map') title.textContent = 'پراکندگی جغرافیایی امتیاز استان‌ها';
+        else title.textContent = 'روند تغییرات زمانی شاخص';
     }
     const countryLegend = document.getElementById('btn-country-legend');
     if (countryLegend) countryLegend.hidden = currentChartMode !== 'trend';
@@ -654,7 +667,6 @@ function setChartMode(mode) {
         try { if (currentChartMode === 'compare' && scatterProvinceChart) scatterProvinceChart.resize(); } catch (e) {}
     });
 }
-
 let scatterPointsCache = [];
 
 function getLatestPoints() {
@@ -822,6 +834,131 @@ function renderIndicatorTable() {
     });
 }
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const NATIONAL_PROVINCE_KEY = '\u06a9\u0644\u06a9\u0634\u0648\u0631';
+
+function normalizeMapProvinceName(value) {
+    return String(value || '').normalize('NFKC')
+        .replace(/[\u064A\u0649]/g, '\u06CC')
+        .replace(/\u0643/g, '\u06A9')
+        .replace(/[\s\u200C]+/g, '');
+}
+
+function setExplorerMapStatus(message, visible) {
+    const status = document.getElementById('explorer-map-status');
+    if (!status) return;
+    status.textContent = message || '';
+    status.hidden = !visible;
+}
+
+function collectGeoCoordinates(coords, output) {
+    if (!Array.isArray(coords) || !coords.length) return;
+    if (typeof coords[0] === 'number') {
+        const lon = Number(coords[0]); const lat = Number(coords[1]);
+        if (Number.isFinite(lon) && Number.isFinite(lat)) output.push([lon, lat]);
+    } else coords.forEach(part => collectGeoCoordinates(part, output));
+}
+
+function geoPath(geometry) {
+    if (!geometry) return '';
+    const polygons = geometry.type === 'Polygon' ? [geometry.coordinates] : geometry.type === 'MultiPolygon' ? geometry.coordinates : [];
+    return polygons.map(polygon => polygon.map(ring => {
+        const points = ring.filter(point => Array.isArray(point) && Number.isFinite(Number(point[0])) && Number.isFinite(Number(point[1])));
+        return points.length ? `M ${points.map(point => `${Number(point[0]).toFixed(4)} ${(-Number(point[1])).toFixed(4)}`).join(' L ')} Z` : '';
+    }).join(' ')).join(' ');
+}
+
+function prepareExplorerMap(geoJson) {
+    const coordinates = [];
+    explorerMapFeatures = (Array.isArray(geoJson && geoJson.features) ? geoJson.features : []).map(feature => {
+        collectGeoCoordinates(feature.geometry && feature.geometry.coordinates, coordinates);
+        return { name: (feature.properties && (feature.properties.ProvincNam || feature.properties.ADM1_FA || feature.properties.Name)) || '', path: geoPath(feature.geometry) };
+    }).filter(feature => feature.name && feature.path);
+    if (!coordinates.length || !explorerMapFeatures.length) throw new Error('Iran GeoJSON has no drawable province boundaries.');
+    const lons = coordinates.map(point => point[0]); const lats = coordinates.map(point => point[1]);
+    const minLon = Math.min(...lons); const maxLon = Math.max(...lons); const minLat = Math.min(...lats); const maxLat = Math.max(...lats);
+    const pad = Math.max(maxLon - minLon, maxLat - minLat) * 0.035;
+    explorerMapViewBox = `${minLon - pad} ${-(maxLat + pad)} ${(maxLon - minLon) + (pad * 2)} ${(maxLat - minLat) + (pad * 2)}`;
+}
+
+function ensureExplorerMapGeoJson() {
+    if (explorerMapGeoJson) return Promise.resolve(explorerMapGeoJson);
+    if (explorerMapLoadPromise) return explorerMapLoadPromise;
+    const url = (typeof SITE !== 'undefined' && SITE.staticFile) ? SITE.staticFile('data/iran.geojson') : 'data/iran.geojson';
+    explorerMapLoadPromise = fetch(url, { credentials: 'same-origin' })
+        .then(response => { if (!response.ok) throw new Error(`Map data request failed (${response.status})`); return response.json(); })
+        .then(data => { prepareExplorerMap(data); explorerMapGeoJson = data; return data; })
+        .catch(error => { explorerMapLoadPromise = null; throw error; });
+    return explorerMapLoadPromise;
+}
+
+function mapColorForScore(score, min, max) {
+    if (!Number.isFinite(score)) return '#e5e7eb';
+    const ratio = max > min ? Math.min(1, Math.max(0, (score - min) / (max - min))) : 0.62;
+    const low = [238, 240, 210], high = [81, 88, 17];
+    return `rgb(${low.map((value, index) => Math.round(value + ((high[index] - value) * ratio))).join(', ')})`;
+}
+
+function updateExplorerMapPlaybackControl() {
+    const button = document.getElementById('btn-explorer-map-play');
+    if (!button) return;
+    const playing = explorerMapPlaybackTimer !== null;
+    button.setAttribute('aria-pressed', playing ? 'true' : 'false');
+    button.setAttribute('aria-label', playing ? 'توقف پخش سال‌ها' : 'پخش سال‌ها');
+    const label = button.querySelector('span'); if (label) label.textContent = playing ? 'توقف' : 'پخش سال‌ها';
+    const icon = button.querySelector('i');
+    if (icon) { icon.classList.toggle('fa-play', !playing); icon.classList.toggle('fa-pause', playing); }
+}
+
+function stopExplorerMapPlayback() {
+    if (explorerMapPlaybackTimer !== null) { window.clearInterval(explorerMapPlaybackTimer); explorerMapPlaybackTimer = null; }
+    updateExplorerMapPlaybackControl();
+}
+
+function toggleExplorerMapPlayback() {
+    if (!currentChartYears.length) return;
+    if (explorerMapPlaybackTimer !== null) { stopExplorerMapPlayback(); return; }
+    explorerMapPlaybackTimer = window.setInterval(() => {
+        explorerMapYearIndex = (explorerMapYearIndex + 1) % currentChartYears.length;
+        renderExplorerMap();
+    }, 1400);
+    updateExplorerMapPlaybackControl();
+}
+
+function renderExplorerMap() {
+    const svg = document.getElementById('explorer-geo-map');
+    if (!svg) return;
+    if (!currentChartYears.length) { svg.replaceChildren(); setExplorerMapStatus('برای این شاخص، دادهٔ سالانه‌ای موجود نیست.', true); return; }
+    if (!explorerMapGeoJson) {
+        setExplorerMapStatus('در حال بارگذاری نقشه...', true);
+        ensureExplorerMapGeoJson().then(() => { if (currentChartMode === 'map') renderExplorerMap(); }).catch(error => {
+            console.error('Unable to load Iran GeoJSON', error);
+            if (currentChartMode === 'map') setExplorerMapStatus('بارگذاری نقشه ممکن نشد. لطفاً صفحه را دوباره بارگذاری کنید.', true);
+        });
+        return;
+    }
+    explorerMapYearIndex = Math.min(Math.max(explorerMapYearIndex, 0), currentChartYears.length - 1);
+    const year = currentChartYears[explorerMapYearIndex], scores = new Map();
+    kscoreData.forEach(record => {
+        if (Number(record.year) !== Number(year)) return;
+        const key = normalizeMapProvinceName(record.province_name), score = Number(record.value);
+        if (key && key !== NATIONAL_PROVINCE_KEY && Number.isFinite(score)) scores.set(key, score);
+    });
+    const values = Array.from(scores.values()), min = values.length ? Math.min(...values) : 0, max = values.length ? Math.max(...values) : 1;
+    svg.replaceChildren(); svg.setAttribute('viewBox', explorerMapViewBox || '0 0 1 1'); svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    const group = document.createElementNS(SVG_NS, 'g'); group.setAttribute('fill-rule', 'evenodd');
+    explorerMapFeatures.forEach(feature => {
+        const score = scores.get(normalizeMapProvinceName(feature.name));
+        const path = document.createElementNS(SVG_NS, 'path');
+        path.setAttribute('d', feature.path); path.setAttribute('class', 'explorer-geo-province'); path.setAttribute('fill', mapColorForScore(score, min, max)); path.setAttribute('tabindex', '0');
+        const scoreText = Number.isFinite(score) ? `امتیاز: ${toFaFixed(score, 2)}` : 'داده‌ای ثبت نشده است';
+        path.setAttribute('aria-label', `${feature.name}، ${scoreText}`);
+        const title = document.createElementNS(SVG_NS, 'title'); title.textContent = `${feature.name} — ${scoreText}`; path.appendChild(title); group.appendChild(path);
+    });
+    svg.appendChild(group);
+    const yearLabel = document.getElementById('explorer-map-year'); if (yearLabel) yearLabel.textContent = `سال ${toFa(year)}`;
+    setExplorerMapStatus('', false); updateExplorerMapPlaybackControl();
+}
 function drawChart() {
     const ctx = document.getElementById('mainChart').getContext('2d');
     
@@ -984,6 +1121,10 @@ function bindExplorerChrome() {
     if (compare) compare.addEventListener('click', () => setChartMode('compare'));
     const table = document.getElementById('btn-chart-table');
     if (table) table.addEventListener('click', () => setChartMode('table'));
+    const map = document.getElementById('btn-chart-map');
+    if (map) map.addEventListener('click', () => setChartMode('map'));
+    const mapPlay = document.getElementById('btn-explorer-map-play');
+    if (mapPlay) mapPlay.addEventListener('click', toggleExplorerMapPlayback);
     const search = document.getElementById('province-search');
     if (search) search.addEventListener('input', filterProvinces);
     const selectAll = document.getElementById('btn-select-all-provinces');
