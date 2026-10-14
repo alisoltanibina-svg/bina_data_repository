@@ -1082,7 +1082,14 @@ function renderExplorerMap() {
         const key = normalizeMapProvinceName(record.province_name), score = Number(record.value);
         if (key && key !== NATIONAL_PROVINCE_KEY && Number.isFinite(score)) scores.set(key, score);
     });
-    const values = Array.from(scores.values()), min = values.length ? Math.min(...values) : 0, max = values.length ? Math.max(...values) : 1;
+    const values = Array.from(scores.values());
+    const allValues = kscoreData
+        .filter(record => normalizeMapProvinceName(record.province_name) !== NATIONAL_PROVINCE_KEY)
+        .map(record => Number(record.value))
+        .filter(Number.isFinite);
+    // Keep the color scale stable: a province's color is comparable across every available year.
+    const min = allValues.length ? Math.min(...allValues) : 0;
+    const max = allValues.length ? Math.max(...allValues) : 1;
     map.invalidateSize({ animate: false, pan: false });
     if (!explorerMapFitted && explorerMapBounds) { map.fitBounds(explorerMapBounds, { padding: [18, 18], animate: false }); explorerMapFitted = true; }
     if (explorerMapGeoLayer) explorerMapGeoLayer.remove();
@@ -1102,7 +1109,7 @@ function renderExplorerMap() {
         }
     }).addTo(map);
     const yearLabel = document.getElementById('explorer-map-year'); if (yearLabel) yearLabel.textContent = `سال ${toFa(year)}`;
-    updateExplorerMapLegend(min, max, values.length > 0);
+    updateExplorerMapLegend(min, max, allValues.length > 0);
     setExplorerMapStatus('', false); updateExplorerMapPlaybackControl();
 }
 function drawChart() {
