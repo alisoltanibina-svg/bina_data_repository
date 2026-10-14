@@ -506,10 +506,9 @@ body.explorer-body {
 
 #map-chart-wrap { overflow: hidden; border: 1px solid #e2e8f0; border-radius: 14px; background: linear-gradient(145deg, #fcfdf9, #f4f6ed); }
 #explorer-leaflet-map { position: absolute; inset: 0; z-index: 0; background: #edf0df; }
-#map-chart-wrap .leaflet-tile-pane { opacity: .48; filter: saturate(.72) contrast(.94); }
+#map-chart-wrap .leaflet-tile-pane { opacity: .20; filter: saturate(.58) contrast(.9); }
 #map-chart-wrap .leaflet-control-attribution { background: rgba(255,255,255,.68); font-size: 9px; }
 .explorer-province-label { color: #17210c; font-family: PeydaFaNumWeb, Peyda, sans-serif; font-size: clamp(8px, 1.1vw, 12px); font-weight: 800; line-height: 1.22; text-align: center; text-shadow: 0 1px 2px rgba(255,255,255,.95), 0 -1px 2px rgba(255,255,255,.95), 1px 0 2px rgba(255,255,255,.95), -1px 0 2px rgba(255,255,255,.95); pointer-events: none; white-space: normal; }
-.explorer-province-label span { transform: translateY(-50%); }
 .explorer-map-legend { position: absolute; right: 12px; bottom: 12px; z-index: 1000; display: grid; gap: 4px; min-width: 122px; padding: 7px 9px; border: 1px solid #dfe4d1; border-radius: 10px; background: rgba(255,255,255,.92); color: #515811; font-family: PeydaFaNumWeb, Peyda, sans-serif; font-size: .67rem; font-weight: 700; pointer-events: none; }
 .explorer-map-legend-title { text-align: right; }
 .explorer-map-legend-bar { display: block; height: 8px; border-radius: 999px; background: linear-gradient(90deg, rgb(238,240,210), rgb(81,88,17)); }

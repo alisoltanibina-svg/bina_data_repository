@@ -989,20 +989,45 @@ function escapeMapLabel(value) {
     return el.innerHTML;
 }
 
+function provinceLabelLines(name) {
+    const words = String(name || '').trim().split(/\s+/).filter(Boolean);
+    if (words.length < 2) return [String(name || '')];
+    const lines = ['', ''];
+    words.forEach(word => {
+        const target = lines[0].length <= lines[1].length ? 0 : 1;
+        lines[target] = lines[target] ? `${lines[target]} ${word}` : word;
+    });
+    return lines.filter(Boolean);
+}
+
 function explorerProvinceLabel(name, feature) {
     const position = feature.__explorerInteriorPoint || (feature.__explorerInteriorPoint = interiorPointForGeometry(feature.geometry));
     const latLng = [position.point[1], position.point[0]];
-    const center = explorerLeafletMap.project(latLng, explorerLeafletMap.getZoom());
-    const edge = explorerLeafletMap.project([latLng[0], latLng[1] + position.distance], explorerLeafletMap.getZoom());
-    const width = Math.max(28, Math.min(136, Math.abs(edge.x - center.x) * 1.55));
-    const fontSize = Math.max(6, Math.min(12, width / Math.max(String(name).length * 0.62, 4)));
+    const zoom = explorerLeafletMap.getZoom();
+    const center = explorerLeafletMap.project(latLng, zoom);
+    const east = explorerLeafletMap.project([latLng[0], latLng[1] + position.distance], zoom);
+    const north = explorerLeafletMap.project([latLng[0] + position.distance, latLng[1]], zoom);
+    const safeRadius = Math.max(1, Math.min(Math.abs(east.x - center.x), Math.abs(north.y - center.y)));
+    // The label rectangle must fit within the largest circle wholly inside this province.
+    const safeBox = Math.max(7, safeRadius * 1.15);
+    const lines = provinceLabelLines(name);
+    const longestLine = Math.max(...lines.map(line => line.length), 1);
+    const fontSize = Math.max(4.8, Math.min(12, safeBox / (longestLine * 0.62), safeBox / (lines.length * 1.24)));
+    const lineHeight = fontSize * 1.18;
+    const labelHeight = lineHeight * lines.length;
+    const labelWidth = Math.min(safeBox, Math.max(fontSize * 1.8, longestLine * fontSize * 0.62));
+    const labelText = lines.map(escapeMapLabel).join('<br>');
     return L.marker(latLng, {
         interactive: false,
         keyboard: false,
-        icon: L.divIcon({ className: 'explorer-province-label', html: `<span style="display:block;width:${width.toFixed(0)}px;font-size:${fontSize.toFixed(1)}px">${escapeMapLabel(name)}</span>`, iconSize: [0, 0], iconAnchor: [width / 2, 0] })
+        icon: L.divIcon({
+            className: 'explorer-province-label',
+            html: `<span style="display:block;width:${labelWidth.toFixed(1)}px;height:${labelHeight.toFixed(1)}px;font-size:${fontSize.toFixed(1)}px;line-height:${lineHeight.toFixed(1)}px">${labelText}</span>`,
+            iconSize: [0, 0],
+            iconAnchor: [labelWidth / 2, labelHeight / 2]
+        })
     });
 }
-
 function initExplorerLeafletMap() {
     if (explorerLeafletMap) return explorerLeafletMap;
     if (typeof L === 'undefined') throw new Error('Leaflet did not load.');
