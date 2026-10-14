@@ -1041,6 +1041,17 @@ function initExplorerLeafletMap() {
     return explorerLeafletMap;
 }
 
+function updateExplorerMapTimeline() {
+    const timeline = document.getElementById('explorer-map-timeline');
+    const value = document.getElementById('explorer-map-timeline-value');
+    if (!timeline || !value) return;
+    const hasYears = currentChartYears.length > 0;
+    timeline.min = '0';
+    timeline.max = String(Math.max(0, currentChartYears.length - 1));
+    timeline.value = String(Math.min(Math.max(explorerMapYearIndex, 0), Math.max(0, currentChartYears.length - 1)));
+    timeline.disabled = !hasYears;
+    value.textContent = hasYears ? toFa(currentChartYears[explorerMapYearIndex]) : '—';
+}
 function updateExplorerMapPlaybackControl() {
     const button = document.getElementById('btn-explorer-map-play');
     if (!button) return;
@@ -1110,6 +1121,7 @@ function renderExplorerMap() {
     }).addTo(map);
     const yearLabel = document.getElementById('explorer-map-year'); if (yearLabel) yearLabel.textContent = `سال ${toFa(year)}`;
     updateExplorerMapLegend(min, max, allValues.length > 0);
+    updateExplorerMapTimeline();
     setExplorerMapStatus('', false); updateExplorerMapPlaybackControl();
 }
 function drawChart() {
@@ -1278,6 +1290,12 @@ function bindExplorerChrome() {
     if (map) map.addEventListener('click', () => setChartMode('map'));
     const mapPlay = document.getElementById('btn-explorer-map-play');
     if (mapPlay) mapPlay.addEventListener('click', toggleExplorerMapPlayback);
+    const mapTimeline = document.getElementById('explorer-map-timeline');
+    if (mapTimeline) mapTimeline.addEventListener('input', () => {
+        stopExplorerMapPlayback();
+        explorerMapYearIndex = Number(mapTimeline.value);
+        if (currentChartMode === 'map') renderExplorerMap();
+    });
     const search = document.getElementById('province-search');
     if (search) search.addEventListener('input', filterProvinces);
     const selectAll = document.getElementById('btn-select-all-provinces');
