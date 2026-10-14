@@ -112,6 +112,7 @@
                         <div class="chart-switcher" role="tablist" aria-label="نوع نمودار">
                             <button type="button" class="chart-mode-btn active" id="btn-chart-trend" data-mode="trend">نمودار روندی</button>
                             <button type="button" class="chart-mode-btn" id="btn-chart-compare" data-mode="compare">نمودار مقایسه‌ای</button>
+                            <button type="button" class="chart-mode-btn" id="btn-chart-table" data-mode="table">جدول</button>
                         </div>
                     </div>
                     <div id="canvas-reveal-wrapper">
@@ -120,6 +121,15 @@
                         </div>
                         <div id="compare-chart-wrap" class="chart-pane">
                             <canvas id="scatterProvinceChart"></canvas>
+                        </div>
+                        <div id="table-chart-wrap" class="chart-pane">
+                            <div class="indicator-table-scroll" tabindex="0" aria-label="جدول امتیاز استان‌ها بر اساس سال">
+                                <table class="indicator-score-table" id="indicator-score-table">
+                                    <caption>جدول امتیاز استان‌ها بر اساس سال</caption>
+                                    <thead></thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                     <div class="ex-chart-foot">

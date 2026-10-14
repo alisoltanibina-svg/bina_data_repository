@@ -616,25 +616,32 @@ function setProvinceFilterEnabled(enabled) {
 
 function refreshActiveChart() {
     if (currentChartMode === 'compare') drawScatterProvince();
+    else if (currentChartMode === 'table') renderIndicatorTable();
     else drawChart();
 }
 
 function setChartMode(mode) {
-    currentChartMode = mode === 'compare' ? 'compare' : 'trend';
+    currentChartMode = ['trend', 'compare', 'table'].includes(mode) ? mode : 'trend';
     const trendBtn = document.getElementById('btn-chart-trend');
     const compareBtn = document.getElementById('btn-chart-compare');
+    const tableBtn = document.getElementById('btn-chart-table');
     const trendWrap = document.getElementById('trend-chart-wrap');
     const compareWrap = document.getElementById('compare-chart-wrap');
+    const tableWrap = document.getElementById('table-chart-wrap');
     const title = document.getElementById('chart-panel-title');
     if (trendBtn) trendBtn.classList.toggle('active', currentChartMode === 'trend');
     if (compareBtn) compareBtn.classList.toggle('active', currentChartMode === 'compare');
+    if (tableBtn) tableBtn.classList.toggle('active', currentChartMode === 'table');
     if (trendWrap) trendWrap.classList.toggle('is-active', currentChartMode === 'trend');
     if (compareWrap) compareWrap.classList.toggle('is-active', currentChartMode === 'compare');
+    if (tableWrap) tableWrap.classList.toggle('is-active', currentChartMode === 'table');
     setProvinceFilterEnabled(currentChartMode === 'trend');
     if (title) {
         if (currentChartMode === 'compare') {
             const yearTxt = latestYearGlob != null ? ` — سال ${toFa(latestYearGlob)}` : '';
             title.textContent = `مقایسه استانی آخرین سال${yearTxt}`;
+        } else if (currentChartMode === 'table') {
+            title.textContent = 'جدول امتیاز استان‌ها بر اساس سال';
         } else {
             title.textContent = 'روند تغییرات زمانی شاخص';
         }
@@ -758,6 +765,54 @@ function getChartSeries(provName) {
     return currentChartYears.map(y => {
         let rec = records.find(r => Number(r.year) === y);
         return rec ? Number(rec.value) : null;
+    });
+}
+function renderIndicatorTable() {
+    const table = document.getElementById('indicator-score-table');
+    if (!table) return;
+    const head = table.querySelector('thead');
+    const body = table.querySelector('tbody');
+    if (!head || !body) return;
+
+    head.replaceChildren();
+    body.replaceChildren();
+
+    const headerRow = document.createElement('tr');
+    const provinceHeader = document.createElement('th');
+    provinceHeader.scope = 'col';
+    provinceHeader.className = 'indicator-table-province';
+    provinceHeader.textContent = 'استان';
+    headerRow.appendChild(provinceHeader);
+    currentChartYears.forEach(year => {
+        const cell = document.createElement('th');
+        cell.scope = 'col';
+        cell.textContent = toFa(year);
+        headerRow.appendChild(cell);
+    });
+    head.appendChild(headerRow);
+
+    const scoresByProvinceYear = new Map();
+    kscoreData.forEach(record => {
+        const year = Number(record.year);
+        const score = Number(record.value);
+        if (record.province_name === 'کل کشور' || !Number.isFinite(year) || !Number.isFinite(score)) return;
+        scoresByProvinceYear.set(`${record.province_name}\u0000${year}`, score);
+    });
+
+    provincesList.forEach(provinceName => {
+        const row = document.createElement('tr');
+        const provinceCell = document.createElement('th');
+        provinceCell.scope = 'row';
+        provinceCell.className = 'indicator-table-province';
+        provinceCell.textContent = provinceName;
+        row.appendChild(provinceCell);
+        currentChartYears.forEach(year => {
+            const cell = document.createElement('td');
+            const score = scoresByProvinceYear.get(`${provinceName}\u0000${year}`);
+            cell.textContent = Number.isFinite(score) ? toFaFixed(score, 2) : '—';
+            row.appendChild(cell);
+        });
+        body.appendChild(row);
     });
 }
 
@@ -921,6 +976,8 @@ function bindExplorerChrome() {
     if (trend) trend.addEventListener('click', () => setChartMode('trend'));
     const compare = document.getElementById('btn-chart-compare');
     if (compare) compare.addEventListener('click', () => setChartMode('compare'));
+    const table = document.getElementById('btn-chart-table');
+    if (table) table.addEventListener('click', () => setChartMode('table'));
     const search = document.getElementById('province-search');
     if (search) search.addEventListener('input', filterProvinces);
     const selectAll = document.getElementById('btn-select-all-provinces');
