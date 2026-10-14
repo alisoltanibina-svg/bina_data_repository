@@ -991,7 +991,7 @@ function renderExplorerContextBorders(map) {
     explorerContextLayer = L.geoJSON(explorerContextBorders, {
         interactive: false,
         attribution: 'Natural Earth',
-        style: { color: '#7e8778', weight: 1.05, opacity: 0.76, fill: false }
+        style: { color: '#7e8778', weight: 1.05, opacity: 0.76, fill: true, fillColor: '#f4f3ea', fillOpacity: 0.94 }
     }).addTo(map);
 }
 function mapColorForScore(score, min, max) {
@@ -1059,7 +1059,7 @@ function initExplorerLeafletMap() {
     if (typeof L === 'undefined') throw new Error('Leaflet did not load.');
     const target = document.getElementById('explorer-leaflet-map');
     if (!target) throw new Error('Explorer map container is missing.');
-    explorerLeafletMap = L.map(target, { zoomControl: false, scrollWheelZoom: false, doubleClickZoom: false, touchZoom: false, boxZoom: false, keyboard: false, attributionControl: true, minZoom: 4, maxZoom: 9, zoomSnap: 0.25 }).setView([32, 53], 5);
+    explorerLeafletMap = L.map(target, { zoomControl: true, scrollWheelZoom: true, doubleClickZoom: true, touchZoom: true, boxZoom: true, keyboard: true, attributionControl: true, minZoom: 4, maxZoom: 9, zoomSnap: 0.25 }).setView([32, 53], 5);
     explorerLeafletMap.on('zoomend', () => {
         if (explorerMapFitted && currentChartMode === 'map' && explorerMapGeoJson) requestAnimationFrame(renderExplorerMap);
     });
@@ -1073,9 +1073,12 @@ function updateExplorerMapTimeline() {
     const hasYears = currentChartYears.length > 0;
     timeline.min = '0';
     timeline.max = String(Math.max(0, currentChartYears.length - 1));
-    timeline.value = String(Math.min(Math.max(explorerMapYearIndex, 0), Math.max(0, currentChartYears.length - 1)));
+    const maxIndex = Math.max(0, currentChartYears.length - 1);
+    const activeIndex = Math.min(Math.max(explorerMapYearIndex, 0), maxIndex);
+    timeline.value = String(activeIndex);
     timeline.disabled = !hasYears;
-    value.textContent = hasYears ? toFa(currentChartYears[explorerMapYearIndex]) : '—';
+    value.textContent = hasYears ? toFa(currentChartYears[activeIndex]) : '—';
+    value.style.left = String(maxIndex ? (activeIndex / maxIndex) * 100 : 0) + '%';
 }
 function updateExplorerMapPlaybackControl() {
     const button = document.getElementById('btn-explorer-map-play');
@@ -1129,7 +1132,7 @@ function renderExplorerMap() {
     const min = allValues.length ? Math.min(...allValues) : 0;
     const max = allValues.length ? Math.max(...allValues) : 1;
     map.invalidateSize({ animate: false, pan: false });
-    if (!explorerMapFitted && explorerMapBounds) { map.fitBounds(explorerMapBounds, { padding: [18, 18], animate: false }); explorerMapFitted = true; }
+    if (!explorerMapFitted && explorerMapBounds) { map.fitBounds(explorerMapBounds, { padding: [38, 30], animate: false }); explorerMapFitted = true; }
     renderExplorerContextBorders(map);
     if (explorerMapGeoLayer) explorerMapGeoLayer.remove();
     if (explorerMapLabelsLayer) explorerMapLabelsLayer.remove();
@@ -1147,7 +1150,6 @@ function renderExplorerMap() {
             explorerProvinceLabel(name, feature).addTo(explorerMapLabelsLayer);
         }
     }).addTo(map);
-    const yearLabel = document.getElementById('explorer-map-year'); if (yearLabel) yearLabel.textContent = `سال ${toFa(year)}`;
     updateExplorerMapLegend(min, max, allValues.length > 0);
     updateExplorerMapTimeline();
     setExplorerMapStatus('', false); updateExplorerMapPlaybackControl();
