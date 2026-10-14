@@ -77,16 +77,11 @@ let explorerMapGeoJson = null;
 let explorerMapFeatures = [];
 let explorerMapViewBox = null;
 let explorerMapLoadPromise = null;
+let explorerWorldGeoJson = null;
+let explorerWorldFeatures = [];
+let explorerWorldLoadPromise = null;
 let explorerMapYearIndex = 0;
 let explorerMapPlaybackTimer = null;
-let explorerLeafletMap = null;
-let explorerMapGeoLayer = null;
-let explorerMapLabelsLayer = null;
-let explorerMapFitted = false;
-let explorerMapBounds = null;
-let explorerContextBorders = null;
-let explorerContextLoadPromise = null;
-let explorerContextLayer = null;
 
 let isBulkAction = true; 
 let hiddenDatasets = {};
@@ -843,6 +838,8 @@ function renderIndicatorTable() {
 }
 
 const NATIONAL_PROVINCE_KEY = '\u06a9\u0644\u06a9\u0634\u0648\u0631';
+const EXPLORER_WORLD_VIEW = { minX: 20, maxX: 75, minY: 16, maxY: 49 };
+const SVG_NS = 'http://www.w3.org/2000/svg';
 
 function normalizeMapProvinceName(value) {
     return String(value || '').normalize('NFKC').replace(/[\u064A\u0649]/g, '\u06CC').replace(/\u0643/g, '\u06A9').replace(/[\s\u200C]+/g, '');
@@ -853,6 +850,12 @@ function setExplorerMapStatus(message, visible) {
     if (!status) return;
     status.textContent = message || '';
     status.hidden = !visible;
+}
+
+function createMapSvgElement(name, attributes = {}) {
+    const element = document.createElementNS(SVG_NS, name);
+    Object.entries(attributes).forEach(([key, value]) => element.setAttribute(key, String(value)));
+    return element;
 }
 
 function geometryPolygons(geometry) {
@@ -869,7 +872,7 @@ function ringArea(ring) {
 }
 
 function pointToSegmentDistanceSquared(point, start, end) {
-    let x = start[0], y = start[1], dx = end[0] - x, dy = end[1] - y;
+    let x = start[0], y = start[1], dx = end[0] - start[0], dy = end[1] - start[1];
     if (dx || dy) {
         const t = ((point[0] - x) * dx + (point[1] - y) * dy) / ((dx * dx) + (dy * dy));
         if (t > 1) { x = end[0]; y = end[1]; }
@@ -903,7 +906,7 @@ function heapPush(heap, cell) {
     for (; index > 0;) {
         const parent = Math.floor((index - 1) / 2);
         if (heap[parent].max >= cell.max) break;
-        heap[index] = heap[parent]; index = parent;
+        heap[index] = cell; index = parent;
     }
     heap[index] = cell;
 }
@@ -953,11 +956,37 @@ function interiorPointForGeometry(geometry) {
     return interiorPointForPolygon(polygon);
 }
 
+function geometryToSvgPath(geometry) {
+    return geometryPolygons(geometry).map(polygon => polygon.map(ring => {
+        const points = ring.filter(point => Array.isArray(point) && Number.isFinite(Number(point[0])) && Number.isFinite(Number(point[1])));
+        if (!points.length) return '';
+        return `M ${points.map(point => `${Number(point[0]).toFixed(4)} ${(-Number(point[1])).toFixed(4)}`).join(' L ')} Z`;
+    }).join(' ')).join(' ');
+}
+
+function geometryBounds(geometry) {
+    const bounds = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+    geometryPolygons(geometry).forEach(polygon => polygon.forEach(ring => ring.forEach(point => {
+        if (!Array.isArray(point) || !Number.isFinite(Number(point[0])) || !Number.isFinite(Number(point[1]))) return;
+        bounds.minX = Math.min(bounds.minX, Number(point[0])); bounds.maxX = Math.max(bounds.maxX, Number(point[0]));
+        bounds.minY = Math.min(bounds.minY, Number(point[1])); bounds.maxY = Math.max(bounds.maxY, Number(point[1]));
+    })));
+    return bounds;
+}
+
+function geometryIntersectsWorldView(geometry) {
+    const bounds = geometryBounds(geometry);
+    return Number.isFinite(bounds.minX) && bounds.maxX >= EXPLORER_WORLD_VIEW.minX && bounds.minX <= EXPLORER_WORLD_VIEW.maxX && bounds.maxY >= EXPLORER_WORLD_VIEW.minY && bounds.minY <= EXPLORER_WORLD_VIEW.maxY;
+}
+
 function prepareExplorerMap(geoJson) {
     const features = Array.isArray(geoJson && geoJson.features) ? geoJson.features : [];
-    if (!features.length) throw new Error('Iran GeoJSON has no province boundaries.');
-    explorerMapBounds = L.geoJSON(geoJson).getBounds();
-    if (!explorerMapBounds.isValid()) throw new Error('Iran GeoJSON has invalid province boundaries.');
+    explorerMapFeatures = features.map(feature => {
+        const name = feature.properties && (feature.properties.ProvincNam || feature.properties.ADM1_FA || feature.properties.Name);
+        const path = geometryToSvgPath(feature.geometry);
+        return path && name ? { feature, name, path, interior: interiorPointForGeometry(feature.geometry) } : null;
+    }).filter(Boolean);
+    if (!explorerMapFeatures.length) throw new Error('Iran GeoJSON has no usable province boundaries.');
 }
 
 function ensureExplorerMapGeoJson() {
@@ -965,35 +994,29 @@ function ensureExplorerMapGeoJson() {
     if (explorerMapLoadPromise) return explorerMapLoadPromise;
     const url = (typeof SITE !== 'undefined' && SITE.staticFile) ? SITE.staticFile('data/iran.geojson') : 'data/iran.geojson';
     explorerMapLoadPromise = fetch(url, { credentials: 'same-origin' })
-        .then(response => { if (!response.ok) throw new Error(`Map data request failed (${response.status})`); return response.json(); })
+        .then(response => { if (!response.ok) throw new Error(`Iran map data request failed (${response.status})`); return response.json(); })
         .then(data => { prepareExplorerMap(data); explorerMapGeoJson = data; return data; })
         .catch(error => { explorerMapLoadPromise = null; throw error; });
     return explorerMapLoadPromise;
 }
 
-function ensureExplorerContextBorders() {
-    if (explorerContextBorders) return Promise.resolve(explorerContextBorders);
-    if (explorerContextLoadPromise) return explorerContextLoadPromise;
-    const url = (typeof SITE !== 'undefined' && SITE.staticFile) ? SITE.staticFile('data/region-countries.geojson') : 'data/region-countries.geojson';
-    explorerContextLoadPromise = fetch(url, { credentials: 'same-origin' })
-        .then(response => { if (!response.ok) throw new Error(`Country border request failed (${response.status})`); return response.json(); })
+function ensureExplorerWorldGeoJson() {
+    if (explorerWorldGeoJson) return Promise.resolve(explorerWorldGeoJson);
+    if (explorerWorldLoadPromise) return explorerWorldLoadPromise;
+    const url = (typeof SITE !== 'undefined' && SITE.staticFile) ? SITE.staticFile('data/world.geojson') : 'data/world.geojson';
+    explorerWorldLoadPromise = fetch(url, { credentials: 'same-origin' })
+        .then(response => { if (!response.ok) throw new Error(`World map data request failed (${response.status})`); return response.json(); })
         .then(data => {
-            if (!Array.isArray(data && data.features)) throw new Error('Country border data is invalid.');
-            explorerContextBorders = data;
+            if (!Array.isArray(data && data.features)) throw new Error('World GeoJSON is invalid.');
+            explorerWorldFeatures = data.features.filter(feature => feature && geometryIntersectsWorldView(feature.geometry)).map(feature => ({ path: geometryToSvgPath(feature.geometry) })).filter(feature => feature.path);
+            if (!explorerWorldFeatures.length) throw new Error('World GeoJSON has no usable features in the map view.');
+            explorerWorldGeoJson = data;
             return data;
         })
-        .catch(error => { explorerContextLoadPromise = null; throw error; });
-    return explorerContextLoadPromise;
+        .catch(error => { explorerWorldLoadPromise = null; throw error; });
+    return explorerWorldLoadPromise;
 }
 
-function renderExplorerContextBorders(map) {
-    if (!explorerContextBorders || explorerContextLayer) return;
-    explorerContextLayer = L.geoJSON(explorerContextBorders, {
-        interactive: false,
-        attribution: 'Natural Earth',
-        style: { color: '#7e8778', weight: 1.05, opacity: 0.76, fill: true, fillColor: '#f4f3ea', fillOpacity: 0.94 }
-    }).addTo(map);
-}
 function mapColorForScore(score, min, max) {
     if (!Number.isFinite(score)) return '#e5e7eb';
     const ratio = max > min ? Math.min(1, Math.max(0, (score - min) / (max - min))) : 0.62;
@@ -1009,12 +1032,6 @@ function updateExplorerMapLegend(min, max, hasValues) {
     maxLabel.textContent = hasValues ? toFaFixed(max, 2) : '—';
 }
 
-function escapeMapLabel(value) {
-    const el = document.createElement('div');
-    el.textContent = value;
-    return el.innerHTML;
-}
-
 function provinceLabelLines(name) {
     const words = String(name || '').trim().split(/\s+/).filter(Boolean);
     if (words.length < 2) return [String(name || '')];
@@ -1026,44 +1043,23 @@ function provinceLabelLines(name) {
     return lines.filter(Boolean);
 }
 
-function explorerProvinceLabel(name, feature) {
-    const position = feature.__explorerInteriorPoint || (feature.__explorerInteriorPoint = interiorPointForGeometry(feature.geometry));
-    const latLng = [position.point[1], position.point[0]];
-    const zoom = explorerLeafletMap.getZoom();
-    const center = explorerLeafletMap.project(latLng, zoom);
-    const east = explorerLeafletMap.project([latLng[0], latLng[1] + position.distance], zoom);
-    const north = explorerLeafletMap.project([latLng[0] + position.distance, latLng[1]], zoom);
-    const safeRadius = Math.max(1, Math.min(Math.abs(east.x - center.x), Math.abs(north.y - center.y)));
-    // The label rectangle must fit within the largest circle wholly inside this province.
-    const safeBox = Math.max(7, safeRadius * 1.15);
-    const lines = provinceLabelLines(name);
+function appendExplorerProvinceLabel(group, mapFeature, score) {
+    const lines = provinceLabelLines(mapFeature.name);
+    const position = mapFeature.interior;
+    const safeRadius = Math.max(position.distance, 0.12);
     const longestLine = Math.max(...lines.map(line => line.length), 1);
-    const fontSize = Math.max(4.8, Math.min(12, safeBox / (longestLine * 0.62), safeBox / (lines.length * 1.24)));
-    const lineHeight = fontSize * 1.18;
-    const labelHeight = lineHeight * lines.length;
-    const labelWidth = Math.min(safeBox, Math.max(fontSize * 1.8, longestLine * fontSize * 0.62));
-    const labelText = lines.map(escapeMapLabel).join('<br>');
-    return L.marker(latLng, {
-        interactive: false,
-        keyboard: false,
-        icon: L.divIcon({
-            className: 'explorer-province-label',
-            html: `<span style="display:block;width:${labelWidth.toFixed(1)}px;height:${labelHeight.toFixed(1)}px;font-size:${fontSize.toFixed(1)}px;line-height:${lineHeight.toFixed(1)}px">${labelText}</span>`,
-            iconSize: [0, 0],
-            iconAnchor: [labelWidth / 2, labelHeight / 2]
-        })
+    const safeBox = safeRadius * 1.8;
+    const fontSize = Math.max(0.17, Math.min(0.68, safeBox / (longestLine * 0.62), safeBox / (lines.length * 1.38)));
+    const lineHeight = fontSize * 1.16;
+    const text = createMapSvgElement('text', {
+        class: 'explorer-province-label', x: position.point[0], y: -position.point[1], 'font-size': fontSize.toFixed(3), 'aria-hidden': 'true'
     });
-}
-function initExplorerLeafletMap() {
-    if (explorerLeafletMap) return explorerLeafletMap;
-    if (typeof L === 'undefined') throw new Error('Leaflet did not load.');
-    const target = document.getElementById('explorer-leaflet-map');
-    if (!target) throw new Error('Explorer map container is missing.');
-    explorerLeafletMap = L.map(target, { zoomControl: true, scrollWheelZoom: true, doubleClickZoom: true, touchZoom: true, boxZoom: true, keyboard: true, attributionControl: true, minZoom: 4, maxZoom: 9, zoomSnap: 0.25 }).setView([32, 53], 5);
-    explorerLeafletMap.on('zoomend', () => {
-        if (explorerMapFitted && currentChartMode === 'map' && explorerMapGeoJson) requestAnimationFrame(renderExplorerMap);
+    lines.forEach((line, index) => {
+        const span = createMapSvgElement('tspan', { x: position.point[0], dy: index === 0 ? ((-(lines.length - 1) * lineHeight) / 2).toFixed(3) : lineHeight.toFixed(3) });
+        span.textContent = line;
+        text.appendChild(span);
     });
-    return explorerLeafletMap;
+    group.appendChild(text);
 }
 
 function updateExplorerMapTimeline() {
@@ -1080,6 +1076,7 @@ function updateExplorerMapTimeline() {
     value.textContent = hasYears ? toFa(currentChartYears[activeIndex]) : '—';
     value.style.left = String(maxIndex ? (activeIndex / maxIndex) * 100 : 0) + '%';
 }
+
 function updateExplorerMapPlaybackControl() {
     const button = document.getElementById('btn-explorer-map-play');
     if (!button) return;
@@ -1103,10 +1100,12 @@ function toggleExplorerMapPlayback() {
 }
 
 function renderExplorerMap() {
+    const svg = document.getElementById('explorer-geo-map');
+    if (!svg) return;
     if (!currentChartYears.length) { setExplorerMapStatus('برای این شاخص، دادهٔ سالانه‌ای موجود نیست.', true); return; }
-    if (!explorerMapGeoJson || !explorerContextBorders) {
+    if (!explorerMapGeoJson || !explorerWorldGeoJson) {
         setExplorerMapStatus('در حال بارگذاری نقشه...', true);
-        Promise.all([ensureExplorerMapGeoJson(), ensureExplorerContextBorders()]).then(() => {
+        Promise.all([ensureExplorerMapGeoJson(), ensureExplorerWorldGeoJson()]).then(() => {
             if (currentChartMode === 'map') renderExplorerMap();
         }).catch(error => {
             console.error('Unable to load Explorer map data', error);
@@ -1114,8 +1113,7 @@ function renderExplorerMap() {
         });
         return;
     }
-    let map;
-    try { map = initExplorerLeafletMap(); } catch (error) { console.error('Unable to initialize Explorer map', error); setExplorerMapStatus('راه‌اندازی نقشه ممکن نشد.', true); return; }
+
     explorerMapYearIndex = Math.min(Math.max(explorerMapYearIndex, 0), currentChartYears.length - 1);
     const year = currentChartYears[explorerMapYearIndex], scores = new Map();
     kscoreData.forEach(record => {
@@ -1123,36 +1121,40 @@ function renderExplorerMap() {
         const key = normalizeMapProvinceName(record.province_name), score = Number(record.value);
         if (key && key !== NATIONAL_PROVINCE_KEY && Number.isFinite(score)) scores.set(key, score);
     });
-    const values = Array.from(scores.values());
     const allValues = kscoreData
         .filter(record => normalizeMapProvinceName(record.province_name) !== NATIONAL_PROVINCE_KEY)
         .map(record => Number(record.value))
         .filter(Number.isFinite);
-    // Keep the color scale stable: a province's color is comparable across every available year.
     const min = allValues.length ? Math.min(...allValues) : 0;
     const max = allValues.length ? Math.max(...allValues) : 1;
-    map.invalidateSize({ animate: false, pan: false });
-    if (!explorerMapFitted && explorerMapBounds) { map.fitBounds(explorerMapBounds, { padding: [38, 30], animate: false }); explorerMapFitted = true; }
-    renderExplorerContextBorders(map);
-    if (explorerMapGeoLayer) explorerMapGeoLayer.remove();
-    if (explorerMapLabelsLayer) explorerMapLabelsLayer.remove();
-    explorerMapLabelsLayer = L.layerGroup().addTo(map);
-    explorerMapGeoLayer = L.geoJSON(explorerMapGeoJson, {
-        style: feature => {
-            const name = feature.properties && (feature.properties.ProvincNam || feature.properties.ADM1_FA || feature.properties.Name);
-            return { color: '#ffffff', weight: 1.25, opacity: 1, fillColor: mapColorForScore(scores.get(normalizeMapProvinceName(name)), min, max), fillOpacity: 0.78 };
-        },
-        onEachFeature: (feature, layer) => {
-            const name = (feature.properties && (feature.properties.ProvincNam || feature.properties.ADM1_FA || feature.properties.Name)) || '';
-            const score = scores.get(normalizeMapProvinceName(name));
-            const scoreText = Number.isFinite(score) ? `امتیاز: ${toFaFixed(score, 2)}` : 'داده‌ای ثبت نشده است';
-            layer.bindTooltip(`${escapeMapLabel(name)}<br>${scoreText}`, { sticky: true, direction: 'top', className: 'explorer-score-tooltip' });
-            explorerProvinceLabel(name, feature).addTo(explorerMapLabelsLayer);
-        }
-    }).addTo(map);
+
+    svg.setAttribute('viewBox', `${EXPLORER_WORLD_VIEW.minX} ${-EXPLORER_WORLD_VIEW.maxY} ${EXPLORER_WORLD_VIEW.maxX - EXPLORER_WORLD_VIEW.minX} ${EXPLORER_WORLD_VIEW.maxY - EXPLORER_WORLD_VIEW.minY}`);
+    svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    svg.replaceChildren();
+
+    const worldLayer = createMapSvgElement('g', { class: 'explorer-world-layer', 'aria-hidden': 'true' });
+    explorerWorldFeatures.forEach(feature => worldLayer.appendChild(createMapSvgElement('path', { class: 'explorer-world-region', d: feature.path })));
+    svg.appendChild(worldLayer);
+
+    const provinceLayer = createMapSvgElement('g', { class: 'explorer-province-layer' });
+    const labelLayer = createMapSvgElement('g', { class: 'explorer-province-label-layer', 'aria-hidden': 'true' });
+    explorerMapFeatures.forEach(mapFeature => {
+        const score = scores.get(normalizeMapProvinceName(mapFeature.name));
+        const scoreText = Number.isFinite(score) ? `امتیاز: ${toFaFixed(score, 2)}` : 'داده‌ای ثبت نشده است';
+        const path = createMapSvgElement('path', {
+            class: 'explorer-geo-province', d: mapFeature.path, fill: mapColorForScore(score, min, max), tabindex: '0', role: 'img', 'aria-label': `${mapFeature.name}، ${scoreText}`
+        });
+        path.appendChild(createMapSvgElement('title'));
+        path.lastChild.textContent = `${mapFeature.name} — ${scoreText}`;
+        provinceLayer.appendChild(path);
+        appendExplorerProvinceLabel(labelLayer, mapFeature, score);
+    });
+    svg.append(provinceLayer, labelLayer);
+
     updateExplorerMapLegend(min, max, allValues.length > 0);
     updateExplorerMapTimeline();
-    setExplorerMapStatus('', false); updateExplorerMapPlaybackControl();
+    setExplorerMapStatus('', false);
+    updateExplorerMapPlaybackControl();
 }
 function drawChart() {
     const ctx = document.getElementById('mainChart').getContext('2d');
