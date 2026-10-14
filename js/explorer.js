@@ -84,6 +84,9 @@ let explorerMapGeoLayer = null;
 let explorerMapLabelsLayer = null;
 let explorerMapFitted = false;
 let explorerMapBounds = null;
+let explorerContextBorders = null;
+let explorerContextLoadPromise = null;
+let explorerContextLayer = null;
 
 let isBulkAction = true; 
 let hiddenDatasets = {};
@@ -968,6 +971,29 @@ function ensureExplorerMapGeoJson() {
     return explorerMapLoadPromise;
 }
 
+function ensureExplorerContextBorders() {
+    if (explorerContextBorders) return Promise.resolve(explorerContextBorders);
+    if (explorerContextLoadPromise) return explorerContextLoadPromise;
+    const url = (typeof SITE !== 'undefined' && SITE.staticFile) ? SITE.staticFile('data/region-countries.geojson') : 'data/region-countries.geojson';
+    explorerContextLoadPromise = fetch(url, { credentials: 'same-origin' })
+        .then(response => { if (!response.ok) throw new Error(`Country border request failed (${response.status})`); return response.json(); })
+        .then(data => {
+            if (!Array.isArray(data && data.features)) throw new Error('Country border data is invalid.');
+            explorerContextBorders = data;
+            return data;
+        })
+        .catch(error => { explorerContextLoadPromise = null; throw error; });
+    return explorerContextLoadPromise;
+}
+
+function renderExplorerContextBorders(map) {
+    if (!explorerContextBorders || explorerContextLayer) return;
+    explorerContextLayer = L.geoJSON(explorerContextBorders, {
+        interactive: false,
+        attribution: 'Natural Earth',
+        style: { color: '#7e8778', weight: 1.05, opacity: 0.76, fill: false }
+    }).addTo(map);
+}
 function mapColorForScore(score, min, max) {
     if (!Number.isFinite(score)) return '#e5e7eb';
     const ratio = max > min ? Math.min(1, Math.max(0, (score - min) / (max - min))) : 0.62;
@@ -1034,7 +1060,6 @@ function initExplorerLeafletMap() {
     const target = document.getElementById('explorer-leaflet-map');
     if (!target) throw new Error('Explorer map container is missing.');
     explorerLeafletMap = L.map(target, { zoomControl: false, scrollWheelZoom: false, doubleClickZoom: false, touchZoom: false, boxZoom: false, keyboard: false, attributionControl: true, minZoom: 4, maxZoom: 9, zoomSnap: 0.25 }).setView([32, 53], 5);
-    L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&hl=fa&x={x}&y={y}&z={z}', { subdomains: ['0', '1', '2', '3'], attribution: '&copy; Google', maxZoom: 19, noWrap: true, errorTileUrl: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7' }).addTo(explorerLeafletMap);
     explorerLeafletMap.on('zoomend', () => {
         if (explorerMapFitted && currentChartMode === 'map' && explorerMapGeoJson) requestAnimationFrame(renderExplorerMap);
     });
@@ -1076,10 +1101,12 @@ function toggleExplorerMapPlayback() {
 
 function renderExplorerMap() {
     if (!currentChartYears.length) { setExplorerMapStatus('برای این شاخص، دادهٔ سالانه‌ای موجود نیست.', true); return; }
-    if (!explorerMapGeoJson) {
+    if (!explorerMapGeoJson || !explorerContextBorders) {
         setExplorerMapStatus('در حال بارگذاری نقشه...', true);
-        ensureExplorerMapGeoJson().then(() => { if (currentChartMode === 'map') renderExplorerMap(); }).catch(error => {
-            console.error('Unable to load Iran GeoJSON', error);
+        Promise.all([ensureExplorerMapGeoJson(), ensureExplorerContextBorders()]).then(() => {
+            if (currentChartMode === 'map') renderExplorerMap();
+        }).catch(error => {
+            console.error('Unable to load Explorer map data', error);
             if (currentChartMode === 'map') setExplorerMapStatus('بارگذاری نقشه ممکن نشد. لطفاً صفحه را دوباره بارگذاری کنید.', true);
         });
         return;
@@ -1103,6 +1130,7 @@ function renderExplorerMap() {
     const max = allValues.length ? Math.max(...allValues) : 1;
     map.invalidateSize({ animate: false, pan: false });
     if (!explorerMapFitted && explorerMapBounds) { map.fitBounds(explorerMapBounds, { padding: [18, 18], animate: false }); explorerMapFitted = true; }
+    renderExplorerContextBorders(map);
     if (explorerMapGeoLayer) explorerMapGeoLayer.remove();
     if (explorerMapLabelsLayer) explorerMapLabelsLayer.remove();
     explorerMapLabelsLayer = L.layerGroup().addTo(map);
