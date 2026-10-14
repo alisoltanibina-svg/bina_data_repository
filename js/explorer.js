@@ -678,13 +678,17 @@ function drawScatterProvince() {
     const points = getLatestPoints();
     scatterPointsCache = points;
     const bubbleR = window.matchMedia('(max-width: 767px)').matches ? 8 : 24;
+    // Keep an entire bubble-width inside the chart at both horizontal edges.
+    const scatterXMin = -1;
+    const scatterXMax = Math.max(1, points.length);
     const data = points.map((p, i) => ({ x: i, y: p.value, province: p.name, r: bubbleR }));
     const colors = points.map(p => provinceColors[p.name] || '#3b82f6');
 
     if (scatterProvinceChart) {
         scatterProvinceChart.data.datasets[0].data = data;
         scatterProvinceChart.data.datasets[0].backgroundColor = colors;
-        scatterProvinceChart.options.scales.x.max = Math.max(0.5, points.length - 0.5);
+        scatterProvinceChart.options.scales.x.min = scatterXMin;
+        scatterProvinceChart.options.scales.x.max = scatterXMax;
         scatterProvinceChart.update();
         return;
     }
@@ -696,7 +700,8 @@ function drawScatterProvince() {
                 data,
                 backgroundColor: colors,
                 borderColor: '#ffffff',
-                borderWidth: 2
+                borderWidth: 2,
+                clip: false
             }]
         },
         options: {
@@ -711,7 +716,8 @@ function drawScatterProvince() {
                     align: 'center',
                     anchor: 'center',
                     textAlign: 'center',
-                    clip: true,
+                    clip: false,
+                    clamp: true,
                     font: { family: 'PeydaFaNumWeb', size: 8, weight: 'bold' },
                     formatter: (value) => {
                         const name = (value && value.province) || '';
@@ -730,8 +736,8 @@ function drawScatterProvince() {
             },
             scales: {
                 x: {
-                    min: -0.6,
-                    max: Math.max(0.5, points.length - 0.5),
+                    min: scatterXMin,
+                    max: scatterXMax,
                     ticks: { display: false },
                     grid: { display: false },
                     title: {
