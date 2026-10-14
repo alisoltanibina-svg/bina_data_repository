@@ -1026,7 +1026,7 @@ function initExplorerLeafletMap() {
     const target = document.getElementById('explorer-leaflet-map');
     if (!target) throw new Error('Explorer map container is missing.');
     explorerLeafletMap = L.map(target, { zoomControl: true, scrollWheelZoom: true, doubleClickZoom: true, touchZoom: true, boxZoom: true, keyboard: true, attributionControl: true, minZoom: 4, maxZoom: 9, zoomSnap: 0.25 }).setView([32, 53], 5);
-    L.tileLayer('https://{s}.google.com/vt/lyrs=m&hl=fa&x={x}&y={y}&z={z}', { subdomains: ['mt0', 'mt1', 'mt2', 'mt3'], maxZoom: 20, attribution: '&copy; Google' }).addTo(explorerLeafletMap);
+    L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&hl=fa&x={x}&y={y}&z={z}', { subdomains: ['0', '1', '2', '3'], maxZoom: 19, noWrap: true, attribution: '&copy; Google', errorTileUrl: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7' }).addTo(explorerLeafletMap);
     explorerLeafletMap.on('zoomend', () => {
         if (explorerMapFitted && currentChartMode === 'map' && explorerMapGeoJson) requestAnimationFrame(renderExplorerMap);
     });
