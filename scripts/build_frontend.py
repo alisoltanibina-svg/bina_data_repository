@@ -17,7 +17,6 @@ from urllib.parse import urlsplit, urlunsplit
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 TOP_LEVEL_FILES = ("index.html", "webmanifest.json")
 PUBLIC_DIRS = ("html", "css", "js", "assets")
-PRIVATE_GEOJSON_FILES = frozenset({"data/world.geojson"})
 VERSIONABLE_SUFFIXES = {
     ".css", ".js", ".json", ".webp", ".png", ".jpg", ".jpeg",
     ".gif", ".svg", ".ico", ".woff", ".woff2", ".ttf", ".geojson",
@@ -284,7 +283,7 @@ def public_files(source_root: Path) -> list[Path]:
 
     data_root = source_root / "data"
     if data_root.is_dir():
-        files.extend(path for path in data_root.rglob("*.geojson") if path.is_file() and path.relative_to(source_root).as_posix() not in PRIVATE_GEOJSON_FILES)
+        files.extend(path for path in data_root.rglob("*.geojson") if path.is_file())
     return sorted(set(files), key=lambda path: path.relative_to(source_root).as_posix())
 
 
