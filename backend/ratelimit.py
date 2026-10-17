@@ -41,6 +41,7 @@ COOLDOWN_SECONDS = 2 * 60 * 60
 _EXPENSIVE_PATHS = frozenset(
     {
         "/api/curtain/race",
+        "/api/admin/avatars/export",
         "/api/explorer/indicator",
         "/api/atlas/topic-trends",
         "/api/bubble/init",

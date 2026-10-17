@@ -188,7 +188,8 @@ body.admin-body {
     border-bottom: 1px solid var(--ad-line);
 }
 
-#requests-export {
+#requests-export,
+#user-avatars-download {
     align-self: flex-start;
 }
 

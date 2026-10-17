@@ -748,6 +748,45 @@ async function loadOps() {
     return data;
 }
 
+async function downloadAllAvatars() {
+    const button = document.getElementById('user-avatars-download');
+    if (!button || button.disabled) return;
+    const label = button.textContent;
+    button.disabled = true;
+    button.textContent = 'در حال آماده‌سازی...';
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/admin/avatars/export`, {
+            credentials: 'include', cache: 'no-store'
+        });
+        if (response.status === 401 || response.status === 403) {
+            window.location.href = SITE.page('index.html') + '#auth';
+            return;
+        }
+        if (!response.ok) {
+            let data = null;
+            try { data = await response.json(); } catch (err) {}
+            const detail = data && data.detail;
+            throw new Error((detail && detail.message) || (typeof detail === 'string' && detail) || 'دانلود عکس‌ها ممکن نشد.');
+        }
+        const url = URL.createObjectURL(await response.blob());
+        const link = document.createElement('a');
+        try {
+            link.href = url;
+            link.download = 'avatars.zip';
+            document.body.appendChild(link);
+            link.click();
+        } finally {
+            link.remove();
+            window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
+    } catch (err) {
+        showNotice(err.message || 'دانلود عکس‌ها ممکن نشد.');
+    } finally {
+        button.disabled = false;
+        button.textContent = label;
+    }
+}
+
 async function downloadUserAvatar(row) {
     const response = await fetch(`${API_BASE_URL}/api/admin/users/${encodeURIComponent(row.id)}/avatar`, {
         credentials: 'include'
@@ -768,6 +807,8 @@ async function downloadUserAvatar(row) {
 }
 
 function bind() {
+    const avatarsDownload = document.getElementById('user-avatars-download');
+    if (avatarsDownload) avatarsDownload.addEventListener('click', downloadAllAvatars);
     bindPhoneInput(document.getElementById('filter-phone'));
     bindPhoneInput(document.getElementById('user-filter-phone'));
     document.querySelectorAll('#view-requests .admin-tab').forEach(btn => {

@@ -26,6 +26,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
 from fastapi.staticfiles import StaticFiles
+from starlette.background import BackgroundTask
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from backend.database import (
@@ -48,6 +49,7 @@ from backend.membership import (
     approve_registration,
     authenticate,
     avatar_download,
+    avatars_archive,
     clear_user_avatar,
     cleanup_expired_sessions,
     delete_session_token,
@@ -1075,6 +1077,20 @@ def auth_delete_avatar(request: Request):
     except MembershipError as err:
         _raise_membership(err)
     return JSONResponse(content=profile, headers=_AUTH_NO_STORE)
+
+
+@app.get("/api/admin/avatars/export")
+def admin_export_avatars(request: Request):
+    _require_admin(request)
+    try:
+        path, filename = avatars_archive()
+    except MembershipError as err:
+        _raise_membership(err)
+    return FileResponse(
+        path=str(path), media_type="application/zip", filename=filename,
+        headers=_AUTH_NO_STORE,
+        background=BackgroundTask(path.unlink, missing_ok=True),
+    )
 
 
 @app.get("/api/admin/users")

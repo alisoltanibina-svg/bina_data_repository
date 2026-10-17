@@ -7,6 +7,7 @@ import io
 import logging
 import re
 import secrets
+import tempfile
 import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -1153,6 +1154,46 @@ def get_user_for_admin(user_id: int) -> dict:
         payload = public_profile(user)
         payload["revisions"] = _serialize_revisions(session, user_id)
         return payload
+
+
+def avatars_archive() -> tuple[Path, str]:
+    """Export current managed avatars, including inactive users, to a temporary ZIP."""
+    with db_session() as session:
+        rows = session.execute(
+            select(User.id, User.first_name, User.last_name, User.avatar_path)
+            .where(User.avatar_path.is_not(None))
+            .order_by(User.id)
+        ).all()
+    archive_path = None
+    try:
+        with tempfile.NamedTemporaryFile(prefix="bina-avatars-", suffix=".zip", delete=False) as output:
+            archive_path = Path(output.name)
+            count = 0
+            avatar_root = AVATAR_DIR.resolve()
+            # WebP images are already compressed; storing them avoids expensive recompression.
+            with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_STORED) as archive:
+                for row in rows:
+                    if not is_managed_path(row.avatar_path):
+                        continue
+                    basename = row.avatar_path.replace("\\", "/").rsplit("/", 1)[-1]
+                    image_path = (AVATAR_DIR / basename).resolve()
+                    if not image_path.is_relative_to(avatar_root) or not image_path.is_file():
+                        continue
+                    name = " ".join(part for part in (row.first_name, row.last_name) if part).strip()
+                    safe_name = re.sub(r"[^\w-]+", "_", name).strip("_")[:100] or "avatar"
+                    try:
+                        archive.write(image_path, arcname=f"{row.id}-{safe_name}.webp")
+                    except FileNotFoundError:
+                        # A profile update can remove an old avatar during export.
+                        continue
+                    count += 1
+            if not count:
+                raise MembershipError("not-found", "عکسی برای دانلود وجود ندارد.")
+        return archive_path, "avatars.zip"
+    except BaseException:
+        if archive_path is not None:
+            archive_path.unlink(missing_ok=True)
+        raise
 
 
 def avatar_download(user_id: int) -> tuple[Path, str]:
