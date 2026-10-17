@@ -198,13 +198,15 @@ function selectedProvinceBounds() {
 }
 
 const MAP_HOME_CENTER = [31.4279, 55.6880];
+// Neshan dreamy tiles are available from zoom 4 (SDK sourceOptions.minZoom).
+const MAP_MIN_ZOOM = 4;
 const MAP_HOME_ZOOM = 4.8;
 const MAP_MAX_ZOOM = 5.2;
 const MAP_WORLD_BOUNDS = [[-85, -180], [85, 180]];
 
 function worldMinZoom() {
     const width = (map && map.getSize && map.getSize().x) || (document.getElementById('map') && document.getElementById('map').clientWidth) || 1200;
-    return Math.max(2, Math.ceil(Math.log2(Math.max(width, 256) / 256)));
+    return Math.min(MAP_MAX_ZOOM, Math.max(MAP_MIN_ZOOM, Math.ceil(Math.log2(Math.max(width, 256) / 256))));
 }
 
 function lockSingleWorld() {
