@@ -1024,6 +1024,8 @@ async function initMap() {
         maxBounds: MAP_WORLD_BOUNDS,
         maxBoundsViscosity: 1.0
     }).setView(MAP_HOME_CENTER, MAP_HOME_ZOOM);
+    // Hide Leaflet's default branding/flag; retain Neshan's layer attribution.
+    map.attributionControl.setPrefix(false);
     map.on('click', clearSelection);
     requestAnimationFrame(() => {
         if (map && mapContainerHasSize()) {
