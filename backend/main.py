@@ -436,6 +436,20 @@ def _compute_atlas() -> dict:
     }
 
 
+@app.get("/api/maps/config")
+def get_map_config():
+    """Browser-visible Neshan web key; restrict its allowed domains in Neshan."""
+    key = get_settings().neshan_map_api_key.get_secret_value().strip()
+    headers = {"Cache-Control": "no-store"}
+    if not key:
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "Map service is not configured."},
+            headers=headers,
+        )
+    return JSONResponse(content={"key": key, "maptype": "dreamy"}, headers=headers)
+
+
 @app.get("/api/init-atlas")
 def get_atlas_data(request: Request):
     """Atlas bootstrap: topics, latest map scores, latest population."""

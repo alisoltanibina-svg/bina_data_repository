@@ -107,3 +107,25 @@ STATIC_ROOT=/opt/app/dist
 ```
 
 پس از استقرار، `dist/release.json` نسخهٔ فعال خروجی را نشان می‌دهد. هر تغییر واقعی در فایل عمومی، هش جدید می‌سازد و مرورگر URL جدید را بدون پاک‌کردن دستی کش دریافت می‌کند.
+
+
+## Neshan Atlas map
+
+Atlas uses Neshan's Leaflet SDK and the `dreamy` base map. Set the web map key
+in the deployment server's project `.env` (or service environment):
+
+```dotenv
+NESHAN_MAP_API_KEY=your_neshan_web_map_key
+```
+
+Enable the web map service in Neshan and authorize `app.rasadbina.ir`.
+The key is visible to browsers by design; restrict its allowed domains in Neshan.
+Deploy the backend and frontend changes together, run
+`python scripts/build_frontend.py`, and restart the existing Uvicorn service.
+No database migration is required. Environment variables override `.env`.
+
+Atlas retrieves the key from `/api/maps/config` with caching disabled. A missing
+key returns HTTP 503 and the map shows a loading error. After deployment, verify
+map tiles, province selection, popups, and zoom on desktop and mobile. If your
+server sets a Content Security Policy, allow `https://static.neshan.org` for SDK
+CSS/JS and the Neshan SDK's tile/image hosts.

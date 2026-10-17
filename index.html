@@ -20,11 +20,9 @@
         window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};
         plausible.init({ hashBasedRouting: true });
     </script>
-    <!-- Local Leaflet 1.9.4 (BSD-2-Clause; assets/vendor/leaflet/LICENSE). -->
-    <link rel="preload" href="assets/vendor/leaflet/leaflet.css" as="style">
-    <link rel="stylesheet" href="assets/vendor/leaflet/leaflet.css">
-    <link rel="preload" href="assets/vendor/leaflet/leaflet.js" as="script">
-    <script src="assets/vendor/leaflet/leaflet.js" defer></script>
+    <!-- Neshan SDK includes Leaflet 1.9.4; do not load a second Leaflet copy. -->
+    <link rel="stylesheet" href="https://static.neshan.org/sdk/leaflet/v1.9.4/neshan-sdk/v1.0.8/index.css">
+    <script src="https://static.neshan.org/sdk/leaflet/v1.9.4/neshan-sdk/v1.0.8/index.js" defer></script>
     <!-- Peyda (Farsi numerals) -->
     <link rel="stylesheet" href="assets/fonts/peyda.css">
     <!-- Page CSS -->

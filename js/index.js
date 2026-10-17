@@ -716,7 +716,17 @@ async function loadAllData() {
         const rightPanel = document.getElementById('right-panel');
         if (rightPanel) rightPanel.classList.add('show-panel');
         updateDefaultPanel();
-        initMap();
+        try {
+            await initMap();
+        } catch (err) {
+            console.error('Unable to initialize Atlas map:', err);
+            const target = document.getElementById('map');
+            if (target) {
+                target.textContent = 'بارگذاری نقشه ممکن نشد. لطفاً دوباره تلاش کنید.';
+                target.setAttribute('role', 'alert');
+            }
+            return;
+        }
 
         const geoRes = await fetch(SITE.staticFile('data/iran.geojson'));
         if (!geoRes.ok) throw new Error("GeoJSON not found");
@@ -993,8 +1003,19 @@ function clearSelection() {
     updateDefaultPanel();
 }
 
-function initMap() {
-    map = L.map('map', {
+async function initMap() {
+    if (typeof L === 'undefined') throw new Error('Neshan map SDK did not load.');
+    const response = await fetch(`${API_BASE_URL}/api/maps/config`, {
+        credentials: 'include', cache: 'no-store'
+    });
+    if (!response.ok) throw new Error(`Map configuration unavailable: ${response.status}`);
+    const config = await response.json();
+    if (typeof config.key !== 'string' || !config.key.trim()) {
+        throw new Error('Neshan map key is missing.');
+    }
+    map = new L.Map('map', {
+        key: config.key,
+        maptype: config.maptype,
         zoomSnap: 0.5,
         minZoom: worldMinZoom(),
         maxZoom: MAP_MAX_ZOOM,
@@ -1003,17 +1024,6 @@ function initMap() {
         maxBounds: MAP_WORLD_BOUNDS,
         maxBoundsViscosity: 1.0
     }).setView(MAP_HOME_CENTER, MAP_HOME_ZOOM);
-    // OSM tiles are often blocked in Iran. Google roadmap (Persian labels) is the stand-in.
-    // Transparent fallback so a missed tile does not show Leaflet's broken-image icon.
-    L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&hl=fa&x={x}&y={y}&z={z}', {
-        subdomains: ['0', '1', '2', '3'],
-        attribution: '&copy; Google',
-        maxZoom: 19,
-        noWrap: true,
-        bounds: MAP_WORLD_BOUNDS,
-        errorTileUrl: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
-    }).addTo(map);
-
     map.on('click', clearSelection);
     requestAnimationFrame(() => {
         if (map && mapContainerHasSize()) {

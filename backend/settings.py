@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     )
 
     database_url: SecretStr
+    neshan_map_api_key: SecretStr = SecretStr("")
     admin_phone: str = ""
     admin_password: SecretStr = SecretStr("")
     kavenegar_api_key: SecretStr = SecretStr("")
