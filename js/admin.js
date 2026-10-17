@@ -23,7 +23,7 @@ function normalizePhone(raw) {
 }
 
 async function adminFetch(path, options) {
-    const response = await fetch(`${API_BASE_URL}${path}`, Object.assign({ credentials: 'include' }, options || {}));
+    const response = await fetch(`${API_BASE_URL}${path}`, Object.assign({ credentials: 'include', cache: 'no-store' }, options || {}));
     if (response.status === 401 || response.status === 403) {
         window.location.href = SITE.page('index.html') + '#auth';
         throw new Error('auth');
@@ -106,6 +106,8 @@ const CHANGE_LABELS = {
 };
 
 const opsState = { range: 'daily', chartType: 'bar', trend: {}, chart: null, renderedChartType: '' };
+
+let userSelectionRequest = 0;
 
 const usersState = {
     rows: [],
@@ -442,6 +444,21 @@ function userThumbHtml(row) {
     return '<span class="admin-avatar is-empty">—</span>';
 }
 
+function userStatusBadge(active) {
+    if (active === false) return '<span class="admin-badge is-rejected">غیرفعال</span>';
+    if (active === true) return '<span class="admin-badge is-approved">فعال</span>';
+    return '<span class="admin-badge is-pending">نامشخص</span>';
+}
+
+function syncUserProfile(profile) {
+    const index = usersState.rows.findIndex(row => sameId(row.id, profile.id));
+    if (index >= 0) usersState.rows[index] = Object.assign({}, usersState.rows[index], profile);
+    if (sameId(usersState.selectedId, profile.id)) {
+        const previous = usersState.detail && sameId(usersState.detail.id, profile.id) ? usersState.detail : {};
+        usersState.detail = Object.assign({}, previous, profile);
+    }
+}
+
 function renderUsersTable() {
     const tbody = document.getElementById('users-tbody');
     const empty = document.getElementById('users-empty');
@@ -467,9 +484,7 @@ function renderUsersTable() {
             '<td><div class="admin-name">' + escapeHtml(displayName(row)) + '</div></td>' +
             '<td><span class="admin-phone">' + escapeHtml(row.phone || '') + '</span></td>' +
             '<td>' + escapeHtml(row.role_title || '—') + '</td>' +
-            '<td>' + (row.is_active === false
-                ? '<span class="admin-badge is-rejected">غیرفعال</span>'
-                : '<span class="admin-badge is-approved">فعال</span>') + '</td>' +
+            '<td>' + userStatusBadge(row.is_active) + '</td>' +
             '<td>' + (row.avatar_url ? 'دارد' : 'ندارد') + '</td>';
         frag.appendChild(tr);
     });
@@ -495,12 +510,11 @@ function renderUserDetail() {
     document.getElementById('user-detail-name').textContent = displayName(row);
     const statusWrap = document.getElementById('user-detail-status');
     if (statusWrap) {
-        statusWrap.innerHTML = row.is_active === false
-            ? '<span class="admin-badge is-rejected">غیرفعال</span>'
-            : '<span class="admin-badge is-approved">فعال</span>';
+        statusWrap.innerHTML = userStatusBadge(row.is_active);
     }
     const activeBtn = document.getElementById('user-active-btn');
     if (activeBtn) {
+        activeBtn.disabled = typeof row.is_active !== 'boolean';
         const inactive = row.is_active === false;
         activeBtn.textContent = inactive ? 'فعال کردن حساب' : 'غیرفعال کردن حساب';
         activeBtn.className = inactive ? 'admin-btn admin-btn-primary' : 'admin-btn admin-btn-danger';
@@ -566,21 +580,44 @@ function renderUsers() {
 
 async function loadUsers() {
     usersState.rows = await AdminApi.users();
-    if (usersState.selectedId) {
+    const selectedId = usersState.selectedId;
+    const selectionRequest = userSelectionRequest;
+    if (selectedId) {
         try {
-            usersState.detail = await AdminApi.user(usersState.selectedId);
+            const profile = await AdminApi.user(selectedId);
+            if (selectionRequest === userSelectionRequest && sameId(usersState.selectedId, selectedId)) {
+                syncUserProfile(profile);
+            }
         } catch (err) {
-            usersState.selectedId = null;
-            usersState.detail = null;
+            if (selectionRequest === userSelectionRequest && sameId(usersState.selectedId, selectedId)) {
+                usersState.selectedId = null;
+                usersState.detail = null;
+            }
+            throw err;
+        } finally {
+            renderUsers();
         }
+    } else {
+        renderUsers();
     }
-    renderUsers();
 }
 
 async function selectUser(id) {
+    const request = ++userSelectionRequest;
     usersState.selectedId = id;
-    usersState.detail = await AdminApi.user(id);
+    usersState.detail = null;
     renderUsers();
+    const profile = await AdminApi.user(id);
+    if (request !== userSelectionRequest || !sameId(usersState.selectedId, id)) return;
+    syncUserProfile(profile);
+    renderUsers();
+}
+
+async function refreshVisibleUsers() {
+    const view = document.getElementById('view-users');
+    if (document.visibilityState !== 'visible' || !view || view.hidden) return;
+    try { await loadUsers(); }
+    catch (err) { showNotice('بارگذاری وضعیت حساب‌ها ممکن نشد.'); }
 }
 
 function setAdminView(view) {
@@ -879,7 +916,7 @@ function bind() {
     const activeBtn = document.getElementById('user-active-btn');
     if (activeBtn) {
         activeBtn.addEventListener('click', () => {
-            if (!usersState.detail) return;
+            if (!usersState.detail || typeof usersState.detail.is_active !== 'boolean') return;
             openDialog(usersState.detail.is_active === false ? 'activate' : 'deactivate', usersState.detail);
         });
     }
@@ -907,6 +944,7 @@ function bind() {
 
 onReady(async () => {
     bind();
+    document.addEventListener('visibilitychange', refreshVisibleUsers);
     try {
         await loadRows();
     } catch (err) {
