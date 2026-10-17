@@ -21,6 +21,7 @@ the Nginx peer and have Nginx replace incoming X-Forwarded-For headers.
 from __future__ import annotations
 
 import json
+import logging
 import math
 import os
 import threading
@@ -31,6 +32,8 @@ from dataclasses import dataclass, field
 from fastapi import Request
 from fastapi.responses import Response
 from starlette.middleware.base import BaseHTTPMiddleware
+
+log = logging.getLogger("backend.ratelimit")
 
 JSON_MEDIA = "application/json"
 COOLDOWN_SECONDS = 2 * 60 * 60
@@ -147,6 +150,7 @@ class LimitDecision:
     remaining: int
     retry_after: int
     reset_unix: int
+    cooldown_started: bool = False
 
 
 class SlidingWindowStore:
@@ -215,6 +219,7 @@ class SlidingWindowStore:
                     remaining=0,
                     retry_after=COOLDOWN_SECONDS,
                     reset_unix=math.ceil(wall + COOLDOWN_SECONDS),
+                    cooldown_started=True,
                 )
             tightest: LimitDecision | None = None
             for quota, window, remaining in snapshots:
@@ -337,16 +342,25 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         quotas = [config.api, config.api_burst]
         if _is_expensive(path):
             quotas.extend((config.expensive, config.expensive_burst))
+        client_ip = _client_ip(request)
         try:
             decision = self.store.consume(
                 time.monotonic(),
-                _client_ip(request),
+                client_ip,
                 quotas,
             )
         except Exception:
             return await call_next(request)
 
         if not decision.allowed:
+            if decision.cooldown_started:
+                log.warning(
+                    "rate_limit_cooldown_started client_ip=%s path=%s quota=%s "
+                    "limit=%s window_seconds=%s retry_after_seconds=%s forwarded_for_present=%s",
+                    client_ip, path, decision.quota.name, decision.quota.limit,
+                    decision.quota.window, decision.retry_after,
+                    bool(request.headers.get("x-forwarded-for")),
+                )
             return _reject(decision)
 
         response = await call_next(request)

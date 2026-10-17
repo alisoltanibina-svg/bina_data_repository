@@ -280,8 +280,9 @@
         }
         applyProfile(readBannerProfile());
         loadProfile();
-        window.addEventListener('pageshow', function () {
-            loadProfile();
+        window.addEventListener('pageshow', function (event) {
+            // Startup already checks the session; refresh only on back/forward cache restore.
+            if (event.persisted) loadProfile();
         });
         window.addEventListener('bina-session-changed', loadProfile);
         bindGatedNav();

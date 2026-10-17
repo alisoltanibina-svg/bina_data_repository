@@ -129,3 +129,18 @@ key returns HTTP 503 and the map shows a loading error. After deployment, verify
 map tiles, province selection, popups, and zoom on desktop and mobile. If your
 server sets a Content Security Policy, allow `https://static.neshan.org` for SDK
 CSS/JS and the Neshan SDK's tile/image hosts.
+
+
+### Diagnosing unexpected API rate limits
+
+A new IP cooldown logs one `rate_limit_cooldown_started` warning containing the
+resolved client IP, triggering API path, quota, limit, window, and retry delay.
+Inspect the Uvicorn service journal for this warning. Rejected requests during
+an existing cooldown do not repeat the warning or extend the ban.
+
+If unrelated visitors are logged as `127.0.0.1` or one proxy IP, inspect Nginx's
+forwarded headers and Uvicorn's trusted proxy configuration before raising
+quotas. If a CDN sits in front of Nginx, its real-IP configuration also needs to
+be verified. Do not trust arbitrary forwarded headers from the public internet.
+Rate-limit settings currently read the process environment; a project `.env`
+entry only affects them if the service also loads it as an environment file.
