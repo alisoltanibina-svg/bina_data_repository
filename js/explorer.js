@@ -82,6 +82,7 @@ let explorerMapInitPromise = null;
 let explorerMapGeoLayer = null;
 let explorerMapLabelsLayer = null;
 let explorerMapFitted = false;
+let explorerSelectedProvince = null;
 let explorerMapBounds = null;
 
 let isBulkAction = true; 
@@ -523,6 +524,7 @@ async function loadIndicator(indicatorName, topicName) {
         currentChartYears = uniqueYears;
         stopExplorerMapPlayback();
         explorerMapYearIndex = Math.max(0, uniqueYears.length - 1);
+        explorerSelectedProvince = null;
         if (latestYearGlob == null && uniqueYears.length) latestYearGlob = uniqueYears[uniqueYears.length - 1];
 
         if(uniqueYears.length > 0) {
@@ -1113,19 +1115,35 @@ function renderExplorerMap() {
     if (explorerMapGeoLayer) explorerMapGeoLayer.remove();
     if (explorerMapLabelsLayer) explorerMapLabelsLayer.remove();
     explorerMapLabelsLayer = L.layerGroup().addTo(map);
+    const provinceStyle = feature => {
+        const name = feature.properties && (feature.properties.ProvincNam || feature.properties.ADM1_FA || feature.properties.Name);
+        const key = normalizeMapProvinceName(name);
+        const selected = key === explorerSelectedProvince;
+        return {
+            color: selected ? '#881337' : '#ffffff', weight: selected ? 3 : 1.25,
+            opacity: 1, fillColor: selected ? '#e11d48' : mapColorForScore(scores.get(key), min, max),
+            fillOpacity: selected ? 0.9 : 0.78
+        };
+    };
     explorerMapGeoLayer = L.geoJSON(explorerMapGeoJson, {
-        style: feature => {
-            const name = feature.properties && (feature.properties.ProvincNam || feature.properties.ADM1_FA || feature.properties.Name);
-            return { color: '#ffffff', weight: 1.25, opacity: 1, fillColor: mapColorForScore(scores.get(normalizeMapProvinceName(name)), min, max), fillOpacity: 0.78 };
-        },
+        style: provinceStyle,
         onEachFeature: (feature, layer) => {
             const name = (feature.properties && (feature.properties.ProvincNam || feature.properties.ADM1_FA || feature.properties.Name)) || '';
+            layer.on('click', () => {
+                explorerSelectedProvince = normalizeMapProvinceName(name);
+                explorerMapGeoLayer.setStyle(provinceStyle);
+                layer.bringToFront();
+            });
             const score = scores.get(normalizeMapProvinceName(name));
             const scoreText = Number.isFinite(score) ? `امتیاز: ${toFaFixed(score, 2)}` : 'داده‌ای ثبت نشده است';
             layer.bindTooltip(`${escapeMapLabel(name)}<br>${scoreText}`, { sticky: true, direction: 'top', className: 'explorer-score-tooltip' });
             explorerProvinceLabel(name, feature).addTo(explorerMapLabelsLayer);
         }
     }).addTo(map);
+    explorerMapGeoLayer.eachLayer(layer => {
+        const properties = layer.feature.properties || {};
+        if (normalizeMapProvinceName(properties.ProvincNam || properties.ADM1_FA || properties.Name) === explorerSelectedProvince) layer.bringToFront();
+    });
     updateExplorerMapLegend(min, max, allValues.length > 0);
     updateExplorerMapTimeline();
     setExplorerMapStatus('', false);
