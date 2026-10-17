@@ -78,6 +78,7 @@ let explorerMapLoadPromise = null;
 let explorerMapYearIndex = 0;
 let explorerMapPlaybackTimer = null;
 let explorerLeafletMap = null;
+let explorerMapInitPromise = null;
 let explorerMapGeoLayer = null;
 let explorerMapLabelsLayer = null;
 let explorerMapFitted = false;
@@ -1021,16 +1022,32 @@ function explorerProvinceLabel(name, feature) {
 }
 
 function initExplorerLeafletMap() {
-    if (explorerLeafletMap) return explorerLeafletMap;
-    if (typeof L === 'undefined') throw new Error('Leaflet did not load.');
-    const target = document.getElementById('explorer-leaflet-map');
-    if (!target) throw new Error('Explorer map container is missing.');
-    explorerLeafletMap = L.map(target, { zoomControl: true, scrollWheelZoom: true, doubleClickZoom: true, touchZoom: true, boxZoom: true, keyboard: true, attributionControl: true, minZoom: 4, maxZoom: 9, zoomSnap: 0.25 }).setView([32, 53], 5);
-    L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&hl=fa&x={x}&y={y}&z={z}', { subdomains: ['0', '1', '2', '3'], maxZoom: 19, noWrap: true, attribution: '&copy; Google', errorTileUrl: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7' }).addTo(explorerLeafletMap);
-    explorerLeafletMap.on('zoomend', () => {
-        if (explorerMapFitted && currentChartMode === 'map' && explorerMapGeoJson) requestAnimationFrame(renderExplorerMap);
-    });
-    return explorerLeafletMap;
+    if (explorerLeafletMap) return Promise.resolve(explorerLeafletMap);
+    if (explorerMapInitPromise) return explorerMapInitPromise;
+    explorerMapInitPromise = (async () => {
+        if (typeof L === 'undefined') throw new Error('Neshan map SDK did not load.');
+        const target = document.getElementById('explorer-leaflet-map');
+        if (!target) throw new Error('Explorer map container is missing.');
+        const response = await fetch(`${API_BASE_URL}/api/maps/config`, {
+            credentials: 'include', cache: 'no-store'
+        });
+        if (!response.ok) throw new Error(`Map configuration unavailable: ${response.status}`);
+        const config = await response.json();
+        if (typeof config.key !== 'string' || !config.key.trim()) throw new Error('Neshan map key is missing.');
+        explorerLeafletMap = new L.Map(target, {
+            key: config.key, maptype: config.maptype,
+            zoomControl: true, scrollWheelZoom: true, doubleClickZoom: true,
+            touchZoom: true, boxZoom: true, keyboard: true, attributionControl: true,
+            // Neshan dreamy tiles are available from zoom 4.
+            minZoom: 4, maxZoom: 9, zoomSnap: 0.25
+        }).setView([32, 53], 5);
+        explorerLeafletMap.attributionControl.setPrefix(false);
+        explorerLeafletMap.on('zoomend', () => {
+            if (explorerMapFitted && currentChartMode === 'map' && explorerMapGeoJson) requestAnimationFrame(renderExplorerMap);
+        });
+        return explorerLeafletMap;
+    })().catch(error => { explorerMapInitPromise = null; throw error; });
+    return explorerMapInitPromise;
 }
 
 function updateExplorerMapTimeline() {
@@ -1072,16 +1089,15 @@ function toggleExplorerMapPlayback() {
 
 function renderExplorerMap() {
     if (!currentChartYears.length) { setExplorerMapStatus('برای این شاخص، دادهٔ سالانه‌ای موجود نیست.', true); return; }
-    if (!explorerMapGeoJson) {
+    if (!explorerMapGeoJson || !explorerLeafletMap) {
         setExplorerMapStatus('در حال بارگذاری نقشه...', true);
-        ensureExplorerMapGeoJson().then(() => { if (currentChartMode === 'map') renderExplorerMap(); }).catch(error => {
+        ensureExplorerMapGeoJson().then(() => initExplorerLeafletMap()).then(() => { if (currentChartMode === 'map') renderExplorerMap(); }).catch(error => {
             console.error('Unable to load Explorer map data', error);
             if (currentChartMode === 'map') setExplorerMapStatus('بارگذاری نقشه ممکن نشد. لطفاً صفحه را دوباره بارگذاری کنید.', true);
         });
         return;
     }
-    let map;
-    try { map = initExplorerLeafletMap(); } catch (error) { console.error('Unable to initialize Explorer map', error); setExplorerMapStatus('راه‌اندازی نقشه ممکن نشد.', true); return; }
+    const map = explorerLeafletMap;
     explorerMapYearIndex = Math.min(Math.max(explorerMapYearIndex, 0), currentChartYears.length - 1);
     const year = currentChartYears[explorerMapYearIndex], scores = new Map();
     kscoreData.forEach(record => {
