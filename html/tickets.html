@@ -18,7 +18,7 @@
    <h2>تیکت جدید</h2>
    <form id="my-ticket-create-form">
     <label>در کدام بخش مشکل دارید؟<select id="my-ticket-category" name="category"><option value="atlas">اطلس</option><option value="explorer">کاوشگر</option><option value="profile">پروفایل</option><option value="account">حساب کاربری</option><option value="login">ورود</option><option value="register">ثبت‌نام</option><option value="reset">بازیابی رمز</option><option value="otp">کد پیامک</option><option value="other">سایر موارد</option></select></label>
-    <label>عنوان کوتاه<input id="my-ticket-subject" name="subject" minlength="3" maxlength="160" required></label>
+    <label>عنوان کوتاه<input id="my-ticket-subject" name="subject" minlength="3" maxlength="160" required autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></label>
     <label>شرح مشکل<textarea id="my-ticket-message" name="message" rows="5" maxlength="4000" required></textarea></label>
     <div class="account-ticket-actions"><button type="submit" id="my-ticket-submit" class="support-button">ثبت تیکت</button><button type="button" id="my-ticket-cancel" class="support-button secondary">انصراف</button></div>
    </form>
