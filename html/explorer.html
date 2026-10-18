@@ -117,7 +117,15 @@
                             <canvas id="mainChart"></canvas>
                         </div>
                         <div id="compare-chart-wrap" class="chart-pane">
-                            <canvas id="scatterProvinceChart"></canvas>
+                            <div class="explorer-compare-canvas"><canvas id="scatterProvinceChart"></canvas></div>
+                            <div class="explorer-compare-controls">
+                                <label class="explorer-map-timeline" for="explorer-compare-timeline">
+                                    <span class="explorer-map-timeline-track">
+                                        <input id="explorer-compare-timeline" type="range" min="0" max="0" step="1" value="0" aria-label="انتخاب سال مقایسه استان‌ها">
+                                        <span id="explorer-compare-timeline-value">—</span>
+                                    </span>
+                                </label>
+                            </div>
                         </div>
                         <div id="table-chart-wrap" class="chart-pane">
                             <div class="indicator-table-scroll" tabindex="0" aria-label="جدول امتیاز استان‌ها بر اساس سال">

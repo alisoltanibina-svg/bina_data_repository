@@ -77,6 +77,7 @@ let latestScoresGlob = [];
 let explorerMapGeoJson = null;
 let explorerMapLoadPromise = null;
 let explorerMapYearIndex = 0;
+let explorerCompareYearIndex = 0;
 let explorerMapPlaybackTimer = null;
 let explorerLeafletMap = null;
 let explorerMapInitPromise = null;
@@ -578,6 +579,7 @@ async function loadIndicator(indicatorName, topicName) {
         currentChartYears = uniqueYears;
         stopExplorerMapPlayback();
         explorerMapYearIndex = Math.max(0, uniqueYears.length - 1);
+        explorerCompareYearIndex = Math.max(0, uniqueYears.length - 1);
         explorerSelectedProvince = null;
         if (latestYearGlob == null && uniqueYears.length) latestYearGlob = uniqueYears[uniqueYears.length - 1];
 
@@ -713,8 +715,9 @@ function setChartMode(mode) {
     setProvinceFilterEnabled(currentChartMode === 'trend');
     if (title) {
         if (currentChartMode === 'compare') {
-            const yearTxt = latestYearGlob != null ? ` — سال ${toFa(latestYearGlob)}` : '';
-            title.textContent = `مقایسه استانی آخرین سال${yearTxt}`;
+            const year = getComparisonYear();
+            const yearTxt = year != null ? ` — سال ${toFa(year)}` : '';
+            title.textContent = `مقایسه استانی${yearTxt}`;
         } else if (currentChartMode === 'table') title.textContent = 'جدول امتیاز استان‌ها بر اساس سال';
         else if (currentChartMode === 'map') title.textContent = 'پراکندگی جغرافیایی امتیاز استان‌ها';
         else title.textContent = 'روند تغییرات زمانی شاخص';
@@ -729,25 +732,54 @@ function setChartMode(mode) {
 }
 let scatterPointsCache = [];
 
-function getLatestPoints() {
-    let rows = Array.isArray(latestScoresGlob) ? latestScoresGlob.slice() : [];
-    if (!rows.length && latestYearGlob != null) {
-        rows = kscoreData.filter(d => Number(d.year) === latestYearGlob && d.province_name !== 'کل کشور');
+function getComparisonYear() {
+    if (!currentChartYears.length) return latestYearGlob;
+    explorerCompareYearIndex = Math.min(Math.max(explorerCompareYearIndex, 0), currentChartYears.length - 1);
+    return currentChartYears[explorerCompareYearIndex];
+}
+
+function updateComparisonTimeline() {
+    const timeline = document.getElementById('explorer-compare-timeline');
+    const label = document.getElementById('explorer-compare-timeline-value');
+    const year = getComparisonYear();
+    if (timeline && label) {
+        const last = Math.max(0, currentChartYears.length - 1);
+        timeline.max = String(last);
+        timeline.value = String(explorerCompareYearIndex);
+        timeline.disabled = currentChartYears.length < 2;
+        label.textContent = year != null ? toFa(year) : '—';
+        timeline.setAttribute('aria-valuetext', label.textContent);
+        label.style.left = (last ? explorerCompareYearIndex / last * 100 : 0) + '%';
     }
-    const byProv = {};
-    rows.forEach(r => {
-        const val = Number(r.value);
-        if (isFinite(val)) byProv[r.province_name] = val;
+    const title = document.getElementById('chart-panel-title');
+    if (title && currentChartMode === 'compare') {
+        title.textContent = 'مقایسه استانی' + (year != null ? ` — سال ${toFa(year)}` : '');
+    }
+}
+
+function getComparisonPoints() {
+    const year = getComparisonYear();
+    let rows = kscoreData.filter(record => year != null && Number(record.year) === Number(year));
+    if (!rows.length && year != null && Number(year) === Number(latestYearGlob)) {
+        rows = Array.isArray(latestScoresGlob) ? latestScoresGlob : [];
+    }
+    const byProv = new Map();
+    rows.forEach(record => {
+        const raw = record.value;
+        if (typeof raw !== 'number' && typeof raw !== 'string') return;
+        if (typeof raw === 'string' && !raw.trim()) return;
+        const value = Number(raw);
+        if (Number.isFinite(value)) byProv.set(record.province_name, value);
     });
-    return provincesList
-        .filter(p => byProv[p] != null)
-        .map(p => ({ name: p, value: byProv[p] }));
+    return provincesList.filter(name => normalizeMapProvinceName(name) !== NATIONAL_PROVINCE_KEY && byProv.has(name))
+        .map(name => ({ name, value: byProv.get(name) }));
 }
 
 function drawScatterProvince() {
     const canvas = document.getElementById('scatterProvinceChart');
     if (!canvas) return;
-    const points = getLatestPoints();
+    updateComparisonTimeline();
+    const points = getComparisonPoints();
     scatterPointsCache = points;
     const bubbleR = window.matchMedia('(max-width: 767px)').matches ? 8 : 24;
     // Keep an entire bubble-width inside the chart at both horizontal edges.
@@ -761,7 +793,7 @@ function drawScatterProvince() {
         scatterProvinceChart.data.datasets[0].backgroundColor = colors;
         scatterProvinceChart.options.scales.x.min = scatterXMin;
         scatterProvinceChart.options.scales.x.max = scatterXMax;
-        scatterProvinceChart.update();
+        scatterProvinceChart.update('none');
         return;
     }
 
@@ -1399,6 +1431,11 @@ function bindExplorerChrome() {
     if (map) map.addEventListener('click', () => setChartMode('map'));
     const mapPlay = document.getElementById('btn-explorer-map-play');
     if (mapPlay) mapPlay.addEventListener('click', toggleExplorerMapPlayback);
+    const compareTimeline = document.getElementById('explorer-compare-timeline');
+    if (compareTimeline) compareTimeline.addEventListener('input', () => {
+        explorerCompareYearIndex = Number(compareTimeline.value);
+        if (currentChartMode === 'compare') drawScatterProvince();
+    });
     const mapTimeline = document.getElementById('explorer-map-timeline');
     if (mapTimeline) mapTimeline.addEventListener('input', () => {
         stopExplorerMapPlayback();

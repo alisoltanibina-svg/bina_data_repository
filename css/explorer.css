@@ -524,6 +524,10 @@ body.explorer-body {
     height: 100% !important;
 }
 
+#compare-chart-wrap.is-active { display: flex; flex-direction: column; }
+.explorer-compare-canvas { position: relative; flex: 1 1 auto; min-height: 0; }
+.explorer-compare-controls { flex: 0 0 auto; padding: 22px 12px 10px; }
+
 #table-chart-wrap { overflow: hidden; }
 
 #map-chart-wrap { overflow: hidden; border: 1px solid #e2e8f0; border-radius: 14px; background: linear-gradient(145deg, #fcfdf9, #f4f6ed); }
@@ -593,7 +597,8 @@ body.explorer-body {
 .explorer-map-timeline-track { position: relative; display: block; width: 100%; height: 24px; }
 .explorer-map-timeline input { direction: ltr; position: absolute; inset: 0; width: 100%; height: 24px; margin: 0; accent-color: #515811; cursor: pointer; }
 .explorer-map-timeline input:disabled { cursor: default; opacity: .45; }
-#explorer-map-timeline-value { position: absolute; top: -17px; z-index: 1; min-width: 34px; padding: 2px 5px 1px; border-radius: 999px; background: #515811; color: #fff; direction: rtl; font-family: PeydaFaNumWeb, Peyda, sans-serif; font-size: .62rem; font-weight: 700; line-height: 1.2; text-align: center; transform: translateX(-50%); pointer-events: none; }
+#explorer-map-timeline-value,
+#explorer-compare-timeline-value { position: absolute; top: -17px; z-index: 1; min-width: 34px; padding: 2px 5px 1px; border-radius: 999px; background: #515811; color: #fff; direction: rtl; font-family: PeydaFaNumWeb, Peyda, sans-serif; font-size: .62rem; font-weight: 700; line-height: 1.2; text-align: center; transform: translateX(-50%); pointer-events: none; }
 .explorer-map-play {
     grid-column: 1;
     grid-row: 1;
