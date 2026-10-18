@@ -100,9 +100,18 @@
                             <span>حساب من</span>
                         </a>
                         <div class="entry-launch-row">
-                            <a class="entry-ghost-btn" href="html/support.html" target="_blank" rel="noopener">پشتیبانی و پیگیری تیکت</a>
+                            <button type="button" class="entry-ghost-btn" id="entry-contact-toggle" aria-expanded="false" aria-controls="entry-contact-popover">ارتباط با ما</button>
                             <span class="entry-launch-split" aria-hidden="true"></span>
                             <a class="entry-ghost-btn" href="https://www.rasadbina.ir/about-us/" target="_blank" rel="noopener noreferrer">درباره ما</a>
+                        </div>
+                        <div class="entry-contact-popover" id="entry-contact-popover" hidden>
+                            <div class="entry-contact-actions" aria-label="راه‌های ارتباطی">
+                                <button type="button" class="entry-contact-icon" data-contact-detail="address" aria-label="نشانی"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10.5c0 5.1-8 11-8 11s-8-5.9-8-11a8 8 0 1 1 16 0Z"></path><circle cx="12" cy="10.5" r="2.75"></circle></svg></button>
+                                <button type="button" class="entry-contact-icon" data-contact-detail="phone" aria-label="تلفن"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.6 2.9 9.4 6l-1.8 2.8c1.1 2.3 3 4.2 5.3 5.3l2.8-1.8 3.1 2.8-1.2 4.1c-.3.9-1.2 1.5-2.2 1.4C8.2 19.7 4.3 15.8 3.4 8.6c-.1-1 .5-1.9 1.4-2.2Z"></path></svg></button>
+                                <button type="button" class="entry-contact-icon" data-contact-detail="email" aria-label="ایمیل"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="m4 7 8 6 8-6"></path></svg></button>
+                                <button type="button" class="entry-contact-icon" data-contact-detail="mailbox" aria-label="صندوق پستی"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V9a5 5 0 0 1 10 0v10"></path><path d="M14 11h4a2 2 0 0 1 2 2v6H4"></path><path d="M4 15h16"></path><path d="M8 9h3"></path></svg></button>
+                            </div>
+                            <p class="entry-contact-detail" id="entry-contact-detail" aria-live="polite"></p>
                         </div>
                     </div>
                     <div class="entry-auth-stage" id="entry-auth-stage" hidden>
@@ -120,7 +129,7 @@
                                 </label>
                                 <button type="submit" class="register-submit" id="gate-submit">ادامه</button>
                             </form>
-                        <div class="auth-feedback" data-auth-feedback role="alert" hidden><p data-auth-message></p><small data-auth-reference></small><p data-auth-wait aria-live="polite"></p><button type="button" data-auth-recover hidden>بازیابی رمز با پیامک</button><button type="button" data-auth-dismiss>بستن پیام</button></div><p class="auth-support-help">در ورود یا عضویت مشکلی دارید؟ <a data-auth-support href="html/support.html" target="_blank" rel="noopener">ثبت و پیگیری تیکت پشتیبانی</a><small>بدون نیاز به ورود؛ پاسخ در صفحه پیگیری تیکت.</small></p></section>
+                        <div class="auth-feedback" data-auth-feedback role="alert" hidden><p data-auth-message></p><small data-auth-reference></small><p data-auth-wait aria-live="polite"></p><button type="button" data-auth-recover hidden>بازیابی رمز با پیامک</button><button type="button" data-auth-dismiss>بستن پیام</button></div><p class="auth-support-help">در ورود یا عضویت مشکلی دارید؟ <a data-auth-support href="html/support.html" target="_blank" rel="noopener">ثبت و پیگیری تیکت پشتیبانی</a></p></section>
                         <section class="register-card" id="auth-login" hidden>
                             <button type="button" class="auth-back-fab" data-auth-back aria-label="بازگشت">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
@@ -152,7 +161,7 @@
                             <p class="register-hint">
                                 <button type="button" class="auth-back" id="forgot-password">فراموشی رمز عبور</button>
                             </p>
-                        <div class="auth-feedback" data-auth-feedback role="alert" hidden><p data-auth-message></p><small data-auth-reference></small><p data-auth-wait aria-live="polite"></p><button type="button" data-auth-recover hidden>بازیابی رمز با پیامک</button><button type="button" data-auth-dismiss>بستن پیام</button></div><p class="auth-support-help">در ورود یا عضویت مشکلی دارید؟ <a data-auth-support href="html/support.html" target="_blank" rel="noopener">ثبت و پیگیری تیکت پشتیبانی</a><small>بدون نیاز به ورود؛ پاسخ در صفحه پیگیری تیکت.</small></p></section>
+                        <div class="auth-feedback" data-auth-feedback role="alert" hidden><p data-auth-message></p><small data-auth-reference></small><p data-auth-wait aria-live="polite"></p><button type="button" data-auth-recover hidden>بازیابی رمز با پیامک</button><button type="button" data-auth-dismiss>بستن پیام</button></div><p class="auth-support-help">در ورود یا عضویت مشکلی دارید؟ <a data-auth-support href="html/support.html" target="_blank" rel="noopener">ثبت و پیگیری تیکت پشتیبانی</a></p></section>
                         <section class="register-card" id="auth-reset-captcha" hidden>
                             <button type="button" class="auth-back-fab" data-auth-back aria-label="بازگشت">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
@@ -174,7 +183,7 @@
                                 </div>
                                 <button type="submit" class="register-submit" id="reset-captcha-submit">ارسال کد بازیابی</button>
                             </form>
-                        <div class="auth-feedback" data-auth-feedback role="alert" hidden><p data-auth-message></p><small data-auth-reference></small><p data-auth-wait aria-live="polite"></p><button type="button" data-auth-recover hidden>بازیابی رمز با پیامک</button><button type="button" data-auth-dismiss>بستن پیام</button></div><p class="auth-support-help">در ورود یا عضویت مشکلی دارید؟ <a data-auth-support href="html/support.html" target="_blank" rel="noopener">ثبت و پیگیری تیکت پشتیبانی</a><small>بدون نیاز به ورود؛ پاسخ در صفحه پیگیری تیکت.</small></p></section>
+                        <div class="auth-feedback" data-auth-feedback role="alert" hidden><p data-auth-message></p><small data-auth-reference></small><p data-auth-wait aria-live="polite"></p><button type="button" data-auth-recover hidden>بازیابی رمز با پیامک</button><button type="button" data-auth-dismiss>بستن پیام</button></div><p class="auth-support-help">در ورود یا عضویت مشکلی دارید؟ <a data-auth-support href="html/support.html" target="_blank" rel="noopener">ثبت و پیگیری تیکت پشتیبانی</a></p></section>
                         <section class="register-card" id="auth-otp" hidden>
                             <button type="button" class="auth-back-fab" data-auth-back aria-label="بازگشت">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
@@ -200,8 +209,8 @@
                             <p class="register-hint" id="otp-resend-wrap">
                                 <button type="button" class="auth-back" id="otp-resend">ارسال دوباره</button>
                             </p>
-                            <p class="register-hint">اگر کد نرسید، شماره بالا و دریافت پیامک را بررسی کنید. پس از پایان شمارش، «ارسال دوباره» را بزنید؛ اگر مشکل ادامه داشت تیکت ثبت کنید. کد را با دیگران به اشتراک نگذارید.</p>
-                        <div class="auth-feedback" data-auth-feedback role="alert" hidden><p data-auth-message></p><small data-auth-reference></small><p data-auth-wait aria-live="polite"></p><button type="button" data-auth-recover hidden>بازیابی رمز با پیامک</button><button type="button" data-auth-dismiss>بستن پیام</button></div><p class="auth-support-help">در ورود یا عضویت مشکلی دارید؟ <a data-auth-support href="html/support.html" target="_blank" rel="noopener">ثبت و پیگیری تیکت پشتیبانی</a><small>بدون نیاز به ورود؛ پاسخ در صفحه پیگیری تیکت.</small></p></section>
+                            <p class="register-hint">درصورت دریافت نکردن پیامک، از صحت شماره تلفن اطمینان حاصل کنید و پس از پایان شمارش، «ارسال دوباره» را بزنید.</p>
+                        <div class="auth-feedback" data-auth-feedback role="alert" hidden><p data-auth-message></p><small data-auth-reference></small><p data-auth-wait aria-live="polite"></p><button type="button" data-auth-recover hidden>بازیابی رمز با پیامک</button><button type="button" data-auth-dismiss>بستن پیام</button></div><p class="auth-support-help">در ورود یا عضویت مشکلی دارید؟ <a data-auth-support href="html/support.html" target="_blank" rel="noopener">ثبت و پیگیری تیکت پشتیبانی</a></p></section>
                         <section class="register-card" id="auth-reset" hidden>
                             <button type="button" class="auth-back-fab" data-auth-back aria-label="بازگشت">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
@@ -224,7 +233,7 @@
                                 </label>
                                 <button type="submit" class="register-submit" id="reset-submit">ذخیره و ورود</button>
                             </form>
-                        <div class="auth-feedback" data-auth-feedback role="alert" hidden><p data-auth-message></p><small data-auth-reference></small><p data-auth-wait aria-live="polite"></p><button type="button" data-auth-recover hidden>بازیابی رمز با پیامک</button><button type="button" data-auth-dismiss>بستن پیام</button></div><p class="auth-support-help">در ورود یا عضویت مشکلی دارید؟ <a data-auth-support href="html/support.html" target="_blank" rel="noopener">ثبت و پیگیری تیکت پشتیبانی</a><small>بدون نیاز به ورود؛ پاسخ در صفحه پیگیری تیکت.</small></p></section>
+                        <div class="auth-feedback" data-auth-feedback role="alert" hidden><p data-auth-message></p><small data-auth-reference></small><p data-auth-wait aria-live="polite"></p><button type="button" data-auth-recover hidden>بازیابی رمز با پیامک</button><button type="button" data-auth-dismiss>بستن پیام</button></div><p class="auth-support-help">در ورود یا عضویت مشکلی دارید؟ <a data-auth-support href="html/support.html" target="_blank" rel="noopener">ثبت و پیگیری تیکت پشتیبانی</a></p></section>
                         <section class="register-card register-card-wide" id="auth-register" hidden>
                             <button type="button" class="auth-back-fab" data-auth-back aria-label="بازگشت">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
@@ -287,7 +296,7 @@
                                 </div>
                                 <button type="submit" class="register-submit" id="register-submit">ورود</button>
                             </form>
-                        <div class="auth-feedback" data-auth-feedback role="alert" hidden><p data-auth-message></p><small data-auth-reference></small><p data-auth-wait aria-live="polite"></p><button type="button" data-auth-recover hidden>بازیابی رمز با پیامک</button><button type="button" data-auth-dismiss>بستن پیام</button></div><p class="auth-support-help">در ورود یا عضویت مشکلی دارید؟ <a data-auth-support href="html/support.html" target="_blank" rel="noopener">ثبت و پیگیری تیکت پشتیبانی</a><small>بدون نیاز به ورود؛ پاسخ در صفحه پیگیری تیکت.</small></p></section>
+                        <div class="auth-feedback" data-auth-feedback role="alert" hidden><p data-auth-message></p><small data-auth-reference></small><p data-auth-wait aria-live="polite"></p><button type="button" data-auth-recover hidden>بازیابی رمز با پیامک</button><button type="button" data-auth-dismiss>بستن پیام</button></div><p class="auth-support-help">در ورود یا عضویت مشکلی دارید؟ <a data-auth-support href="html/support.html" target="_blank" rel="noopener">ثبت و پیگیری تیکت پشتیبانی</a></p></section>
                         <section class="register-card" id="auth-status" hidden>
                             <button type="button" class="auth-back-fab" data-auth-back aria-label="بازگشت">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
@@ -295,12 +304,12 @@
                             <p class="register-kicker">حساب کاربری</p>
                             <h1 id="auth-status-title"></h1>
                             <p class="register-lead" id="auth-status-text"></p>
-                        <div class="auth-feedback" data-auth-feedback role="alert" hidden><p data-auth-message></p><small data-auth-reference></small><p data-auth-wait aria-live="polite"></p><button type="button" data-auth-recover hidden>بازیابی رمز با پیامک</button><button type="button" data-auth-dismiss>بستن پیام</button></div><p class="auth-support-help">در ورود یا عضویت مشکلی دارید؟ <a data-auth-support href="html/support.html" target="_blank" rel="noopener">ثبت و پیگیری تیکت پشتیبانی</a><small>بدون نیاز به ورود؛ پاسخ در صفحه پیگیری تیکت.</small></p></section>
+                        <div class="auth-feedback" data-auth-feedback role="alert" hidden><p data-auth-message></p><small data-auth-reference></small><p data-auth-wait aria-live="polite"></p><button type="button" data-auth-recover hidden>بازیابی رمز با پیامک</button><button type="button" data-auth-dismiss>بستن پیام</button></div><p class="auth-support-help">در ورود یا عضویت مشکلی دارید؟ <a data-auth-support href="html/support.html" target="_blank" rel="noopener">ثبت و پیگیری تیکت پشتیبانی</a></p></section>
                         <section class="register-card register-done" id="auth-done" hidden>
                             <p class="register-kicker">درخواست ثبت شد</p>
                             <h1>در انتظار بررسی</h1>
                             <p class="register-lead" id="auth-done-text"></p>
-                        <div class="auth-feedback" data-auth-feedback role="alert" hidden><p data-auth-message></p><small data-auth-reference></small><p data-auth-wait aria-live="polite"></p><button type="button" data-auth-recover hidden>بازیابی رمز با پیامک</button><button type="button" data-auth-dismiss>بستن پیام</button></div><p class="auth-support-help">در ورود یا عضویت مشکلی دارید؟ <a data-auth-support href="html/support.html" target="_blank" rel="noopener">ثبت و پیگیری تیکت پشتیبانی</a><small>بدون نیاز به ورود؛ پاسخ در صفحه پیگیری تیکت.</small></p></section>
+                        <div class="auth-feedback" data-auth-feedback role="alert" hidden><p data-auth-message></p><small data-auth-reference></small><p data-auth-wait aria-live="polite"></p><button type="button" data-auth-recover hidden>بازیابی رمز با پیامک</button><button type="button" data-auth-dismiss>بستن پیام</button></div><p class="auth-support-help">در ورود یا عضویت مشکلی دارید؟ <a data-auth-support href="html/support.html" target="_blank" rel="noopener">ثبت و پیگیری تیکت پشتیبانی</a></p></section>
                     </div>
                 </div>
                 </div>

@@ -147,9 +147,11 @@ entry only affects them if the service also loads it as an environment file.
 
 ## Ticket-only authentication support
 
-`html/support.html` is public and accessible from the home page and every login,
+`html/support.html` is public and linked only from the login,
 registration, OTP, and password recovery step. Support is provided only through
-written tickets. No call, callback, email, or ticket SMS delivery is configured.
+written tickets. The curtain retains its original general contact popover;
+authentication support and ticket replies use the ticket flow. No callback,
+email, or ticket SMS delivery is configured.
 Name and account phone are optional; the phone is user-supplied and must not be
 treated as verified identity or used alone to authorize account changes.
 
