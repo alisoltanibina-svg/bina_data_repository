@@ -387,6 +387,23 @@ body.explorer-body {
     cursor: pointer;
 }
 
+.ex-dd-menu button.ex-dd-topic-item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    direction: rtl;
+    min-height: 36px;
+    padding-block: 6px;
+}
+.ex-dd-topic-icon {
+    width: 24px;
+    height: 24px;
+    flex: 0 0 24px;
+    object-fit: contain;
+    border-radius: 5px;
+}
+.ex-dd-topic-label { min-width: 0; flex: 1; }
+
 .ex-dd-menu button:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
 .ex-dd-menu button.is-current {
     color: #fff;

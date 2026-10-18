@@ -174,6 +174,16 @@ function mosaicTopics() {
     });
 }
 
+function explorerTopicsInAtlasOrder() {
+    // Both Atlas topics and Explorer colors arrive in topics.id order.
+    const remaining = new Set(mosaicTopics());
+    const ordered = [];
+    topicsColorData.forEach(row => {
+        if (remaining.delete(row.topic_name)) ordered.push(row.topic_name);
+    });
+    return ordered.concat([...remaining]);
+}
+
 function topicTileSrc(topic) {
     return encodeURI(SITE.asset(`images/${topic}-tile.webp`));
 }
@@ -226,7 +236,7 @@ function closeExplorerDropdowns() {
     });
 }
 
-function fillDropdownMenu(menu, items, current, onPick) {
+function fillDropdownMenu(menu, items, current, onPick, iconForItem = null) {
     if (!menu) return;
     menu.replaceChildren();
     items.forEach(item => {
@@ -234,6 +244,20 @@ function fillDropdownMenu(menu, items, current, onPick) {
         btn.type = 'button';
         btn.textContent = item;
         if (item === current) btn.className = 'is-current';
+        if (iconForItem) {
+            const icon = document.createElement('img');
+            icon.className = 'ex-dd-topic-icon';
+            icon.src = iconForItem(item);
+            icon.alt = '';
+            icon.width = 24;
+            icon.height = 24;
+            icon.decoding = 'async';
+            const label = document.createElement('span');
+            label.className = 'ex-dd-topic-label';
+            label.textContent = item;
+            btn.classList.add('ex-dd-topic-item');
+            btn.replaceChildren(icon, label);
+        }
         btn.addEventListener('click', () => {
             closeExplorerDropdowns();
             onPick(item);
@@ -300,9 +324,9 @@ function syncExplorerDropdowns() {
     if (topicVal) topicVal.textContent = topic || '—';
     if (subVal) subVal.textContent = sub || '—';
     if (indVal) indVal.textContent = activeIndicatorGlob || '—';
-    fillDropdownMenu(document.getElementById('dd-topic-menu'), mosaicTopics(), topic, nextTopic => {
+    fillDropdownMenu(document.getElementById('dd-topic-menu'), explorerTopicsInAtlasOrder(), topic, nextTopic => {
         openTopicIndex(nextTopic);
-    });
+    }, item => SITE.asset(`images/تاپیک ${item}.webp`));
     fillDropdownMenu(document.getElementById('dd-subtopic-menu'), subtopicsOf(topic), sub, nextSub => {
         const first = indicatorsOf(topic, nextSub)[0];
         if (first) loadIndicator(first, topic);
