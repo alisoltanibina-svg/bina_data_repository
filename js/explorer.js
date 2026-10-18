@@ -84,6 +84,7 @@ let explorerMapInitPromise = null;
 let explorerMapGeoLayer = null;
 let explorerMapLabelsLayer = null;
 let explorerMapFitted = false;
+let explorerMapViewportSize = "";
 let explorerSelectedProvince = null;
 let explorerMapBounds = null;
 
@@ -752,6 +753,7 @@ function setChartMode(mode) {
     requestAnimationFrame(() => {
         try { if (currentChartMode === 'trend' && chartInstance) chartInstance.resize(); } catch (e) {}
         try { if (currentChartMode === 'compare' && scatterProvinceChart) scatterProvinceChart.resize(); } catch (e) {}
+        if (currentChartMode === 'map') syncExplorerMapViewport(true);
     });
 }
 let scatterPointsCache = [];
@@ -811,12 +813,14 @@ function drawScatterProvince() {
     const scatterXMax = Math.max(1, points.length);
     const data = points.map((p, i) => ({ x: i, y: p.value, province: p.name, r: bubbleR }));
     const colors = points.map(p => provinceColors[p.name] || '#3b82f6');
+    const scaleBounds = getIndicatorScaleBounds();
 
     if (scatterProvinceChart) {
         scatterProvinceChart.data.datasets[0].data = data;
         scatterProvinceChart.data.datasets[0].backgroundColor = colors;
         scatterProvinceChart.options.scales.x.min = scatterXMin;
         scatterProvinceChart.options.scales.x.max = scatterXMax;
+        Object.assign(scatterProvinceChart.options.scales.y, scaleBounds);
         scatterProvinceChart.update('none');
         return;
     }
@@ -876,7 +880,9 @@ function drawScatterProvince() {
                     }
                 },
                 y: {
+                    ...scaleBounds,
                     ticks: {
+                        includeBounds: false,
                         font: { family: 'PeydaFaNumWeb' },
                         color: '#64748b',
                         callback: (v) => toFaFixed(v, 2)
@@ -1139,6 +1145,25 @@ function clearExplorerMapSelection() {
     if (explorerMapGeoLayer) explorerMapGeoLayer.resetStyle();
 }
 
+function syncExplorerMapViewport(forceFit = false) {
+    if (!explorerLeafletMap || currentChartMode !== 'map') return false;
+    const target = document.getElementById('explorer-leaflet-map');
+    const width = target && target.clientWidth;
+    const height = target && target.clientHeight;
+    // Hidden tabs have no usable size. Fit only after their layout is visible.
+    if (!width || !height) return false;
+    const size = `${width}x${height}`;
+    if (explorerMapBounds && (forceFit || !explorerMapFitted || size !== explorerMapViewportSize)) {
+        explorerLeafletMap.invalidateSize({ animate: false, pan: false });
+        explorerLeafletMap.fitBounds(explorerMapBounds, {
+            padding: width < 480 ? [12, 12] : [38, 30], animate: false,
+        });
+        explorerMapFitted = true;
+        explorerMapViewportSize = size;
+    }
+    return true;
+}
+
 function initExplorerLeafletMap() {
     if (explorerLeafletMap) return Promise.resolve(explorerLeafletMap);
     if (explorerMapInitPromise) return explorerMapInitPromise;
@@ -1161,6 +1186,12 @@ function initExplorerLeafletMap() {
         }).setView([32, 53], 5);
         explorerLeafletMap.attributionControl.setPrefix(false);
         explorerLeafletMap.on('click', clearExplorerMapSelection);
+        if (typeof ResizeObserver !== 'undefined') {
+            const observer = new ResizeObserver(() => {
+                if (currentChartMode === 'map') requestAnimationFrame(renderExplorerMap);
+            });
+            observer.observe(target);
+        }
         explorerLeafletMap.on('zoomend', () => {
             if (explorerMapFitted && currentChartMode === 'map' && explorerMapGeoJson) requestAnimationFrame(renderExplorerMap);
         });
@@ -1217,6 +1248,7 @@ function renderExplorerMap() {
         return;
     }
     const map = explorerLeafletMap;
+    if (!syncExplorerMapViewport()) return;
     explorerMapYearIndex = Math.min(Math.max(explorerMapYearIndex, 0), currentChartYears.length - 1);
     const year = currentChartYears[explorerMapYearIndex], scores = new Map();
     kscoreData.forEach(record => {
@@ -1227,8 +1259,6 @@ function renderExplorerMap() {
     const allValues = kscoreData.filter(record => normalizeMapProvinceName(record.province_name) !== NATIONAL_PROVINCE_KEY).map(record => Number(record.value)).filter(Number.isFinite);
     const min = allValues.length ? Math.min(...allValues) : 0;
     const max = allValues.length ? Math.max(...allValues) : 1;
-    map.invalidateSize({ animate: false, pan: false });
-    if (!explorerMapFitted && explorerMapBounds) { map.fitBounds(explorerMapBounds, { padding: [38, 30], animate: false }); explorerMapFitted = true; }
     if (explorerMapGeoLayer) explorerMapGeoLayer.remove();
     if (explorerMapLabelsLayer) explorerMapLabelsLayer.remove();
     explorerMapLabelsLayer = L.layerGroup().addTo(map);
@@ -1350,7 +1380,7 @@ function drawChart() {
         });
 
         chartInstance.data.labels = currentChartYears.map(toFa);
-        Object.assign(chartInstance.options.scales.y, getTrendScaleBounds());
+        Object.assign(chartInstance.options.scales.y, getIndicatorScaleBounds());
         chartInstance.update('none'); 
 
         startSweep(chartInstance);
@@ -1380,7 +1410,7 @@ function toggleCountryLegend() {
     syncCountryLegend();
 }
 
-function getTrendScaleBounds() {
+function getIndicatorScaleBounds() {
     let min = Infinity;
     let max = -Infinity;
     // Use the whole indicator, independently of selected or hidden province series.
@@ -1420,7 +1450,7 @@ function getChartOptions() {
         },
         scales: {
             x: { ticks: { font: { family: 'PeydaFaNumWeb' }, color: '#64748b' }, grid: { display: false } },
-            y: { ...getTrendScaleBounds(), ticks: { includeBounds: false, font: { family: 'PeydaFaNumWeb' }, color: '#64748b' }, grid: { color: '#e2e8f0', drawBorder: false }, border: { dash: [4, 4] } }
+            y: { ...getIndicatorScaleBounds(), ticks: { includeBounds: false, font: { family: 'PeydaFaNumWeb' }, color: '#64748b' }, grid: { color: '#e2e8f0', drawBorder: false }, border: { dash: [4, 4] } }
         }
     };
 }
@@ -1430,6 +1460,7 @@ const onExplorerResize = debounce(() => {
     closeExplorerDropdowns();
     try { if (chartInstance && typeof chartInstance.resize === 'function') chartInstance.resize(); } catch (e) {}
     try { if (scatterProvinceChart && typeof scatterProvinceChart.resize === 'function') scatterProvinceChart.resize(); } catch (e) {}
+    if (currentChartMode === 'map' && explorerLeafletMap) renderExplorerMap();
     const layout = mosaicLayout();
     const nextKey = String(layout.cols);
     if (isLandingVisible() && nextKey !== mosaicLayoutKey) {
