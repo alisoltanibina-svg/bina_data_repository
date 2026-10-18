@@ -4,6 +4,9 @@
 const REGISTER_FIELDS = ['first_name', 'last_name', 'role_title', 'organization', 'password', 'password_confirm'];
 const PANELS = ['auth-gate', 'auth-login', 'auth-reset-captcha', 'auth-otp', 'auth-reset', 'auth-register', 'auth-status', 'auth-done'];
 
+let authStage = 'auth-gate';
+let authError = {code:'',reference:''};
+const authWaits = new Map();
 let currentPhone = '';
 let otpPurpose = '';
 // Keep the proof only in this page's memory, never in a URL or browser storage.
@@ -61,23 +64,12 @@ const PENDING_REGISTER_KEY = 'bina-pending-register';
 
 function setPendingRegister(values) {
     pendingRegister = values || null;
-    try {
-        if (values) sessionStorage.setItem(PENDING_REGISTER_KEY, JSON.stringify(values));
-        else sessionStorage.removeItem(PENDING_REGISTER_KEY);
-    } catch (e) {}
+    try { sessionStorage.removeItem(PENDING_REGISTER_KEY); } catch (e) {}
 }
 
 function getPendingRegister() {
     if (pendingRegister && pendingRegister.first_name && pendingRegister.password) return pendingRegister;
-    try {
-        const raw = sessionStorage.getItem(PENDING_REGISTER_KEY);
-        if (!raw) return pendingRegister;
-        const parsed = JSON.parse(raw);
-        if (parsed && parsed.first_name && parsed.password) {
-            pendingRegister = parsed;
-            return parsed;
-        }
-    } catch (e) {}
+    try { sessionStorage.removeItem(PENDING_REGISTER_KEY); } catch (e) {}
     const form = document.getElementById('register-form');
     if (form) {
         const fromForm = readRegisterForm(form);
@@ -105,6 +97,8 @@ function setError(name, message) {
 }
 
 function showPanel(id) {
+    authStage = id;
+    updateAuthSupport();
     const apply = () => {
         PANELS.forEach(name => {
             const el = document.getElementById(name);
@@ -318,18 +312,30 @@ function showStatus(title, text) {
 }
 
 async function apiJson(path, body) {
-    const response = await fetch(`${API_BASE_URL}${path}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(body)
-    });
-    let data = null;
-    try { data = await response.json(); } catch (e) { data = null; }
+    const remaining = Math.ceil(((authWaits.get(path) || 0) - Date.now()) / 1000);
+    if (remaining > 0) {
+        const err = new Error('برای این اقدام ' + remaining + ' ثانیه صبر کنید.');
+        showAuthNotice(err.message); throw err;
+    }
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 20000);
+    let response;
+    try {
+        response = await fetch(`${API_BASE_URL}${path}`, {method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',cache:'no-store',signal:controller.signal,body:JSON.stringify(body)});
+    } catch (_) {
+        authError = {code:'network',reference:''};
+        const err = new Error('ارتباط برقرار نشد. اطلاعات فرم حفظ شده است؛ اتصال اینترنت را بررسی کنید و دوباره تلاش کنید.');
+        showAuthNotice(err.message); throw err;
+    } finally { window.clearTimeout(timer); }
+    const data = await response.json().catch(() => null);
     if (!response.ok) {
-        const err = new Error(failDetail(data, 'انجام این اقدام ممکن نشد.'));
-        err.code = data && data.detail && data.detail.code;
-        throw err;
+        const err = new Error(failDetail(data, 'اطلاعات فرم را بررسی کنید و دوباره تلاش کنید.'));
+        const detail = data && data.detail;
+        err.code = detail && detail.code;
+        authError = {code:err.code || 'request',reference:response.headers.get('X-Request-ID') || (detail && detail.reference) || ''};
+        const seconds = Number(response.headers.get('Retry-After') || (detail && detail.retry_after) || (data && data.retry_after) || 0);
+        if (seconds > 0) authWaits.set(path, Date.now() + seconds * 1000);
+        showAuthNotice(err.message); throw err;
     }
     return data;
 }
@@ -357,7 +363,7 @@ async function completeRegistration(pending) {
     });
     clearOtpVerification();
     setPendingRegister(null);
-    showStatus('در انتظار تایید', 'درخواست عضویت شما درانتظار تایید است');
+    showStatus('در انتظار تایید', 'درخواست عضویت شما در انتظار بررسی مدیر است. ارسال دوباره لازم نیست؛ اگر نیاز به پیگیری دارید، تیکت ثبت کنید.');
 }
 
 async function startOtp(purpose, captcha) {
@@ -421,19 +427,20 @@ onReady(() => {
     const gateSubmit = document.getElementById('gate-submit');
     const gatePhone = document.getElementById('gate-phone');
     if (!gateForm || !gatePhone) return;
+    initAuthSupport();
     initPasswordToggles();
     initAuthMobileFieldVisibility();
     document.querySelectorAll('[data-captcha-refresh]').forEach(button => {
         button.addEventListener('click', async () => {
             const name = button.getAttribute('data-captcha-refresh');
             try { await refreshCaptcha(name, currentPhone || digitsOnlyPhone(gatePhone.value)); }
-            catch (err) { showNotice(err.message || 'دریافت کد امنیتی ممکن نشد.'); }
+            catch (err) { showAuthNotice(err.message || 'دریافت کد امنیتی ممکن نشد.'); }
         });
     });
     const loginRefresh = document.getElementById('login-captcha-refresh');
     if (loginRefresh) loginRefresh.addEventListener('click', async () => {
         try { await refreshCaptcha('login', currentPhone); }
-        catch (err) { showNotice(err.message || 'دریافت کد امنیتی ممکن نشد.'); }
+        catch (err) { showAuthNotice(err.message || 'دریافت کد امنیتی ممکن نشد.'); }
     });    bindPhoneInput(gatePhone);
     bindOtpInput(document.getElementById('otp-code'));
     ['login-password', 'first_name', 'last_name', 'role_title', 'organization', 'password', 'password_confirm', 'reset-password', 'reset-password-confirm'].forEach(id => {
@@ -472,11 +479,13 @@ onReady(() => {
         try {
             const status = await lookupPhone(phone);
             applyPhone(phone);
-            if (status === 'login') { showPanel('auth-login'); void refreshCaptcha('login', phone).catch(err => showNotice(err.message || 'دریافت کد امنیتی ممکن نشد.')); document.getElementById('login-password').focus(); return; }
-            if (status === 'register') { setPendingRegister(null); showPanel('auth-register'); void refreshCaptcha('register', phone).catch(err => showNotice(err.message || 'دریافت کد امنیتی ممکن نشد.')); document.getElementById('first_name').focus(); return; }
-            if (status === 'pending') { showStatus('در انتظار تایید', 'درخواست عضویت شما درانتظار تایید است'); return; }
-            if (status === 'rejected') { showStatus('درخواست پذیرفته نشد', 'متاسفیم، درخواست عضویت شما پذیرفته نشد.'); return; }
-            if (status === 'closed') { showStatus('ثبت‌نام بسته است', 'ثبت‌نام عمومی فعلاً متوقف شده است.'); return; }
+            if (status === 'login') { showPanel('auth-login'); void refreshCaptcha('login', phone).catch(err => showAuthNotice(err.message || 'دریافت کد امنیتی ممکن نشد.')); document.getElementById('login-password').focus(); return; }
+            if (status === 'register') { setPendingRegister(null); showPanel('auth-register'); void refreshCaptcha('register', phone).catch(err => showAuthNotice(err.message || 'دریافت کد امنیتی ممکن نشد.')); document.getElementById('first_name').focus(); return; }
+            if (status === 'inactive') { authError = {code:'inactive',reference:''}; showStatus('حساب غیرفعال است', 'این حساب وجود دارد اما غیرفعال است. برای بررسی وضعیت و درخواست فعال‌سازی، تیکت پشتیبانی ثبت کنید.'); return; }
+            if (status === 'support-required') { authError = {code:'account-review',reference:''}; showStatus('نیاز به بررسی حساب', 'درخواست شما پذیرفته شده اما حساب قابل ورود پیدا نشد. تیکت ثبت کنید تا وضعیت بررسی شود.'); return; }
+            if (status === 'pending') { authError = {code:'pending',reference:''}; showStatus('در انتظار تایید', 'درخواست عضویت شما در انتظار بررسی مدیر است. ارسال دوباره لازم نیست؛ اگر نیاز به پیگیری دارید، تیکت ثبت کنید.'); return; }
+            if (status === 'rejected') { authError = {code:'rejected',reference:''}; showStatus('درخواست پذیرفته نشد', 'درخواست عضویت شما پذیرفته نشده است. برای دریافت توضیح یا درخواست بررسی دوباره، تیکت پشتیبانی ثبت کنید.'); return; }
+            if (status === 'closed') { authError = {code:'closed',reference:''}; showStatus('ثبت‌نام بسته است', 'ثبت‌نام عمومی فعلاً متوقف شده است.'); return; }
             setError('gate-phone', 'بررسی شماره ممکن نشد.');
         } catch (err) {
             setError('gate-phone', err.message || 'بررسی شماره ممکن نشد.');
@@ -490,13 +499,13 @@ onReady(() => {
         if (!captcha.valid) { setError('login-captcha-answer', 'کد امنیتی پنج‌نویسه را وارد کنید.'); document.getElementById('login-captcha-answer').focus(); return; }
         const submit = document.getElementById('login-submit'); submit.disabled = true;
         try { const profile = await apiJson('/api/auth/login', { phone: currentPhone, password: password, captcha_id: captcha.id, captcha_answer: captcha.answer }); finishSignedIn(profile); }
-        catch (err) { showNotice(err.message || 'ورود ناموفق بود.'); try { await refreshCaptcha('login', currentPhone); } catch (refreshError) {} }
+        catch (err) { showAuthNotice(err.message || 'ورود ناموفق بود.'); try { await refreshCaptcha('login', currentPhone); } catch (refreshError) {} }
         finally { submit.disabled = false; }
     });
     document.getElementById('forgot-password').addEventListener('click', async () => {
         showPanel('auth-reset-captcha');
         try { await refreshCaptcha('reset', currentPhone); }
-        catch (err) { showNotice(err.message || 'دریافت کد امنیتی ممکن نشد.'); }
+        catch (err) { showAuthNotice(err.message || 'دریافت کد امنیتی ممکن نشد.'); }
     });
 
     document.getElementById('reset-captcha-form').addEventListener('submit', async event => {
@@ -505,7 +514,7 @@ onReady(() => {
         if (!captcha.valid) { setError('reset-captcha-answer', 'کد امنیتی پنج‌نویسه را وارد کنید.'); return; }
         const submit = document.getElementById('reset-captcha-submit'); submit.disabled = true;
         try { await startOtp('reset', captcha); clearCaptcha('reset'); }
-        catch (err) { showNotice(err.message || 'کد امنیتی نامعتبر یا منقضی است.'); showPanel('auth-reset-captcha'); try { await refreshCaptcha('reset', currentPhone); } catch (refreshError) {} }
+        catch (err) { showAuthNotice(err.message || 'کد امنیتی نامعتبر یا منقضی است.'); showPanel('auth-reset-captcha'); try { await refreshCaptcha('reset', currentPhone); } catch (refreshError) {} }
         finally { submit.disabled = false; }
     });
     document.getElementById('otp-form').addEventListener('submit', async event => {
@@ -564,7 +573,7 @@ onReady(() => {
             const captchaName = otpPurpose;
             showPanel(captchaName === 'reset' ? 'auth-reset-captcha' : 'auth-register');
             try { await refreshCaptcha(captchaName, currentPhone); }
-            catch (err) { showNotice(err.message || 'دریافت کد امنیتی ممکن نشد.'); }
+            catch (err) { showAuthNotice(err.message || 'دریافت کد امنیتی ممکن نشد.'); }
             return;
         }
         setError('otp-code', '');
@@ -573,7 +582,7 @@ onReady(() => {
             const data = await sendOtp(otpPurpose);
             setOtpSending(false);
             startResendTimer((data && data.resend_seconds) || 60);
-            showNotice('کد دوباره ارسال شد.', 'ok');
+            showAuthNotice('کد دوباره ارسال شد.', 'ok');
         } catch (err) {
             setOtpSending(false);
             setError('otp-code', err.message || 'ارسال دوباره ممکن نشد.');
@@ -610,7 +619,7 @@ onReady(() => {
                 clearOtpVerification();
                 showPanel('auth-otp');
             }
-            showNotice(err.message || 'تغییر رمز ممکن نشد.');
+            showAuthNotice(err.message || 'تغییر رمز ممکن نشد.');
         } finally {
             submit.disabled = false;
         }
@@ -647,9 +656,47 @@ onReady(() => {
             if (err.code === 'captcha') { showPanel('auth-register'); try { await refreshCaptcha('register', currentPhone); } catch (refreshError) {} }
             const mapped = errorFromRegister({ detail: { code: err.code, message: err.message } });
             if (mapped.field) setError(mapped.field, mapped.text);
-            else showNotice(mapped.text);
+            else showAuthNotice(mapped.text);
         } finally {
             submit.disabled = false;
         }
     });
 });
+
+// Persistent guidance remains visible until the next submission or explicit dismissal.
+function updateAuthSupport() {
+    const params = new URLSearchParams({stage:authStage});
+    if (authError.code) params.set('error_code',authError.code);
+    if (authError.reference) params.set('error_reference',authError.reference);
+    document.querySelectorAll('[data-auth-support]').forEach(link => { link.href = SITE.page('support.html') + '?' + params; });
+}
+function showAuthNotice(message) {
+    document.querySelectorAll('[data-auth-feedback]').forEach(box => {
+        box.hidden = false;
+        box.querySelector('[data-auth-message]').textContent = message;
+        box.querySelector('[data-auth-reference]').textContent = authError.reference ? 'کد پیگیری خطا: ' + authError.reference : '';
+        box.querySelector('[data-auth-recover]').hidden = !['credentials','login-locked'].includes(authError.code) || authStage !== 'auth-login';
+    });
+    updateAuthSupport();
+}
+function initAuthSupport() {
+    try { sessionStorage.removeItem(PENDING_REGISTER_KEY); } catch (_) {}
+    document.querySelectorAll('[data-auth-dismiss]').forEach(button => button.addEventListener('click', () => {
+        document.querySelectorAll('[data-auth-feedback]').forEach(box => { box.hidden = true; });
+    }));
+    document.querySelectorAll('[data-auth-recover]').forEach(button => button.addEventListener('click', () => document.getElementById('forgot-password').click()));
+    PANELS.forEach(id => {
+        const panel = document.getElementById(id);
+        const form = panel && panel.querySelector('form');
+        if (form) form.addEventListener('submit', () => {
+            authError = {code:'',reference:''};
+            document.querySelectorAll('[data-auth-feedback]').forEach(box => { box.hidden = true; });
+            updateAuthSupport();
+        }, true);
+    });
+    window.setInterval(() => {
+        const remaining = Math.max(0,...Array.from(authWaits.values(), until => Math.ceil((until-Date.now())/1000)));
+        document.querySelectorAll('[data-auth-wait]').forEach(line => { line.textContent = remaining ? 'محدودیت موقت برخی اقدامات: ' + remaining + ' ثانیه. برای درخواست کمک می‌توانید تیکت ثبت کنید.' : ''; });
+    },1000);
+    updateAuthSupport();
+}

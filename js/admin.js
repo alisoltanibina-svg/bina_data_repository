@@ -394,7 +394,7 @@ async function confirmDialog() {
             const idx = usersState.rows.findIndex(item => sameId(item.id, id));
             if (idx >= 0) usersState.rows[idx] = Object.assign({}, usersState.rows[idx], profile);
             if (usersState.detail && sameId(usersState.detail.id, id)) {
-                usersState.detail = Object.assign({}, usersState.detail, profile);
+                usersState.detail = await AdminApi.user(id);
             }
             showNotice(kind === 'activate' ? 'حساب فعال شد.' : 'حساب غیرفعال شد.', 'ok');
             renderUsers();
@@ -444,7 +444,8 @@ function userThumbHtml(row) {
     return '<span class="admin-avatar is-empty">—</span>';
 }
 
-function userStatusBadge(active) {
+function userStatusBadge(active, lockedUntil) {
+    if (active === true && lockedUntil && new Date(lockedUntil).getTime() > Date.now()) return '<span class="admin-badge is-pending">محدودیت موقت ورود</span>';
     if (active === false) return '<span class="admin-badge is-rejected">غیرفعال</span>';
     if (active === true) return '<span class="admin-badge is-approved">فعال</span>';
     return '<span class="admin-badge is-pending">نامشخص</span>';
@@ -484,7 +485,7 @@ function renderUsersTable() {
             '<td><div class="admin-name">' + escapeHtml(displayName(row)) + '</div></td>' +
             '<td><span class="admin-phone">' + escapeHtml(row.phone || '') + '</span></td>' +
             '<td>' + escapeHtml(row.role_title || '—') + '</td>' +
-            '<td>' + userStatusBadge(row.is_active) + '</td>' +
+            '<td>' + userStatusBadge(row.is_active, row.login_locked_until) + '</td>' +
             '<td>' + (row.avatar_url ? 'دارد' : 'ندارد') + '</td>';
         frag.appendChild(tr);
     });
@@ -510,8 +511,9 @@ function renderUserDetail() {
     document.getElementById('user-detail-name').textContent = displayName(row);
     const statusWrap = document.getElementById('user-detail-status');
     if (statusWrap) {
-        statusWrap.innerHTML = userStatusBadge(row.is_active);
+        statusWrap.innerHTML = userStatusBadge(row.is_active, row.login_locked_until);
     }
+    renderAccountRestrictions(row);
     const activeBtn = document.getElementById('user-active-btn');
     if (activeBtn) {
         activeBtn.disabled = typeof row.is_active !== 'boolean';
@@ -623,14 +625,18 @@ async function refreshVisibleUsers() {
 function setAdminView(view) {
     document.getElementById('view-requests').hidden = view !== 'requests';
     document.getElementById('view-users').hidden = view !== 'users';
+    const support = document.getElementById('view-support');
+    if (support) support.hidden = view !== 'support';
     const ops = document.getElementById('view-ops');
     if (ops) ops.hidden = view !== 'ops';
     const titles = {
+        support: 'تیکت‌های پشتیبانی',
         requests: 'درخواست‌های عضویت',
         users: 'حساب‌ها و عکس‌ها',
         ops: 'وضعیت سامانه'
     };
     const leads = {
+        support: 'مشکلات ورود و عضویت را بررسی کنید و همین‌جا به کاربر پاسخ دهید.',
         requests: 'درخواست‌های ثبت‌نام را بررسی کنید. پذیرش، حساب را می‌سازد؛ رد را می‌توان بعداً به پذیرش برگرداند.',
         users: 'حساب را موقتاً غیرفعال کنید، یا در صورت نیاز حذف کنید. عکس و سابقهٔ ویرایش هم اینجاست.',
         ops: 'ثبت‌نام عمومی، تعداد کدهای امروز، و خلاصهٔ ورودهای ناموفق.'
@@ -807,6 +813,14 @@ async function downloadUserAvatar(row) {
 }
 
 function bind() {
+    if (window.AdminSupport) window.AdminSupport.bind();
+    document.getElementById('user-unlock-btn').addEventListener('click', async event => {
+        if (!usersState.detail || usersState.detail.is_active === false) return;
+        event.currentTarget.disabled = true;
+        try { await AdminApi.setUserActive(usersState.detail.id, true); await loadUsers(); }
+        catch (err) { showNotice(err.message); }
+        finally { event.currentTarget.disabled = false; }
+    });
     const avatarsDownload = document.getElementById('user-avatars-download');
     if (avatarsDownload) avatarsDownload.addEventListener('click', downloadAllAvatars);
     bindPhoneInput(document.getElementById('filter-phone'));
@@ -907,6 +921,7 @@ function bind() {
     document.querySelectorAll('.admin-view-tab').forEach(btn => {
         btn.addEventListener('click', async () => {
             setAdminView(btn.dataset.view);
+            if (btn.dataset.view === 'support' && window.AdminSupport) await window.AdminSupport.load();
             if (btn.dataset.view === 'users' && !usersState.rows.length) {
                 try { await loadUsers(); } catch (err) { showNotice('بارگذاری حساب‌ها ممکن نشد.'); }
             }
@@ -992,3 +1007,16 @@ onReady(async () => {
         showNotice('بارگذاری فهرست ممکن نشد.');
     }
 });
+
+function renderAccountRestrictions(row) {
+    const locked = row.is_active === true && new Date(row.login_locked_until || 0).getTime() > Date.now();
+    document.getElementById('user-unlock-btn').hidden = !locked;
+    const reason = row.deactivation_reason === 'manual' ? 'توسط مدیر' : 'علت وضعیت پیشین ثبت نشده است';
+    document.getElementById('user-restriction').textContent = row.is_active === false ? 'حساب غیرفعال: ' + reason + (row.deactivated_at ? ' · ' + formatWhen(row.deactivated_at) : '') + (row.deactivated_by ? ' · مدیر ' + row.deactivated_by : '') : locked ? 'محدودیت موقت تا ' + formatWhen(row.login_locked_until) + '؛ حساب فعال است. بازیابی رمز با پیامک یا رفع محدودیت توسط مدیر امکان ورود را برمی‌گرداند.' : 'حساب فعال است؛ محدودیت موقت ورود ندارد.';
+    const list = document.getElementById('user-account-events'); list.replaceChildren();
+    const labels = {activated:'فعال‌سازی حساب',deactivated:'غیرفعال‌سازی حساب',login_locked:'محدودیت موقت ورود',login_unlocked:'رفع محدودیت ورود'};
+    (row.account_events || []).forEach(event => {
+        const item = document.createElement('li'); item.textContent = (labels[event.kind] || event.kind) + ' · ' + formatWhen(event.created_at) + (event.actor_id ? ' · مدیر ' + event.actor_id : '') + (event.reason === 'password_reset' ? ' · بازیابی رمز' : event.reason === 'password_failures' ? ' · تکرار رمز نادرست' : ''); list.append(item);
+    });
+    if (!list.children.length) { const item = document.createElement('li'); item.textContent = 'رویدادی ثبت نشده است؛ وضعیت‌های قدیمی ممکن است سابقه نداشته باشند.'; list.append(item); }
+}

@@ -28,6 +28,7 @@ from backend.avatars import (
 )
 from backend.database import db_session
 from backend.models import (
+    AccountStatusEvent,
     LoginFailure,
     OtpChallenge,
     ProfileRevision,
@@ -175,10 +176,11 @@ def seed_admin() -> None:
 
 
 class MembershipError(Exception):
-    def __init__(self, code: str, message: str):
+    def __init__(self, code: str, message: str, retry_after: int | None = None):
         super().__init__(message)
         self.code = code
         self.message = message
+        self.retry_after = retry_after
 
 
 def public_profile(user: User) -> dict:
@@ -268,25 +270,22 @@ def _active_admin_count(session) -> int:
 def _clear_login_failures(user: User) -> None:
     user.login_failed_attempts = 0
     user.login_failure_window_started_at = None
+    user.login_locked_until = None
+
+
+def _aware(value: datetime | None) -> datetime | None:
+    return value.replace(tzinfo=timezone.utc) if value is not None and value.tzinfo is None else value
 
 
 def _record_wrong_password(session, user: User, now: datetime) -> None:
-    started = user.login_failure_window_started_at
-    if started is not None and started.tzinfo is None:
-        started = started.replace(tzinfo=timezone.utc)
+    started = _aware(user.login_failure_window_started_at)
     if started is None or now >= started + LOGIN_FAILURE_WINDOW:
         user.login_failure_window_started_at = now
         user.login_failed_attempts = 0
     user.login_failed_attempts = min(LOGIN_FAILURE_LIMIT, int(user.login_failed_attempts or 0) + 1)
-    if user.login_failed_attempts < LOGIN_FAILURE_LIMIT:
-        return
-    if user.is_admin:
-        _lock_admin_state(session)
-        if _active_admin_count(session) <= 1:
-            return
-    user.is_active = False
-    user.updated_at = now
-    session.execute(delete(UserSession).where(UserSession.user_id == user.id))
+    if user.login_failed_attempts >= LOGIN_FAILURE_LIMIT:
+        user.login_locked_until = now + LOGIN_FAILURE_WINDOW
+        session.add(AccountStatusEvent(user_id=user.id, kind="login_locked", reason="password_failures", created_at=now))
 
 
 def authenticate(phone: str, password: str) -> dict | None:
@@ -295,28 +294,37 @@ def authenticate(phone: str, password: str) -> dict | None:
     if not is_mobile_phone(phone) or not password:
         return None
     result = None
+    failure = None
     reason = "unknown"
+    now = datetime.now(timezone.utc)
     with db_session() as session:
-        user = session.execute(
-            select(User)
-            .where(or_(User.phone == phone, func.trim(User.phone) == phone))
-            .with_for_update()
-        ).scalars().first()
+        user = session.execute(select(User).where(or_(User.phone == phone, func.trim(User.phone) == phone)).with_for_update()).scalars().first()
         if user is not None:
             if user.is_active is False:
                 reason = "inactive"
+                failure = MembershipError("inactive", "این حساب غیرفعال است. برای بررسی و فعال‌سازی، تیکت پشتیبانی ثبت کنید.")
             else:
-                stored_hash = (user.password_hash or "").strip()
-                if not stored_hash or not verify_password(stored_hash, password):
+                locked_until = _aware(user.login_locked_until)
+                if locked_until is not None and locked_until <= now:
+                    _clear_login_failures(user)
+                if locked_until is not None and locked_until > now:
+                    reason = "locked"
+                    failure = MembershipError("login-locked", "ورود با رمز عبور موقتاً محدود شده است. پس از پایان زمان انتظار تلاش کنید یا همین حالا رمزتان را بازیابی کنید.", max(1, int((locked_until - now).total_seconds()) + 1))
+                elif not (user.password_hash or "").strip() or not verify_password(user.password_hash.strip(), password):
                     reason = "password"
-                    _record_wrong_password(session, user, datetime.now(timezone.utc))
+                    _record_wrong_password(session, user, now)
+                    if user.login_locked_until is not None:
+                        reason = "locked"
+                        failure = MembershipError("login-locked", "به دلیل چند رمز نادرست، ورود موقتاً محدود شد. می‌توانید رمز را بازیابی کنید یا پس از پایان زمان انتظار دوباره تلاش کنید.", int(LOGIN_FAILURE_WINDOW.total_seconds()))
                 else:
                     reason = "ok"
                     _clear_login_failures(user)
-                    profile = public_profile(user)
                     token, expires_at = _create_session_in_transaction(session, user.id)
-                    result = {"profile": profile, "token": token, "expires_at": expires_at}
+                    result = {"profile": public_profile(user), "token": token, "expires_at": expires_at}
+    # Raise after the transaction commits so wrong-password counters are retained.
     record_login_failure(phone, reason)
+    if failure is not None:
+        raise failure
     return result
 
 
@@ -339,15 +347,15 @@ def lookup_auth_gate(phone: str) -> str:
             )
             .order_by(RegistrationRequest.created_at.desc())
         ).scalars().all()
+        if user is not None:
+            return "inactive" if user.is_active is False else "login"
         if any(row.status == "pending" for row in requests):
             return "pending"
-        if user is not None:
-            return "login"
         latest = requests[0] if requests else None
         if latest is not None and latest.status == "rejected":
             return "rejected"
         if latest is not None and latest.status == "approved":
-            return "login"
+            return "support-required"
         if not registration_is_open():
             return "closed"
         return "register"
@@ -526,13 +534,17 @@ def reset_password_after_otp(phone: str, password: str, verification_token: str)
     now = datetime.now(timezone.utc)
     with db_session() as session:
         user = session.execute(
-            select(User).where(User.phone == phone).with_for_update()
+            select(User).where(or_(User.phone == phone, func.trim(User.phone) == phone)).with_for_update()
         ).scalar_one_or_none()
-        if user is None or user.is_active is False:
+        if user is not None and user.is_active is False:
+            raise MembershipError("inactive", "این حساب غیرفعال است. برای بررسی، تیکت پشتیبانی ثبت کنید.")
+        if user is None:
             raise MembershipError("not-found", "حسابی با این شماره پیدا نشد.")
         consume_verified_otp_in_session(session, phone, "reset", verification_token)
         user.password_hash = hash_password(password)
         user.updated_at = now
+        if user.login_locked_until is not None:
+            session.add(AccountStatusEvent(user_id=user.id, kind="login_unlocked", reason="password_reset", created_at=now))
         _clear_login_failures(user)
         session.execute(delete(UserSession).where(UserSession.user_id == user.id))
         profile = public_profile(user)
@@ -789,14 +801,19 @@ def set_user_active(user_id: int, actor_id: int, active: bool) -> dict:
             _lock_admin_state(session)
             if _active_admin_count(session) <= 1:
                 raise MembershipError("forbidden", "آخرین مدیر فعال را نمی‌توان غیرفعال کرد.")
+        event_kind = "login_unlocked" if active and user.is_active and user.login_locked_until else "activated" if active else "deactivated"
         user.is_active = bool(active)
+        user.deactivation_reason = None if active else "manual"
+        user.deactivated_at = None if active else now
+        user.deactivated_by = None if active else actor_id
+        session.add(AccountStatusEvent(user_id=user.id, actor_id=actor_id, kind=event_kind, reason="admin", created_at=now))
         user.updated_at = now
         if active:
             _clear_login_failures(user)
         else:
             session.execute(delete(UserSession).where(UserSession.user_id == user_id))
         session.flush()
-        return public_profile(user)
+        return admin_account_profile(user)
 
 
 def _mask_phone(phone: str) -> str:
@@ -856,6 +873,7 @@ def _fail_reason_label(reason: str) -> str:
         "unknown": "شماره ناشناخته",
         "password": "رمز نادرست",
         "inactive": "حساب غیرفعال",
+        "locked": "محدودیت موقت ورود",
         "ok": "موفق",
     }.get(reason, "نامشخص")
 
@@ -1140,10 +1158,17 @@ def _xlsx_bytes(sheet_name: str, headers: list[str], rows: list[list[str]]) -> b
     return buf.getvalue()
 
 
+def admin_account_profile(user: User) -> dict:
+    result = public_profile(user)
+    result.update(login_locked_until=_iso(user.login_locked_until), deactivation_reason=user.deactivation_reason,
+                  deactivated_at=_iso(user.deactivated_at), deactivated_by=user.deactivated_by)
+    return result
+
+
 def list_users_for_admin() -> list[dict]:
     with db_session() as session:
         rows = session.execute(select(User).order_by(User.id.desc())).scalars().all()
-        return [public_profile(user) for user in rows]
+        return [admin_account_profile(user) for user in rows]
 
 
 def get_user_for_admin(user_id: int) -> dict:
@@ -1151,8 +1176,10 @@ def get_user_for_admin(user_id: int) -> dict:
         user = session.get(User, user_id)
         if user is None:
             raise MembershipError("not-found", "حساب پیدا نشد.")
-        payload = public_profile(user)
+        payload = admin_account_profile(user)
         payload["revisions"] = _serialize_revisions(session, user_id)
+        events = session.scalars(select(AccountStatusEvent).where(AccountStatusEvent.user_id == user_id).order_by(AccountStatusEvent.id.desc()).limit(50)).all()
+        payload["account_events"] = [{"kind": row.kind, "reason": row.reason, "actor_id": row.actor_id, "created_at": _iso(row.created_at)} for row in events]
         return payload
 
 

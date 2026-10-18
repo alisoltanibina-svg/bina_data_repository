@@ -12,7 +12,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, or_, select, update
 
 from backend.database import db_session
 from backend.membership import MembershipError, is_mobile_phone, normalize_phone, registration_is_open
@@ -52,7 +52,7 @@ def cleanup_expired_challenges(now: datetime | None = None) -> int:
 
 def _active_user(session, phone: str) -> User | None:
     user = session.execute(
-        select(User).where(User.phone == phone)
+        select(User).where(or_(User.phone == phone, func.trim(User.phone) == phone))
     ).scalar_one_or_none()
     if user is None or user.is_active is False:
         return None
@@ -60,7 +60,9 @@ def _active_user(session, phone: str) -> User | None:
 
 
 def _assert_send_allowed(session, phone: str, purpose: str) -> None:
-    user = _active_user(session, phone)
+    user = session.execute(select(User).where(or_(User.phone == phone, func.trim(User.phone) == phone))).scalar_one_or_none()
+    if user is not None and user.is_active is False:
+        raise MembershipError("inactive", "این حساب غیرفعال است. برای بررسی و فعال‌سازی، تیکت پشتیبانی ثبت کنید.")
     if purpose == "register":
         if not registration_is_open():
             raise MembershipError("closed", "ثبت‌نام موقتاً بسته است.")
@@ -247,7 +249,7 @@ def send_otp(phone: str, purpose: str) -> dict:
                 created = created.replace(tzinfo=timezone.utc)
             wait = cooldown - int((now - created).total_seconds())
             if wait > 0:
-                raise MembershipError("cooldown", f"برای ارسال دوباره {wait} ثانیه صبر کنید.")
+                raise MembershipError("cooldown", f"برای ارسال دوباره {wait} ثانیه صبر کنید.", retry_after=wait)
         open_rows = session.execute(
             select(OtpChallenge).where(
                 OtpChallenge.phone == phone,

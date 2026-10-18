@@ -176,7 +176,11 @@
 
     function loadProfile() {
         fetch(apiBase() + '/api/auth/session', { credentials: 'include' })
-            .then(function (response) { return response.ok ? response.json() : null; })
+            .then(function (response) {
+                if (response.ok) return response.json();
+                if (response.status === 401 || response.status === 403) return null;
+                throw new Error('Session temporarily unavailable');
+            })
             .then(function (profile) {
                 applyProfile(profile);
                 if (profile && typeof window.closeCurtainAuth === 'function' && document.documentElement.classList.contains('curtain-auth')) {
@@ -186,8 +190,8 @@
                 notifyAuthReady();
             })
             .catch(function () {
-                applyProfile(null);
-                enforceGatedPage(null);
+                applyProfile(readBannerProfile() || null);
+                document.documentElement.classList.remove('auth-pending');
                 notifyAuthReady();
             });
     }

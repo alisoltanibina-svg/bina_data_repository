@@ -181,6 +181,10 @@ class User(Base):
         Integer, nullable=False, default=0, server_default="0"
     )
     login_failure_window_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    login_locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    deactivation_reason: Mapped[str | None] = mapped_column(String(48))
+    deactivated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    deactivated_by: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -287,7 +291,7 @@ class CaptchaChallenge(Base):
 
     __tablename__ = "captcha_challenges"
     __table_args__ = (
-        CheckConstraint("purpose IN ('login', 'register', 'reset')", name="ck_captcha_challenges_purpose"),
+        CheckConstraint("purpose IN ('login', 'register', 'reset', 'support')", name="ck_captcha_challenges_purpose"),
         Index("idx_captcha_challenges_binding_created", "binding_hash", "created_at"),
         Index("idx_captcha_challenges_ip_created", "ip_hash", "created_at"),
         Index("idx_captcha_challenges_expires", "expires_at"),
@@ -351,3 +355,55 @@ class ProfileRevision(Base):
         DateTime(timezone=True),
         server_default=func.now(),
     )
+
+
+class SupportTicket(Base):
+    __tablename__ = "support_tickets"
+    __table_args__ = (
+        CheckConstraint("status IN ('open', 'in_progress', 'awaiting_user', 'closed')", name="ck_support_ticket_status"),
+        Index("idx_support_tickets_status_updated", "status", "updated_at"),
+    )
+    id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
+    reference: Mapped[str] = mapped_column(String(20), nullable=False, unique=True)
+    access_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    name: Mapped[str | None] = mapped_column(String(80))
+    phone: Mapped[str | None] = mapped_column(String(15))
+    category: Mapped[str] = mapped_column(String(20), nullable=False)
+    subject: Mapped[str] = mapped_column(String(160), nullable=False)
+    stage: Mapped[str | None] = mapped_column(String(32))
+    error_code: Mapped[str | None] = mapped_column(String(48))
+    error_reference: Mapped[str | None] = mapped_column(String(32))
+    status: Mapped[str] = mapped_column(String(20), nullable=False, server_default="open")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class SupportMessage(Base):
+    __tablename__ = "support_messages"
+    __table_args__ = (Index("idx_support_messages_ticket_id", "ticket_id", "id"),)
+    id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
+    ticket_id: Mapped[int] = mapped_column(Integer, ForeignKey("support_tickets.id", ondelete="CASCADE"), nullable=False)
+    author: Mapped[str] = mapped_column(String(12), nullable=False)
+    actor_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class SupportStatusEvent(Base):
+    __tablename__ = "support_status_events"
+    id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
+    ticket_id: Mapped[int] = mapped_column(Integer, ForeignKey("support_tickets.id", ondelete="CASCADE"), nullable=False, index=True)
+    actor_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
+    from_status: Mapped[str] = mapped_column(String(20), nullable=False)
+    to_status: Mapped[str] = mapped_column(String(20), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class AccountStatusEvent(Base):
+    __tablename__ = "account_status_events"
+    id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    actor_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    reason: Mapped[str | None] = mapped_column(String(160))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

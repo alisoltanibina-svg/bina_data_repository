@@ -17,7 +17,7 @@ from backend.membership import is_mobile_phone, lookup_auth_gate, normalize_phon
 from backend.models import CaptchaChallenge
 from backend.settings import get_settings
 
-CAPTCHA_PURPOSES = frozenset({"login", "register", "reset"})
+CAPTCHA_PURPOSES = frozenset({"login", "register", "reset", "support"})
 CAPTCHA_LENGTH = 5
 CAPTCHA_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 CAPTCHA_ID_RE = re.compile(r"^[A-Za-z0-9_-]{43}$")
@@ -28,7 +28,9 @@ class CaptchaError(RuntimeError):
 
 
 class CaptchaRateLimit(CaptchaError):
-    pass
+    def __init__(self, message, retry_after=60):
+        super().__init__(message)
+        self.retry_after = retry_after
 
 
 def _now() -> datetime:
@@ -116,7 +118,8 @@ def cleanup_expired_challenges(now: datetime | None = None) -> int:
 
 def issue_challenge(phone_raw: str, purpose: str, client_ip: str) -> dict[str, object]:
     phone = normalize_phone(phone_raw)
-    if not is_mobile_phone(phone) or purpose not in CAPTCHA_PURPOSES:
+    valid_phone = is_mobile_phone(phone) or (purpose == "support" and not phone)
+    if not valid_phone or purpose not in CAPTCHA_PURPOSES:
         raise CaptchaError("Invalid CAPTCHA request")
     # Reset and password challenges only exist for an established login account.
     if purpose in {"login", "reset"} and lookup_auth_gate(phone) != "login":
@@ -129,7 +132,7 @@ def issue_challenge(phone_raw: str, purpose: str, client_ip: str) -> dict[str, o
     ip = _ip_hash(client_ip)
     with db_session() as session:
         # Serializes issuance for one intended operation/account binding.
-        session.execute(text("SELECT pg_advisory_xact_lock(hashtext(:key))"), {"key": f"captcha:{binding}"})
+        session.execute(text("SELECT pg_advisory_xact_lock(hashtext(:key))"), {"key": f"captcha:{purpose}:{ip}" if purpose == "support" else f"captcha:{binding}"})
         phone_count = session.scalar(
             select(func.count()).select_from(CaptchaChallenge).where(
                 CaptchaChallenge.purpose == purpose,
@@ -144,8 +147,20 @@ def issue_challenge(phone_raw: str, purpose: str, client_ip: str) -> dict[str, o
                 CaptchaChallenge.created_at >= cutoff,
             )
         ) or 0
-        if phone_count >= settings.captcha_max_per_phone or ip_count >= settings.captcha_max_per_ip:
-            raise CaptchaRateLimit("Please wait before requesting another CAPTCHA")
+        if (purpose != "support" and phone_count >= settings.captcha_max_per_phone) or ip_count >= settings.captcha_max_per_ip:
+            waits = []
+            restrictions = []
+            if purpose != "support" and phone_count >= settings.captcha_max_per_phone:
+                restrictions.append(CaptchaChallenge.binding_hash == binding)
+            if ip_count >= settings.captcha_max_per_ip:
+                restrictions.append(CaptchaChallenge.ip_hash == ip)
+            for restriction in restrictions:
+                oldest = session.scalar(select(func.min(CaptchaChallenge.created_at)).where(
+                    CaptchaChallenge.purpose == purpose, restriction, CaptchaChallenge.created_at >= cutoff))
+                if oldest is not None:
+                    oldest = oldest.replace(tzinfo=timezone.utc) if oldest.tzinfo is None else oldest
+                    waits.append(max(1, int(600 - (now - oldest).total_seconds()) + 1))
+            raise CaptchaRateLimit("Please wait before requesting another CAPTCHA", max(waits, default=60))
 
         challenge_id = secrets.token_urlsafe(32)
         answer = _new_answer()
@@ -185,7 +200,7 @@ def verify_challenge(challenge_id: str, answer_raw: str, phone_raw: str, purpose
     if not (
         CAPTCHA_ID_RE.fullmatch(challenge_id or "")
         and purpose in CAPTCHA_PURPOSES
-        and is_mobile_phone(phone)
+        and (is_mobile_phone(phone) or (purpose == "support" and not phone))
         and len(answer) == CAPTCHA_LENGTH
         and all(char in CAPTCHA_ALPHABET for char in answer)
     ):

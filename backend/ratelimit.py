@@ -3,8 +3,8 @@ File: backend/ratelimit.py
 Purpose: Per-IP sliding-window rate limiting for /api/* (not static files).
 
 Two policies stack: a per-minute quota and a short per-second cap so a client
-cannot spend the whole minute in one burst. Exceeding either starts a two-hour
-per-IP cooldown. Disable with RATE_LIMIT_ENABLED=0 for load tests.
+cannot spend the whole minute in one burst. Rejections last only until the
+exceeded sliding window has capacity again. Disable with RATE_LIMIT_ENABLED=0 for load tests.
 
 Env (all optional)
 ------------------
@@ -27,7 +27,7 @@ import os
 import threading
 import time
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from fastapi import Request
 from fastapi.responses import Response
@@ -36,7 +36,6 @@ from starlette.middleware.base import BaseHTTPMiddleware
 log = logging.getLogger("backend.ratelimit")
 
 JSON_MEDIA = "application/json"
-COOLDOWN_SECONDS = 2 * 60 * 60
 
 _EXPENSIVE_PATHS = frozenset(
     {
@@ -117,6 +116,9 @@ class RateLimitConfig:
     api_burst: Quota
     expensive: Quota
     expensive_burst: Quota
+    support: Quota = Quota("support", 20, 60.0)
+    support_burst: Quota = Quota("support_burst", 5, 1.0)
+    support_create: Quota = Quota("support_create", 10, 3600.0)
 
     @classmethod
     def from_env(cls) -> RateLimitConfig:
@@ -142,6 +144,7 @@ class RateLimitConfig:
 @dataclass
 class _Window:
     times: deque[float] = field(default_factory=deque)
+    window_seconds: float = 60.0
 
 
 @dataclass(frozen=True)
@@ -155,7 +158,7 @@ class LimitDecision:
 
 
 class SlidingWindowStore:
-    """Thread-safe sliding windows and bounded, per-IP cooldowns."""
+    """Thread-safe sliding windows; rejected attempts do not extend a restriction."""
 
     def __init__(self, max_keys: int = 8192) -> None:
         self._lock = threading.Lock()
@@ -170,25 +173,13 @@ class SlidingWindowStore:
             self._ops += 1
             if self._ops % 64 == 0:
                 self._prune(now)
-            cooldown = self._cooldowns.get(client)
-            if cooldown is not None:
-                remaining = cooldown[0] - now
-                if remaining > 0:
-                    return LimitDecision(
-                        allowed=False,
-                        quota=cooldown[1],
-                        remaining=0,
-                        retry_after=math.ceil(remaining),
-                        reset_unix=math.ceil(wall + remaining),
-                    )
-                self._cooldowns.pop(client, None)
             snapshots: list[tuple[Quota, _Window, int]] = []
             blocking: LimitDecision | None = None
             for quota in quotas:
                 key = f"{client}:{quota.name}"
                 window = self._windows.get(key)
                 if window is None:
-                    window = _Window()
+                    window = _Window(window_seconds=quota.window)
                     self._evict_if_needed()
                     self._windows[key] = window
                 cutoff = now - quota.window
@@ -198,30 +189,30 @@ class SlidingWindowStore:
                 used = len(times)
                 remaining = max(0, quota.limit - used)
                 snapshots.append((quota, window, remaining))
-                if remaining < 1 and blocking is None:
+                if remaining < 1:
                     wait = quota.window - (now - times[0]) if times else quota.window
                     wait = max(0.05, wait)
                     retry = max(1, int(wait + 0.999))
-                    blocking = LimitDecision(
+                    candidate = LimitDecision(
                         allowed=False,
                         quota=quota,
                         remaining=0,
                         retry_after=retry,
-                        reset_unix=int(wall + wait),
+                        reset_unix=math.ceil(wall + wait),
                     )
+                    if blocking is None or candidate.retry_after > blocking.retry_after:
+                        blocking = candidate
             if blocking is not None:
-                if len(self._cooldowns) >= self._max_keys:
-                    oldest_client = min(self._cooldowns, key=lambda key: self._cooldowns[key][0])
-                    self._cooldowns.pop(oldest_client, None)
-                self._cooldowns[client] = (now + COOLDOWN_SECONDS, blocking.quota)
-                return LimitDecision(
-                    allowed=False,
-                    quota=blocking.quota,
-                    remaining=0,
-                    retry_after=COOLDOWN_SECONDS,
-                    reset_unix=math.ceil(wall + COOLDOWN_SECONDS),
-                    cooldown_started=True,
-                )
+                # This bounded map suppresses duplicate log lines; it never enforces a ban.
+                notice_key = f"{client}:{blocking.quota.name}"
+                previous = self._cooldowns.get(notice_key)
+                first = previous is None or previous[0] <= now
+                if first:
+                    if len(self._cooldowns) >= self._max_keys:
+                        oldest = min(self._cooldowns, key=lambda key: self._cooldowns[key][0])
+                        self._cooldowns.pop(oldest, None)
+                    self._cooldowns[notice_key] = (now + blocking.retry_after, blocking.quota)
+                return replace(blocking, cooldown_started=first)
             tightest: LimitDecision | None = None
             for quota, window, remaining in snapshots:
                 window.times.append(now)
@@ -266,7 +257,7 @@ class SlidingWindowStore:
         stale = [
             key
             for key, window in self._windows.items()
-            if not window.times or now - window.times[-1] > 1800
+            if not window.times or now - window.times[-1] >= window.window_seconds
         ]
         for key in stale:
             self._windows.pop(key, None)
@@ -319,7 +310,7 @@ def _reject(decision: LimitDecision) -> Response:
     else:
         detail = f"تعداد درخواست‌ها بیش از حد مجاز است. {wait} ثانیه دیگر دوباره تلاش کنید."
     return Response(
-        content=json.dumps({"detail": detail, "retry_after": wait}, ensure_ascii=False).encode("utf-8"),
+        content=json.dumps({"detail": {"code": "rate-limit", "message": detail, "retry_after": wait}, "retry_after": wait}, ensure_ascii=False).encode("utf-8"),
         status_code=429,
         media_type=JSON_MEDIA,
         headers=_limit_headers(decision, rejected=True),
@@ -340,14 +331,21 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if not path.startswith("/api/"):
             return await call_next(request)
 
-        quotas = [config.api, config.api_burst]
-        if _is_expensive(path):
-            quotas.extend((config.expensive, config.expensive_burst))
         client_ip = _client_ip(request)
+        if path.startswith("/api/support/"):
+            quotas = [config.support, config.support_burst]
+            if path == "/api/support/tickets" and request.method == "POST":
+                quotas.append(config.support_create)
+            client_key = "support:" + client_ip
+        else:
+            quotas = [config.api, config.api_burst]
+            if _is_expensive(path):
+                quotas.extend((config.expensive, config.expensive_burst))
+            client_key = "api:" + client_ip
         try:
             decision = self.store.consume(
                 time.monotonic(),
-                client_ip,
+                client_key,
                 quotas,
             )
         except Exception:
@@ -356,7 +354,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if not decision.allowed:
             if decision.cooldown_started:
                 log.warning(
-                    "rate_limit_cooldown_started client_ip=%s path=%s quota=%s "
+                    "rate_limit_window_started client_ip=%s path=%s quota=%s "
                     "limit=%s window_seconds=%s retry_after_seconds=%s forwarded_for_present=%s",
                     client_ip, path, decision.quota.name, decision.quota.limit,
                     decision.quota.window, decision.retry_after,

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+ <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+ <title>پشتیبانی — دیده‌بان فرهنگ</title>
+ <link rel="icon" href="../assets/images/Logo_tab.webp"><link rel="stylesheet" href="../assets/fonts/peyda.css">
+ <link rel="stylesheet" href="../css/support.css"><script src="../js/config.js" defer></script><script src="../js/support.js" defer></script>
+</head>
+<body class="support-body">
+ <main class="support-page">
+  <a class="support-home" href="../index.html">بازگشت به سامانه</a>
+  <header class="support-heading"><p>همراهی در ورود و عضویت</p><h1>چطور می‌توانیم کمکتان کنیم؟</h1>
+   <p>بدون ورود به حساب، مشکلتان را بنویسید. پاسخ فقط در همین بخش نمایش داده می‌شود؛ تماس تلفنی یا پیامکی انجام نمی‌شود.</p></header>
+  <div class="support-tabs" role="tablist" aria-label="پشتیبانی"><button class="support-button" id="support-create-tab" role="tab" aria-selected="true" aria-controls="support-create-panel">ثبت تیکت</button><button class="support-button secondary" id="support-track-tab" role="tab" aria-selected="false" aria-controls="support-track-panel">پیگیری و پاسخ</button></div>
+  <p id="support-error" class="support-error" role="alert" hidden></p><p id="support-wait" class="support-hint" aria-live="polite" hidden></p>
+  <section id="support-create-panel" class="support-card" role="tabpanel" aria-labelledby="support-create-tab">
+   <form id="support-create-form">
+    <div class="support-fields"><label>نام (اختیاری)<input id="support-name" name="name" autocomplete="name" maxlength="80"></label>
+    <label>شماره حساب (اختیاری)<input id="support-phone" name="phone" autocomplete="tel" inputmode="tel" dir="ltr" maxlength="16"><small>فقط برای یافتن حساب؛ با شما تماس نمی‌گیریم.</small></label></div>
+    <label>مشکل در کدام بخش است؟<select id="support-category" name="category"><option value="login">ورود</option><option value="register">ثبت‌نام</option><option value="reset">بازیابی رمز</option><option value="otp">کد پیامک</option><option value="account">وضعیت حساب</option><option value="other">سایر موارد</option></select></label>
+    <label>عنوان کوتاه<input id="support-subject" name="subject" minlength="3" maxlength="160" required></label>
+    <label>شرح مشکل<textarea id="support-message" name="message" minlength="10" maxlength="4000" rows="6" required placeholder="چه کاری انجام دادید؟ چه پیامی دیدید؟ چه زمانی این مشکل رخ داد؟"></textarea></label>
+    <p class="support-hint">رمز عبور یا کد پیامک را در تیکت ننویسید.</p>
+    <p id="support-context" class="support-hint" hidden></p>
+    <div class="support-captcha"><img id="support-captcha-image" width="220" height="76" alt="کد امنیتی"><button type="button" id="support-captcha-refresh" class="support-button secondary">کد تازه</button></div>
+    <label>کد امنیتی<input id="support-captcha-answer" autocomplete="off" maxlength="5" dir="ltr" required></label>
+    <button class="support-button" id="support-create-submit" type="submit">ثبت تیکت</button>
+   </form>
+  </section>
+  <section id="support-track-panel" class="support-card" role="tabpanel" aria-labelledby="support-track-tab" hidden>
+   <div id="support-receipt" class="support-receipt" hidden><h2>رسید پیگیری</h2><p id="support-receipt-note">کد پیگیری و کلید دسترسی را ذخیره کنید. برای دیدن پاسخ به هر دو نیاز دارید؛ کلید را به دیگران ندهید.</p><code id="support-receipt-reference" dir="ltr"></code><code id="support-receipt-key" dir="ltr"></code><button type="button" class="support-button secondary" id="support-download-receipt">دریافت فایل رسید</button><button type="button" class="support-button secondary" id="support-copy-receipt">کپی کدها</button></div>
+   <form id="support-track-form"><label>کد پیگیری<input id="support-reference" autocomplete="off" dir="ltr" maxlength="20" placeholder="SUP-XXXXXXXXXXXX" required></label><label>کلید دسترسی<input id="support-access-key" type="password" autocomplete="off" dir="ltr" minlength="32" maxlength="32" required></label><button class="support-button" id="support-track-submit" type="submit">دیدن تیکت</button></form>
+  </section>
+  <section id="support-conversation" class="support-card" hidden><header class="support-conversation-head"><h2 id="support-ticket-subject"></h2><span id="support-ticket-status" class="support-badge"></span><button id="support-refresh-ticket" class="support-button secondary" type="button">بررسی پاسخ تازه</button></header><p class="support-hint">پاسخ‌ها در همین صفحه نمایش داده می‌شوند. برای دیدن پاسخ جدید، «بررسی پاسخ تازه» را بزنید.</p><div id="support-messages" class="support-messages" aria-live="polite"></div><form id="support-reply-form"><label>توضیح یا پاسخ شما<textarea id="support-reply" rows="4" minlength="2" maxlength="4000" required></textarea></label><p class="support-hint">ارسال پیام، تیکت بسته‌شده را دوباره باز می‌کند.</p><button class="support-button" id="support-reply-submit" type="submit">ارسال پیام</button></form></section>
+ </main>
+</body></html>

@@ -60,9 +60,9 @@ proxy_set_header X-Forwarded-Proto $scheme;
 
 از `$proxy_add_x_forwarded_for` استفاده نکنید؛ این متغیر مقدار ارسالی کاربر را هم حفظ می‌کند. `RATE_LIMIT_TRUST_PROXY` دیگر استفاده نمی‌شود و می‌توانید آن را از محیط حذف کنید. پس از تغییر Nginx، ابتدا `sudo nginx -t` را اجرا کنید و فقط در صورت موفقیت پیکربندی را reload کنید.
 
-پنج رمز عبور نادرست برای یک حساب در بازهٔ ۱۵ دقیقه، آن حساب را تا فعال‌سازی دستی توسط مدیر غیرفعال می‌کند و نشست‌های فعلی آن را می‌بندد. آخرین مدیر فعال از این غیرفعال‌سازی خودکار مستثناست. فعال‌سازی از بخش کاربران پنل مدیریت شمارندهٔ خطا را پاک می‌کند. پیش از راه‌اندازی نسخهٔ جدید، مهاجرت `0008_account_login_lockout` را با `alembic upgrade head` اعمال کنید. محدودیت تعداد درخواست‌ها جداگانه بر اساس IP عمل می‌کند: درخواست اضافی پاسخ `429` و سرآیند `Retry-After` می‌گیرد و حساب را غیرفعال نمی‌کند.
+پنج رمز عبور نادرست در ۱۵ دقیقه، ورود با رمز را برای ۱۵ دقیقه محدود می‌کند؛ حساب همچنان فعال می‌ماند و نشست‌های فعلی بسته نمی‌شوند. بازیابی رمز با پیامک، پایان زمان محدودیت، یا «رفع محدودیت موقت ورود» در پنل مدیر امکان ورود را برمی‌گرداند. غیرفعال‌سازی حساب توسط مدیر جداست و فقط با فعال‌سازی مدیر برطرف می‌شود. علت و زمان غیرفعال‌سازی و سابقه وضعیت در جزئیات حساب قابل مشاهده است. حساب‌های غیرفعال قدیمی خودکار فعال نمی‌شوند؛ علت وضعیت پیشین آن‌ها «نامشخص» نمایش داده می‌شود و باید بررسی شوند.
 
-عبور از هرکدام از سهمیه‌های API، حتی سهمیهٔ یک‌ثانیه‌ای، برای آن IP محدودیت دو ساعته آغاز می‌کند. `Retry-After` ثانیه‌های باقی‌مانده را نشان می‌دهد و درخواست‌های بعدی زمان پایان را تمدید نمی‌کنند. این وضعیت فعلاً در حافظهٔ هر فرایند Uvicorn است؛ راه‌اندازی دوبارهٔ سرویس آن را پاک می‌کند و در حالت چند worker بین آن‌ها مشترک نیست. برای اجرای دقیق این سیاست، Uvicorn را با یک worker اجرا کنید.
+عبور از سهمیه API فقط تا آزاد شدن همان پنجره محدود می‌شود؛ ممنوعیت دو ساعته حذف شده است. پاسخ `429` شامل `Retry-After` است و درخواست‌های ردشده محدودیت را تمدید نمی‌کنند. شمارنده‌ها در حافظه هر فرایند هستند و بین workerها مشترک نیستند.
 
 CORS پیش‌فرض فقط `https://app.rasadbina.ir` است (HTTPS). برای عوض کردن، `CORS_ORIGINS` را در `.env` بگذارید (چند مبدأ با ویرگول). فرانت روی همان دامنه همیشه `https://app.rasadbina.ir` را برای API می‌گیرد.
 
@@ -133,10 +133,10 @@ CSS/JS and the Neshan SDK's tile/image hosts.
 
 ### Diagnosing unexpected API rate limits
 
-A new IP cooldown logs one `rate_limit_cooldown_started` warning containing the
+An exceeded rate-limit window logs one `rate_limit_window_started` warning containing the
 resolved client IP, triggering API path, quota, limit, window, and retry delay.
 Inspect the Uvicorn service journal for this warning. Rejected requests during
-an existing cooldown do not repeat the warning or extend the ban.
+an existing window do not repeat the warning or extend the restriction.
 
 If unrelated visitors are logged as `127.0.0.1` or one proxy IP, inspect Nginx's
 forwarded headers and Uvicorn's trusted proxy configuration before raising
@@ -144,3 +144,51 @@ quotas. If a CDN sits in front of Nginx, its real-IP configuration also needs to
 be verified. Do not trust arbitrary forwarded headers from the public internet.
 Rate-limit settings currently read the process environment; a project `.env`
 entry only affects them if the service also loads it as an environment file.
+
+## Ticket-only authentication support
+
+`html/support.html` is public and accessible from the home page and every login,
+registration, OTP, and password recovery step. Support is provided only through
+written tickets. No call, callback, email, or ticket SMS delivery is configured.
+Name and account phone are optional; the phone is user-supplied and must not be
+treated as verified identity or used alone to authorize account changes.
+
+Users receive a ticket reference and a private access key. They can copy or
+download a receipt, then use both values to read and reply from the support page
+without signing in. Responses are shown there only; no response-time guarantee
+is promised. Keys are hashed in the database and never put in URLs or browser
+storage. The browser generates a receipt before submission so a retry after a
+lost response retrieves the same ticket. A lost key cannot be recovered from
+its hash; users must retain the receipt. Registration passwords and OTP proofs
+are kept only in page memory, never session storage.
+
+The admin panel's «تیکت‌های پشتیبانی» tab lists tickets, supports written replies,
+and records status transitions (open, in progress, awaiting user, closed).
+A user reply reopens a closed ticket. Error references and the originating auth
+step accompany tickets opened from an error screen; passwords and OTP codes must
+never be requested in tickets. Unexpected server errors log the reference as
+`unexpected_api_error reference=...` for investigation.
+
+Public support has independent quotas: 20 requests/minute, 5/second, and
+10 ticket creation attempts/hour per IP, plus a separate support CAPTCHA budget.
+Exhausting the main API quota does not block support. Exhausting the creation
+quota does not block tracking. These limits still apply to visitors sharing a
+public IP. All ticket API responses disable caching.
+
+Deploy backend and frontend together. In the deployment environment, run:
+
+```bash
+cd /opt/app
+source venv/bin/activate
+alembic upgrade head
+python scripts/build_frontend.py
+sudo systemctl restart app-api
+```
+
+Migration `0012_support_recovery` adds ticket tables, account status history and
+separate temporary lock fields. It preserves existing inactive accounts. The
+existing `CAPTCHA_HMAC_SECRET` is required; no new support service keys are needed.
+After deployment, create a ticket while signed out, reply in the admin inbox,
+and read the reply with its receipt. Also verify an inactive account gets
+«حساب غیرفعال است» and can still open support. Database backups should include
+the new support tables as they contain the conversation and optional contact data.

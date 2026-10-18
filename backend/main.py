@@ -15,12 +15,15 @@ import json
 import logging
 import os
 import random
+import secrets
 import time
 from contextlib import asynccontextmanager, suppress
 
 from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.exceptions import RequestValidationError
+from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
@@ -360,7 +363,11 @@ _SECURITY_HEADERS = {
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
+        request.state.request_id = secrets.token_hex(8)
         response = await call_next(request)
+        response.headers["X-Request-ID"] = request.state.request_id
+        if request.url.path.startswith("/api/auth/") or request.url.path.startswith("/api/support/") or request.url.path.startswith("/api/admin/support/"):
+            response.headers["Cache-Control"] = "no-store"
         for name, value in _SECURITY_HEADERS.items():
             response.headers.setdefault(name, value)
         return response
@@ -398,6 +405,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Request-ID", "Retry-After"],
 )
 
 app.add_middleware(GZipMiddleware, minimum_size=500)
@@ -785,9 +793,9 @@ def auth_captcha_issue(body: CaptchaIssueBody, request: Request):
     try:
         payload = issue_challenge(body.phone, body.purpose, request.client.host if request.client else "")
     except CaptchaRateLimit as err:
-        raise HTTPException(status_code=429, detail="Please wait before requesting another CAPTCHA.") from err
+        raise HTTPException(status_code=429, detail={"code": "rate-limit", "message": "برای کد امنیتی تازه کمی صبر کنید.", "retry_after": err.retry_after}, headers={"Retry-After": str(err.retry_after)}) from err
     except CaptchaError as err:
-        raise HTTPException(status_code=400, detail="Invalid CAPTCHA request.") from err
+        raise HTTPException(status_code=400, detail={"code": "captcha", "message": "دریافت کد امنیتی ممکن نشد. شماره و وضعیت حساب را بررسی کنید یا تیکت ثبت کنید."}) from err
     return JSONResponse(content=payload, headers=_AUTH_NO_STORE)
 
 @app.get("/api/auth/captcha/{captcha_id}/image")
@@ -833,10 +841,13 @@ def auth_gate(body: GateBody):
 @app.post("/api/auth/login")
 def auth_login(body: LoginBody, request: Request):
     if not verify_challenge(body.captcha_id, body.captcha_answer, body.phone, "login"):
-        raise HTTPException(status_code=400, detail={"code": "captcha", "message": "Invalid or expired CAPTCHA."})
-    result = authenticate(body.phone, body.password)
+        raise HTTPException(status_code=400, detail={"code": "captcha", "message": "کد امنیتی نادرست یا منقضی است. کد تازه را وارد کنید."})
+    try:
+        result = authenticate(body.phone, body.password)
+    except MembershipError as error:
+        _raise_membership(error)
     if result is None:
-        raise HTTPException(status_code=401, detail=_LOGIN_FAIL)
+        raise HTTPException(status_code=401, detail={"code": "credentials", "message": "شماره یا رمز عبور درست نیست. شماره را بررسی کنید یا رمزتان را بازیابی کنید."})
     response = JSONResponse(content=result["profile"], headers=_AUTH_NO_STORE)
     _set_session_cookie(response, result["token"], request)
     return response
@@ -921,13 +932,18 @@ _MEMBERSHIP_HTTP = {
     "not-found": 404,
     "not-pending": 409,
     "forbidden": 403,
+    "inactive": 403,
+    "login-locked": 423,
+    "ticket-not-found": 404,
+    "support-input": 400,
 }
 
 
 def _raise_membership(err: MembershipError) -> None:
     raise HTTPException(
         status_code=_MEMBERSHIP_HTTP.get(err.code, 400),
-        detail={"code": err.code, "message": err.message},
+        detail={"code": err.code, "message": err.message, "retry_after": err.retry_after},
+        headers={"Retry-After": str(err.retry_after)} if err.retry_after else None,
     )
 
 
@@ -968,7 +984,7 @@ def auth_otp_send(body: OtpSendBody):
     if body.purpose in {"register", "reset"} and not verify_challenge(
         body.captcha_id, body.captcha_answer, body.phone, body.purpose
     ):
-        raise HTTPException(status_code=400, detail={"code": "captcha", "message": "Invalid or expired CAPTCHA."})
+        raise HTTPException(status_code=400, detail={"code": "captcha", "message": "کد امنیتی نادرست یا منقضی است. کد تازه را وارد کنید."})
     try:
         payload = send_otp(body.phone, body.purpose)
     except MembershipError as err:
@@ -1178,6 +1194,24 @@ def admin_delete_avatar(user_id: int, request: Request):
     except MembershipError as err:
         _raise_membership(err)
     return JSONResponse(content=profile, headers=_AUTH_NO_STORE)
+
+
+@app.exception_handler(RequestValidationError)
+async def guided_validation_error(request: Request, error: RequestValidationError):
+    if request.url.path.startswith(("/api/auth/", "/api/support/", "/api/admin/support/")):
+        return JSONResponse(status_code=422, content={"detail": {"code": "validation", "message": "اطلاعات واردشده را بررسی کنید. فیلدهای ضروری را کامل کنید و محدودیت طول متن را رعایت کنید."}}, headers={"Cache-Control": "no-store"})
+    return await request_validation_exception_handler(request, error)
+
+
+@app.exception_handler(Exception)
+async def unexpected_error(request: Request, error: Exception):
+    reference = getattr(request.state, "request_id", secrets.token_hex(8))
+    log.exception("unexpected_api_error reference=%s path=%s", reference, request.url.path)
+    return JSONResponse(status_code=500, content={"detail": {"code": "server", "reference": reference, "message": "خطایی در سامانه رخ داد. دوباره تلاش کنید و در صورت تکرار، کد پیگیری خطا را در تیکت بنویسید."}}, headers={"Cache-Control": "no-store", "X-Request-ID": reference, **_SECURITY_HEADERS})
+
+
+from backend.support_routes import build_router as build_support_router
+app.include_router(build_support_router(_require_admin, _raise_membership))
 
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
