@@ -67,6 +67,7 @@ let provincesList = [];
 let chartInstance = null;
 let scatterProvinceChart = null;
 let activeIndicatorGlob = null;
+let explorerIndicatorRequest = 0;
 let activeTopicGlob = null;
 let activeSubtopicGlob = null;
 let currentChartYears = [];
@@ -240,6 +241,37 @@ function fillDropdownMenu(menu, items, current, onPick) {
     });
 }
 
+function sizeExplorerDropdowns() {
+    document.querySelectorAll('.ex-dd').forEach(dropdown => {
+        const toggle = dropdown.querySelector('.ex-dd-toggle');
+        const menu = dropdown.querySelector('.ex-dd-menu');
+        if (!toggle || !menu) return;
+        const measure = toggle.cloneNode(true);
+        measure.removeAttribute('id');
+        measure.querySelectorAll('[id]').forEach(element => element.removeAttribute('id'));
+        measure.setAttribute('aria-hidden', 'true');
+        measure.tabIndex = -1;
+        Object.assign(measure.style, {
+            position: 'fixed', visibility: 'hidden', pointerEvents: 'none',
+            width: 'max-content', maxWidth: 'none', minWidth: '0', fontWeight: '700'
+        });
+        const label = measure.querySelector('.ex-dd-value');
+        if (!label) return;
+        label.style.flex = '0 0 auto';
+        dropdown.appendChild(measure);
+        try {
+            let width = measure.getBoundingClientRect().width;
+            menu.querySelectorAll('button').forEach(option => {
+                label.textContent = option.textContent;
+                width = Math.max(width, measure.getBoundingClientRect().width);
+            });
+            if (width > 0) dropdown.style.setProperty('--ex-dd-width', Math.ceil(width) + 'px');
+        } finally {
+            measure.remove();
+        }
+    });
+}
+
 function syncExplorerDropdowns() {
     const topic = activeTopicGlob || '';
     const sub = activeSubtopicGlob || findSubtopicForIndicator(topic, activeIndicatorGlob);
@@ -260,6 +292,7 @@ function syncExplorerDropdowns() {
     fillDropdownMenu(document.getElementById('dd-indicator-menu'), indicatorsOf(topic, sub), activeIndicatorGlob, nextInd => {
         loadIndicator(nextInd, topic);
     });
+    sizeExplorerDropdowns();
 }
 
 function placeMobileDropdown(btn, menu) {
@@ -303,6 +336,8 @@ function bindExplorerDropdowns() {
         menu.addEventListener('click', event => event.stopPropagation());
     });
     document.addEventListener('click', closeExplorerDropdowns);
+    window.addEventListener('resize', debounce(sizeExplorerDropdowns, 150));
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(sizeExplorerDropdowns);
 }
 
 function openTopicIndex(topic) {
@@ -490,6 +525,7 @@ function renderMosaicMenu() {
 }
 
 async function loadIndicator(indicatorName, topicName) {
+    const request = ++explorerIndicatorRequest;
     activeIndicatorGlob = indicatorName;
     if (topicName) activeTopicGlob = topicName;
     if (activeTopicGlob) applyExplorerTheme(activeTopicGlob);
@@ -509,6 +545,7 @@ async function loadIndicator(indicatorName, topicName) {
             return;
         }
         const data = await response.json();
+        if (request !== explorerIndicatorRequest) return;
 
         let srcName = data.description && data.description.source_name ? data.description.source_name : "مرکز آمار و مراجع رسمی";
         let narrative = data.description && data.description.description ? data.description.description : "توضیحات تکمیلی برای این شاخص در دسترس نیست.";
@@ -547,7 +584,7 @@ async function loadIndicator(indicatorName, topicName) {
         document.querySelectorAll('.province-checkbox').forEach(cb => { cb.checked = false; });
 
         isBulkAction = true;
-        setTimeout(() => setChartMode('trend'), 50);
+        setChartMode(currentChartMode);
 
     } catch (err) {
         console.error("Error fetching indicator data", err);
@@ -1023,6 +1060,12 @@ function explorerProvinceLabel(name, feature) {
     });
 }
 
+function clearExplorerMapSelection() {
+    if (explorerSelectedProvince === null) return;
+    explorerSelectedProvince = null;
+    if (explorerMapGeoLayer) explorerMapGeoLayer.resetStyle();
+}
+
 function initExplorerLeafletMap() {
     if (explorerLeafletMap) return Promise.resolve(explorerLeafletMap);
     if (explorerMapInitPromise) return explorerMapInitPromise;
@@ -1044,6 +1087,7 @@ function initExplorerLeafletMap() {
             minZoom: 4, maxZoom: 9, zoomSnap: 0.25
         }).setView([32, 53], 5);
         explorerLeafletMap.attributionControl.setPrefix(false);
+        explorerLeafletMap.on('click', clearExplorerMapSelection);
         explorerLeafletMap.on('zoomend', () => {
             if (explorerMapFitted && currentChartMode === 'map' && explorerMapGeoJson) requestAnimationFrame(renderExplorerMap);
         });
@@ -1126,6 +1170,7 @@ function renderExplorerMap() {
         };
     };
     explorerMapGeoLayer = L.geoJSON(explorerMapGeoJson, {
+        bubblingMouseEvents: false,
         style: provinceStyle,
         onEachFeature: (feature, layer) => {
             const name = (feature.properties && (feature.properties.ProvincNam || feature.properties.ADM1_FA || feature.properties.Name)) || '';

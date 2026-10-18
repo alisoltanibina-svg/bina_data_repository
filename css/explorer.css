@@ -296,6 +296,8 @@ body.explorer-body {
 
 .ex-dd {
     position: relative;
+    flex: 0 0 auto;
+    width: min(var(--ex-dd-width, 280px), 28vw);
     min-width: 0;
 }
 
@@ -303,7 +305,8 @@ body.explorer-body {
     display: flex;
     align-items: center;
     gap: 8px;
-    max-width: min(280px, 28vw);
+    width: 100%;
+    max-width: none;
     min-height: 42px;
     padding: 0 16px 1px;
     border: 0;
@@ -317,6 +320,7 @@ body.explorer-body {
 }
 
 .ex-dd-kicker {
+    flex-shrink: 0;
     opacity: 0.85;
     font-weight: 600;
     display: inline-flex;
@@ -332,12 +336,16 @@ body.explorer-body {
 }
 
 .ex-dd-value {
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: right;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
 .ex-dd-toggle i {
+    flex-shrink: 0;
     font-size: 0.7rem;
     margin-inline-start: 2px;
 }
@@ -350,8 +358,9 @@ body.explorer-body {
     position: absolute;
     top: calc(100% + 8px);
     inset-inline-start: 0;
+    width: 100%;
     min-width: 100%;
-    max-width: 280px;
+    max-width: none;
     max-height: min(52vh, 360px);
     overflow: auto;
     padding: 8px 6px;
@@ -463,6 +472,12 @@ body.explorer-body {
 }
 
 .chart-mode-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    direction: rtl;
+    white-space: nowrap;
     height: 32px;
     padding: 0 14px 1px;
     border: 0;
@@ -473,6 +488,13 @@ body.explorer-body {
     font-weight: 600;
     color: var(--ex-muted);
     cursor: pointer;
+}
+
+.chart-mode-icon {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 auto;
+    pointer-events: none;
 }
 
 .chart-mode-btn.active {
@@ -1197,4 +1219,12 @@ body.explorer-body {
 #explorer-leaflet-map path.leaflet-interactive:focus-visible {
     stroke: #881337;
     stroke-width: 3;
+}
+
+/* Keep all four icon-and-label modes reachable on narrow screens. */
+@media (max-width: 767px) {
+    .chart-toolbar { flex-wrap: wrap; }
+    .chart-switcher { max-width: 100%; overflow-x: auto; }
+    .chart-mode-btn { flex: 0 0 auto; gap: 4px; padding-inline: 8px; }
+    .chart-mode-icon { width: 14px; height: 14px; }
 }
