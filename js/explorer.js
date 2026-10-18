@@ -81,6 +81,7 @@ let explorerCompareYearIndex = 0;
 let explorerMapPlaybackTimer = null;
 let explorerLeafletMap = null;
 let explorerMapInitPromise = null;
+let explorerMapLoaded = false;
 let explorerMapGeoLayer = null;
 let explorerMapLabelsLayer = null;
 let explorerMapFitted = false;
@@ -964,9 +965,38 @@ function normalizeMapProvinceName(value) {
 
 function setExplorerMapStatus(message, visible) {
     const status = document.getElementById('explorer-map-status');
-    if (!status) return;
-    status.textContent = message || '';
-    status.hidden = !visible;
+    if (status) {
+        status.textContent = message || '';
+        status.hidden = !visible;
+    }
+    const target = document.getElementById('explorer-leaflet-map');
+    if (target) {
+        target.inert = visible;
+        target.classList.toggle('is-loading', visible);
+        target.setAttribute('aria-busy', String(visible));
+    }
+    const controls = document.querySelector('.explorer-map-controls');
+    if (controls) controls.inert = visible;
+    if (!explorerLeafletMap) return;
+    if (visible) explorerLeafletMap.stop();
+    ['dragging', 'touchZoom', 'scrollWheelZoom', 'doubleClickZoom', 'boxZoom', 'keyboard'].forEach(name => {
+        const handler = explorerLeafletMap[name];
+        if (handler) handler[visible ? 'disable' : 'enable']();
+    });
+}
+
+function completeExplorerMapLoading() {
+    if (!explorerLeafletMap || !explorerMapGeoLayer || currentChartMode !== 'map' || !currentChartYears.length) return false;
+    if (!explorerMapLoaded) {
+        let pending = false;
+        explorerLeafletMap.eachLayer(layer => {
+            if (typeof layer.isLoading === 'function' && layer.isLoading()) pending = true;
+        });
+        if (pending) return false;
+        explorerMapLoaded = true;
+    }
+    setExplorerMapStatus('', false);
+    return true;
 }
 
 function geometryPolygons(geometry) {
@@ -1179,12 +1209,19 @@ function initExplorerLeafletMap() {
         if (typeof config.key !== 'string' || !config.key.trim()) throw new Error('Neshan map key is missing.');
         explorerLeafletMap = new L.Map(target, {
             key: config.key, maptype: config.maptype,
-            zoomControl: true, scrollWheelZoom: true, doubleClickZoom: true,
-            touchZoom: true, boxZoom: true, keyboard: true, attributionControl: true,
+            // Page scrolling must not move the map before its layers are ready.
+            zoomControl: true, dragging: false, scrollWheelZoom: false, doubleClickZoom: false,
+            touchZoom: false, boxZoom: false, keyboard: false, attributionControl: true,
             // Neshan dreamy tiles are available from zoom 4.
             minZoom: 4, maxZoom: 9, zoomSnap: 0.25
         }).setView([32, 53], 5);
         explorerLeafletMap.attributionControl.setPrefix(false);
+        setExplorerMapStatus('در حال بارگذاری نقشه...', true);
+        const watchTiles = layer => {
+            if (typeof layer.isLoading === 'function') layer.on('load', completeExplorerMapLoading);
+        };
+        explorerLeafletMap.eachLayer(watchTiles);
+        explorerLeafletMap.on('layeradd', event => watchTiles(event.layer));
         explorerLeafletMap.on('click', clearExplorerMapSelection);
         if (typeof ResizeObserver !== 'undefined') {
             const observer = new ResizeObserver(() => {
@@ -1294,7 +1331,7 @@ function renderExplorerMap() {
     });
     updateExplorerMapLegend(min, max, allValues.length > 0);
     updateExplorerMapTimeline();
-    setExplorerMapStatus('', false);
+    if (!completeExplorerMapLoading()) setExplorerMapStatus('در حال بارگذاری نقشه...', true);
     updateExplorerMapPlaybackControl();
 }
 function drawChart() {

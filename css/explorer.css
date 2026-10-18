@@ -557,6 +557,9 @@ body.explorer-body {
 #map-chart-wrap { overflow: hidden; border: 1px solid #e2e8f0; border-radius: 14px; background: linear-gradient(145deg, #fcfdf9, #f4f6ed); }
 #map-chart-wrap.is-active { display: grid; grid-template-rows: minmax(0, 1fr) auto; }
 #explorer-leaflet-map { position: relative; width: 100%; height: 100%; min-height: 0; z-index: 0; background: #bcdfe5; }
+/* Loading gestures belong to the page, never the map underneath the status. */
+#explorer-leaflet-map.is-loading { pointer-events: none; touch-action: pan-y; }
+.explorer-map-status { touch-action: pan-y; }
 #map-chart-wrap .leaflet-tile-pane { transition: opacity 2.2s ease, filter 2.2s ease; filter: none; opacity: .30; }
 #map-chart-wrap .leaflet-control-attribution { background: rgba(255,255,255,.68); font-size: 9px; }
 .explorer-province-label { color: #17210c; direction: ltr; font-family: PeydaFaNumWeb, Peyda, sans-serif; font-size: clamp(8px, 1.1vw, 12px); font-weight: 800; line-height: 1.22; text-align: center; pointer-events: none; white-space: normal; }
