@@ -512,6 +512,8 @@ body.explorer-body {
     cursor: pointer;
 }
 
+.chart-mode-label-short { display: none; }
+
 .chart-mode-icon {
     width: 16px;
     height: 16px;
@@ -1248,10 +1250,31 @@ body.explorer-body {
     stroke-width: 3;
 }
 
-/* Keep all four icon-and-label modes reachable on narrow screens. */
+/* Mobile charts keep their own height; controls extend the scrollable page. */
 @media (max-width: 767px) {
-    .chart-toolbar { flex-wrap: wrap; }
-    .chart-switcher { max-width: 100%; overflow-x: auto; }
-    .chart-mode-btn { flex: 0 0 auto; gap: 4px; padding-inline: 8px; }
+    .ex-dash { flex: 0 0 auto; min-height: 0; }
+    .ex-dash-body { flex: 0 0 auto; }
+    .ex-chart-room { --ex-mobile-chart-height: clamp(300px, 80vw, 420px); }
+    .chart-toolbar { flex-direction: column; align-items: stretch; gap: 10px; }
+    .chart-toolbar h3 { white-space: normal; }
+    .chart-switcher {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+    }
+    .chart-mode-btn { min-width: 0; height: 36px; gap: 4px; padding-inline: 3px; }
     .chart-mode-icon { width: 14px; height: 14px; }
+    .chart-mode-label-full { display: none; }
+    .chart-mode-label-short { display: inline; }
+    #canvas-reveal-wrapper { height: auto; min-height: 0; max-height: none; }
+    .chart-pane { position: relative; inset: auto; }
+    #trend-chart-wrap { height: var(--ex-mobile-chart-height); }
+    .explorer-compare-canvas { flex: 0 0 auto; height: var(--ex-mobile-chart-height); }
+    .explorer-compare-controls { padding-top: 26px; }
+    #map-chart-wrap.is-active { grid-template-rows: var(--ex-mobile-chart-height) auto; }
+    .explorer-map-controls { min-width: 0; padding: 26px 10px 14px; }
+    #table-chart-wrap { height: var(--ex-mobile-chart-height); }
+    .ex-chart-foot { flex: 0 0 auto; flex-wrap: wrap; gap: 8px; padding-top: 12px; }
 }
