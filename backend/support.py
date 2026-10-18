@@ -66,7 +66,7 @@ def create_ticket(*, name="", phone="", category, subject, message, stage="", er
         raise MembershipError("phone", "\u0634\u0645\u0627\u0631\u0647 \u0645\u0648\u0628\u0627\u06cc\u0644 \u0627\u062e\u062a\u06cc\u0627\u0631\u06cc \u0631\u0627 \u062f\u0631\u0633\u062a \u0648\u0627\u0631\u062f \u06a9\u0646\u06cc\u062f \u06cc\u0627 \u062e\u0627\u0644\u06cc \u0628\u06af\u0630\u0627\u0631\u06cc\u062f.")
     if category not in CATEGORIES:
         raise MembershipError("support-input", "\u0646\u0648\u0639 \u0645\u0634\u06a9\u0644 \u0631\u0627 \u0627\u0646\u062a\u062e\u0627\u0628 \u06a9\u0646\u06cc\u062f.")
-    subject, message = _clean(subject, 160, 3), _clean(message, 4000, 10)
+    subject, message = _clean(subject, 160, 3), _clean(message, 4000, 1)
     stage, error_code, error_reference = _clean(stage, 32), _clean(error_code, 48), _clean(error_reference, 32)
     key = access_key or secrets.token_urlsafe(24)
     reference = reference or "SUP-" + secrets.token_hex(6).upper()

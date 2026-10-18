@@ -3,6 +3,16 @@
     'use strict';
     const $ = id => document.getElementById('support-' + id);
     const statuses = {open:'باز', in_progress:'در حال بررسی', awaiting_user:'منتظر پاسخ شما', closed:'بسته شده'};
+    const phoneInput = $('phone');
+    bindPhoneInput(phoneInput);
+    function validatePhone() {
+        phoneInput.value = digitsOnlyPhone(phoneInput.value);
+        const valid = !phoneInput.value || /^09\d{9}$/.test(phoneInput.value);
+        phoneInput.setCustomValidity(valid ? '' : 'شماره تلفن باید ۱۱ رقم و با ۰۹ شروع شود.');
+        return valid;
+    }
+    ['input', 'blur', 'paste'].forEach(event => phoneInput.addEventListener(event, validatePhone));
+    phoneInput.addEventListener('invalid', validatePhone);
     let captchaId = '', access = null, draftAccess = null, receipt = null, busy = false;
     const waits = new Map();
     const params = new URLSearchParams(location.search);
@@ -10,10 +20,6 @@
     for (const key of ['stage','error_code','error_reference']) {
         const value = params.get(key) || '';
         if (/^[a-zA-Z0-9_-]{1,48}$/.test(value)) context[key] = value.slice(0, key === 'stage' || key === 'error_reference' ? 32 : 48);
-    }
-    if (Object.keys(context).length) {
-        $('context').hidden = false;
-        $('context').textContent = 'اطلاعات مرحله و خطای اخیر، بدون رمز عبور یا کد پیامک، همراه تیکت ارسال می‌شود.';
     }
     if (context.error_code === 'inactive' || context.error_code === 'account-review') $('category').value = 'account';
     else if (['pending','rejected','closed'].includes(context.error_code)) $('category').value = 'register';
@@ -107,6 +113,7 @@
     $('captcha-refresh').onclick = () => run($('captcha-refresh'), refreshCaptcha);
     $('create-form').onsubmit = event => {
         event.preventDefault();
+        if (!validatePhone()) { phoneInput.reportValidity(); return; }
         run($('create-submit'), async () => {
             if (!captchaId) { await refreshCaptcha(); throw new Error('کد امنیتی تازه را وارد کنید.'); }
             draftAccess ||= credentials();

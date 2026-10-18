@@ -748,6 +748,22 @@ body.admin-body {
     overflow: auto;
 }
 
+/* Ticket details can exceed the fixed-height workspace; keep every control reachable. */
+#view-support {
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    padding: 0 4px 16px;
+}
+
+#view-support .support-admin-detail h2 {
+    overflow-wrap: anywhere;
+}
+
+
 @media (max-width: 960px) {
     .admin-ops {
         grid-template-columns: 1fr;

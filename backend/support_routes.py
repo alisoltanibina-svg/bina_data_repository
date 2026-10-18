@@ -17,7 +17,7 @@ class TicketCreate(BaseModel):
     phone: str = Field(default="", max_length=16)
     category: Literal["login", "register", "reset", "otp", "account", "other"]
     subject: str = Field(min_length=3, max_length=160)
-    message: str = Field(min_length=10, max_length=4000)
+    message: str = Field(min_length=1, max_length=4000)
     stage: str = Field(default="", max_length=32)
     error_code: str = Field(default="", max_length=48)
     error_reference: str = Field(default="", max_length=32)
