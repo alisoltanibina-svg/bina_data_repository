@@ -22,6 +22,7 @@
     <!-- Page CSS -->
     <link rel="stylesheet" href="css/global.css">
     <link rel="stylesheet" href="css/auth-support.css">
+    <link rel="stylesheet" href="css/captcha.css">
     <link rel="stylesheet" href="css/index.css">
     <!-- Reversible revayat treatment. Restore: drop class treat-v1 and this link. -->
     <link rel="stylesheet" href="css/treat-v1.css">
@@ -145,16 +146,13 @@
                                     <button type="button" class="password-toggle" data-password-toggle="login-password" aria-label="نمایش رمز عبور" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6S2.5 12 2.5 12Z"></path><circle cx="12" cy="12" r="2.75"></circle></svg></button>
                                     <em class="register-error" id="err-login-password" hidden></em>
                                 </label>
-                                <div class="login-captcha auth-captcha" id="login-captcha" hidden aria-live="polite">
-                                    <div class="login-captcha-row">
-                                        <img id="login-captcha-image" alt="کد امنیتی" width="220" height="76">
-                                        <button type="button" class="login-captcha-refresh" id="login-captcha-refresh" aria-label="تغییر کد امنیتی">↻</button>
+                                <div class="auth-captcha" id="login-captcha" hidden>
+                                    <div class="captcha-field">
+                                        <input class="captcha-answer" type="text" id="login-captcha-answer" aria-label="کد امنیتی" aria-describedby="err-login-captcha-answer" inputmode="text" dir="ltr" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" maxlength="5" placeholder="کد امنیتی">
+                                        <img class="captcha-image" id="login-captcha-image" alt="تصویر کد امنیتی" width="116" height="40">
+                                        <button type="button" class="captcha-refresh" id="login-captcha-refresh" aria-label="تغییر کد امنیتی" title="تغییر کد امنیتی"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 11a9 9 0 0 1 15.4-6.4L21 7"></path><path d="M21 3v4h-4"></path><path d="M21 13a9 9 0 0 1-15.4 6.4L3 17"></path><path d="M7 17H3v4"></path></svg></button>
                                     </div>
-                                    <label class="register-field login-captcha-answer">
-                                        <span class="visually-hidden">کد امنیتی</span>
-                                        <input type="text" id="login-captcha-answer" inputmode="text" dir="ltr" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" maxlength="5" placeholder="کد امنیتی">
-                                        <em class="register-error" id="err-login-captcha-answer" hidden></em>
-                                    </label>
+                                    <em class="register-error" id="err-login-captcha-answer" hidden></em>
                                 </div>
                                 <button type="submit" class="register-submit" id="login-submit">ورود</button>
                             </form>
@@ -170,16 +168,13 @@
                             <h1>تأیید امنیتی</h1>
                             <p class="register-lead">برای ارسال کد بازیابی، کد امنیتی را وارد کنید.</p>
                             <form id="reset-captcha-form" novalidate autocomplete="off">
-                                <div class="auth-captcha" id="reset-captcha" hidden aria-live="polite">
-                                    <div class="login-captcha-row">
-                                        <img id="reset-captcha-image" alt="کد امنیتی" width="220" height="76">
-                                        <button type="button" class="login-captcha-refresh" data-captcha-refresh="reset" aria-label="تغییر کد امنیتی">↻</button>
+                                <div class="auth-captcha" id="reset-captcha" hidden>
+                                    <div class="captcha-field">
+                                        <input class="captcha-answer" type="text" id="reset-captcha-answer" aria-label="کد امنیتی" aria-describedby="err-reset-captcha-answer" inputmode="text" dir="ltr" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" maxlength="5" placeholder="کد امنیتی">
+                                        <img class="captcha-image" id="reset-captcha-image" alt="تصویر کد امنیتی" width="116" height="40">
+                                        <button type="button" class="captcha-refresh" data-captcha-refresh="reset" aria-label="تغییر کد امنیتی" title="تغییر کد امنیتی"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 11a9 9 0 0 1 15.4-6.4L21 7"></path><path d="M21 3v4h-4"></path><path d="M21 13a9 9 0 0 1-15.4 6.4L3 17"></path><path d="M7 17H3v4"></path></svg></button>
                                     </div>
-                                    <label class="register-field login-captcha-answer">
-                                        <span class="visually-hidden">کد امنیتی</span>
-                                        <input type="text" id="reset-captcha-answer" inputmode="text" dir="ltr" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" maxlength="5" placeholder="کد امنیتی">
-                                        <em class="register-error" id="err-reset-captcha-answer" hidden></em>
-                                    </label>
+                                    <em class="register-error" id="err-reset-captcha-answer" hidden></em>
                                 </div>
                                 <button type="submit" class="register-submit" id="reset-captcha-submit">ارسال کد بازیابی</button>
                             </form>
@@ -283,16 +278,13 @@
                                         <em class="register-error" id="err-password_confirm" hidden></em>
                                     </label>
                                 </div>
-                                <div class="login-captcha auth-captcha" id="register-captcha" hidden aria-live="polite">
-                                    <div class="login-captcha-row">
-                                        <img id="register-captcha-image" alt="کد امنیتی" width="220" height="76">
-                                        <button type="button" class="login-captcha-refresh" data-captcha-refresh="register" aria-label="تغییر کد امنیتی">↻</button>
+                                <div class="auth-captcha" id="register-captcha" hidden>
+                                    <div class="captcha-field">
+                                        <input class="captcha-answer" type="text" id="register-captcha-answer" aria-label="کد امنیتی" aria-describedby="err-register-captcha-answer" inputmode="text" dir="ltr" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" maxlength="5" placeholder="کد امنیتی">
+                                        <img class="captcha-image" id="register-captcha-image" alt="تصویر کد امنیتی" width="116" height="40">
+                                        <button type="button" class="captcha-refresh" data-captcha-refresh="register" aria-label="تغییر کد امنیتی" title="تغییر کد امنیتی"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 11a9 9 0 0 1 15.4-6.4L21 7"></path><path d="M21 3v4h-4"></path><path d="M21 13a9 9 0 0 1-15.4 6.4L3 17"></path><path d="M7 17H3v4"></path></svg></button>
                                     </div>
-                                    <label class="register-field login-captcha-answer">
-                                        <span class="visually-hidden">کد امنیتی</span>
-                                        <input type="text" id="register-captcha-answer" inputmode="text" dir="ltr" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" maxlength="5" placeholder="کد امنیتی">
-                                        <em class="register-error" id="err-register-captcha-answer" hidden></em>
-                                    </label>
+                                    <em class="register-error" id="err-register-captcha-answer" hidden></em>
                                 </div>
                                 <button type="submit" class="register-submit" id="register-submit">ورود</button>
                             </form>

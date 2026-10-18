@@ -19,8 +19,8 @@
 .support-button.secondary { background:#fff; color:#515811; border-color:#ccd2ba; }
 .support-button:disabled { opacity:.55; cursor:wait; }
 .support-button:focus-visible,.support-card input:focus-visible,.support-card textarea:focus-visible,.support-card select:focus-visible { outline:3px solid #a9b36e; outline-offset:3px; }
-.support-captcha { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
-.support-captcha img { max-width:100%; border-radius:10px; border:1px solid #dfe4d1; }
+.support-captcha { margin:0 0 16px; max-width:440px; }
+.support-captcha .captcha-field { border:1px solid #cdd2bf; border-radius:12px; }
 .support-error { padding:12px 16px; border:1px solid #e5b8b8; border-radius:12px; background:#fff2f2; color:#8f2424; white-space:pre-line; overflow-wrap:anywhere; }
 .support-error[hidden],.support-hint[hidden] { display:none; }
 .support-receipt { padding:16px; border:1px solid #bac58c; background:#f7faed; border-radius:12px; margin-bottom:24px; }
@@ -46,5 +46,3 @@
 
 #support-reference,.support-receipt code {font-family:ui-monospace,Consolas,monospace;letter-spacing:.03em;}
 
-#support-captcha-refresh {width:44px;height:44px;min-width:44px;padding:0;border-radius:50%;}
-#support-captcha-refresh svg {display:block;flex:none;}

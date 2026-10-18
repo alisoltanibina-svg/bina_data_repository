@@ -1,0 +1,72 @@
+/* Shared in-field CAPTCHA for authentication and public support. */
+.auth-captcha[hidden] { display: none !important; }
+.captcha-field {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 116px 32px;
+    align-items: center;
+    gap: 6px;
+    direction: rtl;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    height: 54px;
+    padding: 6px 10px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background: #fff;
+}
+.captcha-field:focus-within { outline: 2px solid #68722a; outline-offset: 2px; }
+.captcha-field:has(.captcha-answer[aria-invalid="true"]) { border-color: #b91c1c; }
+.captcha-field > .captcha-answer {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    height: 100%;
+    padding: 0 6px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: #515811;
+    font: inherit;
+    font-size: .88rem;
+    font-weight: 500;
+    text-align: center;
+}
+.captcha-field > .captcha-answer::placeholder { color: #a18447; opacity: 1; }
+.captcha-field > .captcha-answer:focus-visible { outline: none; box-shadow: none; }
+.captcha-field > .captcha-image {
+    display: block;
+    box-sizing: border-box;
+    width: 116px;
+    height: 40px;
+    max-width: 100%;
+    object-fit: contain;
+    border: 1px solid #e7debc;
+    border-radius: 3px;
+    background: #f7f2e2;
+}
+.captcha-field > .captcha-refresh {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 36px;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: #515811;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+.captcha-refresh svg { display: block; flex: none; }
+.captcha-refresh:hover:not(:disabled) { background: #edf5f1; }
+.captcha-refresh:focus-visible { outline: 2px solid #515811; outline-offset: 1px; }
+.captcha-refresh:disabled { opacity: .45; cursor: wait; }
+@media (max-width: 380px) {
+    .captcha-field { grid-template-columns: minmax(0, 1fr) 104px 30px; gap: 4px; padding-inline: 8px; }
+    .captcha-field > .captcha-image { width: 104px; height: 36px; }
+    .captcha-field > .captcha-answer { padding-inline: 2px; font-size: .8rem; }
+    .captcha-field > .captcha-refresh { width: 30px; }
+}
