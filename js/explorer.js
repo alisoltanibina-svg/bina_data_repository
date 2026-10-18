@@ -241,6 +241,19 @@ function fillDropdownMenu(menu, items, current, onPick) {
     });
 }
 
+function explorerDropdownWidthOptions(kind) {
+    const topics = Object.keys(topicsHierarchy);
+    if (kind === 'topic') return topics;
+    const subtopics = Object.values(topicsHierarchy).flatMap(subs => Object.keys(subs || {}));
+    if (kind === 'subtopic') return [...new Set(subtopics)];
+    if (kind === 'indicator') {
+        return [...new Set(Object.values(topicsHierarchy).flatMap(subs =>
+            Object.values(subs || {}).flatMap(items => Array.isArray(items) ? items : [])
+        ))];
+    }
+    return [];
+}
+
 function sizeExplorerDropdowns() {
     document.querySelectorAll('.ex-dd').forEach(dropdown => {
         const toggle = dropdown.querySelector('.ex-dd-toggle');
@@ -258,11 +271,15 @@ function sizeExplorerDropdowns() {
         const label = measure.querySelector('.ex-dd-value');
         if (!label) return;
         label.style.flex = '0 0 auto';
+        label.textContent = '';
         dropdown.appendChild(measure);
         try {
             let width = measure.getBoundingClientRect().width;
-            menu.querySelectorAll('button').forEach(option => {
-                label.textContent = option.textContent;
+            // Measure the full catalog, not the options filtered by the current selection.
+            const catalog = explorerDropdownWidthOptions(dropdown.dataset.dd);
+            const options = catalog.length ? catalog : [...menu.querySelectorAll('button')].map(option => option.textContent);
+            options.forEach(text => {
+                label.textContent = text;
                 width = Math.max(width, measure.getBoundingClientRect().width);
             });
             if (width > 0) dropdown.style.setProperty('--ex-dd-width', Math.ceil(width) + 'px');
@@ -1277,6 +1294,7 @@ function drawChart() {
         });
 
         chartInstance.data.labels = currentChartYears.map(toFa);
+        Object.assign(chartInstance.options.scales.y, getTrendScaleBounds());
         chartInstance.update('none'); 
 
         startSweep(chartInstance);
@@ -1306,6 +1324,27 @@ function toggleCountryLegend() {
     syncCountryLegend();
 }
 
+function getTrendScaleBounds() {
+    let min = Infinity;
+    let max = -Infinity;
+    // Use the whole indicator, independently of selected or hidden province series.
+    for (const record of kscoreData) {
+        const raw = record.value;
+        if (typeof raw !== 'number' && typeof raw !== 'string') continue;
+        if (typeof raw === 'string' && !raw.trim()) continue;
+        const value = Number(raw);
+        if (!Number.isFinite(value)) continue;
+        min = Math.min(min, value);
+        max = Math.max(max, value);
+    }
+    if (min === Infinity) return { min: undefined, max: undefined };
+    if (min === max) {
+        const padding = Math.max(Math.abs(min) * 0.05, 1);
+        return { min: min - padding, max: max + padding };
+    }
+    return { min, max };
+}
+
 function getChartOptions() {
     return {
         responsive: true,
@@ -1325,7 +1364,7 @@ function getChartOptions() {
         },
         scales: {
             x: { ticks: { font: { family: 'PeydaFaNumWeb' }, color: '#64748b' }, grid: { display: false } },
-            y: { ticks: { font: { family: 'PeydaFaNumWeb' }, color: '#64748b' }, grid: { color: '#e2e8f0', drawBorder: false }, border: { dash: [4, 4] } }
+            y: { ...getTrendScaleBounds(), ticks: { font: { family: 'PeydaFaNumWeb' }, color: '#64748b' }, grid: { color: '#e2e8f0', drawBorder: false }, border: { dash: [4, 4] } }
         }
     };
 }
