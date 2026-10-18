@@ -371,11 +371,19 @@ function initCurtainContactPanel() {
         detail.textContent = '';
         detail.dir = key === 'email' || key === 'phone' ? 'ltr' : 'rtl';
         popover.querySelectorAll('.entry-contact-icon').forEach(icon => icon.classList.toggle('is-selected', icon === button));
+        let textTarget = detail;
+        if (key === 'phone') {
+            const link = document.createElement('a');
+            link.href = 'tel:+982188946618';
+            link.dir = 'ltr';
+            detail.appendChild(link);
+            textTarget = link;
+        }
         const characters = Array.from(value);
         let cursor = 0;
         const tick = () => {
             if (version !== typingVersion) return;
-            detail.textContent += characters.slice(cursor, cursor + 2).join('');
+            textTarget.textContent += characters.slice(cursor, cursor + 2).join('');
             cursor += 2;
             if (cursor < characters.length) window.setTimeout(tick, 18);
         };

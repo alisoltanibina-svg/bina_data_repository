@@ -722,6 +722,7 @@ a.entry-ghost-btn {
 .entry-contact-icon:focus-visible { outline: 2px solid #515811; outline-offset: 2px; }
 .entry-contact-icon svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .entry-contact-detail { min-height: 1.55rem; margin: 0; color: #515811; font-size: 0.78rem; font-weight: 600; line-height: 1.85; text-align: center; }
+.entry-contact-detail a[href^="tel:"] { color: inherit; text-underline-offset: 3px; }
 .entry-contact-detail:empty { display: none; }
 .entry-contact-detail[dir="ltr"] { direction: ltr; unicode-bidi: plaintext; }
 .entry-launch-split {

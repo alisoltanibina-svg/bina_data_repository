@@ -1089,8 +1089,8 @@ function updateExplorerMapLegend(min, max, hasValues) {
     const minLabel = document.getElementById('explorer-map-legend-min');
     const maxLabel = document.getElementById('explorer-map-legend-max');
     if (!minLabel || !maxLabel) return;
-    minLabel.textContent = hasValues ? toFaFixed(min, 2) : '—';
-    maxLabel.textContent = hasValues ? toFaFixed(max, 2) : '—';
+    minLabel.textContent = hasValues ? toFa(Math.floor(min)) : '—';
+    maxLabel.textContent = hasValues ? toFa(Math.ceil(max)) : '—';
 }
 
 function escapeMapLabel(value) {
@@ -1420,7 +1420,7 @@ function getChartOptions() {
         },
         scales: {
             x: { ticks: { font: { family: 'PeydaFaNumWeb' }, color: '#64748b' }, grid: { display: false } },
-            y: { ...getTrendScaleBounds(), ticks: { font: { family: 'PeydaFaNumWeb' }, color: '#64748b' }, grid: { color: '#e2e8f0', drawBorder: false }, border: { dash: [4, 4] } }
+            y: { ...getTrendScaleBounds(), ticks: { includeBounds: false, font: { family: 'PeydaFaNumWeb' }, color: '#64748b' }, grid: { color: '#e2e8f0', drawBorder: false }, border: { dash: [4, 4] } }
         }
     };
 }
