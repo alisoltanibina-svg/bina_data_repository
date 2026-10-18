@@ -1,18 +1,21 @@
-"""Account-independent support tickets. Access secrets never appear in URLs or storage."""
+"""Guest ticket tracking and private, authenticated account ticket histories."""
 from __future__ import annotations
-import hashlib
-import hmac
+import base64
+import json
 import re
 import secrets
 from datetime import datetime, timezone
-from sqlalchemy import func, select
+from sqlalchemy import func, select, tuple_
 from backend.database import db_session
 from backend.membership import MembershipError, is_mobile_phone, normalize_phone
+from sqlalchemy.exc import IntegrityError
 from backend.models import SupportMessage, SupportStatusEvent, SupportTicket
 
-CATEGORIES = frozenset({"login", "register", "reset", "otp", "account", "other"})
+CATEGORIES = frozenset({"login", "register", "reset", "otp", "account", "atlas", "explorer", "profile", "other"})
 STATUSES = frozenset({"open", "in_progress", "awaiting_user", "closed"})
 MAX_MESSAGES = 200
+REFERENCE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+REFERENCE_PATTERN = r"SUP-[A-Z2-7]{16}"
 
 
 def _clean(value, maximum, minimum=0):
@@ -32,7 +35,7 @@ def _summary(ticket, admin=False):
     result = {"reference": ticket.reference, "subject": ticket.subject, "category": ticket.category,
               "status": ticket.status, "created_at": _iso(ticket.created_at), "updated_at": _iso(ticket.updated_at)}
     if admin:
-        result.update(name=ticket.name or "", phone=ticket.phone or "", stage=ticket.stage or "",
+        result.update(user_id=ticket.user_id, name=ticket.name or "", phone=ticket.phone or "", stage=ticket.stage or "",
                       error_code=ticket.error_code or "", error_reference=ticket.error_reference or "")
     return result
 
@@ -48,48 +51,56 @@ def _conversation(session, ticket, admin=False):
     return result
 
 
-def _authorize(session, reference, access_key, lock=False):
-    statement = select(SupportTicket).where(SupportTicket.reference == reference.strip().upper())
+def _authorize(session, reference, lock=False, user_id=None):
+    statement = select(SupportTicket).where(
+        SupportTicket.reference == reference.strip().upper(),
+        SupportTicket.user_id.is_(None) if user_id is None else SupportTicket.user_id == user_id,
+    )
     if lock:
         statement = statement.with_for_update()
     ticket = session.scalar(statement)
-    supplied = hashlib.sha256(access_key.encode("utf-8")).hexdigest()
-    if ticket is None or not hmac.compare_digest(ticket.access_hash, supplied):
-        raise MembershipError("ticket-not-found", "\u062a\u06cc\u06a9\u062a \u0628\u0627 \u0627\u06cc\u0646 \u06a9\u062f \u067e\u06cc\u06af\u06cc\u0631\u06cc \u0648 \u06a9\u0644\u06cc\u062f \u062f\u0633\u062a\u0631\u0633\u06cc \u067e\u06cc\u062f\u0627 \u0646\u0634\u062f. \u0647\u0631 \u062f\u0648 \u0631\u0627 \u0627\u0632 \u0631\u0648\u06cc \u0631\u0633\u06cc\u062f \u0628\u0631\u0631\u0633\u06cc \u06a9\u0646\u06cc\u062f.")
+    if ticket is None:
+        raise MembershipError("ticket-not-found", "تیکتی با این کد پیگیری پیدا نشد. کد پیگیری را بررسی کنید.")
     return ticket
 
 
-def create_ticket(*, name="", phone="", category, subject, message, stage="", error_code="", error_reference="", reference="", access_key=""):
-    name = _clean(name, 80)
+def create_ticket(*, name="", phone="", category, subject, message, stage="", error_code="", error_reference="", reference="", user_id=None):
+    if not (name or "").strip():
+        raise MembershipError("support-input", "نام را وارد کنید.")
+    name = _clean(name, 80, 1)
     phone = normalize_phone(phone)
-    if phone and not is_mobile_phone(phone):
-        raise MembershipError("phone", "\u0634\u0645\u0627\u0631\u0647 \u0645\u0648\u0628\u0627\u06cc\u0644 \u0627\u062e\u062a\u06cc\u0627\u0631\u06cc \u0631\u0627 \u062f\u0631\u0633\u062a \u0648\u0627\u0631\u062f \u06a9\u0646\u06cc\u062f \u06cc\u0627 \u062e\u0627\u0644\u06cc \u0628\u06af\u0630\u0627\u0631\u06cc\u062f.")
+    if not is_mobile_phone(phone):
+        raise MembershipError("phone", "شماره تلفن را وارد کنید؛ شماره باید ۱۱ رقم و با ۰۹ شروع شود.")
     if category not in CATEGORIES:
         raise MembershipError("support-input", "\u0646\u0648\u0639 \u0645\u0634\u06a9\u0644 \u0631\u0627 \u0627\u0646\u062a\u062e\u0627\u0628 \u06a9\u0646\u06cc\u062f.")
     subject, message = _clean(subject, 160, 3), _clean(message, 4000, 1)
     stage, error_code, error_reference = _clean(stage, 32), _clean(error_code, 48), _clean(error_reference, 32)
-    key = access_key or secrets.token_urlsafe(24)
-    reference = reference or "SUP-" + secrets.token_hex(6).upper()
-    if not re.fullmatch(r"SUP-[A-F0-9]{12}", reference) or not re.fullmatch(r"[A-Za-z0-9_-]{32}", key):
-        raise MembershipError("support-input", "Invalid ticket receipt")
+    reference = reference or "SUP-" + "".join(secrets.choice(REFERENCE_ALPHABET) for _ in range(16))
+    if not re.fullmatch(REFERENCE_PATTERN, reference):
+        raise MembershipError("support-input", "کد پیگیری معتبر نیست. دوباره تلاش کنید.")
     now = datetime.now(timezone.utc)
-    with db_session() as session:
-        ticket = SupportTicket(reference=reference, access_hash=hashlib.sha256(key.encode()).hexdigest(),
-                               name=name or None, phone=phone or None, category=category, subject=subject, stage=stage or None,
-                               error_code=error_code or None, error_reference=error_reference or None,
-                               status="open", created_at=now, updated_at=now)
-        session.add(ticket)
-        session.flush()
-        session.add(SupportMessage(ticket_id=ticket.id, author="user", body=message, created_at=now))
-        session.flush()
-        result = _conversation(session, ticket)
-        result["access_key"] = key
-        return result
+    try:
+        with db_session() as session:
+            # Retain the legacy non-null column for existing deployments; it is no
+            # longer used for authorization and no separate access key is created.
+            ticket = SupportTicket(user_id=user_id, reference=reference, access_hash="",
+                                   name=name or None, phone=phone or None, category=category, subject=subject, stage=stage or None,
+                                   error_code=error_code or None, error_reference=error_reference or None,
+                                   status="open", created_at=now, updated_at=now)
+            session.add(ticket)
+            session.flush()
+            session.add(SupportMessage(ticket_id=ticket.id, author="user", actor_id=user_id, body=message, created_at=now))
+            session.flush()
+            return _conversation(session, ticket)
+    except IntegrityError as error:
+        if getattr(error.orig, "sqlstate", None) == "23505":
+            raise MembershipError("reference-conflict", "ثبت تیکت با این کد پیگیری ممکن نشد. دوباره تلاش کنید.") from error
+        raise
 
 
-def read_ticket(reference, access_key):
+def read_ticket(reference, *, user_id=None):
     with db_session() as session:
-        return _conversation(session, _authorize(session, reference, access_key))
+        return _conversation(session, _authorize(session, reference, user_id=user_id))
 
 
 def _add_message(session, ticket, body, author, actor_id=None):
@@ -107,10 +118,10 @@ def _set_status(session, ticket, status, actor_id=None):
     ticket.updated_at = datetime.now(timezone.utc)
 
 
-def reply_ticket(reference, access_key, message):
+def reply_ticket(reference, message, *, user_id=None):
     with db_session() as session:
-        ticket = _authorize(session, reference, access_key, lock=True)
-        _add_message(session, ticket, message, "user")
+        ticket = _authorize(session, reference, lock=True, user_id=user_id)
+        _add_message(session, ticket, message, "user", user_id)
         _set_status(session, ticket, "open")
         session.flush()
         return _conversation(session, ticket)
@@ -147,3 +158,34 @@ def update_ticket(reference, actor_id, status, message=""):
         _set_status(session, ticket, status, actor_id)
         session.flush()
         return _conversation(session, ticket, True)
+
+
+def _history_cursor(ticket):
+    payload = json.dumps([_iso(ticket.updated_at), ticket.id], separators=(",", ":"))
+    return base64.urlsafe_b64encode(payload.encode("ascii")).decode("ascii").rstrip("=")
+
+
+def _decode_history_cursor(cursor):
+    try:
+        raw = base64.b64decode(cursor + "=" * (-len(cursor) % 4), altchars=b"-_", validate=True)
+        timestamp, ticket_id = json.loads(raw)
+        when = datetime.fromisoformat(timestamp)
+        if when.tzinfo is None or type(ticket_id) is not int or not 0 < ticket_id <= 2147483647:
+            raise ValueError("Invalid history cursor")
+        return when.astimezone(timezone.utc), ticket_id
+    except (ValueError, TypeError, UnicodeError) as error:
+        raise MembershipError("support-input", "بارگذاری ادامه فهرست ممکن نشد. فهرست را تازه‌سازی کنید.") from error
+
+
+def list_user_tickets(user_id, cursor="", limit=25):
+    # Seek pagination uses the owner/date/id index; no OFFSET, COUNT, or message joins.
+    with db_session() as session:
+        statement = select(SupportTicket.id, SupportTicket.reference, SupportTicket.subject, SupportTicket.category,
+                           SupportTicket.status, SupportTicket.created_at, SupportTicket.updated_at).where(SupportTicket.user_id == user_id)
+        if cursor:
+            before, ticket_id = _decode_history_cursor(cursor)
+            statement = statement.where(tuple_(SupportTicket.updated_at, SupportTicket.id) < tuple_(before, ticket_id))
+        rows = session.execute(statement.order_by(SupportTicket.updated_at.desc(), SupportTicket.id.desc()).limit(limit + 1)).all()
+        visible = rows[:limit]
+        return {"tickets": [_summary(ticket) for ticket in visible], "has_more": len(rows) > limit,
+                "next_cursor": _history_cursor(visible[-1]) if len(rows) > limit else None}

@@ -362,9 +362,12 @@ class SupportTicket(Base):
     __table_args__ = (
         CheckConstraint("status IN ('open', 'in_progress', 'awaiting_user', 'closed')", name="ck_support_ticket_status"),
         Index("idx_support_tickets_status_updated", "status", "updated_at"),
+        Index("idx_support_tickets_user_updated_id", "user_id", text("updated_at DESC"), text("id DESC"), postgresql_where=text("user_id IS NOT NULL")),
     )
     id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id", name="fk_support_tickets_user", ondelete="CASCADE"))
     reference: Mapped[str] = mapped_column(String(20), nullable=False, unique=True)
+    # Legacy column retained for schema compatibility; tracking now uses reference only.
     access_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     name: Mapped[str | None] = mapped_column(String(80))
     phone: Mapped[str | None] = mapped_column(String(15))

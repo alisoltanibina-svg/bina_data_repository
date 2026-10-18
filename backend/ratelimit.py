@@ -339,6 +339,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             client_key = "support:" + client_ip
         else:
             quotas = [config.api, config.api_burst]
+            if path.rstrip("/") == "/api/account/tickets" and request.method == "POST":
+                quotas.append(config.support_create)
             if _is_expensive(path):
                 quotas.extend((config.expensive, config.expensive_burst))
             client_key = "api:" + client_ip

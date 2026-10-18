@@ -178,7 +178,7 @@ function finishSignedIn(profile) {
     clearOtpVerification();
     writeBannerProfile(profile);
     const next = takeAuthNext();
-    if (next && (next.page === 'explorer' || next.page === 'bubble')) {
+    if (next && (next.page === 'explorer' || next.page === 'bubble' || next.page === 'tickets')) {
         window.location.href = hrefForAuthNext(next);
         return;
     }
@@ -494,7 +494,7 @@ onReady(() => {
     document.getElementById('login-form').addEventListener('submit', async event => {
         event.preventDefault(); setError('login-password', '');
         const password = document.getElementById('login-password').value;
-        if (password.length < 8) { setError('login-password', 'رمز عبور حداقل ۸ نویسه باشد.'); document.getElementById('login-password').focus(); return; }
+        if (!password) { setError('login-password', 'رمز عبور را وارد کنید.'); document.getElementById('login-password').focus(); return; }
         const captcha = readCaptcha('login');
         if (!captcha.valid) { setError('login-captcha-answer', 'کد امنیتی پنج‌نویسه را وارد کنید.'); document.getElementById('login-captcha-answer').focus(); return; }
         const submit = document.getElementById('login-submit'); submit.disabled = true;
@@ -675,7 +675,7 @@ function showAuthNotice(message) {
         box.hidden = false;
         box.querySelector('[data-auth-message]').textContent = message;
         box.querySelector('[data-auth-reference]').textContent = authError.reference ? 'کد پیگیری خطا: ' + authError.reference : '';
-        box.querySelector('[data-auth-recover]').hidden = !['credentials','login-locked'].includes(authError.code) || authStage !== 'auth-login';
+        box.querySelector('[data-auth-recover]').hidden = authError.code !== 'credentials' || authStage !== 'auth-login';
     });
     updateAuthSupport();
 }

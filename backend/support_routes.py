@@ -2,20 +2,20 @@
 from typing import Literal
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from backend.captcha import CaptchaError, CaptchaRateLimit, captcha_image, issue_challenge, verify_challenge
 from backend.membership import MembershipError
 from backend import support
 
 HEADERS = {"Cache-Control": "no-store"}
+TicketCategory = Literal["login", "register", "reset", "otp", "account", "atlas", "explorer", "profile", "other"]
 
 
 class TicketCreate(BaseModel):
-    reference: str = Field(default="", pattern=r"^(SUP-[A-F0-9]{12})?$")
-    access_key: str = Field(default="", pattern=r"^([A-Za-z0-9_-]{32})?$")
-    name: str = Field(default="", max_length=80)
-    phone: str = Field(default="", max_length=16)
-    category: Literal["login", "register", "reset", "otp", "account", "other"]
+    reference: str = Field(default="", max_length=20, pattern=r"^(SUP-[A-Z2-7]{16})?$")
+    name: str = Field(min_length=1, max_length=80)
+    phone: str = Field(min_length=1, max_length=16)
+    category: TicketCategory
     subject: str = Field(min_length=3, max_length=160)
     message: str = Field(min_length=1, max_length=4000)
     stage: str = Field(default="", max_length=32)
@@ -26,8 +26,13 @@ class TicketCreate(BaseModel):
 
 
 class TicketAccess(BaseModel):
-    reference: str = Field(min_length=16, max_length=20, pattern=r"^SUP-[A-Fa-f0-9]{12}$")
-    access_key: str = Field(min_length=32, max_length=32, pattern=r"^[A-Za-z0-9_-]{32}$")
+    reference: str = Field(min_length=16, max_length=20, pattern=r"^SUP-(?:[A-Fa-f0-9]{12}|[A-Za-z2-7]{16})$")
+
+    @field_validator("reference", mode="before")
+    @classmethod
+    def normalize_reference(cls, value):
+        return value.strip().upper() if isinstance(value, str) else value
+
 
 
 class TicketReply(TicketAccess):
@@ -39,7 +44,20 @@ class TicketUpdate(BaseModel):
     message: str = Field(default="", max_length=4000)
 
 
-def build_router(require_admin, raise_membership):
+class AccountTicketCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    reference: str = Field(default="", max_length=20, pattern=r"^(SUP-[A-Z2-7]{16})?$")
+    category: TicketCategory
+    subject: str = Field(min_length=3, max_length=160)
+    message: str = Field(min_length=1, max_length=4000)
+
+
+class AccountTicketReply(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    message: str = Field(min_length=2, max_length=4000)
+
+
+def build_router(require_admin, raise_membership, require_user):
     router = APIRouter()
 
     @router.post("/api/support/captcha")
@@ -61,11 +79,9 @@ def build_router(require_admin, raise_membership):
 
     @router.post("/api/support/tickets")
     def create(body: TicketCreate):
-        if bool(body.reference) != bool(body.access_key):
-            raise HTTPException(400, detail={"code": "support-input", "message": "رسید تیکت معتبر نیست. صفحه را دوباره باز کنید."})
-        if body.reference and body.access_key:
+        if body.reference:
             try:
-                return JSONResponse(support.read_ticket(body.reference, body.access_key), headers=HEADERS)
+                return JSONResponse(support.read_ticket(body.reference), headers=HEADERS)
             except MembershipError as error:
                 if error.code != "ticket-not-found":
                     raise_membership(error)
@@ -80,7 +96,7 @@ def build_router(require_admin, raise_membership):
     @router.post("/api/support/tickets/lookup")
     def lookup(body: TicketAccess):
         try:
-            result = support.read_ticket(body.reference, body.access_key)
+            result = support.read_ticket(body.reference)
         except MembershipError as error:
             raise_membership(error)
         return JSONResponse(result, headers=HEADERS)
@@ -88,7 +104,53 @@ def build_router(require_admin, raise_membership):
     @router.post("/api/support/tickets/reply")
     def reply(body: TicketReply):
         try:
-            result = support.reply_ticket(body.reference, body.access_key, body.message)
+            result = support.reply_ticket(body.reference, body.message)
+        except MembershipError as error:
+            raise_membership(error)
+        return JSONResponse(result, headers=HEADERS)
+
+    @router.get("/api/account/tickets")
+    def account_inbox(request: Request, cursor: str = Query("", max_length=180)):
+        actor = require_user(request)
+        try:
+            result = support.list_user_tickets(actor["id"], cursor)
+        except MembershipError as error:
+            raise_membership(error)
+        return JSONResponse(result, headers=HEADERS)
+
+    @router.post("/api/account/tickets")
+    def account_create(body: AccountTicketCreate, request: Request):
+        actor = require_user(request)
+        if body.reference:
+            try:
+                return JSONResponse(support.read_ticket(body.reference, user_id=actor["id"]), headers=HEADERS)
+            except MembershipError as error:
+                if error.code != "ticket-not-found":
+                    raise_membership(error)
+        name = " ".join(part for part in (actor.get("first_name"), actor.get("last_name")) if part).strip() or "کاربر"
+        try:
+            result = support.create_ticket(user_id=actor["id"], name=name[:80], phone=actor["phone"],
+                                           stage="account-tickets", **body.model_dump())
+        except MembershipError as error:
+            raise_membership(error)
+        return JSONResponse(result, status_code=201, headers=HEADERS)
+
+    @router.get("/api/account/tickets/{reference}")
+    def account_detail(reference: str, request: Request):
+        actor = require_user(request)
+        code = reference.strip().upper()
+        try:
+            result = support.read_ticket(code, user_id=actor["id"])
+        except MembershipError as error:
+            raise_membership(error)
+        return JSONResponse(result, headers=HEADERS)
+
+    @router.post("/api/account/tickets/{reference}/reply")
+    def account_reply(reference: str, body: AccountTicketReply, request: Request):
+        actor = require_user(request)
+        code = reference.strip().upper()
+        try:
+            result = support.reply_ticket(code, body.message, user_id=actor["id"])
         except MembershipError as error:
             raise_membership(error)
         return JSONResponse(result, headers=HEADERS)

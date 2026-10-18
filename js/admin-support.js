@@ -2,7 +2,7 @@
 (() => {
     const $ = id => document.getElementById(id);
     const labels = {open:'باز',in_progress:'در حال بررسی',awaiting_user:'منتظر کاربر',closed:'بسته شده'};
-    const categories = {login:'ورود',register:'ثبت‌نام',reset:'بازیابی رمز',otp:'کد پیامک',account:'حساب',other:'سایر'};
+    const categories = {login:'ورود',register:'ثبت‌نام',reset:'بازیابی رمز',otp:'کد پیامک',account:'حساب',atlas:'اطلس',explorer:'کاوشگر',profile:'پروفایل',other:'سایر'};
     let rows = [], next = 0, selected = '', selection = 0, loading = false, saving = false;
     function error(err) { $('tickets-error').hidden = false; $('tickets-error').textContent = err.message || 'دریافت تیکت ممکن نشد.'; }
     function renderList() {
@@ -19,7 +19,7 @@
     function render(ticket) {
         $('ticket-detail').hidden = false;
         $('ticket-subject').textContent = ticket.subject;
-        $('ticket-context').textContent = [ticket.reference,'موضوع: ' + (categories[ticket.category] || ticket.category), 'نام: ' + (ticket.name || 'ثبت نشده'), 'شماره اعلامی: ' + (ticket.phone || 'ثبت نشده'), 'مرحله: ' + (ticket.stage || '—'), 'کد خطا: ' + (ticket.error_code || '—'), 'مرجع خطا: ' + (ticket.error_reference || '—')].join('\n');
+        $('ticket-context').textContent = [ticket.reference,ticket.user_id ? 'حساب کاربری: ' + ticket.user_id : 'تیکت مهمان','موضوع: ' + (categories[ticket.category] || ticket.category), 'نام: ' + (ticket.name || 'ثبت نشده'), (ticket.user_id ? 'شماره تلفن حساب کاربری: ' : 'شماره اعلامی: ') + (ticket.phone || 'ثبت نشده'), 'مرحله: ' + (ticket.stage || '—'), 'کد خطا: ' + (ticket.error_code || '—'), 'مرجع خطا: ' + (ticket.error_reference || '—')].join('\n');
         $('ticket-status').value = ticket.status;
         $('ticket-messages').replaceChildren();
         (ticket.messages || []).forEach(message => {

@@ -15,7 +15,7 @@ from urllib.request import Request, urlopen
 from sqlalchemy import delete, func, or_, select, update
 
 from backend.database import db_session
-from backend.membership import MembershipError, is_mobile_phone, normalize_phone, registration_is_open
+from backend.membership import MembershipError, assert_login_unlocked, is_mobile_phone, normalize_phone, registration_is_open
 from backend.models import OtpChallenge, RegistrationRequest, User
 from backend.settings import get_settings
 
@@ -60,9 +60,11 @@ def _active_user(session, phone: str) -> User | None:
 
 
 def _assert_send_allowed(session, phone: str, purpose: str) -> None:
-    user = session.execute(select(User).where(or_(User.phone == phone, func.trim(User.phone) == phone))).scalar_one_or_none()
+    user = session.execute(select(User).where(or_(User.phone == phone, func.trim(User.phone) == phone)).with_for_update()).scalar_one_or_none()
     if user is not None and user.is_active is False:
         raise MembershipError("inactive", "این حساب غیرفعال است. برای بررسی و فعال‌سازی، تیکت پشتیبانی ثبت کنید.")
+    if user is not None:
+        assert_login_unlocked(user)
     if purpose == "register":
         if not registration_is_open():
             raise MembershipError("closed", "ثبت‌نام موقتاً بسته است.")
@@ -316,6 +318,14 @@ def verify_otp(phone: str, purpose: str, code: str) -> dict:
     verification_token = None
 
     with db_session() as session:
+        # Match the User -> OTP lock order used by sending and password reset.
+        user = session.execute(
+            select(User).where(or_(User.phone == phone, func.trim(User.phone) == phone)).with_for_update()
+        ).scalar_one_or_none()
+        if user is not None:
+            if user.is_active is False:
+                raise MembershipError("inactive", "این حساب غیرفعال است. برای بررسی، تیکت پشتیبانی ثبت کنید.")
+            assert_login_unlocked(user)
         row = session.execute(
             select(OtpChallenge)
             .where(

@@ -229,6 +229,11 @@ def _token_hash(raw: str) -> str:
 
 
 def _create_session_in_transaction(session, user_id: int) -> tuple[str, datetime]:
+    # Both callers hold the user row lock until session creation commits.
+    user = session.get(User, user_id)
+    if user is None:
+        raise MembershipError("not-found", "حساب پیدا نشد.")
+    assert_login_unlocked(user)
     raw = secrets.token_urlsafe(32)
     expires_at = datetime.now(timezone.utc) + timedelta(days=SESSION_DAYS)
     session.add(UserSession(user_id=user_id, token_hash=_token_hash(raw), expires_at=expires_at))
@@ -277,6 +282,18 @@ def _aware(value: datetime | None) -> datetime | None:
     return value.replace(tzinfo=timezone.utc) if value is not None and value.tzinfo is None else value
 
 
+def assert_login_unlocked(user: User, now: datetime | None = None) -> None:
+    """Enforce the original lock deadline across password and SMS recovery."""
+    now = now or datetime.now(timezone.utc)
+    until = _aware(user.login_locked_until)
+    if until is not None and until > now:
+        raise MembershipError(
+            "login-locked",
+            "به دلیل چند رمز نادرست، ورود موقتاً محدود شده است. پس از پایان زمان انتظار دوباره تلاش کنید.",
+            max(1, int((until - now).total_seconds()) + 1),
+        )
+
+
 def _record_wrong_password(session, user: User, now: datetime) -> None:
     started = _aware(user.login_failure_window_started_at)
     if started is None or now >= started + LOGIN_FAILURE_WINDOW:
@@ -309,13 +326,13 @@ def authenticate(phone: str, password: str) -> dict | None:
                     _clear_login_failures(user)
                 if locked_until is not None and locked_until > now:
                     reason = "locked"
-                    failure = MembershipError("login-locked", "ورود با رمز عبور موقتاً محدود شده است. پس از پایان زمان انتظار تلاش کنید یا همین حالا رمزتان را بازیابی کنید.", max(1, int((locked_until - now).total_seconds()) + 1))
+                    failure = MembershipError("login-locked", "ورود موقتاً محدود شده است. پس از پایان زمان انتظار دوباره تلاش کنید.", max(1, int((locked_until - now).total_seconds()) + 1))
                 elif not (user.password_hash or "").strip() or not verify_password(user.password_hash.strip(), password):
                     reason = "password"
                     _record_wrong_password(session, user, now)
                     if user.login_locked_until is not None:
                         reason = "locked"
-                        failure = MembershipError("login-locked", "به دلیل چند رمز نادرست، ورود موقتاً محدود شد. می‌توانید رمز را بازیابی کنید یا پس از پایان زمان انتظار دوباره تلاش کنید.", int(LOGIN_FAILURE_WINDOW.total_seconds()))
+                        failure = MembershipError("login-locked", "به دلیل چند رمز نادرست، ورود موقتاً محدود شد. پس از پایان زمان انتظار دوباره تلاش کنید.", int(LOGIN_FAILURE_WINDOW.total_seconds()))
                 else:
                     reason = "ok"
                     _clear_login_failures(user)
@@ -540,6 +557,7 @@ def reset_password_after_otp(phone: str, password: str, verification_token: str)
             raise MembershipError("inactive", "این حساب غیرفعال است. برای بررسی، تیکت پشتیبانی ثبت کنید.")
         if user is None:
             raise MembershipError("not-found", "حسابی با این شماره پیدا نشد.")
+        assert_login_unlocked(user)
         consume_verified_otp_in_session(session, phone, "reset", verification_token)
         user.password_hash = hash_password(password)
         user.updated_at = now
@@ -801,7 +819,7 @@ def set_user_active(user_id: int, actor_id: int, active: bool) -> dict:
             _lock_admin_state(session)
             if _active_admin_count(session) <= 1:
                 raise MembershipError("forbidden", "آخرین مدیر فعال را نمی‌توان غیرفعال کرد.")
-        event_kind = "login_unlocked" if active and user.is_active and user.login_locked_until else "activated" if active else "deactivated"
+        event_kind = "activated" if active else "deactivated"
         user.is_active = bool(active)
         user.deactivation_reason = None if active else "manual"
         user.deactivated_at = None if active else now
@@ -809,7 +827,9 @@ def set_user_active(user_id: int, actor_id: int, active: bool) -> dict:
         session.add(AccountStatusEvent(user_id=user.id, actor_id=actor_id, kind=event_kind, reason="admin", created_at=now))
         user.updated_at = now
         if active:
-            _clear_login_failures(user)
+            # Account activation must not shorten an active login restriction.
+            if _aware(user.login_locked_until) is None or _aware(user.login_locked_until) <= now:
+                _clear_login_failures(user)
         else:
             session.execute(delete(UserSession).where(UserSession.user_id == user_id))
         session.flush()

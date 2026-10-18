@@ -360,7 +360,7 @@ function writeBannerProfile(profile) {
 }
 
 const AUTH_NEXT_KEY = 'bina-auth-next';
-const AUTH_NEXT_PAGES = { explorer: true, bubble: true };
+const AUTH_NEXT_PAGES = { explorer: true, bubble: true, tickets: true };
 
 function setAuthNext(spec) {
     try {
@@ -419,6 +419,7 @@ function placeMobilePageNav() {
 
 function hrefForAuthNext(next) {
     if (!next) return '';
+    if (next.page === 'tickets') return SITE.page('tickets.html');
     if (next.page === 'explorer') return SITE.page('explorer.html') + (next.search || '');
     if (next.page === 'bubble') return SITE.page('bubble-chart.html') + (next.search || '');
     return '';
@@ -438,4 +439,11 @@ function applyBannerAvatar(url) {
         img.hidden = true;
         btn.classList.remove('has-photo');
     }
+}
+
+// Uniform, random 80-bit code shared by guest and account ticket forms.
+function newTicketReference() {
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    return 'SUP-' + Array.from(bytes, value => alphabet[value & 31]).join('');
 }

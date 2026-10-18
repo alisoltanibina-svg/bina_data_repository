@@ -60,7 +60,7 @@ proxy_set_header X-Forwarded-Proto $scheme;
 
 از `$proxy_add_x_forwarded_for` استفاده نکنید؛ این متغیر مقدار ارسالی کاربر را هم حفظ می‌کند. `RATE_LIMIT_TRUST_PROXY` دیگر استفاده نمی‌شود و می‌توانید آن را از محیط حذف کنید. پس از تغییر Nginx، ابتدا `sudo nginx -t` را اجرا کنید و فقط در صورت موفقیت پیکربندی را reload کنید.
 
-پنج رمز عبور نادرست در ۱۵ دقیقه، ورود با رمز را برای ۱۵ دقیقه محدود می‌کند؛ حساب همچنان فعال می‌ماند و نشست‌های فعلی بسته نمی‌شوند. بازیابی رمز با پیامک، پایان زمان محدودیت، یا «رفع محدودیت موقت ورود» در پنل مدیر امکان ورود را برمی‌گرداند. غیرفعال‌سازی حساب توسط مدیر جداست و فقط با فعال‌سازی مدیر برطرف می‌شود. علت و زمان غیرفعال‌سازی و سابقه وضعیت در جزئیات حساب قابل مشاهده است. حساب‌های غیرفعال قدیمی خودکار فعال نمی‌شوند؛ علت وضعیت پیشین آن‌ها «نامشخص» نمایش داده می‌شود و باید بررسی شوند.
+پنج رمز عبور نادرست در ۱۵ دقیقه، ورود را برای ۱۵ دقیقه محدود می‌کند؛ حساب همچنان فعال می‌ماند و نشست‌های فعلی بسته نمی‌شوند. تا پایان محدودیت، ارسال و تأیید پیامک بازیابی و بازنشانی رمز نیز مسدود است؛ کدهای تأییدشده قبلی و فعال‌سازی توسط مدیر محدودیت را دور نمی‌زنند. غیرفعال‌سازی حساب توسط مدیر جداست و فقط با فعال‌سازی مدیر برطرف می‌شود. علت و زمان غیرفعال‌سازی و سابقه وضعیت در جزئیات حساب قابل مشاهده است. حساب‌های غیرفعال قدیمی خودکار فعال نمی‌شوند؛ علت وضعیت پیشین آن‌ها «نامشخص» نمایش داده می‌شود و باید بررسی شوند.
 
 عبور از سهمیه API فقط تا آزاد شدن همان پنجره محدود می‌شود؛ ممنوعیت دو ساعته حذف شده است. پاسخ `429` شامل `Retry-After` است و درخواست‌های ردشده محدودیت را تمدید نمی‌کنند. شمارنده‌ها در حافظه هر فرایند هستند و بین workerها مشترک نیستند.
 
@@ -145,24 +145,26 @@ be verified. Do not trust arbitrary forwarded headers from the public internet.
 Rate-limit settings currently read the process environment; a project `.env`
 entry only affects them if the service also loads it as an environment file.
 
-## Ticket-only authentication support
+## Ticket support for authentication and user accounts
 
 `html/support.html` is public and linked only from the login,
 registration, OTP, and password recovery step. Support is provided only through
 written tickets. The curtain retains its original general contact popover;
 authentication support and ticket replies use the ticket flow. No callback,
 email, or ticket SMS delivery is configured.
-Name and account phone are optional; the phone is user-supplied and must not be
+Name and phone are required for new tickets; the phone is user-supplied and must not be
 treated as verified identity or used alone to authorize account changes.
 
-Users receive a ticket reference and a private access key. They can copy or
-download a receipt, then use both values to read and reply from the support page
-without signing in. Responses are shown there only; no response-time guarantee
-is promised. Keys are hashed in the database and never put in URLs or browser
-storage. The browser generates a receipt before submission so a retry after a
-lost response retrieves the same ticket. A lost key cannot be recovered from
-its hash; users must retain the receipt. Registration passwords and OTP proofs
-are kept only in page memory, never session storage.
+Users receive a single random tracking code (80 bits of randomness, 20 characters
+including `SUP-`). They can copy or download a receipt and use that code alone to
+read and reply without signing in. There is no separate access key. Tracking and
+reply requests carry the code in POST bodies, never URLs or browser storage.
+Existing ticket references continue to work without their former keys. The code
+provides access to the conversation and should be retained by its owner.
+The legacy `access_hash` column remains for schema compatibility and is no longer
+used for authorization. Profile-ticket ownership uses migration `0013_account_tickets`. Deploy the
+backend and frontend together. Registration passwords and OTP proofs are kept
+only in page memory, never session storage.
 
 The admin panel's «تیکت‌های پشتیبانی» tab lists tickets, supports written replies,
 and records status transitions (open, in progress, awaiting user, closed).
@@ -191,6 +193,38 @@ Migration `0012_support_recovery` adds ticket tables, account status history and
 separate temporary lock fields. It preserves existing inactive accounts. The
 existing `CAPTCHA_HMAC_SECRET` is required; no new support service keys are needed.
 After deployment, create a ticket while signed out, reply in the admin inbox,
-and read the reply with its receipt. Also verify an inactive account gets
+and read the reply using only its tracking code. Also verify an inactive account gets
 «حساب غیرفعال است» and can still open support. Database backups should include
-the new support tables as they contain the conversation and optional contact data.
+the new support tables as they contain the conversation and contact data.
+
+### Personal ticket history
+
+The profile dropdown includes «تیکت‌های من», opening `html/tickets.html` in the same
+tab. Signed-in users can view their own history, create tickets about the Atlas,
+Explorer, profile, or authentication, and read or reply to the admin's responses.
+Name and phone are taken from the authenticated account; clients cannot set the
+owner or substitute a different account's identity. A new login returns users to
+the ticket page when their session has expired.
+
+Both guest and account tickets use the same ticket, message, and status tables,
+and the same admin inbox. The migration adds only nullable `support_tickets.user_id`
+and one partial composite index on `(user_id, updated_at DESC, id DESC)` for owned
+tickets. Adding the nullable column without a default avoids rewriting existing
+rows. History requests select only summary columns, fetch at most 26 rows to show
+25, and use cursor pagination without `COUNT`, `OFFSET`, or message joins.
+Conversations load only when selected. No additional ticket tables or per-message
+ownership fields are needed.
+
+Every account list, detail, and reply endpoint checks the session and owner. Guest
+tracking endpoints only accept guest tickets; an account ticket cannot be opened
+through its tracking code while signed out. Existing guest tickets remain guest
+tickets, because their user-supplied phone number is not proof of ownership. No
+bulk association by phone is performed. Deleting an account cascades to its owned
+tickets and their conversations; guest tickets are preserved. Admins review both
+kinds of ticket in the existing support inbox, which shows the account owner.
+
+Deploy backend and frontend together and run `alembic upgrade head` before
+restarting `app-api`, then build the frontend with `python scripts/build_frontend.py`.
+Migration `0013_account_tickets` is required. No new environment variables are
+needed. Account ticket creation uses the existing creation throttle (10/hour per
+IP); exhausting creation capacity does not prevent reading existing tickets.

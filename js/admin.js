@@ -814,13 +814,6 @@ async function downloadUserAvatar(row) {
 
 function bind() {
     if (window.AdminSupport) window.AdminSupport.bind();
-    document.getElementById('user-unlock-btn').addEventListener('click', async event => {
-        if (!usersState.detail || usersState.detail.is_active === false) return;
-        event.currentTarget.disabled = true;
-        try { await AdminApi.setUserActive(usersState.detail.id, true); await loadUsers(); }
-        catch (err) { showNotice(err.message); }
-        finally { event.currentTarget.disabled = false; }
-    });
     const avatarsDownload = document.getElementById('user-avatars-download');
     if (avatarsDownload) avatarsDownload.addEventListener('click', downloadAllAvatars);
     bindPhoneInput(document.getElementById('filter-phone'));
@@ -1010,9 +1003,8 @@ onReady(async () => {
 
 function renderAccountRestrictions(row) {
     const locked = row.is_active === true && new Date(row.login_locked_until || 0).getTime() > Date.now();
-    document.getElementById('user-unlock-btn').hidden = !locked;
     const reason = row.deactivation_reason === 'manual' ? 'توسط مدیر' : 'علت وضعیت پیشین ثبت نشده است';
-    document.getElementById('user-restriction').textContent = row.is_active === false ? 'حساب غیرفعال: ' + reason + (row.deactivated_at ? ' · ' + formatWhen(row.deactivated_at) : '') + (row.deactivated_by ? ' · مدیر ' + row.deactivated_by : '') : locked ? 'محدودیت موقت تا ' + formatWhen(row.login_locked_until) + '؛ حساب فعال است. بازیابی رمز با پیامک یا رفع محدودیت توسط مدیر امکان ورود را برمی‌گرداند.' : 'حساب فعال است؛ محدودیت موقت ورود ندارد.';
+    document.getElementById('user-restriction').textContent = row.is_active === false ? 'حساب غیرفعال: ' + reason + (row.deactivated_at ? ' · ' + formatWhen(row.deactivated_at) : '') + (row.deactivated_by ? ' · مدیر ' + row.deactivated_by : '') : locked ? 'محدودیت موقت تا ' + formatWhen(row.login_locked_until) + '؛ حساب فعال است. ورود پس از پایان زمان محدودیت امکان‌پذیر است.' : 'حساب فعال است؛ محدودیت موقت ورود ندارد.';
     const list = document.getElementById('user-account-events'); list.replaceChildren();
     const labels = {activated:'فعال‌سازی حساب',deactivated:'غیرفعال‌سازی حساب',login_locked:'محدودیت موقت ورود',login_unlocked:'رفع محدودیت ورود'};
     (row.account_events || []).forEach(event => {

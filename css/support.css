@@ -44,7 +44,7 @@
 .support-admin-context { white-space:pre-wrap; overflow-wrap:anywhere; color:#646c58; font-size:.82rem; }
 @media(max-width:767px) { .support-page{padding:18px 14px 40px;} .support-card{padding:18px 14px;} .support-fields{grid-template-columns:1fr;gap:0;} .support-admin-layout{grid-template-columns:1fr;} .support-admin-list{max-height:280px;} .support-button{padding:9px 12px;} }
 
-#support-reference,#support-access-key,.support-receipt code {font-family:ui-monospace,Consolas,monospace;letter-spacing:.03em;}
+#support-reference,.support-receipt code {font-family:ui-monospace,Consolas,monospace;letter-spacing:.03em;}
 
 #support-captcha-refresh {width:44px;height:44px;min-width:44px;padding:0;border-radius:50%;}
 #support-captcha-refresh svg {display:block;flex:none;}

@@ -1,13 +1,20 @@
-// Ticket access keys stay in page memory and the user's downloaded receipt only.
+// The tracking code stays in page memory and the user's receipt, never in URLs.
 (() => {
     'use strict';
     const $ = id => document.getElementById('support-' + id);
     const statuses = {open:'باز', in_progress:'در حال بررسی', awaiting_user:'منتظر پاسخ شما', closed:'بسته شده'};
+    const nameInput = $('name');
+    function validateName() {
+        const valid = !!nameInput.value.trim();
+        nameInput.setCustomValidity(valid ? '' : 'نام را وارد کنید.');
+        return valid;
+    }
+    ['input', 'blur', 'invalid'].forEach(event => nameInput.addEventListener(event, validateName));
     const phoneInput = $('phone');
     bindPhoneInput(phoneInput);
     function validatePhone() {
         phoneInput.value = digitsOnlyPhone(phoneInput.value);
-        const valid = !phoneInput.value || /^09\d{9}$/.test(phoneInput.value);
+        const valid = /^09\d{9}$/.test(phoneInput.value);
         phoneInput.setCustomValidity(valid ? '' : 'شماره تلفن باید ۱۱ رقم و با ۰۹ شروع شود.');
         return valid;
     }
@@ -68,10 +75,7 @@
         $('wait').textContent = seconds ? 'محدودیت موقت برای بعضی اقدامات: ' + seconds + ' ثانیه تا تلاش بعدی.' : '';
     }, 1000);
     function latinDigits(value) { return value.replace(/[۰-۹٠-٩]/g, digit => String('۰۱۲۳۴۵۶۷۸۹'.includes(digit) ? '۰۱۲۳۴۵۶۷۸۹'.indexOf(digit) : '٠١٢٣٤٥٦٧٨٩'.indexOf(digit))); }
-    function credentials() {
-        const bytes = crypto.getRandomValues(new Uint8Array(30));
-        return {reference:'SUP-' + Array.from(bytes.slice(0,6), n => n.toString(16).padStart(2,'0')).join('').toUpperCase(), access_key:btoa(String.fromCharCode(...bytes.slice(6))).replace(/\+/g,'-').replace(/\//g,'_')};
-    }
+    function newReceipt() { return {reference:newTicketReference()}; }
     async function refreshCaptcha() {
         captchaId = '';
         const data = await request('/api/support/captcha', {});
@@ -97,11 +101,9 @@
         receipt = value;
         $('receipt').hidden = false;
         $('receipt-reference').textContent = value.reference;
-        $('receipt-key').textContent = value.access_key;
         $('reference').value = value.reference;
-        $('access-key').value = value.access_key;
     }
-    function receiptText() { return 'رسید تیکت پشتیبانی\n' + receipt.reference + '\n' + receipt.access_key + '\n' + location.origin + location.pathname + '\nبرای پیگیری به کد و کلید نیاز دارید. کلید را خصوصی نگه دارید.'; }
+    function receiptText() { return 'رسید تیکت پشتیبانی\nکد پیگیری: ' + receipt.reference + '\n' + location.origin + location.pathname; }
     async function run(button, action) {
         if (busy) return;
         busy = true; button.disabled = true; clearError();
@@ -113,19 +115,21 @@
     $('captcha-refresh').onclick = () => run($('captcha-refresh'), refreshCaptcha);
     $('create-form').onsubmit = event => {
         event.preventDefault();
+        if (!validateName()) { nameInput.reportValidity(); return; }
         if (!validatePhone()) { phoneInput.reportValidity(); return; }
         run($('create-submit'), async () => {
             if (!captchaId) { await refreshCaptcha(); throw new Error('کد امنیتی تازه را وارد کنید.'); }
-            draftAccess ||= credentials();
+            draftAccess ||= newReceipt();
             // Keep a receipt even if the network fails after the server saves the ticket.
             const payload = Object.fromEntries(['name','phone','category','subject','message'].map(key => [key,$(key).value.trim()]));
             try {
                 const ticket = await request('/api/support/tickets', {...payload,...context,...draftAccess,captcha_id:captchaId,captcha_answer:$('captcha-answer').value.trim()});
                 access = {...draftAccess}; tab(true); showReceipt(access);
-                $('receipt-note').textContent = 'کد پیگیری و کلید دسترسی را ذخیره کنید. برای دیدن پاسخ به هر دو نیاز دارید؛ کلید را به دیگران ندهید.';
+                $('receipt-note').textContent = 'کد پیگیری را برای پیگیری تیکت ذخیره کنید.';
                 render(ticket);
                 draftAccess = null; $('create-form').reset(); captchaId = '';
             } catch (err) {
+                if (err.code === 'reference-conflict') { draftAccess = null; throw err; }
                 showReceipt(draftAccess);
                 $('receipt-note').textContent = 'اگر ثبت تیکت در سرور انجام شده باشد، با این رسید می‌توانید آن را پیگیری کنید. اطلاعات فرم حفظ شده است. برای اطمینان، دوباره ثبت را بزنید.';
                 if (err.status >= 400 && err.status < 500 && err.status !== 429) await refreshCaptcha().catch(() => {});
@@ -136,7 +140,7 @@
     $('track-form').onsubmit = event => {
         event.preventDefault();
         run($('track-submit'), async () => {
-            const candidate = {reference:latinDigits($('reference').value.trim()).toUpperCase(),access_key:latinDigits($('access-key').value.trim())};
+            const candidate = {reference:latinDigits($('reference').value.trim()).toUpperCase()};
             $('conversation').hidden = true;
             const ticket = await request('/api/support/tickets/lookup',candidate);
             access = candidate; render(ticket);

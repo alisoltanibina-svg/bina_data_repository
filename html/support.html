@@ -14,8 +14,8 @@
   <p id="support-error" class="support-error" role="alert" hidden></p><p id="support-wait" class="support-hint" aria-live="polite" hidden></p>
   <section id="support-create-panel" class="support-card" role="tabpanel" aria-labelledby="support-create-tab">
    <form id="support-create-form">
-    <div class="support-fields"><label>نام (اختیاری)<input id="support-name" name="name" autocomplete="name" maxlength="80"></label>
-    <label>شماره تلفن (اختیاری)<input id="support-phone" name="phone" type="tel" autocomplete="tel" inputmode="numeric" dir="ltr" minlength="11" maxlength="11" pattern="09[0-9]{9}" title="شماره تلفن باید ۱۱ رقم و با ۰۹ شروع شود."><small>فقط برای یافتن حساب؛ با شما تماس نمی‌گیریم.</small></label></div>
+    <div class="support-fields"><label>نام<input id="support-name" name="name" autocomplete="name" maxlength="80" required></label>
+    <label>شماره تلفن<input id="support-phone" name="phone" type="tel" required autocomplete="tel" inputmode="numeric" dir="ltr" minlength="11" maxlength="11" pattern="09[0-9]{9}" title="شماره تلفن باید ۱۱ رقم و با ۰۹ شروع شود."><small>فقط برای یافتن حساب؛ با شما تماس نمی‌گیریم.</small></label></div>
     <label>در کدام بخش مشکل دارید؟<select id="support-category" name="category"><option value="login">ورود</option><option value="register">ثبت‌نام</option><option value="reset">بازیابی رمز</option><option value="otp">کد پیامک</option><option value="account">وضعیت حساب</option><option value="other">سایر موارد</option></select></label>
     <label>عنوان کوتاه<input id="support-subject" name="subject" minlength="3" maxlength="160" required></label>
     <label>شرح مشکل<textarea id="support-message" name="message" maxlength="4000" rows="6" required></textarea></label>
@@ -25,8 +25,8 @@
    </form>
   </section>
   <section id="support-track-panel" class="support-card" role="tabpanel" aria-labelledby="support-track-tab" hidden>
-   <div id="support-receipt" class="support-receipt" hidden><h2>رسید پیگیری</h2><p id="support-receipt-note">کد پیگیری و کلید دسترسی را ذخیره کنید. برای دیدن پاسخ به هر دو نیاز دارید؛ کلید را به دیگران ندهید.</p><code id="support-receipt-reference" dir="ltr"></code><code id="support-receipt-key" dir="ltr"></code><button type="button" class="support-button secondary" id="support-download-receipt">دریافت فایل رسید</button><button type="button" class="support-button secondary" id="support-copy-receipt">کپی کدها</button></div>
-   <form id="support-track-form"><label>کد پیگیری<input id="support-reference" autocomplete="off" dir="ltr" maxlength="20" placeholder="SUP-XXXXXXXXXXXX" required></label><label>کلید دسترسی<input id="support-access-key" type="password" autocomplete="off" dir="ltr" minlength="32" maxlength="32" required></label><button class="support-button" id="support-track-submit" type="submit">دیدن تیکت</button></form>
+   <div id="support-receipt" class="support-receipt" hidden><h2>رسید پیگیری</h2><p id="support-receipt-note">کد پیگیری را برای پیگیری تیکت ذخیره کنید.</p><code id="support-receipt-reference" dir="ltr"></code><button type="button" class="support-button secondary" id="support-download-receipt">دریافت فایل رسید</button><button type="button" class="support-button secondary" id="support-copy-receipt">کپی کد پیگیری</button></div>
+   <form id="support-track-form"><label>کد پیگیری<input id="support-reference" autocomplete="off" dir="ltr" maxlength="20" placeholder="SUP-XXXXXXXXXXXXXXXX" required></label><button class="support-button" id="support-track-submit" type="submit">دیدن تیکت</button></form>
   </section>
   <section id="support-conversation" class="support-card" hidden><header class="support-conversation-head"><h2 id="support-ticket-subject"></h2><span id="support-ticket-status" class="support-badge"></span><button id="support-refresh-ticket" class="support-button secondary" type="button">بررسی پاسخ تازه</button></header><div id="support-messages" class="support-messages" aria-live="polite"></div><form id="support-reply-form"><label>توضیح یا پاسخ شما<textarea id="support-reply" rows="4" minlength="2" maxlength="4000" required></textarea></label><button class="support-button" id="support-reply-submit" type="submit">ارسال پیام</button></form></section>
  </main>

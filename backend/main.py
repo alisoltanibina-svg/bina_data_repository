@@ -366,7 +366,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         request.state.request_id = secrets.token_hex(8)
         response = await call_next(request)
         response.headers["X-Request-ID"] = request.state.request_id
-        if request.url.path.startswith("/api/auth/") or request.url.path.startswith("/api/support/") or request.url.path.startswith("/api/admin/support/"):
+        if request.url.path.startswith("/api/auth/") or request.url.path.startswith("/api/support/") or request.url.path.startswith("/api/admin/support/") or request.url.path.startswith("/api/account/tickets"):
             response.headers["Cache-Control"] = "no-store"
         for name, value in _SECURITY_HEADERS.items():
             response.headers.setdefault(name, value)
@@ -936,6 +936,7 @@ _MEMBERSHIP_HTTP = {
     "login-locked": 423,
     "ticket-not-found": 404,
     "support-input": 400,
+    "reference-conflict": 409,
 }
 
 
@@ -1198,7 +1199,7 @@ def admin_delete_avatar(user_id: int, request: Request):
 
 @app.exception_handler(RequestValidationError)
 async def guided_validation_error(request: Request, error: RequestValidationError):
-    if request.url.path.startswith(("/api/auth/", "/api/support/", "/api/admin/support/")):
+    if request.url.path.startswith(("/api/auth/", "/api/support/", "/api/admin/support/", "/api/account/tickets")):
         return JSONResponse(status_code=422, content={"detail": {"code": "validation", "message": "اطلاعات واردشده را بررسی کنید. فیلدهای ضروری را کامل کنید و محدودیت طول متن را رعایت کنید."}}, headers={"Cache-Control": "no-store"})
     return await request_validation_exception_handler(request, error)
 
@@ -1211,7 +1212,7 @@ async def unexpected_error(request: Request, error: Exception):
 
 
 from backend.support_routes import build_router as build_support_router
-app.include_router(build_support_router(_require_admin, _raise_membership))
+app.include_router(build_support_router(_require_admin, _raise_membership, _require_user))
 
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent

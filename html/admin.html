@@ -241,7 +241,7 @@
                             <button type="button" class="admin-btn" id="user-active-btn">غیرفعال کردن حساب</button>
                             <button type="button" class="admin-btn admin-btn-danger" id="user-delete-btn">حذف حساب</button>
                         </div>
-                        <div class="support-admin-context" id="user-restriction"></div><button type="button" class="admin-btn" id="user-unlock-btn" hidden>رفع محدودیت موقت ورود</button><details><summary>سابقه وضعیت حساب</summary><ol id="user-account-events"></ol></details>
+                        <div class="support-admin-context" id="user-restriction"></div><details><summary>سابقه وضعیت حساب</summary><ol id="user-account-events"></ol></details>
                         <div class="admin-revisions" id="user-revisions-wrap">
                             <p class="admin-kicker">سابقه ویرایش</p>
                             <ol class="admin-revision-list" id="user-revisions"></ol>
@@ -253,7 +253,7 @@
 
         <section id="view-support" hidden>
             <div class="support-admin-toolbar"><label for="tickets-filter">وضعیت تیکت</label><select id="tickets-filter" class="support-admin-filter"><option value="">همه</option><option value="open">باز</option><option value="in_progress">در حال بررسی</option><option value="awaiting_user">منتظر کاربر</option><option value="closed">بسته شده</option></select><button type="button" id="tickets-refresh" class="support-button secondary">تازه‌سازی</button></div>
-            <p class="support-hint">پاسخ فقط در صفحه پیگیری تیکت دیده می‌شود. شماره ثبت‌شده توسط کاربر تأیید هویت نشده است؛ برای تغییر حساب به‌تنهایی کافی نیست.</p>
+            <p class="support-hint">پاسخ در بخش تیکت‌های کاربر یا صفحه پیگیری تیکت مهمان نمایش داده می‌شود. شماره اعلام‌شده در تیکت‌های مهمان تأیید هویت نشده است.</p>
             <p id="tickets-error" class="support-error" role="alert" hidden></p>
             <div class="support-admin-layout"><div><p id="tickets-empty" hidden>تیکتی در این فهرست نیست.</p><ul id="tickets-list" class="support-admin-list"></ul><button type="button" id="tickets-more" class="support-button secondary" hidden>نمایش بیشتر</button></div>
             <article class="support-card support-admin-detail" id="ticket-detail" hidden><h2 id="ticket-subject"></h2><p id="ticket-context" class="support-admin-context"></p><div id="ticket-messages" class="support-messages"></div><form id="ticket-update-form"><label>وضعیت<select id="ticket-status"><option value="open">باز</option><option value="in_progress">در حال بررسی</option><option value="awaiting_user">منتظر پاسخ کاربر</option><option value="closed">بسته شده</option></select></label><label>پاسخ برای کاربر (اختیاری)<textarea id="ticket-reply" rows="5" maxlength="4000"></textarea></label><button type="submit" id="ticket-save" class="support-button">ثبت وضعیت و ارسال پاسخ</button></form><details><summary>سابقه تغییر وضعیت</summary><ol id="ticket-history"></ol></details></article></div>

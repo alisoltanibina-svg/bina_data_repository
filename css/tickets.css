@@ -1,0 +1,16 @@
+.account-tickets-body{margin:0;background:#f4f5f7;color:#27300b;font-family:PeydaFaNumWeb,Tahoma,sans-serif;min-height:100dvh;height:auto;overflow:auto;display:block;line-height:1.8}
+.account-tickets-body [hidden]{display:none!important}
+.account-tickets-page{width:min(1240px,100%);margin:calc(75px + var(--banner-gap,16px)) auto 0;padding:30px 24px 48px}
+.account-tickets-heading{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:22px}
+.account-tickets-heading h1{font-size:1.7rem;margin:0}.account-tickets-heading p{font-size:.85rem;color:#697058;margin:0 0 4px}
+.account-ticket-actions{display:flex;gap:10px;flex-wrap:wrap}.account-ticket-create{max-width:850px;margin:0 0 22px}
+.account-ticket-layout{display:grid;grid-template-columns:minmax(240px,320px) minmax(0,1fr);gap:18px;align-items:start}
+.account-ticket-layout>.support-card{margin:0;min-width:0}.account-ticket-detail{scroll-margin-top:110px}.account-ticket-inbox{padding:18px}
+.account-ticket-list{padding:0;margin:16px 0;list-style:none;display:grid;gap:8px;max-height:65vh;overflow:auto}
+.account-ticket-list button{font:inherit;cursor:pointer;width:100%;padding:13px;text-align:right;border:1px solid #dfe4d1;border-radius:12px;background:#fff;color:#27300b}
+.account-ticket-list button.is-selected{background:#f0f4e5;border-color:#697331}.account-ticket-list button:focus-visible{outline:3px solid #a9b36e;outline-offset:2px}
+.account-ticket-list strong{display:block;overflow-wrap:anywhere}.account-ticket-list small{display:block;font-size:.75rem;color:#697058;margin-top:6px}
+.account-ticket-list .support-badge{margin-top:8px}.account-ticket-detail-head{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.account-ticket-detail h2{overflow-wrap:anywhere}.account-ticket-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0}.account-ticket-meta code{font-family:ui-monospace,Consolas,monospace;overflow-wrap:anywhere;font-size:.9rem}.account-ticket-meta button{padding:5px 10px;font-size:.8rem}
+.account-ticket-placeholder{color:#697058}.account-ticket-placeholder p{margin:0}.account-tickets-body .support-badge[data-status="awaiting_user"]{background:#fff0d2;color:#7a4d00}.account-tickets-body .support-badge[data-status="closed"]{background:#eef0f2;color:#5c6570}
+@media(max-width:800px){.account-tickets-page{padding:22px 14px 36px}.account-tickets-heading{align-items:start;flex-direction:column;gap:14px}.account-ticket-layout{grid-template-columns:minmax(0,1fr)}.account-ticket-list{max-height:300px}.account-ticket-layout>.support-card{padding:18px 14px}.account-ticket-detail{scroll-margin-top:110px}}
