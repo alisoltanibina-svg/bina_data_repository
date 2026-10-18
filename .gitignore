@@ -36,6 +36,7 @@ backend/_api_snapshots/
 
 data/bina_dashboard_database.db
 
+artifacts/
 output/
 deploy/
 uvicorn.bat

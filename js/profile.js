@@ -690,6 +690,44 @@ onReady(async () => {
     // Keep the OTP proof in page memory only; never persist it in a URL or storage.
     let otpVerification = null;
     let otpFlowVersion = 0;
+    const passwordCaptcha = { id: '', phone: '', version: 0 };
+
+    async function refreshPasswordCaptcha() {
+        const version = ++passwordCaptcha.version;
+        const phone = profilePhone();
+        passwordCaptcha.id = '';
+        passwordCaptcha.phone = '';
+        const answer = document.getElementById('profile-password-captcha-answer');
+        const image = document.getElementById('profile-password-captcha-image');
+        const send = document.getElementById('profile-password-send');
+        const refresh = document.getElementById('profile-password-captcha-refresh');
+        answer.value = '';
+        image.removeAttribute('src');
+        setError('profile-password-captcha-answer', '');
+        send.disabled = true;
+        refresh.disabled = true;
+        try {
+            const challenge = await apiJson('/api/auth/captcha', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone: phone, purpose: 'reset' })
+            });
+            if (version !== passwordCaptcha.version || phone !== profilePhone()) return;
+            if (!/^[A-Za-z0-9_-]{43}$/.test((challenge && challenge.captcha_id) || '')) {
+                throw new Error('دریافت کد امنیتی ممکن نشد. دوباره تلاش کنید.');
+            }
+            passwordCaptcha.id = challenge.captcha_id;
+            passwordCaptcha.phone = phone;
+            image.src = `${API_BASE_URL}/api/auth/captcha/${encodeURIComponent(challenge.captcha_id)}/image`;
+        } catch (err) {
+            if (version === passwordCaptcha.version) setError('profile-password-captcha-answer', err.message || 'دریافت کد امنیتی ممکن نشد.');
+        } finally {
+            if (version === passwordCaptcha.version) {
+                send.disabled = !passwordCaptcha.id;
+                refresh.disabled = false;
+            }
+        }
+    }
+
 
     function clearOtpVerification() {
         otpVerification = null;
@@ -748,6 +786,18 @@ onReady(async () => {
     }
 
     async function startPasswordOtp() {
+        const send = document.getElementById('profile-password-send');
+        if (send.disabled) return;
+        const answer = document.getElementById('profile-password-captcha-answer');
+        const captchaAnswer = answer.value.trim().toUpperCase();
+        if (!passwordCaptcha.id || passwordCaptcha.phone !== profilePhone() || !/^[A-Z2-9]{5}$/.test(captchaAnswer)) {
+            setError('profile-password-captcha-answer', 'کد امنیتی پنج‌نویسه را وارد کنید.');
+            answer.focus();
+            return;
+        }
+        const captchaId = passwordCaptcha.id;
+        passwordCaptcha.id = '';
+        send.disabled = true;
         clearOtpVerification();
         const flowVersion = otpFlowVersion;
         const phone = profilePhone();
@@ -760,7 +810,7 @@ onReady(async () => {
             const data = await apiJson('/api/auth/otp/send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone: phone, purpose: 'reset' })
+                body: JSON.stringify({ phone: phone, purpose: 'reset', captcha_id: captchaId, captcha_answer: captchaAnswer })
             });
             if (flowVersion !== otpFlowVersion) return;
             setOtpSending(false);
@@ -781,6 +831,7 @@ onReady(async () => {
         stopResendTimer();
         setOtpSending(false);
         showProfilePanel('profile-password-intro');
+        return refreshPasswordCaptcha();
     }
 
     function clearPasswordHash() {
@@ -827,7 +878,11 @@ onReady(async () => {
         showProfilePanel('profile-main');
         clearPasswordHash();
     });
-    document.getElementById('profile-password-send').addEventListener('click', startPasswordOtp);
+    document.getElementById('profile-password-send-form').addEventListener('submit', async event => {
+        event.preventDefault();
+        await startPasswordOtp();
+    });
+    document.getElementById('profile-password-captcha-refresh').addEventListener('click', refreshPasswordCaptcha);
 
     document.getElementById('profile-otp-back').addEventListener('click', () => {
         stopResendTimer();
@@ -877,27 +932,10 @@ onReady(async () => {
     });
 
     document.getElementById('profile-otp-resend').addEventListener('click', async () => {
-        const btn = document.getElementById('profile-otp-resend');
-        if (btn.disabled) return;
-        clearOtpVerification();
-        const flowVersion = otpFlowVersion;
-        setOtpValue(document.getElementById('profile-otp-code'), '');
-        setError('profile-otp-code', '');
-        setOtpSending(true);
-        try {
-            const data = await apiJson('/api/auth/otp/send', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone: profilePhone(), purpose: 'reset' })
-            });
-            if (flowVersion !== otpFlowVersion) return;
-            setOtpSending(false);
-            startResendTimer((data && data.resend_seconds) || 60);
-        } catch (err) {
-            if (flowVersion !== otpFlowVersion) return;
-            setOtpSending(false);
-            setError('profile-otp-code', err.message || 'ارسال دوباره ممکن نشد.');
-        }
+        if (document.getElementById('profile-otp-resend').disabled) return;
+        // Every SMS send needs its own CAPTCHA; verification consumes the old one.
+        await showPasswordIntro();
+        document.getElementById('profile-password-captcha-answer').focus();
     });
 
     document.getElementById('profile-reset-form').addEventListener('submit', async event => {
