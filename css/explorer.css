@@ -402,6 +402,11 @@ body.explorer-body {
     object-fit: contain;
     border-radius: 5px;
 }
+/* Keep the active Atlas artwork; mute only topics that are not selected. */
+.ex-dd-topic-item:not(.is-current) .ex-dd-topic-icon {
+    filter: grayscale(1) brightness(0.85) drop-shadow(0 1px 1px rgba(128, 128, 128, 0.35));
+    opacity: 0.82;
+}
 .ex-dd-topic-label { min-width: 0; flex: 1; }
 
 .ex-dd-menu button:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
