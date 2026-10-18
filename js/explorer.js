@@ -326,7 +326,7 @@ function syncExplorerDropdowns() {
     if (indVal) indVal.textContent = activeIndicatorGlob || '—';
     fillDropdownMenu(document.getElementById('dd-topic-menu'), explorerTopicsInAtlasOrder(), topic, nextTopic => {
         openTopicIndex(nextTopic);
-    }, item => SITE.asset(`images/تاپیک ${item}.webp`));
+    }, item => SITE.asset(`images/تاپیک ${item}${item === topic ? '-active' : ''}.webp`));
     fillDropdownMenu(document.getElementById('dd-subtopic-menu'), subtopicsOf(topic), sub, nextSub => {
         const first = indicatorsOf(topic, nextSub)[0];
         if (first) loadIndicator(first, topic);
