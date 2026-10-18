@@ -228,3 +228,21 @@ restarting `app-api`, then build the frontend with `python scripts/build_fronten
 Migration `0013_account_tickets` is required. No new environment variables are
 needed. Account ticket creation uses the existing creation throttle (10/hour per
 IP); exhausting creation capacity does not prevent reading existing tickets.
+
+
+The legacy `bubble-chart` page is retired. The API static server redirects its
+root and `/html/` URLs (with or without `.html`) to `/html/explorer.html`.
+The published `html/bubble-chart.html` is a redirect-only fallback for Nginx
+static hosting; it no longer loads the old chart UI or its chart libraries.
+Old saved post-login destinations also resolve to Explorer.
+For an HTTP redirect when Nginx serves static pages directly, add this rule
+inside the existing `server` block, before any broad regex locations:
+
+```nginx
+location ~ ^/(html/)?bubble-chart(?:\.html)?/?$ {
+    return 308 /html/explorer.html;
+}
+```
+
+After editing the server configuration, run `sudo nginx -t` and reload Nginx
+only if validation succeeds.

@@ -1,79 +1,14 @@
 <!DOCTYPE html>
-<!--
-  File: bubble-chart.html
-  Purpose: Weighted bubble chart of provinces for a topic/subtopic.
-  Notes: Visible UI strings remain in Persian.
--->
-
-<html lang="fa" dir="rtl" class="treat-v1 auth-pending">
+<html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>نمودار حبابی — دیده‌بان فرهنگ</title>
-    <link rel="icon" href="../assets/images/Logo_tab.webp" type="image/webp">
-    <link rel="manifest" href="/webmanifest.json">
-    <meta name="theme-color" content="#515811">
-    <link rel="apple-touch-icon" sizes="180x180" href="/assets/images/apple-touch-icon.png">
-    <link rel="stylesheet" href="../assets/fonts/peyda.css">
-    <script src="../js/force-motion.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js" integrity="sha384-y49Zu59jZHJL/PLKgZPv3k2WI9c0Yp3pWB76V8OBVCb0QBKS8l4Ff3YslzHVX76Y" crossorigin="anonymous"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha384-iw3OoTErCYJJB9mCa8LNS2hbsQ7M3C0EpIsO/H5+EGAkPGc6rk+V8i04oW/K5xq0" crossorigin="anonymous">
-    <link rel="stylesheet" href="../css/global.css">
-    <link rel="stylesheet" href="../css/bubble-chart.css">
-    <link rel="stylesheet" href="../css/treat-v1.css">
-    <script src="../js/config.js"></script>
-    <script src="../js/shared.js"></script>
-    <script src="../js/bubble-chart.js" defer></script>
-    <script src="../js/auth.js" defer></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="refresh" content="0;url=/html/explorer.html">
+    <meta name="robots" content="noindex">
+    <title>انتقال به کاوشگر</title>
+    <script src="../js/legacy-bubble-redirect.js" defer></script>
 </head>
-<body class="bubble-body">
-
-    <div id="top-banner" data-page="bubble"></div>
-    <script src="../js/banner.js"></script>
-
-    <div class="bb-deck" id="bb-deck">
-        <div class="bb-deck-track" id="bb-deck-track">
-            <section class="bb-picker" id="bb-picker" aria-label="انتخاب موضوع">
-                <div class="bb-preview-wrap">
-                    <div class="bb-preview" id="bb-preview" aria-hidden="false">
-                        <span class="bb-bubble-axis bb-bubble-axis-x"></span>
-                        <span class="bb-bubble-axis bb-bubble-axis-y"></span>
-                    </div>
-                </div>
-                <aside class="bb-topic-stack" id="bb-topic-stack" aria-label="موضوع‌ها"></aside>
-            </section>
-
-            <div class="bubble-workspace">
-                <header class="bb-intro">
-                    <h1 class="bb-title" id="page-title">
-                        <span>نمودار حبابی</span>
-                        <select id="subtopic-select" class="subtopic-select" aria-label="انتخاب زیرموضوع"></select>
-                    </h1>
-                    <p class="bb-lead" id="page-subtitle">در حال بارگذاری...</p>
-                    <p class="bb-help">وزن هر شاخص را از ۱− تا ۱+ عوض کنید تا ببینید استان‌ها روی نمودار چطور جابه‌جا می‌شوند. محاسبات همیشه روی آخرین دادهٔ منتشرشده است.</p>
-                </header>
-
-                <div class="bb-body">
-                    <main id="chart-container">
-                        <div id="plot-wrapper">
-                            <canvas id="bubbleChart"></canvas>
-                        </div>
-                    </main>
-
-                    <aside class="bb-rail" aria-label="وزن‌دهی شاخص‌ها">
-                        <h2>وزن‌دهی شاخص‌ها</h2>
-                        <p class="bb-rail-note">تاثیر هر شاخص را روی محور امتیاز تنظیم کنید</p>
-                        <div class="bb-sliders" id="indicators-list"></div>
-                    </aside>
-
-                    <button type="button" class="bb-back-picker" id="btn-back-picker" aria-label="بازگشت به انتخاب شاخص">
-                        <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
-                        <span>بازگشت به انتخاب شاخص</span>
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
+<body>
+    <p><a href="/html/explorer.html">رفتن به کاوشگر</a></p>
 </body>
 </html>

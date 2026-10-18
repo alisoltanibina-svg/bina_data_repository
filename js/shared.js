@@ -421,7 +421,7 @@ function hrefForAuthNext(next) {
     if (!next) return '';
     if (next.page === 'tickets') return SITE.page('tickets.html');
     if (next.page === 'explorer') return SITE.page('explorer.html') + (next.search || '');
-    if (next.page === 'bubble') return SITE.page('bubble-chart.html') + (next.search || '');
+    if (next.page === 'bubble') return SITE.page('explorer.html');
     return '';
 }
 

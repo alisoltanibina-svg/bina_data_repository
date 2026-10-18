@@ -26,7 +26,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel, Field
 from fastapi.staticfiles import StaticFiles
 from starlette.background import BackgroundTask
@@ -209,6 +209,10 @@ def _static_cache_control(path: str) -> str:
 
 class CachedStaticFiles(StaticFiles):
     async def get_response(self, path: str, scope):
+        if _normalized_static_path(path) in {
+            "bubble-chart", "bubble-chart.html", "html/bubble-chart", "html/bubble-chart.html",
+        }:
+            return RedirectResponse("/html/explorer.html", status_code=308, headers={"Cache-Control": "no-store"})
         if not _static_is_public(path):
             return Response(status_code=404, content="Not Found")
         response = await super().get_response(path, scope)
