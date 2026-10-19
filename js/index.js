@@ -11,7 +11,12 @@ function curtainScroller() {
     return (curtain && curtain.querySelector('.entry-scroll')) || curtain;
 }
 
+function deferMobileCurtainMapSync() {
+    return !!(window.atlasCurtainMotion && window.atlasCurtainMotion.deferMapSync());
+}
+
 function syncVisualViewportHeight() {
+    if (window.atlasCurtainMotion && window.atlasCurtainMotion.isMoving()) return;
     const ae = document.activeElement;
     if (ae && ae.matches && ae.matches('input, textarea, select') && !document.documentElement.classList.contains('curtain-auth')) return;
     const vp = window.visualViewport;
@@ -25,6 +30,7 @@ function initCurtainBannerOffset() {
     const dock = document.getElementById('entry-dock');
     if (!curtain || !banner) return;
     const sync = () => {
+        if (window.atlasCurtainMotion && window.atlasCurtainMotion.isMoving()) return;
         syncVisualViewportHeight();
         curtain.style.setProperty('--curtain-banner-h', `${Math.round(banner.getBoundingClientRect().bottom)}px`);
         if (dock) {
@@ -42,6 +48,7 @@ function initCurtainBannerOffset() {
     }
     window.addEventListener('resize', sync);
     if (window.visualViewport) window.visualViewport.addEventListener('resize', sync);
+    window.addEventListener('atlascurtainsettled', sync);
 }
 
 function initCurtainReveal() {
@@ -79,6 +86,7 @@ function setAtlasChartKind(kind) {
     const switcher = document.getElementById('atlas-chart-switch');
     if (switcher) switcher.hidden = !(isCompactMap() && document.body.classList.contains('map-sheet-charts'));
     requestAnimationFrame(() => {
+        if (deferMobileCurtainMapSync()) return;
         try { if (typeof rankingBarChart !== 'undefined' && rankingBarChart && rankingBarChart.resize) rankingBarChart.resize(); } catch (e) {}
         try { if (typeof trendChartInstance !== 'undefined' && trendChartInstance && trendChartInstance.resize) trendChartInstance.resize(); } catch (e) {}
     });
@@ -103,6 +111,7 @@ function setMapSheet(sheet) {
     if (bottomCard) bottomCard.style.removeProperty('display');
     setAtlasChartKind(atlasChartKind);
     requestAnimationFrame(() => {
+        if (deferMobileCurtainMapSync()) return;
         if (sheet === 'map') {
             try { if (map && typeof map.invalidateSize === 'function') map.invalidateSize(true); } catch (e) {}
             try { refitMapView({ animate: false }); } catch (e) {}
@@ -223,6 +232,7 @@ function mapContainerHasSize() {
 }
 
 function syncMapToContainer({ animate = false } = {}) {
+    if (deferMobileCurtainMapSync()) return true;
     if (!map || !mapContainerHasSize()) return false;
     map.invalidateSize({ animate: false, pan: false });
     lockSingleWorld();
@@ -231,6 +241,7 @@ function syncMapToContainer({ animate = false } = {}) {
 }
 
 function scheduleMapSync({ animate = false } = {}) {
+    if (deferMobileCurtainMapSync()) return;
     let tries = 24;
     const tick = () => {
         if (syncMapToContainer({ animate })) return;
@@ -258,6 +269,7 @@ function fitMapTo(bounds, { animate = false, maxZoom = MAP_MAX_ZOOM, duration = 
 }
 
 function refitMapView({ animate = false } = {}) {
+    if (deferMobileCurtainMapSync()) return;
     if (!map) return;
     const province = selectedProvinceBounds();
     if (province) {
@@ -1059,6 +1071,7 @@ async function initMap() {
             if (w < 2 || h < 2 || (w === lastW && h === lastH)) return;
             lastW = w;
             lastH = h;
+            if (deferMobileCurtainMapSync()) return;
             map.invalidateSize({ animate: false, pan: false });
             refitMapView({ animate: false });
         });
@@ -1318,6 +1331,7 @@ function updateRightPanel(provinceName) {
 
 // Responsive resize handling: keep maps and charts sized correctly across displays
 const onGlobalResize = debounce(() => {
+    if (deferMobileCurtainMapSync()) return;
     try { if (map && typeof map.invalidateSize === 'function') map.invalidateSize(true); } catch (e) {}
     try { refitMapView({ animate: false }); } catch (e) {}
     try { if (rankingBarChart && typeof rankingBarChart.resize === 'function') rankingBarChart.resize(); } catch (e) {}

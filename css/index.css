@@ -2229,3 +2229,16 @@ html.atlas-view .index-item.active .index-item-text {
 
     .entry-auth-stage .register-field .otp-digits .otp-digit { width: 100%; }
 }
+/* Keep the desktop curtain untouched. Mobile slides avoid live backdrop repainting. */
+@media (max-width:767px) {
+    html.mobile-curtain-moving #entry-view-curtain {
+        height:var(--curtain-motion-height) !important;
+        max-height:var(--curtain-motion-height) !important;
+    }
+    html.mobile-curtain-moving:not(.curtain-auth) .entry-launch {
+        backdrop-filter:none;
+        -webkit-backdrop-filter:none;
+        background:rgba(232,217,185,.65);
+    }
+    html.mobile-curtain-moving .entry-scroll { transition:none; }
+}

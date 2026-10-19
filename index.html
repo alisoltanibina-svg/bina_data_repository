@@ -42,6 +42,7 @@
     <script src="js/config.js" defer></script>
     <script src="js/shared.js" defer></script>
     <script src="js/banner.js" defer></script>
+    <script src="js/curtain-motion.js" defer></script>
     <script src="js/index.js?v=contact-panel-5" defer></script>
     <script src="js/auth-page.js?v=auth-mobile-2" defer></script>
     <script src="js/auth.js" defer></script>
@@ -428,6 +429,7 @@
                 const dock = homeDock();
                 if (!dock) return;
                 dock.classList.remove('is-away');
+                if (window.atlasCurtainMotion && window.atlasCurtainMotion.isMobile()) return;
                 dock.style.transition = 'none';
                 dock.style.transform = 'none';
                 dock.style.opacity = '1';
@@ -444,6 +446,7 @@
             }
 
             function setAtlasView(on) {
+                const mobileMotion = window.atlasCurtainMotion && window.atlasCurtainMotion.begin(on);
                 document.documentElement.classList.toggle('atlas-view', on);
                 if (entryCurtain) entryCurtain.classList.toggle('curtain-up', on);
                 if (atlasBtn) atlasBtn.classList.toggle('is-current', on);
@@ -451,13 +454,14 @@
                 else revealHomeDock();
                 if (on) {
                     updateHeaderButtonsVisibility();
-                    if (typeof scheduleMapSync === 'function') {
+                    if (!mobileMotion && typeof scheduleMapSync === 'function') {
                         requestAnimationFrame(function () { scheduleMapSync({ animate: false }); });
                         setTimeout(function () { scheduleMapSync({ animate: false }); }, 400);
                         setTimeout(function () { scheduleMapSync({ animate: false }); }, 950);
                     }
                     return;
                 }
+                if (mobileMotion) return;
                 const hideAtlasOnlyButtons = () => {
                     if (atlasBtn) atlasBtn.classList.remove('is-current');
                 };
