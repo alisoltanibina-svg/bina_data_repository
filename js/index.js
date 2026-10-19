@@ -338,8 +338,7 @@ function initCurtainContactPanel() {
     const details = {
         address: 'تهران، میدان ولیعصر، بلوار کریمخان زند، خیابان پازند، پلاک ۲۷۶',
         phone: '۰۲۱–۸۸۹۴۶۶۱۸',
-        email: 'rasadbinagram@gmail.com',
-        mailbox: '۱۵۹۸۷۴۳۱۳۶'
+        email: 'rasadbinagram@gmail.com'
     };
     let closeTimer = 0;
     let typingVersion = 0;
