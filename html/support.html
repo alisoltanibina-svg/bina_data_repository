@@ -1,24 +1,37 @@
 <!doctype html>
-<html lang="fa" dir="rtl">
+<html lang="fa" dir="rtl" class="treat-v1">
 <head>
- <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
- <title>پشتیبانی — دیده‌بان فرهنگ</title>
- <link rel="icon" href="../assets/images/Logo_tab.webp"><link rel="stylesheet" href="../assets/fonts/peyda.css">
- <link rel="stylesheet" href="../css/support.css"><link rel="stylesheet" href="../css/captcha.css"><script src="../js/config.js" defer></script><script src="../js/shared.js" defer></script><script src="../js/support.js" defer></script>
+ <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+ <title>تیکت‌های مهمان — دیده‌بان فرهنگ</title>
+ <link rel="icon" href="../assets/images/Logo_tab.webp" type="image/webp">
+ <link rel="stylesheet" href="../assets/fonts/peyda.css"><link rel="stylesheet" href="../css/global.css"><link rel="stylesheet" href="../css/treat-v1.css">
+ <link rel="stylesheet" href="../css/support.css"><link rel="stylesheet" href="../css/captcha.css"><link rel="stylesheet" href="../css/guest-support.css">
+ <script src="../js/config.js"></script><script src="../js/shared.js"></script><script src="../js/support.js" defer></script><script src="../js/auth.js" defer></script>
 </head>
-<body class="support-body">
- <main class="support-page">
-  <a class="support-home" href="../index.html">بازگشت به سامانه</a>
-  <header class="support-heading"><p>همراهی در ورود و عضویت</p><h1>چطور می‌توانیم کمکتان کنیم؟</h1></header>
-  <div class="support-tabs" role="tablist" aria-label="پشتیبانی"><button class="support-button" id="support-create-tab" role="tab" aria-selected="true" aria-controls="support-create-panel">ثبت تیکت</button><button class="support-button secondary" id="support-track-tab" role="tab" aria-selected="false" aria-controls="support-track-panel">پیگیری و پاسخ</button></div>
-  <p id="support-error" class="support-error" role="alert" hidden></p><p id="support-wait" class="support-hint" aria-live="polite" hidden></p>
-  <section id="support-create-panel" class="support-card" role="tabpanel" aria-labelledby="support-create-tab">
-   <form id="support-create-form">
-    <div class="support-fields"><label>نام<input id="support-name" name="name" autocomplete="name" maxlength="80" required></label>
-    <label>شماره تلفن<input id="support-phone" name="phone" type="tel" required autocomplete="tel" inputmode="numeric" dir="ltr" minlength="11" maxlength="11" pattern="09[0-9]{9}" title="شماره تلفن باید ۱۱ رقم و با ۰۹ شروع شود."></label></div>
-    <label>در کدام بخش مشکل دارید؟<select id="support-category" name="category"><option value="login">ورود</option><option value="register">ثبت‌نام</option><option value="reset">بازیابی رمز</option><option value="otp">کد پیامک</option><option value="account">وضعیت حساب</option><option value="other">سایر موارد</option></select></label>
-    <label>عنوان کوتاه<input id="support-subject" name="subject" minlength="3" maxlength="160" required autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></label>
-    <label>شرح مشکل<textarea id="support-message" name="message" maxlength="4000" rows="6" required></textarea></label>
+<body class="support-body guest-support-body">
+ <div id="top-banner" data-page="support"></div><script src="../js/banner.js"></script>
+ <main class="support-page guest-support-page">
+  <section class="guest-support-desk" aria-labelledby="guest-support-heading">
+   <header class="guest-support-heading">
+    <div><div class="guest-support-kicker"><a class="guest-support-back" href="../index.html" aria-label="بازگشت به صفحه اصلی"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></a><span>پشتیبانی</span></div><h1 id="guest-support-heading">تیکت‌های مهمان</h1></div>
+    <button type="button" id="support-form-refresh" class="guest-support-refresh" aria-label="دریافت کد امنیتی تازه" title="دریافت کد امنیتی تازه"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 11a9 9 0 0 1 15.4-6.4L21 7"></path><path d="M21 3v4h-4"></path><path d="M21 13a9 9 0 0 1-15.4 6.4L3 17"></path><path d="M7 17H3v4"></path></svg></button>
+   </header>
+   <div class="support-tabs guest-support-tabs" role="tablist" aria-label="پشتیبانی">
+    <button type="button" class="guest-support-tab" id="support-create-tab" role="tab" aria-selected="true" aria-controls="support-create-panel">تیکت جدید</button>
+    <button type="button" class="guest-support-tab secondary" id="support-track-tab" role="tab" aria-selected="false" aria-controls="support-track-panel">پیگیری تیکت</button>
+   </div>
+   <section id="support-create-panel" class="support-card" role="tabpanel" aria-labelledby="support-create-tab">
+    <form id="support-create-form" class="guest-support-form">
+     <div class="support-fields guest-support-identity">
+      <label><span class="visually-hidden">نام و نام خانوادگی</span><input id="support-name" name="name" autocomplete="name" placeholder="نام و نام خانوادگی" maxlength="80" required></label>
+      <label><span class="visually-hidden">شماره تلفن</span><input id="support-phone" name="phone" type="tel" required autocomplete="tel" placeholder="شماره تماس" inputmode="numeric" dir="ltr" minlength="11" maxlength="11" pattern="09[0-9]{9}" title="شماره تلفن باید ۱۱ رقم و با ۰۹ شروع شود."></label>
+     </div>
+     <div class="support-fields guest-support-topic">
+      <label><span class="visually-hidden">در کدام بخش مشکل دارید؟</span><select id="support-category" name="category" required><option value="" disabled selected>در کدام بخش مشکل دارید؟</option><option value="login">ورود</option><option value="register">ثبت‌نام</option><option value="reset">بازیابی رمز</option><option value="otp">کد پیامک</option><option value="account">وضعیت حساب</option><option value="other">سایر موارد</option></select></label>
+      <label><span class="visually-hidden">عنوان کوتاه</span><input id="support-subject" name="subject" placeholder="عنوان کوتاه" minlength="3" maxlength="160" required autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></label>
+     </div>
+     <label class="guest-support-description"><span>شرح مشکل</span><textarea id="support-message" name="message" maxlength="4000" rows="4" required></textarea></label>
+     <div class="guest-support-footer">
     <div class="support-captcha">
      <div class="captcha-field">
       <input class="captcha-answer" id="support-captcha-answer" aria-label="کد امنیتی" placeholder="کد امنیتی" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" inputmode="text" maxlength="5" dir="ltr" required>
@@ -26,13 +39,17 @@
       <button type="button" id="support-captcha-refresh" class="captcha-refresh" aria-label="تغییر کد امنیتی" title="تغییر کد امنیتی"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 11a9 9 0 0 1 15.4-6.4L21 7"></path><path d="M21 3v4h-4"></path><path d="M21 13a9 9 0 0 1-15.4 6.4L3 17"></path><path d="M7 17H3v4"></path></svg></button>
      </div>
     </div>
-    <button class="support-button" id="support-create-submit" type="submit">ثبت تیکت</button>
-   </form>
-  </section>
+      <div class="guest-support-actions"><button class="support-button" id="support-create-submit" type="submit">ثبت تیکت</button><a class="support-button secondary" href="../index.html">انصراف</a></div>
+     </div>
+    </form>
+   </section>
   <section id="support-track-panel" class="support-card" role="tabpanel" aria-labelledby="support-track-tab" hidden>
    <div id="support-receipt" class="support-receipt" hidden><h2>رسید پیگیری</h2><p id="support-receipt-note">کد پیگیری را برای پیگیری تیکت ذخیره کنید.</p><code id="support-receipt-reference" dir="ltr"></code><button type="button" class="support-button secondary" id="support-download-receipt">دریافت فایل رسید</button><button type="button" class="support-button secondary" id="support-copy-receipt">کپی کد پیگیری</button></div>
    <form id="support-track-form" autocomplete="off"><label>کد پیگیری<input id="support-reference" dir="ltr" maxlength="20" placeholder="SUP-XXXXXXXXXXXXXXXX" required autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></label><button class="support-button" id="support-track-submit" type="submit">دیدن تیکت</button></form>
   </section>
   <section id="support-conversation" class="support-card" hidden><header class="support-conversation-head"><h2 id="support-ticket-subject"></h2><span id="support-ticket-status" class="support-badge"></span><button id="support-refresh-ticket" class="support-button secondary" type="button">بررسی پاسخ تازه</button></header><div id="support-messages" class="support-messages" aria-live="polite"></div><p id="support-closed" class="support-hint" role="status" hidden>این تیکت بسته شده است و امکان ارسال پیام ندارد. برای موضوع جدید، تیکت تازه‌ای ثبت کنید.</p><form id="support-reply-form"><label>توضیح یا پاسخ شما<textarea id="support-reply" rows="4" minlength="2" maxlength="4000" required></textarea></label><button class="support-button" id="support-reply-submit" type="submit">ارسال پیام</button></form></section>
+   <p id="support-error" class="support-error" role="alert" hidden></p><p id="support-wait" class="support-hint" aria-live="polite" hidden></p>
+  </section>
  </main>
-</body></html>
+</body>
+</html>

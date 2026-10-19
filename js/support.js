@@ -40,6 +40,7 @@
     function clearError() { $('error').hidden = true; }
     function tab(track) {
         $('create-panel').hidden = track;
+        $('form-refresh').hidden = track;
         $('track-panel').hidden = !track;
         if (!track) $('conversation').hidden = true;
         for (const [id,on] of [['create-tab',!track],['track-tab',track]]) {
@@ -97,6 +98,7 @@
         $('conversation').hidden = false;
         $('ticket-subject').textContent = ticket.subject;
         $('ticket-status').textContent = statuses[ticket.status] || ticket.status;
+        $('ticket-status').dataset.status = ticket.status;
         $('messages').replaceChildren();
         for (const message of ticket.messages || []) {
             const box = document.createElement('article');
@@ -123,6 +125,7 @@
     $('create-tab').onclick = () => tab(false);
     $('track-tab').onclick = () => { tab(true); if (access) $('conversation').hidden = false; };
     $('captcha-refresh').onclick = () => run($('captcha-refresh'), refreshCaptcha);
+    $('form-refresh').onclick = () => run($('form-refresh'), refreshCaptcha);
     $('create-form').onsubmit = event => {
         event.preventDefault();
         if (!validateName()) { nameInput.reportValidity(); return; }
