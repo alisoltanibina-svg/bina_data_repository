@@ -712,3 +712,14 @@ body.profile-body #birth_date.is-filled {
         padding-bottom: max(20px, env(safe-area-inset-bottom));
     }
 }
+
+/* Reserve only keyboard overlap, and let short visible viewports scroll naturally. */
+@media (max-width:767px), (pointer:coarse) {
+    body.profile-body .register-workspace {
+        padding-bottom:calc(max(20px, env(safe-area-inset-bottom, 0px)) + var(--profile-keyboard-inset, 0px));
+    }
+    html.profile-keyboard-open body.profile-body .register-workspace { align-items:flex-start; }
+    body.profile-body .register-card input,
+    body.profile-body .register-card textarea,
+    body.profile-body .register-card select { scroll-margin-block:100px 24px; }
+}
