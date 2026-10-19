@@ -21,6 +21,7 @@
     ['input', 'blur', 'paste'].forEach(event => phoneInput.addEventListener(event, validatePhone));
     phoneInput.addEventListener('invalid', validatePhone);
     let captchaId = '', access = null, draftAccess = null, receipt = null, busy = false;
+    let ticketClosed = false;
     const waits = new Map();
     const params = new URLSearchParams(location.search);
     const context = {};
@@ -32,6 +33,7 @@
     else if (['pending','rejected','closed'].includes(context.error_code)) $('category').value = 'register';
     else if (context.stage) $('category').value = context.stage.includes('register') ? 'register' : context.stage.includes('otp') ? 'otp' : context.stage.includes('reset') ? 'reset' : 'login';
     function error(err) {
+        if (err.code === 'ticket-closed') { setReplyClosed(true); $('ticket-status').textContent = statuses.closed; }
         $('error').hidden = false;
         $('error').textContent = (err.message || 'ارتباط با سامانه ممکن نشد. دوباره تلاش کنید.') + (err.reference ? ' · کد خطا: ' + err.reference : '');
     }
@@ -83,7 +85,15 @@
         $('captcha-image').src = API_BASE_URL + '/api/support/captcha/' + encodeURIComponent(captchaId) + '/image';
         $('captcha-answer').value = '';
     }
+    function setReplyClosed(closed) {
+        ticketClosed = closed;
+        $('reply-form').hidden = closed;
+        $('reply-form').inert = closed;
+        $('reply').disabled = closed;
+        $('closed').hidden = !closed;
+    }
     function render(ticket) {
+        setReplyClosed(ticket.status === 'closed');
         $('conversation').hidden = false;
         $('ticket-subject').textContent = ticket.subject;
         $('ticket-status').textContent = statuses[ticket.status] || ticket.status;
@@ -149,6 +159,7 @@
     $('refresh-ticket').onclick = () => run($('refresh-ticket'), async () => render(await request('/api/support/tickets/lookup',access)));
     $('reply-form').onsubmit = event => {
         event.preventDefault();
+        if (ticketClosed) return;
         run($('reply-submit'), async () => {
             render(await request('/api/support/tickets/reply',{...access,message:$('reply').value.trim()}));
             $('reply').value = '';

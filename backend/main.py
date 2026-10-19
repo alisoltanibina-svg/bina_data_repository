@@ -939,6 +939,7 @@ _MEMBERSHIP_HTTP = {
     "inactive": 403,
     "login-locked": 423,
     "ticket-not-found": 404,
+    "ticket-closed": 409,
     "support-input": 400,
     "reference-conflict": 409,
 }

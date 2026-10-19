@@ -168,7 +168,7 @@ only in page memory, never session storage.
 
 The admin panel's «تیکت‌های پشتیبانی» tab lists tickets, supports written replies,
 and records status transitions (open, in progress, awaiting user, closed).
-A user reply reopens a closed ticket. Error references and the originating auth
+Closed tickets are read-only for users; only an administrator can reopen them. Error references and the originating auth
 step accompany tickets opened from an error screen; passwords and OTP codes must
 never be requested in tickets. Unexpected server errors log the reference as
 `unexpected_api_error reference=...` for investigation.

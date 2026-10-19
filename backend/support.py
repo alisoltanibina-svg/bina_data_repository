@@ -121,6 +121,8 @@ def _set_status(session, ticket, status, actor_id=None):
 def reply_ticket(reference, message, *, user_id=None):
     with db_session() as session:
         ticket = _authorize(session, reference, lock=True, user_id=user_id)
+        if ticket.status == "closed":
+            raise MembershipError("ticket-closed", "این تیکت بسته شده است و امکان ارسال پیام ندارد. برای موضوع جدید، تیکت تازه‌ای ثبت کنید.")
         _add_message(session, ticket, message, "user", user_id)
         _set_status(session, ticket, "open")
         session.flush()

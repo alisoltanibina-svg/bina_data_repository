@@ -8,14 +8,16 @@
     let loading = false, reading = false, creating = false, sending = false, redirecting = false;
     const waits = new Map();
     let view = 'empty';
+    let ticketClosed = false;
     function setView(next) {
         view = next;
         $('create').hidden = next !== 'create';
         $('detail').hidden = next !== 'detail';
         $('placeholder').hidden = !['empty', 'loading'].includes(next);
         $('submit').hidden = next !== 'create';
-        $('send').hidden = next !== 'detail';
-        $('new').hidden = next === 'create';
+        $('send').hidden = next !== 'detail' || ticketClosed;
+        $('new').classList.toggle('is-selected', next === 'create');
+        $('new').setAttribute('aria-pressed', String(next === 'create'));
     }
     function openCreate() {
         if (creating || sending || !allowSwitch()) return;
@@ -78,10 +80,18 @@
         if (index < 0) rows.unshift(summary(ticket)); else rows[index] = summary(ticket);
         rows.sort((a,b) => new Date(b.updated_at) - new Date(a.updated_at)); renderList();
     }
+    function setReplyClosed(closed) {
+        ticketClosed = closed;
+        $('reply-form').hidden = closed;
+        $('reply').disabled = closed;
+        $('closed').hidden = !closed;
+        $('send').hidden = closed || view !== 'detail';
+        $('send').disabled = closed || sending || reading;
+    }
     function renderTicket(ticket) {
+        setReplyClosed(ticket.status === 'closed');
         setView('detail');
-        $('copy').title = 'کپی کد پیگیری'; $('copy').setAttribute('aria-label','کپی کد پیگیری');
-        $('title').textContent = ticket.subject; $('reference').textContent = ticket.reference;
+        $('title').textContent = ticket.subject;
         $('status').textContent = labels[ticket.status] || ticket.status; $('status').dataset.status = ticket.status;
         $('messages').replaceChildren();
         (ticket.messages || []).forEach(message => {
@@ -117,14 +127,14 @@
             $('reply').value = ''; setView('loading');
             $('placeholder-text').textContent = 'در حال دریافت گفتگو…';
         }
-        selected = reference; reading = true; $('reload').disabled = true; $('send').disabled = true; clearError(); renderList();
+        selected = reference; reading = true; $('send').disabled = true; clearError(); renderList();
         try {
             const ticket = await request('/api/account/tickets/' + encodeURIComponent(reference));
             if (version !== detailVersion) return;
             renderTicket(ticket); upsert(ticket);
             if (window.matchMedia('(max-width:800px)').matches) $('detail').scrollIntoView({block:'start',behavior:'smooth'});
         } catch (err) { if (version === detailVersion) error(err); }
-        finally { if (version === detailVersion) { reading = false; $('reload').disabled = false; $('send').disabled = false; } }
+        finally { if (version === detailVersion) { reading = false; $('send').disabled = ticketClosed; } }
     }
     $('new').onclick = openCreate;
     $('cancel').onclick = () => {
@@ -138,30 +148,33 @@
     };
     $('refresh').onclick = () => load();
     $('more').onclick = () => load(true);
-    $('reload').onclick = () => { if (selected && !reading) select(selected); };
-    $('copy').onclick = async () => {
-        try { await navigator.clipboard.writeText(selected); $('copy').title = 'کپی شد'; $('copy').setAttribute('aria-label','کد پیگیری کپی شد'); }
-        catch (_) { error(new Error('کپی خودکار ممکن نشد؛ کد پیگیری را از بالای گفتگو کپی کنید.')); }
-    };
     $('create-form').onsubmit = async event => {
         event.preventDefault(); if (creating || sending || !$('create-form').reportValidity()) return;
         creating = true; $('submit').disabled = true; clearError(); draftReference ||= newTicketReference();
         try {
             const ticket = await request('/api/account/tickets',{method:'POST',body:{reference:draftReference,category:$('category').value,subject:$('subject').value.trim(),message:$('message').value.trim()}});
             draftReference = ''; $('create-form').reset(); $('create').hidden = true;
-            selected = ticket.reference; ++detailVersion; reading = false; $('reload').disabled = false; $('send').disabled = false; renderTicket(ticket); upsert(ticket); await load();
+            selected = ticket.reference; ++detailVersion; reading = false; $('send').disabled = ticketClosed; renderTicket(ticket); upsert(ticket); await load();
             $('detail').scrollIntoView({block:'start',behavior:'smooth'});
         } catch (err) { if (err.code === 'reference-conflict') draftReference = ''; error(err); }
         finally { creating = false; $('submit').disabled = false; }
     };
     $('reply-form').onsubmit = async event => {
-        event.preventDefault(); if (!selected || creating || sending || reading || !$('reply-form').reportValidity()) return;
+        event.preventDefault(); if (!selected || ticketClosed || creating || sending || reading || !$('reply-form').reportValidity()) return;
         const reference = selected; sending = true; $('send').disabled = true; clearError();
         try {
             const ticket = await request('/api/account/tickets/' + encodeURIComponent(reference) + '/reply',{method:'POST',body:{message:$('reply').value.trim()}});
             $('reply').value = ''; renderTicket(ticket); upsert(ticket);
-        } catch (err) { error(err); }
-        finally { sending = false; $('send').disabled = false; }
+        } catch (err) {
+            if (err.code === 'ticket-closed') {
+                setReplyClosed(true);
+                $('status').textContent = labels.closed; $('status').dataset.status = 'closed';
+                const row = rows.find(ticket => ticket.reference === reference);
+                if (row) { row.status = 'closed'; renderList(); }
+            }
+            error(err);
+        }
+        finally { sending = false; $('send').disabled = ticketClosed; }
     };
     setInterval(() => {
         const seconds = Math.max(0,...Array.from(waits.values(),until => Math.ceil((until-Date.now())/1000)));

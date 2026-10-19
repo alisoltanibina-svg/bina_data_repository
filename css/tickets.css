@@ -8,15 +8,20 @@
 .account-tickets-body #top-banner .banner-seg, .account-tickets-body #top-banner .top-nav { display: none !important; }
 .account-tickets-page { width: min(1280px, 100%); margin: calc(75px + var(--banner-gap, 16px) + 34px) auto 0; padding: 0 24px 48px; }
 .account-tickets-desk {
-    padding: 26px 24px 28px; border: 1px solid rgba(255,255,255,.26); border-radius: 24px;
+    position: relative; padding: 26px 24px 28px; border: 1px solid rgba(255,255,255,.26); border-radius: 24px;
     background: rgba(232,217,185,.38); backdrop-filter: blur(20px) saturate(1.12); -webkit-backdrop-filter: blur(20px) saturate(1.12);
     box-shadow: 0 10px 30px rgba(81,88,17,.08), inset 0 1px 0 rgba(255,255,255,.35);
 }
 .account-tickets-heading { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
 .account-tickets-heading h1 { margin: 2px 0 0; font-size: 1.7rem; font-weight: 800; }
-.account-tickets-back { display: inline-flex; align-items: center; gap: 8px; color: #857443; font-size: .84rem; text-decoration: none; }
-.account-tickets-back svg { width: 22px; height: 22px; }
-.account-tickets-back:hover { color: #515811; }
+.account-tickets-title { padding-inline-start: 36px; }
+.account-tickets-title>p { margin: 0; color: #857443; font-size: .84rem; }
+.account-tickets-back { position: absolute; top: 16px; inset-inline-start: 16px; display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; background: #fff; color: #a18447; text-decoration: none; }
+.account-tickets-back:hover { filter: brightness(.97); }
+.account-ticket-inbox-scroll { display: grid; gap: 12px; }
+.account-ticket-new-tile { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 74px; padding: 14px; border: 1px dashed rgba(81,88,17,.4); border-radius: 18px; background: rgba(244,235,213,.4); color: #515811; cursor: pointer; }
+.account-ticket-new-tile:hover, .account-ticket-new-tile.is-selected { background: rgba(255,255,255,.8); border-color: #858e46; }
+.account-ticket-form-submit { justify-self: end; min-width: 150px; min-height: 44px; margin-top: 4px; }
 .account-ticket-actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
 .account-ticket-refresh-button { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 46px; width: 46px; height: 46px; padding: 0; border: 1px solid rgba(255,255,255,.3); border-radius: 50%; background: rgba(244,237,215,.38); color: #515811; box-shadow: 0 3px 7px rgba(81,88,17,.12); cursor: pointer; }
 .account-ticket-refresh-button:hover:not(:disabled) { background: rgba(255,255,255,.6); }
@@ -57,12 +62,7 @@
 .account-ticket-detail { scroll-margin-top: 110px; }
 .account-ticket-detail-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
 .account-ticket-detail-head h2 { margin: 0; font-size: 1.05rem; font-weight: 600; overflow-wrap: anywhere; }
-.account-ticket-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 8px 0 18px; color: #81734a; font-size: .77rem; }
-.account-ticket-meta code { display: inline-block; direction: ltr; unicode-bidi: isolate; font-family: ui-monospace, Consolas, monospace; color: #68652f; overflow-wrap: anywhere; }
-.account-ticket-meta>span { min-width: 0; overflow-wrap: anywhere; }
 .account-ticket-text-button { padding: 2px 0; border: 0; background: transparent; color: #68652f; font: inherit; font-size: .78rem; cursor: pointer; text-decoration: underline; text-underline-offset: 4px; }
-.account-ticket-icon-button { width: 30px; height: 30px; padding: 6px; border: 0; border-radius: 50%; background: rgba(255,255,255,.4); color: #68652f; cursor: pointer; }
-.account-ticket-icon-button svg { display: block; width: 100%; height: 100%; }
 .account-ticket-detail .support-messages { display: grid; align-content: start; gap: 16px; margin: 0 0 16px; max-height: 340px; min-height: 180px; padding: 18px; overflow: auto; scrollbar-width: thin; border-radius: 22px; background: rgba(241,230,201,.38); box-shadow: 0 4px 7px rgba(81,88,17,.1), inset 0 1px 0 rgba(255,255,255,.3); }
 .account-ticket-detail .support-message { width: min(92%,660px); justify-self: start; padding: 12px 16px; border: 1px solid rgba(255,255,255,.35); border-radius: 18px 18px 4px 18px; background: rgba(255,255,255,.78); color: #515811; }
 .account-ticket-detail .support-message.is-support { justify-self: end; background: rgba(221,221,180,.64); border-radius: 18px 18px 18px 4px; }
@@ -86,13 +86,14 @@
     .account-ticket-layout { grid-template-columns: minmax(0,1fr); gap: 22px; }
     .account-ticket-inbox h2 { margin-bottom: 10px; padding-inline: 4px; }
     .account-ticket-inbox-card { padding: 8px; }
-    .account-ticket-list { display: flex; gap: 8px; max-height: none; overflow-x: auto; padding: 4px; scroll-snap-type: x proximity; }
+    .account-ticket-inbox-scroll { display: flex; gap: 8px; overflow-x: auto; padding: 4px; scroll-snap-type: x proximity; }
+    .account-ticket-new-tile { flex: 0 0 96px; min-height: 110px; scroll-snap-align: start; }
+    .account-ticket-list { display: contents; }
     .account-ticket-list>li { flex: 0 0 176px; scroll-snap-align: start; }
     .account-ticket-list button { min-height: 104px; }
     .account-ticket-inbox #my-ticket-more { width: auto; }
     .account-ticket-form-row { grid-template-columns: minmax(0,1fr); gap: 14px; }
     .account-ticket-form-row input, .account-ticket-form-row select { font-size: .84rem; padding-inline: 16px; }
-    .account-ticket-meta { gap: 8px; }
     .account-ticket-detail .support-messages { padding: 12px; max-height: 380px; }
     .account-ticket-detail .support-message { width: 96%; }
     .account-ticket-workspace { min-height: 280px; }
