@@ -36,7 +36,7 @@
     }
 
     function clearError() { $('error').hidden = true; }
-    function error(err) { $('error').hidden = false; $('error').textContent = (err.message || 'ارتباط با سامانه ممکن نشد. دوباره تلاش کنید.') + (err.reference ? ' · کد خطا: ' + err.reference : ''); }
+    function error(err) { if (err.inlineDisplayed) { clearError(); return; } $('error').hidden = false; $('error').textContent = (err.message || 'ارتباط با سامانه ممکن نشد. دوباره تلاش کنید.') + (err.reference ? ' · کد خطا: ' + err.reference : ''); }
     async function request(path, options = {}) {
         const method = options.method || 'GET';
         const key = method + ':' + path.split('?')[0];
@@ -87,7 +87,9 @@
             const status = document.createElement('span'); status.className = 'account-ticket-status';
             const statusLabel = document.createElement('span'); statusLabel.textContent = 'وضعیت:';
             status.append(statusLabel,badge(ticket.status));
-            button.append(title,when,status); button.onclick = () => select(ticket.reference);
+            button.title = ticket.reference === selected && view !== 'create' ? 'بستن گفتگو' : 'مشاهده گفتگو';
+            button.append(title,when,status);
+            button.onclick = () => ticket.reference === selected && view !== 'create' ? deselect() : select(ticket.reference);
             item.append(button); $('list').append(item);
         });
     }
@@ -137,6 +139,18 @@
         }
     }
     function allowSwitch() { return (!$('reply').value.trim() && !replyFiles?.hasFiles()) || window.confirm('پاسخ نوشته‌شده هنوز ارسال نشده است. ادامه می‌دهید؟'); }
+    function deselect() {
+        if (creating || sending || !allowSwitch()) return;
+        ++detailVersion;
+        selected = ''; reading = false;
+        $('reply').value = ''; replyFiles?.clear();
+        window.TicketAttachments?.revoke(attachmentUrls);
+        $('messages').replaceChildren();
+        clearError();
+        setView('empty');
+        $('placeholder-text').textContent = 'برای مشاهده گفتگو، یک تیکت را انتخاب کنید.';
+        renderList();
+    }
     async function select(reference) {
         if (creating || sending || (reference !== selected && !allowSwitch())) return;
         const version = ++detailVersion;

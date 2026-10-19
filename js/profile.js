@@ -875,8 +875,8 @@ onReady(async () => {
 
     document.getElementById('profile-password-intro-back').addEventListener('click', () => {
         clearOtpVerification();
-        showProfilePanel('profile-main');
-        clearPasswordHash();
+        stopResendTimer();
+        setOtpSending(false);
     });
     document.getElementById('profile-password-send-form').addEventListener('submit', async event => {
         event.preventDefault();

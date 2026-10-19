@@ -12,15 +12,15 @@ import threading
 import warnings
 from datetime import datetime, timedelta, timezone
 from PIL import Image, ImageOps, UnidentifiedImageError
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, text
 from backend.database import db_session
 from backend.input_security import safe_text
 from backend.membership import MembershipError
-from backend.models import SupportAttachment, SupportMessage, SupportTicket
+from backend.models import SupportAttachment, SupportMessage, SupportTicket, SupportStatusEvent
 from backend.settings import PROJECT_ROOT, get_settings
 
 log = logging.getLogger(__name__)
-MAX_FILE_BYTES = 5 * 1024 * 1024
+MAX_FILE_BYTES = 3 * 1024 * 1024
 MAX_FILES = 3
 MAX_PIXELS = 16_000_000
 MAX_EDGE = 8192
@@ -69,13 +69,13 @@ def validate_filename(name):
         raise _failure("نام و نوع فایل معتبر نیست.")
     suffix = Path(name).suffix.lower()
     if suffix not in FORMATS:
-        raise _failure("فقط تصویر JPG، PNG یا WebP با حجم حداکثر ۵ مگابایت پذیرفته می‌شود.")
+        raise _failure("فقط تصویر JPG، PNG یا WebP با حجم حداکثر ۳ مگابایت پذیرفته می‌شود.")
     return name, FORMATS[suffix]
 
 
 def encode_image(data, expected_format):
     if not data or len(data) > MAX_FILE_BYTES:
-        raise _failure("حجم تصویر باید بین یک بایت و ۵ مگابایت باشد.")
+        raise _failure("حجم تصویر باید بین یک بایت و ۳ مگابایت باشد.")
     if not _decode_slots.acquire(blocking=False):
         raise _failure("پردازش تصویر شلوغ است؛ کمی بعد دوباره تلاش کنید.", "attachment-limit", 5)
     try:
@@ -247,6 +247,46 @@ def discard_upload(attachment_id, actor_id):
     path.unlink(missing_ok=True)
 
 
+def _expire_closed_ticket_attachments(now):
+    # Reuse the existing indexed status history; no new column or table is needed.
+    # Lock ticket before attachment rows, matching replies, uploads and status changes.
+    closed_at = select(func.max(SupportStatusEvent.created_at)).where(
+        SupportStatusEvent.ticket_id == SupportTicket.id,
+        SupportStatusEvent.to_status == "closed").correlate(SupportTicket).scalar_subquery()
+    has_files = select(SupportAttachment.id).where(
+        SupportAttachment.ticket_id == SupportTicket.id,
+        SupportAttachment.message_id.is_not(None),
+        SupportAttachment.state == "ready").exists()
+    stale = []
+    with db_session() as session:
+        tickets = session.scalars(select(SupportTicket).where(
+            SupportTicket.status == "closed",
+            # Compute each deadline forwards: Jan 31 expires Apr 30, not May 1.
+            (func.timezone('UTC', func.coalesce(closed_at, SupportTicket.updated_at))
+             + text("INTERVAL '3 months'")) <= now.astimezone(timezone.utc).replace(tzinfo=None),
+            has_files).order_by(SupportTicket.id).limit(100)
+            .with_for_update(skip_locked=True)).all()
+        for ticket in tickets:
+            rows = session.scalars(select(SupportAttachment).where(
+                SupportAttachment.ticket_id == ticket.id,
+                SupportAttachment.message_id.is_not(None), SupportAttachment.state == "ready")
+                .order_by(SupportAttachment.id).limit(500 - len(stale))
+                .with_for_update()).all()
+            for row in rows:
+                row.state = "deleted"
+                stale.append(row.id)
+            if len(stale) >= 500: break
+    # Commit tombstones before unlinking. A failed deletion is retried by the orphan
+    # sweep; reopening after expiry cannot restore an already retired attachment.
+    for token in stale:
+        try:
+            file_path(token).unlink(missing_ok=True)
+        except OSError:
+            log.exception("ticket_attachment_retention_unlink_failed id=%s", token)
+    if stale:
+        log.info("ticket_attachment_retention_expired count=%s", len(stale))
+
+
 def cleanup_attachments(now=None):
     now = now or datetime.now(timezone.utc)
     stale = []
@@ -261,6 +301,7 @@ def cleanup_attachments(now=None):
             SupportAttachment.state == "deleted", SupportAttachment.created_at < now-timedelta(days=1)))
     for token in stale:
         file_path(token).unlink(missing_ok=True)
+    _expire_closed_ticket_attachments(now)
     root = storage_root()
     if not root.exists(): return
     # Reclaim orphaned files after ticket/account deletion or an interrupted DB commit.

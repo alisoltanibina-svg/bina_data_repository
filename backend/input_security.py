@@ -66,7 +66,7 @@ class InputSecurityMiddleware:
             return await reject(415, "input-format", "قالب درخواست پشتیبانی نمی‌شود.")
         raw_upload = path.rstrip("/") == "/api/account/ticket-attachments" and scope["method"] == "POST"
         avatar = bool(re.fullmatch(r"/api/(?:auth/profile|admin/users/\d+)/avatar", path)) and scope["method"] == "POST"
-        maximum = 5 * 1024 * 1024 if raw_upload else 6 * 1024 * 1024 if avatar else 64 * 1024
+        maximum = 3 * 1024 * 1024 if raw_upload else 6 * 1024 * 1024 if avatar else 64 * 1024
         try:
             length = int(headers.get(b"content-length", "0"))
             if length < 0: raise ValueError()

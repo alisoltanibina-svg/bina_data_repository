@@ -4,7 +4,7 @@
     const labels = {open:'باز',in_progress:'در حال بررسی',awaiting_user:'منتظر کاربر',closed:'بسته شده'};
     const categories = {login:'ورود',register:'ثبت‌نام',reset:'بازیابی رمز',otp:'کد پیامک',account:'حساب',atlas:'اطلس',explorer:'کاوشگر',profile:'پروفایل',other:'سایر'};
     let rows = [], next = 0, selected = '', selection = 0, loading = false, saving = false;
-    function error(err) { $('tickets-error').hidden = false; $('tickets-error').textContent = err.message || 'دریافت تیکت ممکن نشد.'; }
+    function error(err) { if (err.inlineDisplayed) { $('tickets-error').hidden = true; return; } $('tickets-error').hidden = false; $('tickets-error').textContent = err.message || 'دریافت تیکت ممکن نشد.'; }
     function renderList() {
         $('tickets-list').replaceChildren();
         $('tickets-empty').hidden = rows.length !== 0;
@@ -57,6 +57,7 @@
         finally { loading = false; $('tickets-refresh').disabled = false; $('tickets-more').disabled = false; }
     }
     function bind() {
+        $('tickets-filter').value = 'open';
         files = window.TicketAttachments?.create($('ticket-files'), () => selected);
         window.addEventListener('pagehide', event => { if (event.persisted) return; files?.reset(); window.TicketAttachments?.revoke(attachmentUrls); });
         $('tickets-refresh').onclick = () => load();

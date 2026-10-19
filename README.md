@@ -256,7 +256,7 @@ WebP images. Guest tickets remain text-only. PDF, SVG, HTML, executables, archiv
 Office files, and animated images are not accepted; no malware-scanner service
 or external document processing is required or enabled in this release.
 
-Each message accepts at most three files, each at most 5 MiB. The server checks
+Each message accepts at most three files, each at most 3 MiB. The server checks
 the extension and decoded format, rejects images above 16 million pixels or an
 8192-pixel edge, applies EXIF orientation, and saves a new metadata-free WebP
 with a maximum 4096-pixel edge. Original bytes and filenames are never used as
@@ -286,12 +286,25 @@ image is being processed. An uncommitted/failed message never claims an image;
 text and files remain available in the form for retry. Retrying the same message
 with its already-claimed attachments does not create duplicate messages.
 
-A background cleanup runs at startup and every ten minutes. It expires unused
+A background cleanup runs at startup and every 24 hours. It expires unused
 staged uploads and removes orphan files after a one-hour grace period following
-ticket/account deletion or interrupted file/DB writes. Attached files are retained
-with the ticket. Back up the private directory together with the database, with
+ticket/account deletion or interrupted file/DB writes. Attachments on tickets
+that have remained closed for three UTC calendar months are automatically
+retired and physically deleted; ticket text, message history and attachment
+metadata remain. Both user and admin uploads follow this policy. Open tickets
+are excluded. Reopening before expiry cancels eligibility; closing again starts
+another three-month period using the latest closure event. For legacy closed
+tickets without a closure event, `updated_at` is the fallback. Month-end dates
+are clamped to the last day of the target month. Cleanup processes at most 500
+attachments from 100 tickets per run and locks tickets against concurrent
+reopening. Failed file deletions are retried by the orphan sweep. The picker
+shows the policy before upload. This applies to existing attachments as well
+when this release starts; reopening cannot restore files already deleted.
+No additional migration is required for retention. Back up the private directory
+together with the database, with
 the same access controls as other account data. Restore both together; database
-backups alone do not contain the images. Existing guest tracking behavior and
+backups alone do not contain the images. Existing backups are not pruned by this
+job; apply a separate backup retention policy. Existing guest tracking behavior and
 closed-ticket read-only behavior are preserved.
 
 Deployment for this release:
@@ -330,9 +343,13 @@ Deployment for this release:
    ```
 
    Retain the existing proxy headers. Validate with `sudo nginx -t` before reload.
+   Without an explicit limit, Nginx can reject uploads above its default 1 MiB.
+   The proxy allows 6 MiB for existing avatar multipart uploads; ticket images
+   are independently limited to 3 MiB in the picker, request middleware, streamed
+   upload route, and image processing code.
    Nginx may buffer request bodies to its own managed temporary storage; do not
    expose that directory either. The API independently limits JSON bodies to
-   64 KiB, avatar multipart bodies to 6 MiB, and streamed ticket uploads to 5 MiB.
+   64 KiB, avatar multipart bodies to 6 MiB, and streamed ticket uploads to 3 MiB.
 4. Build with `python scripts/build_frontend.py` and deploy the backend and the
    matching frontend release together. Restart `app-api` after migration. User
    and admin forms share a paperclip picker, previews, removal, progress, and

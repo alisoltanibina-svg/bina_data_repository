@@ -135,7 +135,7 @@ def build_router(require_admin, raise_membership, require_user):
             async with asyncio.timeout(30):
                 async for chunk in request.stream():
                     if len(data) + len(chunk) > ticket_attachments.MAX_FILE_BYTES:
-                        raise HTTPException(413, detail={"code": "attachment-input", "message": "حجم تصویر باید حداکثر ۵ مگابایت باشد."})
+                        raise HTTPException(413, detail={"code": "attachment-input", "message": "حجم تصویر باید حداکثر ۳ مگابایت باشد."})
                     data.extend(chunk)
             result = await run_in_threadpool(ticket_attachments.stage_upload, actor, name, bytes(data), reference)
         except (UnicodeError, ValueError):

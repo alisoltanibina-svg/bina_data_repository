@@ -1,7 +1,7 @@
 // Private image attachments; filenames and server messages are never interpreted as HTML.
 (() => {
     'use strict';
-    const MAX_SIZE = 5 * 1024 * 1024, MAX_FILES = 3;
+    const MAX_SIZE = 3 * 1024 * 1024, MAX_FILES = 3;
     const sizeText = size => size >= 1024*1024 ? (size/1024/1024).toLocaleString('fa-IR',{maximumFractionDigits:1})+' مگابایت' : Math.max(1,Math.ceil(size/1024)).toLocaleString('fa-IR')+' کیلوبایت';
     const api = (path, options) => apiFetch(API_BASE_URL + path, Object.assign({credentials:'include',cache:'no-store'},options));
     async function responseError(response) {
@@ -35,7 +35,7 @@
         const caption = document.createElement('span');caption.textContent='افزودن تصویر';
         const input = document.createElement('input');input.type='file';input.multiple=true;input.accept='.jpg,.jpeg,.png,.webp';input.setAttribute('aria-label','انتخاب تصاویر پیوست');
         label.append(clip,caption,input);
-        const hint = document.createElement('small');hint.className='ticket-file-hint';hint.textContent='JPG، PNG یا WebP · حداکثر ۳ تصویر، هر تصویر ۵ مگابایت';
+        const hint = document.createElement('small');hint.className='ticket-file-hint';hint.textContent='JPG، PNG یا WebP · حداکثر ۳ تصویر، هر تصویر ۳ مگابایت · پیوست‌ها سه ماه پس از بسته‌شدن تیکت حذف می‌شوند.';
         const list = document.createElement('ul');list.className='ticket-file-list';
         const notice = document.createElement('p');notice.className='ticket-file-error';notice.setAttribute('role','alert');notice.hidden=true;
         container.append(label,hint,list,notice);
@@ -60,7 +60,7 @@
             notice.hidden=true;
             for (const file of input.files) {
                 if (entries.length>=MAX_FILES) {fail('برای هر پیام حداکثر سه تصویر انتخاب کنید.');break;}
-                if (!/\.(jpe?g|png|webp)$/i.test(file.name)||!file.size||file.size>MAX_SIZE) {fail('فقط تصویر JPG، PNG یا WebP با حجم حداکثر ۵ مگابایت انتخاب کنید.');continue;}
+                if (!/\.(jpe?g|png|webp)$/i.test(file.name)||!file.size||file.size>MAX_SIZE) {fail('فقط تصویر JPG، PNG یا WebP با حجم حداکثر ۳ مگابایت انتخاب کنید.');continue;}
                 entries.push({file,preview:URL.createObjectURL(file),id:'',progress:0});
             }
             input.value='';render();
@@ -89,7 +89,7 @@
                 if(entries.length && Date.now()<waitUntil)throw new Error('برای بارگذاری دوباره '+Math.ceil((waitUntil-Date.now())/1000)+' ثانیه صبر کنید.');
                 uploading=true;notice.hidden=true;render();
                 try{const ids=[];for(const entry of entries)ids.push(entry.id||await uploadOne(entry));return ids;}
-                catch(error){fail(error.message);throw error;}
+                catch(error){fail(error.message);error.inlineDisplayed=true;throw error;}
                 finally{uploading=false;render();}
             },
             reset(){for(const entry of entries)URL.revokeObjectURL(entry.preview);entries=[];notice.hidden=true;render();},

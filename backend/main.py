@@ -334,7 +334,7 @@ async def _attachment_cleanup_loop():
             await asyncio.to_thread(cleanup_attachments)
         except Exception:
             log.exception("ticket attachment cleanup failed")
-        await asyncio.sleep(600)
+        await asyncio.sleep(24 * 60 * 60)
 
 async def _security_data_cleanup_loop(interval_seconds: int) -> None:
     while True:

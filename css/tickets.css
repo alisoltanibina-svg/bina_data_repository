@@ -71,7 +71,10 @@
 .account-ticket-detail .support-message.is-support { justify-self: end; background: rgba(221,221,180,.64); border-radius: 18px 18px 18px 4px; }
 .account-ticket-detail .support-message small { color: #7a7046; font-size: .7rem; }
 .account-ticket-detail .support-message p { margin: 5px 0 0; font-size: .88rem; line-height: 1.9; }
-.account-ticket-reply { display: grid; gap: 8px; }
+.account-ticket-reply { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px 12px; }
+.account-ticket-reply>label, .account-ticket-reply>textarea { grid-column: 1 / -1; }
+.account-ticket-reply>.ticket-attachment-picker { margin: 0; }
+.account-ticket-reply>.account-ticket-form-submit { align-self: start; margin-top: 0; min-width: 110px; }
 .account-ticket-reply label { padding-inline: 10px; font-size: .84rem; color: #81734a; }
 .account-ticket-reply textarea { display: block; min-height: 66px; padding: 14px 20px; border: 1px solid rgba(255,255,255,.6); border-radius: 22px; background: rgba(255,255,255,.88); resize: vertical; font-size: .9rem; }
 .account-tickets-body .support-badge { color: #626b27; background: rgba(228,233,199,.85); }
