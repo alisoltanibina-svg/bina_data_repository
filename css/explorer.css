@@ -578,7 +578,7 @@ body.explorer-body {
     font-family: PeydaFaNumWeb, Peyda, sans-serif;
     font-size: .67rem;
     font-weight: 700;
-    pointer-events: none;
+    pointer-events: auto;
 }
 /* Physical left-to-right placement keeps no-data left of the ascending score scale. */
 .explorer-map-legend-title { grid-column: 1 / -1; text-align: center; direction: rtl; }
@@ -1281,3 +1281,9 @@ body.explorer-body {
     #table-chart-wrap { height: var(--ex-mobile-chart-height); }
     .ex-chart-foot { flex: 0 0 auto; flex-wrap: wrap; gap: 8px; padding-top: 12px; }
 }
+
+.explorer-map-legend-bar>span { cursor:pointer; transition:transform .15s,filter .15s; }
+.explorer-map-legend-bar>span:hover,.explorer-map-legend-bar>span.is-highlighted { transform:scaleY(1.3); filter:brightness(1.2); }
+.explorer-map-legend-bar>span:focus-visible,.explorer-map-legend-no-data:focus-visible { outline:2px solid #515811; outline-offset:3px; }
+.explorer-map-legend-no-data { cursor:pointer; }
+@media(prefers-reduced-motion:reduce) { .explorer-map-legend-bar>span { transition:none; } }

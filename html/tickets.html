@@ -32,15 +32,14 @@
     </aside>
     <div class="account-ticket-workspace">
      <section class="account-ticket-create" id="my-ticket-create" hidden aria-labelledby="tickets-create-heading">
-      <header class="account-ticket-section-head"><h2 id="tickets-create-heading">تیکت جدید</h2><button type="button" id="my-ticket-cancel" class="account-ticket-text-button">انصراف</button></header>
+      <header class="account-ticket-section-head"><h2 id="tickets-create-heading">تیکت جدید</h2></header>
       <form id="my-ticket-create-form" class="account-ticket-form">
        <div class="account-ticket-form-row">
         <label class="account-ticket-category"><span class="visually-hidden">در کدام بخش مشکل دارید؟</span><select id="my-ticket-category" name="category" required><option value="" disabled selected>در کدام بخش مشکل دارید؟</option><option value="atlas">اطلس</option><option value="explorer">کاوشگر</option><option value="profile">پروفایل</option><option value="account">حساب کاربری</option><option value="login">ورود</option><option value="register">ثبت‌نام</option><option value="reset">بازیابی رمز</option><option value="otp">کد پیامک</option><option value="other">سایر موارد</option></select></label>
         <label><span class="visually-hidden">عنوان کوتاه</span><input id="my-ticket-subject" name="subject" placeholder="عنوان کوتاه" minlength="3" maxlength="160" required autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></label>
        </div>
-       <label class="account-ticket-description"><span>شرح مشکل</span><textarea id="my-ticket-message" name="message" rows="6" maxlength="4000" required></textarea></label>
-       <div id="my-ticket-create-files" class="ticket-attachment-picker"></div>
-       <button type="submit" id="my-ticket-submit" class="support-button account-ticket-form-submit" hidden>ثبت تیکت</button>
+       <div class="account-ticket-description account-ticket-editor"><label for="my-ticket-message">شرح مشکل</label><textarea id="my-ticket-message" name="message" rows="4" maxlength="4000" required></textarea><div id="my-ticket-create-files" class="ticket-attachment-picker"></div></div>
+       <div class="account-ticket-form-actions"><button type="submit" id="my-ticket-submit" class="support-button account-ticket-form-submit" hidden>ثبت تیکت</button><button type="button" id="my-ticket-cancel" class="support-button secondary">انصراف</button></div>
       </form>
      </section>
      <section class="account-ticket-placeholder" id="my-ticket-placeholder"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M10 10h28a5 5 0 0 1 5 5v17a5 5 0 0 1-5 5H23l-12 8v-8h-1a5 5 0 0 1-5-5V15a5 5 0 0 1 5-5Z"/><path d="M14 20h20M14 28h13"/></svg><p id="my-ticket-placeholder-text">برای مشاهده گفتگو، یک تیکت را انتخاب کنید.</p></section>
@@ -49,7 +48,7 @@
       <p class="account-ticket-created">تاریخ ایجاد: <time id="my-ticket-created"></time></p>
       <div id="my-ticket-messages" class="support-messages" aria-live="polite"></div>
       <p id="my-ticket-closed" class="support-hint" role="status" hidden>این تیکت بسته شده است و امکان ارسال پیام ندارد. برای موضوع جدید، تیکت تازه‌ای ثبت کنید.</p>
-      <form id="my-ticket-reply-form" class="account-ticket-reply"><label for="my-ticket-reply">پاسخ شما</label><textarea id="my-ticket-reply" rows="2" minlength="2" maxlength="4000" required aria-label="پاسخ شما"></textarea><div id="my-ticket-reply-files" class="ticket-attachment-picker"></div><button type="submit" id="my-ticket-send" class="support-button account-ticket-form-submit" hidden>ارسال پاسخ</button></form>
+      <form id="my-ticket-reply-form" class="account-ticket-reply"><div class="account-ticket-description account-ticket-editor"><label for="my-ticket-reply">پاسخ شما</label><textarea id="my-ticket-reply" rows="2" minlength="2" maxlength="4000" required></textarea><div id="my-ticket-reply-files" class="ticket-attachment-picker"></div></div><div class="account-ticket-form-actions"><button type="submit" id="my-ticket-send" class="support-button account-ticket-form-submit" hidden>ارسال پاسخ</button><button type="button" id="my-ticket-reply-cancel" class="support-button secondary">انصراف</button></div></form>
      </article>
     </div>
    </div>

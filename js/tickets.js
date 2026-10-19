@@ -168,6 +168,7 @@
         finally { if (version === detailVersion) { reading = false; $('send').disabled = ticketClosed; } }
     }
     $('new').onclick = openCreate;
+    $('reply-cancel').onclick = deselect;
     $('cancel').onclick = () => {
         if (creating) return;
         if (selected) select(selected);

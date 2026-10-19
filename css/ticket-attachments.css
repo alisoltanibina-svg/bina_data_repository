@@ -21,3 +21,11 @@
 .ticket-message-file button:focus-visible { outline:2px solid #515811; outline-offset:2px; }
 
 .support-card .ticket-file-picker { display:inline-flex; margin-bottom:0; }
+
+/* Account tickets keep the paperclip and policy inside the editor, at its left edge. */
+.account-ticket-editor .ticket-attachment-picker { display:grid; grid-template-columns:44px minmax(0,1fr); align-items:center; gap:8px 10px; direction:ltr; margin:8px 0 0; }
+.account-ticket-editor .ticket-file-picker { display:flex; align-items:center; justify-content:center; width:44px; height:44px; padding:0; border:1px solid rgba(255,255,255,.35); border-radius:50%; background:rgba(244,237,215,.55); box-shadow:0 3px 7px rgba(81,88,17,.12); }
+.account-ticket-editor .ticket-file-picker>span { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+.account-ticket-editor .ticket-file-hint { direction:rtl; text-align:left; font-size:.65rem; line-height:1.8; }
+.account-ticket-editor .ticket-file-list,.account-ticket-editor .ticket-file-error { grid-column:1/-1; direction:rtl; }
+.account-ticket-editor .ticket-file-list:empty { display:none; }

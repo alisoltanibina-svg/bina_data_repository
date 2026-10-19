@@ -52,7 +52,7 @@
 .account-ticket-form-row select { cursor: pointer; color: #766b41; }
 .account-ticket-form-row option { background: #f7f1df; color: #515811; }
 .account-ticket-description { padding: 16px 20px 12px; border-radius: 22px; background: rgba(241,230,201,.5); box-shadow: 0 4px 7px rgba(81,88,17,.12), inset 0 1px 0 rgba(255,255,255,.3); }
-.account-ticket-description>span { color: #88774c; font-size: .9rem; }
+.account-ticket-description>label { color: #88774c; font-size: .9rem; padding: 0; }
 .account-ticket-description textarea { display: block; border: 0; padding: 8px 0; background: transparent; resize: vertical; min-height: 145px; }
 .account-ticket-description:focus-within { outline: 2px solid #858e46; outline-offset: 3px; }
 .account-ticket-description textarea:focus-visible { outline: none; }
@@ -71,10 +71,7 @@
 .account-ticket-detail .support-message.is-support { justify-self: end; background: rgba(221,221,180,.64); border-radius: 18px 18px 18px 4px; }
 .account-ticket-detail .support-message small { color: #7a7046; font-size: .7rem; }
 .account-ticket-detail .support-message p { margin: 5px 0 0; font-size: .88rem; line-height: 1.9; }
-.account-ticket-reply { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px 12px; }
-.account-ticket-reply>label, .account-ticket-reply>textarea { grid-column: 1 / -1; }
-.account-ticket-reply>.ticket-attachment-picker { margin: 0; }
-.account-ticket-reply>.account-ticket-form-submit { align-self: start; margin-top: 0; min-width: 110px; }
+.account-ticket-reply { display: grid; gap: 16px; }
 .account-ticket-reply label { padding-inline: 10px; font-size: .84rem; color: #81734a; }
 .account-ticket-reply textarea { display: block; min-height: 66px; padding: 14px 20px; border: 1px solid rgba(255,255,255,.6); border-radius: 22px; background: rgba(255,255,255,.88); resize: vertical; font-size: .9rem; }
 .account-tickets-body .support-badge { color: #626b27; background: rgba(228,233,199,.85); }
@@ -82,6 +79,10 @@
 .account-tickets-body .support-badge[data-status="closed"] { color: #a82d2d; background: #f9dede; }
 .account-tickets-body button:focus-visible, .account-tickets-body a:focus-visible, .account-tickets-body input:focus-visible, .account-tickets-body select:focus-visible, .account-ticket-reply textarea:focus-visible { outline: 2px solid #7c873b; outline-offset: 3px; }
 .account-tickets-body button:disabled { opacity: .5; cursor: wait; }
+.account-ticket-editor { min-width:0; }
+.account-ticket-editor textarea { border:0; border-radius:0; background:transparent; padding:8px 0; }
+.account-ticket-form-actions { display:flex; justify-content:flex-start; gap:12px; flex-wrap:wrap; }
+.account-ticket-form-actions .support-button { min-width:124px; min-height:46px; margin:0; }
 @media (max-width:800px) {
     .account-tickets-page { margin-top: calc(75px + var(--banner-gap,16px) + 16px); padding: 0 12px 28px; }
     .account-tickets-desk { padding: 20px 16px; border-radius: 22px; }
@@ -105,3 +106,5 @@
     .account-ticket-workspace { min-height: 280px; }
 }
 @media (prefers-reduced-motion:reduce) { .account-tickets-body * { scroll-behavior: auto !important; } }
+
+.account-tickets-body #my-ticket-category { appearance:none; -webkit-appearance:none; padding-inline-end:44px; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23515811' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:left 18px center; background-size:14px; }

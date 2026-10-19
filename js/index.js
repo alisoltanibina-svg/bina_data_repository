@@ -509,6 +509,13 @@ let currentLowerRgb = {r:230, g:240, b:255};
 let currentUpperRgb = {r:0, g:120, b:215};
 let hoveredStageIndex = null;
 
+function atlasLegendStageForScore(score) {
+    const value = Number(score);
+    if (!Number.isFinite(value)) return null;
+    // Seven parcels need seven intervals; the final interval includes 100.
+    return Math.min(heatStages - 1, Math.floor(Math.max(0, Math.min(100, value)) / 100 * heatStages));
+}
+
 function initLegend() {
     const bar = document.getElementById('legend-bar');
     const pointer = document.getElementById('score-pointer');
@@ -1073,15 +1080,11 @@ function updateMapStyles() {
         let fOpac = 0.85, bColor = "#ffffff", bWeight = 1.5;
 
         if (hoveredStageIndex !== null) {
-            let stageSize = 100 / (heatStages - 1);
-            let lowerBound = hoveredStageIndex * stageSize - (hoveredStageIndex === 0 ? 1 : 0.01);
-            let upperBound = (hoveredStageIndex + 1) * stageSize;
-            if (hoveredStageIndex === heatStages - 1) upperBound = 100.1;
-            if (score >= lowerBound && score <= upperBound) { fOpac = 0.95; bColor = "#000"; bWeight = 2.5; } 
+            if (atlasLegendStageForScore(score) === hoveredStageIndex) { fOpac = 0.95; bColor = "#000"; bWeight = 2.5; }
             else { fOpac = 0.15; bColor = "#ccc"; bWeight = 1; }
         }
 
-        if (provName === selectedProvince) { fColor = "#e11d48"; fOpac = 0.9; }
+        if (provName === selectedProvince) { fColor = "#e11d48"; if (hoveredStageIndex === null) fOpac = 0.9; }
 
         layer.setStyle({ color: bColor, weight: bWeight, fillColor: fColor, fillOpacity: fOpac });
     });

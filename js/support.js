@@ -29,9 +29,7 @@
         const value = params.get(key) || '';
         if (/^[a-zA-Z0-9_-]{1,48}$/.test(value)) context[key] = value.slice(0, key === 'stage' || key === 'error_reference' ? 32 : 48);
     }
-    if (context.error_code === 'inactive' || context.error_code === 'account-review') $('category').value = 'account';
-    else if (['pending','rejected','closed'].includes(context.error_code)) $('category').value = 'register';
-    else if (context.stage) $('category').value = context.stage.includes('register') ? 'register' : context.stage.includes('otp') ? 'otp' : context.stage.includes('reset') ? 'reset' : 'login';
+    $('category').value = '';
     function error(err) {
         if (err.code === 'ticket-closed') { setReplyClosed(true); $('ticket-status').textContent = statuses.closed; }
         $('error').hidden = false;

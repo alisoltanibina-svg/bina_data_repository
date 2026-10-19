@@ -87,6 +87,10 @@ let explorerMapLabelsLayer = null;
 let explorerMapFitted = false;
 let explorerMapViewportSize = "";
 let explorerSelectedProvince = null;
+const EXPLORER_LEGEND_STAGES = 8;
+let explorerHoveredLegendStage = null;
+let explorerMapScores = new Map();
+let explorerMapScoreMin = 0, explorerMapScoreMax = 1;
 let explorerMapBounds = null;
 
 let isBulkAction = true; 
@@ -719,7 +723,7 @@ function refreshActiveChart() {
 
 function setChartMode(mode) {
     const nextMode = ['trend', 'compare', 'table', 'map'].includes(mode) ? mode : 'trend';
-    if (nextMode !== 'map') stopExplorerMapPlayback();
+    if (nextMode !== 'map') { stopExplorerMapPlayback(); setExplorerLegendHighlight(null); }
     currentChartMode = nextMode;
     const trendBtn = document.getElementById('btn-chart-trend');
     const compareBtn = document.getElementById('btn-chart-compare');
@@ -1114,6 +1118,56 @@ function ensureExplorerMapGeoJson() {
     return explorerMapLoadPromise;
 }
 
+function explorerLegendStageForScore(score, min, max) {
+    if (!Number.isFinite(score)) return 'no-data';
+    const ratio = max > min ? Math.min(1, Math.max(0, (score - min) / (max - min))) : 0.62;
+    return Math.min(EXPLORER_LEGEND_STAGES - 1, Math.floor(ratio * EXPLORER_LEGEND_STAGES));
+}
+
+function explorerProvinceStyle(feature) {
+    const properties = feature.properties || {};
+    const key = normalizeMapProvinceName(properties.ProvincNam || properties.ADM1_FA || properties.Name);
+    const selected = key === explorerSelectedProvince;
+    const score = explorerMapScores.get(key);
+    const style = {
+        color: selected ? '#881337' : '#ffffff', weight: selected ? 3 : 1.25,
+        opacity: 1, fillColor: selected ? '#e11d48' : mapColorForScore(score, explorerMapScoreMin, explorerMapScoreMax),
+        fillOpacity: selected ? 0.9 : 0.78
+    };
+    if (explorerHoveredLegendStage !== null) {
+        const matches = explorerLegendStageForScore(score, explorerMapScoreMin, explorerMapScoreMax) === explorerHoveredLegendStage;
+        style.color = matches ? '#000000' : '#cccccc';
+        style.weight = matches ? 2.5 : 1;
+        style.fillOpacity = matches ? 0.95 : 0.15;
+    }
+    return style;
+}
+
+function setExplorerLegendHighlight(stage) {
+    explorerHoveredLegendStage = stage;
+    if (explorerMapGeoLayer) explorerMapGeoLayer.setStyle(explorerProvinceStyle);
+    const bar = document.querySelector('.explorer-map-legend-bar');
+    if (bar) Array.from(bar.children).forEach((segment, index) => segment.classList.toggle('is-highlighted', index === stage));
+}
+
+function bindExplorerMapLegend() {
+    const bar = document.querySelector('.explorer-map-legend-bar');
+    const noData = document.querySelector('.explorer-map-legend-no-data');
+    if (!bar || bar.dataset.hoverBound) return;
+    bar.dataset.hoverBound = 'true';
+    bar.removeAttribute('aria-hidden');
+    const bind = (segment, stage) => {
+        segment.tabIndex = 0;
+        segment.setAttribute('role', 'img');
+        segment.addEventListener('mouseenter', () => setExplorerLegendHighlight(stage));
+        segment.addEventListener('mouseleave', () => setExplorerLegendHighlight(null));
+        segment.addEventListener('focus', () => setExplorerLegendHighlight(stage));
+        segment.addEventListener('blur', () => setExplorerLegendHighlight(null));
+    };
+    Array.from(bar.children).forEach((segment, index) => bind(segment, index));
+    if (noData) { noData.setAttribute('aria-label', 'بدون داده'); bind(noData, 'no-data'); }
+}
+
 function mapColorForScore(score, min, max) {
     if (!Number.isFinite(score)) return '#e5e7eb';
     const ratio = max > min ? Math.min(1, Math.max(0, (score - min) / (max - min))) : 0.62;
@@ -1127,6 +1181,14 @@ function updateExplorerMapLegend(min, max, hasValues) {
     if (!minLabel || !maxLabel) return;
     minLabel.textContent = hasValues ? toFa(Math.floor(min)) : '—';
     maxLabel.textContent = hasValues ? toFa(Math.ceil(max)) : '—';
+    const bar = document.querySelector('.explorer-map-legend-bar');
+    if (bar) Array.from(bar.children).forEach((segment, index) => {
+        const lower = min + (max - min) * index / EXPLORER_LEGEND_STAGES;
+        const upper = min + (max - min) * (index + 1) / EXPLORER_LEGEND_STAGES;
+        const label = hasValues ? `امتیاز از ${toFaFixed(lower, 2)} تا ${toFaFixed(upper, 2)}` : 'بدون داده';
+        segment.setAttribute('aria-label', label);
+        segment.title = label;
+    });
 }
 
 function escapeMapLabel(value) {
@@ -1299,24 +1361,16 @@ function renderExplorerMap() {
     if (explorerMapGeoLayer) explorerMapGeoLayer.remove();
     if (explorerMapLabelsLayer) explorerMapLabelsLayer.remove();
     explorerMapLabelsLayer = L.layerGroup().addTo(map);
-    const provinceStyle = feature => {
-        const name = feature.properties && (feature.properties.ProvincNam || feature.properties.ADM1_FA || feature.properties.Name);
-        const key = normalizeMapProvinceName(name);
-        const selected = key === explorerSelectedProvince;
-        return {
-            color: selected ? '#881337' : '#ffffff', weight: selected ? 3 : 1.25,
-            opacity: 1, fillColor: selected ? '#e11d48' : mapColorForScore(scores.get(key), min, max),
-            fillOpacity: selected ? 0.9 : 0.78
-        };
-    };
+    explorerMapScores = scores;
+    explorerMapScoreMin = min; explorerMapScoreMax = max;
     explorerMapGeoLayer = L.geoJSON(explorerMapGeoJson, {
         bubblingMouseEvents: false,
-        style: provinceStyle,
+        style: explorerProvinceStyle,
         onEachFeature: (feature, layer) => {
             const name = (feature.properties && (feature.properties.ProvincNam || feature.properties.ADM1_FA || feature.properties.Name)) || '';
             layer.on('click', () => {
                 explorerSelectedProvince = normalizeMapProvinceName(name);
-                explorerMapGeoLayer.setStyle(provinceStyle);
+                explorerMapGeoLayer.setStyle(explorerProvinceStyle);
                 layer.bringToFront();
             });
             const score = scores.get(normalizeMapProvinceName(name));
@@ -1510,6 +1564,7 @@ const onExplorerResize = debounce(() => {
 window.addEventListener('resize', onExplorerResize);
 
 function bindExplorerChrome() {
+    bindExplorerMapLegend();
     bindExplorerDropdowns();
     const back = document.getElementById('btn-nav-subtopics');
     if (back) back.addEventListener('click', goBackToLanding);
