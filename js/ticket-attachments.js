@@ -9,6 +9,22 @@
         const detail = data.detail || {};
         return Object.assign(new Error(detail.message || 'بارگذاری پیوست ممکن نشد.'), {code:detail.code});
     }
+    function uploadError(status, data) {
+        const detail = data && typeof data.detail === 'object' ? data.detail : {};
+        if (typeof detail?.message === 'string' && detail.message) return detail.message;
+        const messages = {
+            401: 'نشست شما پایان یافته است. دوباره وارد حساب شوید.',
+            403: 'اجازه بارگذاری صادر نشد. صفحه را تازه‌سازی کنید و دوباره تلاش کنید.',
+            404: 'سرویس بارگذاری در دسترس نیست. لطفاً موضوع را به پشتیبانی اطلاع دهید.',
+            405: 'سرویس بارگذاری در دسترس نیست. لطفاً موضوع را به پشتیبانی اطلاع دهید.',
+            413: 'سرور بارگذاری این تصویر را به‌دلیل محدودیت حجم نپذیرفت. تصویر کوچک‌تری انتخاب کنید یا به پشتیبانی اطلاع دهید.',
+            429: 'تعداد درخواست‌های بارگذاری زیاد است. کمی بعد دوباره تلاش کنید.',
+            502: 'ارتباط با سرویس بارگذاری برقرار نشد. کمی بعد دوباره تلاش کنید.',
+            503: 'سرویس بارگذاری موقتاً در دسترس نیست. کمی بعد دوباره تلاش کنید.',
+            504: 'پاسخ سرویس بارگذاری بیش از حد طول کشید. دوباره تلاش کنید.'
+        };
+        return (messages[status] || 'بارگذاری تصویر به‌دلیل خطای سرور انجام نشد. لطفاً به پشتیبانی اطلاع دهید.') + ' (' + status + ')';
+    }
     function create(container, reference = () => '') {
         if (!container) return null;
         let entries = [], disabled = false, uploading = false, waitUntil = 0;
@@ -58,7 +74,7 @@
                 xhr.onerror=xhr.ontimeout=()=>reject(new Error('بارگذاری تصویر کامل نشد؛ متن و فایل‌های انتخاب‌شده حفظ شده‌اند. دوباره تلاش کنید.'));
                 xhr.onload=()=>{
                     let data={};try{data=JSON.parse(xhr.responseText);}catch(_){}
-                    if(xhr.status<200||xhr.status>=300){const seconds=Number(xhr.getResponseHeader('Retry-After')||0);if(seconds>0)waitUntil=Date.now()+seconds*1000;reject(Object.assign(new Error(data.detail?.message||'بارگذاری تصویر ممکن نشد.'),{code:data.detail?.code}));return;}
+                    if(xhr.status<200||xhr.status>=300){const seconds=Number(xhr.getResponseHeader('Retry-After')||0);if(seconds>0)waitUntil=Date.now()+seconds*1000;reject(Object.assign(new Error(uploadError(xhr.status,data)),{code:data.detail?.code}));return;}
                     if(!/^[0-9a-f]{32}$/.test(data.id||'')){reject(new Error('پاسخ بارگذاری معتبر نیست.'));return;}
                     entry.id=data.id;entry.progress=100;resolve(entry.id);
                 };

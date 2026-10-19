@@ -305,6 +305,21 @@ Deployment for this release:
    `TICKET_ATTACHMENT_DIR=/opt/app-private/support-attachments` in the deployment
    environment if the default sibling path is unsuitable. Never add a static
    location or alias for this directory.
+   If the systemd service uses `ProtectSystem=strict` or otherwise mounts `/opt`
+   read-only, directory ownership alone is insufficient. Create the private
+   directory on the host first, then add a service drop-in with a narrow exception:
+
+   ```ini
+   [Service]
+   ReadWritePaths=/opt/app-private/support-attachments
+   ```
+
+   Keep existing filesystem protections and other `ReadWritePaths` entries.
+   Run `sudo systemctl daemon-reload` and restart `app-api` after adding the
+   drop-in. `OSError: [Errno 30] Read-only file system` during upload indicates
+   that this mount restriction (or a read-only host filesystem) still applies;
+   changing permissions with `chmod` alone cannot fix it.
+
 3. In the existing Nginx `location ^~ /api/` block, allow bounded image requests:
 
    ```nginx
