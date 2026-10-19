@@ -27,7 +27,9 @@ from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
-from pydantic import BaseModel, Field
+from pydantic import Field
+from backend.input_security import InputBody, InputSecurityMiddleware
+from backend.ticket_attachments import cleanup_attachments
 from fastapi.staticfiles import StaticFiles
 from starlette.background import BackgroundTask
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -281,7 +283,7 @@ _PRODUCTION_ORIGIN = "https://app.rasadbina.ir"
 
 
 def _cors_origins() -> list[str]:
-    raw = os.environ.get("CORS_ORIGINS", "").strip()
+    raw = get_settings().cors_origins.strip()
     if raw:
         return [origin.strip().rstrip("/") for origin in raw.split(",") if origin.strip()]
     return [_PRODUCTION_ORIGIN]
@@ -326,6 +328,14 @@ def _cleanup_security_data() -> None:
             log.exception("security data cleanup failed: %s", cleanup.__name__)
 
 
+async def _attachment_cleanup_loop():
+    while True:
+        try:
+            await asyncio.to_thread(cleanup_attachments)
+        except Exception:
+            log.exception("ticket attachment cleanup failed")
+        await asyncio.sleep(600)
+
 async def _security_data_cleanup_loop(interval_seconds: int) -> None:
     while True:
         await asyncio.sleep(interval_seconds)
@@ -340,9 +350,13 @@ async def lifespan(app: FastAPI):
     cleanup_task = asyncio.create_task(
         _security_data_cleanup_loop(settings.captcha_cleanup_interval_seconds)
     )
+    attachment_cleanup_task = asyncio.create_task(_attachment_cleanup_loop())
     try:
         yield
     finally:
+        attachment_cleanup_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await attachment_cleanup_task
         cleanup_task.cancel()
         with suppress(asyncio.CancelledError):
             await cleanup_task
@@ -370,47 +384,20 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         request.state.request_id = secrets.token_hex(8)
         response = await call_next(request)
         response.headers["X-Request-ID"] = request.state.request_id
-        if request.url.path.startswith("/api/auth/") or request.url.path.startswith("/api/support/") or request.url.path.startswith("/api/admin/support/") or request.url.path.startswith("/api/account/tickets"):
+        if request.url.path.startswith("/api/auth/") or request.url.path.startswith("/api/support/") or request.url.path.startswith("/api/admin/support/") or request.url.path.startswith("/api/account/"):
             response.headers["Cache-Control"] = "no-store"
         for name, value in _SECURITY_HEADERS.items():
             response.headers.setdefault(name, value)
         return response
 
 
-# Innermost first: 429s still pass through CORS, gzip, and security headers.
+# Rate rejection runs before body parsing; every response still gets CORS/security headers.
+app.add_middleware(InputSecurityMiddleware, allowed_origins=_cors_origins())
 app.add_middleware(RateLimitMiddleware)
-# برای آنلاین بودن از کامنت دربیاید
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=_cors_origins(),
-#     allow_credentials=False,
-#     allow_methods=["*"],
-#     allow_headers=["*"],
-#     expose_headers=[
-#         "ETag",
-#         "Retry-After",
-#         "RateLimit",
-#         "RateLimit-Policy",
-#         "X-RateLimit-Limit",
-#         "X-RateLimit-Remaining",
-#         "X-RateLimit-Reset",
-#     ],
-# )
-
-# برای آفلاین بودن از کامنت دربیاید
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://127.0.0.1:5500",
-        "http://localhost:5500",
-        "http://127.0.0.1:5501",
-        "http://localhost:5501",
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["X-Request-ID", "Retry-After"],
-)
+app.add_middleware(CORSMiddleware, allow_origins=_cors_origins(), allow_credentials=True,
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "X-CSRF-Protection", "X-Upload-Filename", "X-Ticket-Reference"],
+    expose_headers=["X-Request-ID", "Retry-After"])
 
 app.add_middleware(GZipMiddleware, minimum_size=500)
 app.add_middleware(SecurityHeadersMiddleware)
@@ -777,9 +764,9 @@ def get_curtain_race():
     )
 
 
-class LoginBody(BaseModel):
-    phone: str = Field(min_length=1)
-    password: str = Field(min_length=1)
+class LoginBody(InputBody):
+    phone: str = Field(min_length=1, max_length=16)
+    password: str = Field(min_length=1, max_length=200)
     captcha_id: str = Field(min_length=1, max_length=64)
     captcha_answer: str = Field(min_length=1, max_length=16)
 
@@ -787,7 +774,7 @@ _AUTH_NO_STORE = {"Cache-Control": "no-store", "Vary": "Accept-Encoding"}
 _LOGIN_FAIL = "شماره یا رمز نادرست است."
 
 
-class CaptchaIssueBody(BaseModel):
+class CaptchaIssueBody(InputBody):
     phone: str = Field(min_length=1, max_length=16)
     purpose: str = Field(min_length=1, max_length=16)
 
@@ -830,7 +817,7 @@ def _set_session_cookie(response: JSONResponse, token: str, request: Request) ->
     )
 
 
-class GateBody(BaseModel):
+class GateBody(InputBody):
     phone: str = Field(min_length=1, max_length=16)
 
 
@@ -885,36 +872,36 @@ def auth_me(request: Request):
     return JSONResponse(content=profile, headers=_AUTH_NO_STORE)
 
 
-class RegisterBody(BaseModel):
+class RegisterBody(InputBody):
     first_name: str = Field(min_length=1, max_length=80)
     last_name: str = Field(min_length=1, max_length=80)
     phone: str = Field(min_length=1, max_length=16)
     role_title: str = Field(min_length=1, max_length=80)
-    organization: str = ""
+    organization: str = Field(default="", max_length=120)
     password: str = Field(min_length=8, max_length=200)
     verification_token: str = Field(min_length=43, max_length=43, pattern=r"^[A-Za-z0-9_-]{43}$")
 
 
-class RejectBody(BaseModel):
-    note: str = ""
+class RejectBody(InputBody):
+    note: str = Field(default="", max_length=1000)
 
 
-class RegistrationToggleBody(BaseModel):
-    open: bool
+class RegistrationToggleBody(InputBody):
+    open: bool = Field(strict=True)
 
 
-class UserActiveBody(BaseModel):
-    active: bool
+class UserActiveBody(InputBody):
+    active: bool = Field(strict=True)
 
 
-class ProfileBody(BaseModel):
+class ProfileBody(InputBody):
     first_name: str = Field(min_length=1, max_length=80)
     last_name: str = Field(min_length=1, max_length=80)
-    role_title: str = ""
-    organization: str = ""
-    birth_date: str = ""
-    email: str = ""
-    address: str = ""
+    role_title: str = Field(default="", max_length=80)
+    organization: str = Field(default="", max_length=120)
+    birth_date: str = Field(default="", max_length=10)
+    email: str = Field(default="", max_length=120)
+    address: str = Field(default="", max_length=255)
 
 
 _MEMBERSHIP_HTTP = {
@@ -940,6 +927,9 @@ _MEMBERSHIP_HTTP = {
     "login-locked": 423,
     "ticket-not-found": 404,
     "ticket-closed": 409,
+    "attachment-input": 400,
+    "attachment-not-found": 404,
+    "attachment-limit": 429,
     "support-input": 400,
     "reference-conflict": 409,
 }
@@ -967,19 +957,19 @@ def _require_admin(request: Request) -> dict:
     return profile
 
 
-class OtpSendBody(BaseModel):
+class OtpSendBody(InputBody):
     phone: str = Field(min_length=1, max_length=16)
     purpose: str = Field(min_length=1, max_length=16)
     captcha_id: str = Field(default="", max_length=64)
     captcha_answer: str = Field(default="", max_length=16)
 
-class OtpVerifyBody(BaseModel):
+class OtpVerifyBody(InputBody):
     phone: str = Field(min_length=1, max_length=16)
     purpose: str = Field(min_length=1, max_length=16)
     code: str = Field(min_length=4, max_length=8)
 
 
-class PasswordResetBody(BaseModel):
+class PasswordResetBody(InputBody):
     phone: str = Field(min_length=1, max_length=16)
     password: str = Field(min_length=8, max_length=200)
     verification_token: str = Field(min_length=43, max_length=43, pattern=r"^[A-Za-z0-9_-]{43}$")
@@ -1204,7 +1194,7 @@ def admin_delete_avatar(user_id: int, request: Request):
 
 @app.exception_handler(RequestValidationError)
 async def guided_validation_error(request: Request, error: RequestValidationError):
-    if request.url.path.startswith(("/api/auth/", "/api/support/", "/api/admin/support/", "/api/account/tickets")):
+    if request.url.path.startswith("/api/"):
         return JSONResponse(status_code=422, content={"detail": {"code": "validation", "message": "اطلاعات واردشده را بررسی کنید. فیلدهای ضروری را کامل کنید و محدودیت طول متن را رعایت کنید."}}, headers={"Cache-Control": "no-store"})
     return await request_validation_exception_handler(request, error)
 

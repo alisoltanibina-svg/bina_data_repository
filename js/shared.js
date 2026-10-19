@@ -447,3 +447,13 @@ function newTicketReference() {
     const bytes = crypto.getRandomValues(new Uint8Array(16));
     return 'SUP-' + Array.from(bytes, value => alphabet[value & 31]).join('');
 }
+
+
+// A non-simple header supplements server Origin checks for authenticated mutations.
+function apiFetch(input, options = {}) {
+    const headers = new Headers(options.headers || {});
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(String(options.method || 'GET').toUpperCase())) {
+        headers.set('X-CSRF-Protection', '1');
+    }
+    return fetch(input, Object.assign({}, options, {headers}));
+}

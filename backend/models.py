@@ -410,3 +410,29 @@ class AccountStatusEvent(Base):
     kind: Mapped[str] = mapped_column(String(32), nullable=False)
     reason: Mapped[str | None] = mapped_column(String(160))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class SupportAttachment(Base):
+    """Private, re-encoded images; staged rows expire unless claimed by a message."""
+    __tablename__ = "support_attachments"
+    __table_args__ = (
+        CheckConstraint("state IN ('ready', 'deleted')", name="ck_support_attachment_state"),
+        CheckConstraint("size_bytes > 0 AND source_bytes > 0", name="ck_support_attachment_size"),
+        Index("idx_support_attachments_message", "message_id", postgresql_where=text("message_id IS NOT NULL")),
+        Index("idx_support_attachments_ticket", "ticket_id", postgresql_where=text("ticket_id IS NOT NULL")),
+        Index("idx_support_attachments_uploader_created", "uploader_id", "created_at"),
+        Index("idx_support_attachments_pending_expires", "expires_at", postgresql_where=text("message_id IS NULL")),
+    )
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    uploader_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
+    ticket_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("support_tickets.id", ondelete="CASCADE"))
+    message_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("support_messages.id", ondelete="CASCADE"))
+    original_name: Mapped[str] = mapped_column(String(180), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    source_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    width: Mapped[int] = mapped_column(Integer, nullable=False)
+    height: Mapped[int] = mapped_column(Integer, nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    state: Mapped[str] = mapped_column(String(12), nullable=False, server_default="ready")
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

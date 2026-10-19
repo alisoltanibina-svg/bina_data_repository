@@ -62,9 +62,12 @@ def save_user_avatar(user_id: int, data: bytes) -> str:
     if len(data) > MAX_BYTES:
         raise AvatarError("حجم عکس باید حداکثر ۵ مگابایت باشد.")
     try:
-        image = Image.open(io.BytesIO(data))
+        image = Image.open(io.BytesIO(data), formats=list(_ALLOWED_FORMATS))
+        width, height = image.size
+        if width * height > 16_000_000 or max(width, height) > 8192 or getattr(image, "n_frames", 1) != 1:
+            raise AvatarError("ابعاد تصویر بیش از حد مجاز است یا تصویر متحرک است.")
         image.load()
-    except (UnidentifiedImageError, OSError, ValueError):
+    except (UnidentifiedImageError, OSError, ValueError, SyntaxError, Image.DecompressionBombError):
         raise AvatarError("فایل تصویر معتبر نیست.") from None
     fmt = (image.format or "").upper()
     if fmt not in _ALLOWED_FORMATS:

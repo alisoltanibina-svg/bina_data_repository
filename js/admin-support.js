@@ -16,16 +16,22 @@
             button.append(title,meta); button.onclick = () => select(ticket.reference); item.append(button); $('tickets-list').append(item);
         });
     }
+    let files = null;
+    const attachmentUrls = [];
     function render(ticket) {
         $('ticket-detail').hidden = false;
         $('ticket-subject').textContent = ticket.subject;
         $('ticket-context').textContent = [ticket.reference,ticket.user_id ? 'حساب کاربری: ' + ticket.user_id : 'تیکت مهمان','موضوع: ' + (categories[ticket.category] || ticket.category), 'نام: ' + (ticket.name || 'ثبت نشده'), (ticket.user_id ? 'شماره تلفن حساب کاربری: ' : 'شماره اعلامی: ') + (ticket.phone || 'ثبت نشده'), 'مرحله: ' + (ticket.stage || '—'), 'کد خطا: ' + (ticket.error_code || '—'), 'مرجع خطا: ' + (ticket.error_reference || '—')].join('\n');
         $('ticket-status').value = ticket.status;
+        $('ticket-files').hidden = !ticket.user_id || ticket.status === 'closed';
+        files?.setDisabled(!ticket.user_id || ticket.status === 'closed');
+        window.TicketAttachments?.revoke(attachmentUrls);
         $('ticket-messages').replaceChildren();
         (ticket.messages || []).forEach(message => {
             const item = document.createElement('article'); item.className = 'support-message ' + (message.author === 'support' ? 'is-support' : '');
             const header = document.createElement('small'); header.textContent = (message.author === 'support' ? 'پشتیبانی' : 'کاربر') + ' · ' + new Date(message.created_at).toLocaleString('fa-IR');
-            const body = document.createElement('p'); body.textContent = message.body; item.append(header,body); $('ticket-messages').append(item);
+            const body = document.createElement('p'); body.textContent = message.body; item.append(header,body);
+            window.TicketAttachments?.render(item, message.attachments, attachmentUrls); $('ticket-messages').append(item);
         });
         $('ticket-history').replaceChildren();
         (ticket.status_history || []).forEach(event => {
@@ -34,9 +40,9 @@
     }
     async function select(reference) {
         if (saving) return;
-        if ($('ticket-reply').value.trim() && reference !== selected && !window.confirm('پاسخ نوشته‌شده هنوز ارسال نشده است. تیکت دیگری باز شود؟')) return;
+        if (($('ticket-reply').value.trim() || files?.hasFiles()) && reference !== selected && !window.confirm('پاسخ نوشته‌شده هنوز ارسال نشده است. تیکت دیگری باز شود؟')) return;
         const version = ++selection; selected = reference; $('ticket-detail').hidden = true; renderList();
-        $('ticket-reply').value = ''; $('tickets-error').hidden = true;
+        $('ticket-reply').value = ''; files?.clear(); $('tickets-error').hidden = true;
         try { const ticket = await adminFetch('/api/admin/support/tickets/' + encodeURIComponent(reference)); if (version === selection) render(ticket); }
         catch (err) { if (version === selection) error(err); }
     }
@@ -51,15 +57,19 @@
         finally { loading = false; $('tickets-refresh').disabled = false; $('tickets-more').disabled = false; }
     }
     function bind() {
+        files = window.TicketAttachments?.create($('ticket-files'), () => selected);
+        window.addEventListener('pagehide', event => { if (event.persisted) return; files?.reset(); window.TicketAttachments?.revoke(attachmentUrls); });
         $('tickets-refresh').onclick = () => load();
         $('tickets-more').onclick = () => load(true);
         $('tickets-filter').onchange = () => load();
         $('ticket-update-form').onsubmit = async event => {
             event.preventDefault(); if (!selected || saving) return;
+            if (files?.hasFiles() && !$('ticket-reply').value.trim()) { error(new Error('همراه پیوست، متن پاسخ را وارد کنید.')); return; }
             saving = true; $('ticket-save').disabled = true; $('tickets-error').hidden = true;
             try {
-                const ticket = await adminFetch('/api/admin/support/tickets/' + encodeURIComponent(selected),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:$('ticket-status').value,message:$('ticket-reply').value.trim()})});
-                render(ticket); $('ticket-reply').value = '';
+                const attachment_ids = files?.hasFiles() ? await files.upload() : [];
+                const ticket = await adminFetch('/api/admin/support/tickets/' + encodeURIComponent(selected),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:$('ticket-status').value,message:$('ticket-reply').value.trim(),attachment_ids})});
+                files?.reset(); render(ticket); $('ticket-reply').value = '';
                 const index = rows.findIndex(row => row.reference === selected); if (index >= 0) rows[index] = ticket; renderList();
             } catch (err) { error(err); }
             finally { saving = false; $('ticket-save').disabled = false; }

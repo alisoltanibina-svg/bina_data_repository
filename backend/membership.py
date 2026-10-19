@@ -81,7 +81,7 @@ def normalize_phone(raw: str) -> str:
 
 
 def is_mobile_phone(phone: str) -> bool:
-    return len(phone) == 11 and phone.startswith("09") and phone.isdigit()
+    return bool(re.fullmatch(r"09[0-9]{9}", phone))
 
 
 def assert_plain_text(value: str, code: str, label: str) -> str:

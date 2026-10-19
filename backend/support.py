@@ -9,7 +9,9 @@ from sqlalchemy import func, select, tuple_
 from backend.database import db_session
 from backend.membership import MembershipError, is_mobile_phone, normalize_phone
 from sqlalchemy.exc import IntegrityError
-from backend.models import SupportMessage, SupportStatusEvent, SupportTicket
+from backend.models import SupportMessage, SupportStatusEvent, SupportTicket, SupportAttachment
+from backend import ticket_attachments as attachments
+from backend.input_security import safe_text
 
 CATEGORIES = frozenset({"login", "register", "reset", "otp", "account", "atlas", "explorer", "profile", "other"})
 STATUSES = frozenset({"open", "in_progress", "awaiting_user", "closed"})
@@ -20,6 +22,10 @@ REFERENCE_PATTERN = r"SUP-[A-Z2-7]{16}"
 
 def _clean(value, maximum, minimum=0):
     value = (value or "").strip()
+    try:
+        safe_text(value, multiline=True)
+    except ValueError:
+        raise MembershipError("support-input", "متن شامل نویسه نامعتبر است.") from None
     if len(value) < minimum or len(value) > maximum or any(ord(char) < 32 and char not in "\n\t\r" for char in value):
         raise MembershipError("support-input", "\u0627\u0637\u0644\u0627\u0639\u0627\u062a \u062a\u06cc\u06a9\u062a \u0631\u0627 \u0628\u0631\u0631\u0633\u06cc \u06a9\u0646\u06cc\u062f. \u0639\u0646\u0648\u0627\u0646 \u0648 \u0634\u0631\u062d \u0645\u0634\u06a9\u0644 \u0631\u0627 \u06a9\u0627\u0645\u0644 \u0628\u0646\u0648\u06cc\u0633\u06cc\u062f.")
     return value
@@ -43,7 +49,13 @@ def _summary(ticket, admin=False):
 def _conversation(session, ticket, admin=False):
     result = _summary(ticket, admin)
     rows = session.scalars(select(SupportMessage).where(SupportMessage.ticket_id == ticket.id).order_by(SupportMessage.id)).all()
-    result["messages"] = [{"author": row.author, "body": row.body, "created_at": _iso(row.created_at)} for row in rows]
+    files = session.scalars(select(SupportAttachment).where(SupportAttachment.ticket_id == ticket.id,
+        SupportAttachment.message_id.is_not(None), SupportAttachment.state == "ready").order_by(SupportAttachment.id)).all() if ticket.user_id is not None else []
+    by_message = {}
+    for file in files:
+        by_message.setdefault(file.message_id, []).append(attachments.descriptor(file))
+    result["messages"] = [{"author": row.author, "body": row.body, "created_at": _iso(row.created_at),
+                           "attachments": by_message.get(row.id, [])} for row in rows]
     if admin:
         events = session.scalars(select(SupportStatusEvent).where(SupportStatusEvent.ticket_id == ticket.id).order_by(SupportStatusEvent.id)).all()
         result["status_history"] = [{"from": row.from_status, "to": row.to_status, "actor_id": row.actor_id,
@@ -64,7 +76,7 @@ def _authorize(session, reference, lock=False, user_id=None):
     return ticket
 
 
-def create_ticket(*, name="", phone="", category, subject, message, stage="", error_code="", error_reference="", reference="", user_id=None):
+def create_ticket(*, name="", phone="", category, subject, message, stage="", error_code="", error_reference="", reference="", user_id=None, attachment_ids=()):
     if not (name or "").strip():
         raise MembershipError("support-input", "نام را وارد کنید.")
     name = _clean(name, 80, 1)
@@ -89,7 +101,10 @@ def create_ticket(*, name="", phone="", category, subject, message, stage="", er
                                    status="open", created_at=now, updated_at=now)
             session.add(ticket)
             session.flush()
-            session.add(SupportMessage(ticket_id=ticket.id, author="user", actor_id=user_id, body=message, created_at=now))
+            first_message = SupportMessage(ticket_id=ticket.id, author="user", actor_id=user_id, body=message, created_at=now)
+            session.add(first_message)
+            session.flush()
+            attachments.claim(session, ticket, first_message, attachment_ids, user_id)
             session.flush()
             return _conversation(session, ticket)
     except IntegrityError as error:
@@ -108,7 +123,9 @@ def _add_message(session, ticket, body, author, actor_id=None):
     count = session.scalar(select(func.count()).select_from(SupportMessage).where(SupportMessage.ticket_id == ticket.id)) or 0
     if count >= MAX_MESSAGES:
         raise MembershipError("support-input", "\u0633\u0642\u0641 \u067e\u06cc\u0627\u0645\u200c\u0647\u0627\u06cc \u0627\u06cc\u0646 \u062a\u06cc\u06a9\u062a \u067e\u0631 \u0634\u062f\u0647 \u0627\u0633\u062a. \u062a\u06cc\u06a9\u062a \u062a\u0627\u0632\u0647\u200c\u0627\u06cc \u0628\u0627 \u0627\u0634\u0627\u0631\u0647 \u0628\u0647 \u06a9\u062f \u0627\u06cc\u0646 \u062a\u06cc\u06a9\u062a \u062b\u0628\u062a \u06a9\u0646\u06cc\u062f.")
-    session.add(SupportMessage(ticket_id=ticket.id, author=author, actor_id=actor_id, body=body))
+    message = SupportMessage(ticket_id=ticket.id, author=author, actor_id=actor_id, body=body)
+    session.add(message)
+    return message
 
 
 def _set_status(session, ticket, status, actor_id=None):
@@ -118,12 +135,15 @@ def _set_status(session, ticket, status, actor_id=None):
     ticket.updated_at = datetime.now(timezone.utc)
 
 
-def reply_ticket(reference, message, *, user_id=None):
+def reply_ticket(reference, message, *, user_id=None, attachment_ids=()):
     with db_session() as session:
         ticket = _authorize(session, reference, lock=True, user_id=user_id)
         if ticket.status == "closed":
             raise MembershipError("ticket-closed", "این تیکت بسته شده است و امکان ارسال پیام ندارد. برای موضوع جدید، تیکت تازه‌ای ثبت کنید.")
-        _add_message(session, ticket, message, "user", user_id)
+        if attachments.already_sent(session, ticket, attachment_ids, user_id, message):
+            return _conversation(session, ticket)
+        reply = _add_message(session, ticket, message, "user", user_id)
+        attachments.claim(session, ticket, reply, attachment_ids, user_id)
         _set_status(session, ticket, "open")
         session.flush()
         return _conversation(session, ticket)
@@ -148,15 +168,21 @@ def admin_ticket(reference):
         return _conversation(session, ticket, True)
 
 
-def update_ticket(reference, actor_id, status, message=""):
+def update_ticket(reference, actor_id, status, message="", attachment_ids=()):
     if status not in STATUSES:
         raise MembershipError("support-input", "\u0648\u0636\u0639\u06cc\u062a \u0645\u0639\u062a\u0628\u0631 \u0646\u06cc\u0633\u062a.")
     with db_session() as session:
         ticket = session.scalar(select(SupportTicket).where(SupportTicket.reference == reference).with_for_update())
         if ticket is None:
             raise MembershipError("ticket-not-found", "\u062a\u06cc\u06a9\u062a \u067e\u06cc\u062f\u0627 \u0646\u0634\u062f.")
+        if attachment_ids and ticket.status == "closed":
+            raise MembershipError("ticket-closed", "برای افزودن پیوست ابتدا تیکت را باز کنید.")
+        if attachment_ids and not message.strip():
+            raise MembershipError("support-input", "همراه پیوست، متن پاسخ را وارد کنید.")
         if message.strip():
-            _add_message(session, ticket, message, "support", actor_id)
+            if not attachments.already_sent(session, ticket, attachment_ids, actor_id, message):
+                reply = _add_message(session, ticket, message, "support", actor_id)
+                attachments.claim(session, ticket, reply, attachment_ids, actor_id)
         _set_status(session, ticket, status, actor_id)
         session.flush()
         return _conversation(session, ticket, True)

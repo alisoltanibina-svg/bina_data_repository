@@ -55,7 +55,7 @@
         const timer = setTimeout(() => controller.abort(), 20000);
         let response;
         try {
-            response = await fetch(API_BASE_URL + path, {method:'POST', headers:{'Content-Type':'application/json'}, cache:'no-store', signal:controller.signal, body:JSON.stringify(body || {})});
+            response = await (typeof apiFetch === 'function' ? apiFetch : fetch)(API_BASE_URL + path, {method:'POST', headers:{'Content-Type':'application/json'}, cache:'no-store', signal:controller.signal, body:JSON.stringify(body || {})});
         } catch (_) { throw new Error('ارتباط برقرار نشد. اطلاعات شما در فرم باقی مانده است؛ دوباره تلاش کنید.'); }
         finally { clearTimeout(timer); }
         const data = await response.json().catch(() => ({}));

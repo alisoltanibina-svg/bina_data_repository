@@ -1,17 +1,23 @@
 """Public ticket endpoints and administrator ticket management."""
-from typing import Literal
+from typing import Annotated, Literal
+import asyncio
+import re
+from urllib.parse import unquote
+from starlette.concurrency import run_in_threadpool
 from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import JSONResponse, Response
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from fastapi.responses import JSONResponse, Response, FileResponse
+from pydantic import ConfigDict, Field, StringConstraints, field_validator
 from backend.captcha import CaptchaError, CaptchaRateLimit, captcha_image, issue_challenge, verify_challenge
 from backend.membership import MembershipError
-from backend import support
+from backend import support, ticket_attachments
+from backend.input_security import InputBody
 
 HEADERS = {"Cache-Control": "no-store"}
+AttachmentId = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{32}$")]
 TicketCategory = Literal["login", "register", "reset", "otp", "account", "atlas", "explorer", "profile", "other"]
 
 
-class TicketCreate(BaseModel):
+class TicketCreate(InputBody):
     reference: str = Field(default="", max_length=20, pattern=r"^(SUP-[A-Z2-7]{16})?$")
     name: str = Field(min_length=1, max_length=80)
     phone: str = Field(min_length=1, max_length=16)
@@ -25,7 +31,7 @@ class TicketCreate(BaseModel):
     captcha_answer: str = Field(min_length=1, max_length=16)
 
 
-class TicketAccess(BaseModel):
+class TicketAccess(InputBody):
     reference: str = Field(min_length=16, max_length=20, pattern=r"^SUP-(?:[A-Fa-f0-9]{12}|[A-Za-z2-7]{16})$")
 
     @field_validator("reference", mode="before")
@@ -39,12 +45,14 @@ class TicketReply(TicketAccess):
     message: str = Field(min_length=2, max_length=4000)
 
 
-class TicketUpdate(BaseModel):
+class TicketUpdate(InputBody):
+    attachment_ids: list[AttachmentId] = Field(default_factory=list, max_length=3)
     status: Literal["open", "in_progress", "awaiting_user", "closed"]
     message: str = Field(default="", max_length=4000)
 
 
-class AccountTicketCreate(BaseModel):
+class AccountTicketCreate(InputBody):
+    attachment_ids: list[AttachmentId] = Field(default_factory=list, max_length=3)
     model_config = ConfigDict(extra="forbid")
     reference: str = Field(default="", max_length=20, pattern=r"^(SUP-[A-Z2-7]{16})?$")
     category: TicketCategory
@@ -52,7 +60,8 @@ class AccountTicketCreate(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
 
 
-class AccountTicketReply(BaseModel):
+class AccountTicketReply(InputBody):
+    attachment_ids: list[AttachmentId] = Field(default_factory=list, max_length=3)
     model_config = ConfigDict(extra="forbid")
     message: str = Field(min_length=2, max_length=4000)
 
@@ -109,6 +118,54 @@ def build_router(require_admin, raise_membership, require_user):
             raise_membership(error)
         return JSONResponse(result, headers=HEADERS)
 
+    @router.post("/api/account/ticket-attachments")
+    async def upload_attachment(request: Request):
+        actor = require_user(request)
+        try:
+            raw_name = request.headers.get("x-upload-filename", "")
+            if len(raw_name) > 2200:
+                raise MembershipError("attachment-input", "نام فایل معتبر نیست.")
+            name = unquote(raw_name, errors="strict")
+            ticket_attachments.validate_filename(name)
+            reference = request.headers.get("x-ticket-reference", "")
+            if reference and not re.fullmatch(support.REFERENCE_PATTERN, reference):
+                raise MembershipError("attachment-input", "تیکت معتبر نیست.")
+            await run_in_threadpool(ticket_attachments.validate_target, actor, reference)
+            data = bytearray()
+            async with asyncio.timeout(30):
+                async for chunk in request.stream():
+                    if len(data) + len(chunk) > ticket_attachments.MAX_FILE_BYTES:
+                        raise HTTPException(413, detail={"code": "attachment-input", "message": "حجم تصویر باید حداکثر ۵ مگابایت باشد."})
+                    data.extend(chunk)
+            result = await run_in_threadpool(ticket_attachments.stage_upload, actor, name, bytes(data), reference)
+        except (UnicodeError, ValueError):
+            raise HTTPException(400, detail={"code": "attachment-input", "message": "نام فایل معتبر نیست."}) from None
+        except TimeoutError:
+            raise HTTPException(408, detail={"code": "attachment-input", "message": "زمان بارگذاری تمام شد؛ دوباره تلاش کنید."}) from None
+        except MembershipError as error:
+            raise_membership(error)
+        return JSONResponse(result, status_code=201, headers=HEADERS)
+
+    @router.get("/api/account/ticket-attachments/{attachment_id}")
+    def download_attachment(attachment_id: str, request: Request):
+        actor = require_user(request)
+        try:
+            path, filename = ticket_attachments.attachment_download(attachment_id, actor)
+        except MembershipError as error:
+            raise_membership(error)
+        return FileResponse(path, media_type="image/webp", filename=filename, headers={**HEADERS,
+            "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "default-src 'none'; sandbox",
+            "Cross-Origin-Resource-Policy": "same-origin", "Referrer-Policy": "no-referrer"})
+
+    @router.delete("/api/account/ticket-attachments/{attachment_id}")
+    def discard_attachment(attachment_id: str, request: Request):
+        actor = require_user(request)
+        try:
+            ticket_attachments.discard_upload(attachment_id, actor["id"])
+        except MembershipError as error:
+            raise_membership(error)
+        return JSONResponse({"ok": True}, headers=HEADERS)
+
     @router.get("/api/account/tickets")
     def account_inbox(request: Request, cursor: str = Query("", max_length=180)):
         actor = require_user(request)
@@ -150,7 +207,7 @@ def build_router(require_admin, raise_membership, require_user):
         actor = require_user(request)
         code = reference.strip().upper()
         try:
-            result = support.reply_ticket(code, body.message, user_id=actor["id"])
+            result = support.reply_ticket(code, body.message, user_id=actor["id"], attachment_ids=body.attachment_ids)
         except MembershipError as error:
             raise_membership(error)
         return JSONResponse(result, headers=HEADERS)
@@ -177,7 +234,7 @@ def build_router(require_admin, raise_membership, require_user):
     def update(reference: str, body: TicketUpdate, request: Request):
         actor = require_admin(request)
         try:
-            result = support.update_ticket(reference, actor["id"], body.status, body.message)
+            result = support.update_ticket(reference, actor["id"], body.status, body.message, body.attachment_ids)
         except MembershipError as error:
             raise_membership(error)
         return JSONResponse(result, headers=HEADERS)

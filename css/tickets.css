@@ -38,7 +38,7 @@
 .account-ticket-list button.is-selected { background: rgba(255,255,255,.88); border-color: rgba(255,255,255,.6); color: #515811; }
 .account-ticket-list strong { display: block; font-size: .82rem; font-weight: 600; overflow-wrap: anywhere; }
 .account-ticket-list small { display: block; margin-top: 6px; color: #81784e; font-size: .66rem; }
-.account-ticket-list .support-badge { margin-top: 7px; font-size: .62rem; }
+.account-ticket-list .support-badge { margin-top: 0; font-size: .62rem; }
 .account-ticket-inbox .support-hint { color: #736a41; font-size: .82rem; padding: 4px 10px; }
 .account-ticket-inbox #my-ticket-more { width: 100%; margin-top: 12px; font-size: .8rem; }
 .account-ticket-workspace { min-height: 320px; }
@@ -60,6 +60,9 @@
 .account-ticket-placeholder svg { width: 44px; height: 44px; opacity: .65; }
 .account-ticket-placeholder p { margin: 0; text-align: center; font-size: .9rem; }
 .account-ticket-detail { scroll-margin-top: 110px; }
+.account-ticket-status { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: .75rem; color: #81734a; }
+.account-ticket-list .account-ticket-status { display: flex; margin-top: 7px; font-size: .66rem; }
+.account-ticket-created { margin: 0 0 18px; color: #81734a; font-size: .77rem; }
 .account-ticket-detail-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
 .account-ticket-detail-head h2 { margin: 0; font-size: 1.05rem; font-weight: 600; overflow-wrap: anywhere; }
 .account-ticket-text-button { padding: 2px 0; border: 0; background: transparent; color: #68652f; font: inherit; font-size: .78rem; cursor: pointer; text-decoration: underline; text-underline-offset: 4px; }
@@ -73,7 +76,7 @@
 .account-ticket-reply textarea { display: block; min-height: 66px; padding: 14px 20px; border: 1px solid rgba(255,255,255,.6); border-radius: 22px; background: rgba(255,255,255,.88); resize: vertical; font-size: .9rem; }
 .account-tickets-body .support-badge { color: #626b27; background: rgba(228,233,199,.85); }
 .account-tickets-body .support-badge[data-status="awaiting_user"] { color: #805f14; background: #f2e6be; }
-.account-tickets-body .support-badge[data-status="closed"] { color: #746f55; background: #e6dfcb; }
+.account-tickets-body .support-badge[data-status="closed"] { color: #a82d2d; background: #f9dede; }
 .account-tickets-body button:focus-visible, .account-tickets-body a:focus-visible, .account-tickets-body input:focus-visible, .account-tickets-body select:focus-visible, .account-ticket-reply textarea:focus-visible { outline: 2px solid #7c873b; outline-offset: 3px; }
 .account-tickets-body button:disabled { opacity: .5; cursor: wait; }
 @media (max-width:800px) {

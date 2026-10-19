@@ -175,7 +175,7 @@
     }
 
     function loadProfile() {
-        fetch(apiBase() + '/api/auth/session', { credentials: 'include' })
+        (typeof apiFetch === 'function' ? apiFetch : fetch)(apiBase() + '/api/auth/session', { credentials: 'include' })
             .then(function (response) {
                 if (response.ok) return response.json();
                 if (response.status === 401 || response.status === 403) return null;
@@ -209,7 +209,7 @@
     }
 
     function logout() {
-        fetch(apiBase() + '/api/auth/logout', { method: 'POST', credentials: 'include' })
+        (typeof apiFetch === 'function' ? apiFetch : fetch)(apiBase() + '/api/auth/logout', { method: 'POST', credentials: 'include' })
             .catch(function () {})
             .finally(function () {
                 clearLocalSession();

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from pydantic import SecretStr, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -21,6 +22,7 @@ class Settings(BaseSettings):
 
     database_url: SecretStr
     neshan_map_api_key: SecretStr = SecretStr("")
+    cors_origins: str = "https://app.rasadbina.ir"
     admin_phone: str = ""
     admin_password: SecretStr = SecretStr("")
     kavenegar_api_key: SecretStr = SecretStr("")
@@ -30,6 +32,7 @@ class Settings(BaseSettings):
     otp_ttl_seconds: int = 180
     otp_max_attempts: int = 5
     otp_resend_seconds: int = 60
+    ticket_attachment_dir: Path = PROJECT_ROOT.parent / (PROJECT_ROOT.name + "-private") / "support-attachments"
     captcha_enabled: bool = True
     captcha_hmac_secret: SecretStr = SecretStr("")
     captcha_ttl_seconds: int = 300
@@ -68,6 +71,12 @@ def get_settings() -> Settings:
             "The app will not fall back to a local SQLite file."
         ) from None
     _require_postgres_url(settings.database_url.get_secret_value())
+    for origin in settings.cors_origins.split(","):
+        raw = origin.strip().rstrip("/")
+        parsed = urlsplit(raw)
+        if not raw or parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password or parsed.path or parsed.query or parsed.fragment or "*" in raw:
+            raise RuntimeError("CORS_ORIGINS must contain exact HTTP(S) origins, never a wildcard")
+
     if settings.captcha_enabled:
         if len(settings.captcha_hmac_secret.get_secret_value()) < 32:
             raise RuntimeError("CAPTCHA_HMAC_SECRET must contain at least 32 characters when CAPTCHA_ENABLED=1.")

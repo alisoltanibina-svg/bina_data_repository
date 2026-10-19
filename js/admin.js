@@ -23,7 +23,7 @@ function normalizePhone(raw) {
 }
 
 async function adminFetch(path, options) {
-    const response = await fetch(`${API_BASE_URL}${path}`, Object.assign({ credentials: 'include', cache: 'no-store' }, options || {}));
+    const response = await (typeof apiFetch === 'function' ? apiFetch : fetch)(`${API_BASE_URL}${path}`, Object.assign({ credentials: 'include', cache: 'no-store' }, options || {}));
     if (response.status === 401 || response.status === 403) {
         window.location.href = SITE.page('index.html') + '#auth';
         throw new Error('auth');
@@ -84,7 +84,7 @@ const AdminApi = {
         });
     },
     async exportRequests() {
-        const response = await fetch(`${API_BASE_URL}/api/admin/requests/export`, { credentials: 'include' });
+        const response = await (typeof apiFetch === 'function' ? apiFetch : fetch)(`${API_BASE_URL}/api/admin/requests/export`, { credentials: 'include' });
         if (response.status === 401 || response.status === 403) {
             window.location.href = SITE.page('index.html') + '#auth';
             throw new Error('auth');
@@ -761,7 +761,7 @@ async function downloadAllAvatars() {
     button.disabled = true;
     button.textContent = 'در حال آماده‌سازی...';
     try {
-        const response = await fetch(`${API_BASE_URL}/api/admin/avatars/export`, {
+        const response = await (typeof apiFetch === 'function' ? apiFetch : fetch)(`${API_BASE_URL}/api/admin/avatars/export`, {
             credentials: 'include', cache: 'no-store'
         });
         if (response.status === 401 || response.status === 403) {
@@ -794,7 +794,7 @@ async function downloadAllAvatars() {
 }
 
 async function downloadUserAvatar(row) {
-    const response = await fetch(`${API_BASE_URL}/api/admin/users/${encodeURIComponent(row.id)}/avatar`, {
+    const response = await (typeof apiFetch === 'function' ? apiFetch : fetch)(`${API_BASE_URL}/api/admin/users/${encodeURIComponent(row.id)}/avatar`, {
         credentials: 'include'
     });
     if (!response.ok) {

@@ -246,3 +246,96 @@ location ~ ^/(html/)?bubble-chart(?:\.html)?/?$ {
 
 After editing the server configuration, run `sudo nginx -t` and reload Nginx
 only if validation succeeds.
+
+
+Private ticket image attachments
+-------------------------------
+
+Signed-in account tickets and administrator replies accept JPG/JPEG, PNG, and
+WebP images. Guest tickets remain text-only. PDF, SVG, HTML, executables, archives,
+Office files, and animated images are not accepted; no malware-scanner service
+or external document processing is required or enabled in this release.
+
+Each message accepts at most three files, each at most 5 MiB. The server checks
+the extension and decoded format, rejects images above 16 million pixels or an
+8192-pixel edge, applies EXIF orientation, and saves a new metadata-free WebP
+with a maximum 4096-pixel edge. Original bytes and filenames are never used as
+public assets or filesystem paths. Processing is bounded to two decoders per
+API process. Per-account limits are 60 successful uploads / 100 MiB of source
+files per rolling 24 hours, 20 MiB of staged images, and 250 MiB of retained
+images. A ticket accepts at most 50 MiB of attachments. Upload requests also
+have dedicated IP rate limits. Deleted staged metadata remains for 24 hours
+so removing files cannot reset the upload quota.
+
+Files live in `TICKET_ATTACHMENT_DIR`, defaulting to the project sibling
+`<project-name>-private/support-attachments`. This must be outside the project
+and `STATIC_ROOT`, outside every Nginx document root/alias, and writable only by
+the API service user. Directories are created with mode 0700 and files with 0600
+on Linux. Only the original uploader can access staged files; after attachment,
+only the ticket owner and active administrators can download them. Download
+routes check the session and ticket ownership on every request, return re-encoded
+WebP only with `nosniff`, download disposition, and `Cache-Control: no-store`.
+User-submitted filenames and messages are rendered as text in both interfaces.
+
+One metadata table (`support_attachments`, migration `0014_ticket_attachments`)
+links images to messages. No file binaries are stored in PostgreSQL. Uploads
+are staged for 30 minutes, then claimed atomically with message creation under
+the ticket lock. Concurrent claims and quota reservations are serialized. A
+closed ticket rejects attachments and user replies even if it closes while an
+image is being processed. An uncommitted/failed message never claims an image;
+text and files remain available in the form for retry. Retrying the same message
+with its already-claimed attachments does not create duplicate messages.
+
+A background cleanup runs at startup and every ten minutes. It expires unused
+staged uploads and removes orphan files after a one-hour grace period following
+ticket/account deletion or interrupted file/DB writes. Attached files are retained
+with the ticket. Back up the private directory together with the database, with
+the same access controls as other account data. Restore both together; database
+backups alone do not contain the images. Existing guest tracking behavior and
+closed-ticket read-only behavior are preserved.
+
+Deployment for this release:
+
+1. Install the existing pinned dependencies and run `alembic upgrade head` before
+   restarting the API. This adds one new table without rewriting existing ticket
+   or message rows. Downgrading to `0013_account_tickets` removes attachment
+   metadata; do not downgrade once uploads must be retained without a backup.
+2. Create `/opt/app-private/support-attachments` owned by the user configured in
+   the `app-api` service, mode 0700. Set
+   `TICKET_ATTACHMENT_DIR=/opt/app-private/support-attachments` in the deployment
+   environment if the default sibling path is unsuitable. Never add a static
+   location or alias for this directory.
+3. In the existing Nginx `location ^~ /api/` block, allow bounded image requests:
+
+   ```nginx
+   client_max_body_size 6m;
+   client_body_timeout 30s;
+   proxy_read_timeout 60s;
+   proxy_cache off;
+   ```
+
+   Retain the existing proxy headers. Validate with `sudo nginx -t` before reload.
+   Nginx may buffer request bodies to its own managed temporary storage; do not
+   expose that directory either. The API independently limits JSON bodies to
+   64 KiB, avatar multipart bodies to 6 MiB, and streamed ticket uploads to 5 MiB.
+4. Build with `python scripts/build_frontend.py` and deploy the backend and the
+   matching frontend release together. Restart `app-api` after migration. User
+   and admin forms share a paperclip picker, previews, removal, progress, and
+   private download controls; closed conversations hide the reply interface.
+5. `CORS_ORIGINS` now controls the actual middleware allowlist and must contain
+   exact trusted origins, with HTTPS for production. Local development requires
+   explicitly adding the local frontend origin. Wildcards are rejected. Unsafe
+   API requests validate Origin; cookie-authenticated requests without Origin
+   must carry `X-CSRF-Protection: 1`. The shared frontend request helper supplies
+   this header, and uploads always require it. Guest form requests remain JSON;
+   form-encoded submissions and unexpected body fields are rejected. Input
+   validation preserves Persian letters and half-spaces, bounds every declared
+   text field, rejects control/direction-spoofing characters, and does not echo
+   validation inputs or secrets in error responses. Existing password
+   normalization is retained for compatibility with stored password hashes.
+
+Security checks run only against `TEST_DATABASE_URL` in disposable schemas and
+temporary private directories. The regression coverage includes cross-account
+reads/claims, forged formats, traversal/control filenames, image bombs, metadata
+stripping, quotas, concurrent claims, close-during-upload races, stale uploads,
+orphan cleanup, CSRF, chunked body limits, and unexpected fields.

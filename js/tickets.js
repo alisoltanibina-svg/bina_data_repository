@@ -7,6 +7,11 @@
     let rows = [], cursor = null, selected = '', draftReference = '', listVersion = 0, detailVersion = 0;
     let loading = false, reading = false, creating = false, sending = false, redirecting = false;
     const waits = new Map();
+    const createFiles = window.TicketAttachments?.create($('create-files'));
+    const replyFiles = window.TicketAttachments?.create($('reply-files'), () => selected);
+    const attachmentUrls = [];
+    window.addEventListener('pagehide', event => { if (event.persisted) return; createFiles?.reset(); replyFiles?.reset(); window.TicketAttachments?.revoke(attachmentUrls); });
+
     let view = 'empty';
     let ticketClosed = false;
     function setView(next) {
@@ -23,7 +28,7 @@
         if (creating || sending || !allowSwitch()) return;
         ++detailVersion;
         reading = false;
-        $('reply').value = '';
+        $('reply').value = ''; replyFiles?.clear();
         clearError();
         setView('create');
         renderList();
@@ -41,7 +46,7 @@
         const timer = setTimeout(() => controller.abort(), 20000);
         let response;
         try {
-            response = await fetch(API_BASE_URL + path,{method,credentials:'include',cache:'no-store',signal:controller.signal,
+            response = await (typeof apiFetch === 'function' ? apiFetch : fetch)(API_BASE_URL + path,{method,credentials:'include',cache:'no-store',signal:controller.signal,
                 headers:options.body ? {'Content-Type':'application/json'} : {},body:options.body ? JSON.stringify(options.body) : undefined});
         } catch (_) { throw new Error('ارتباط برقرار نشد. اطلاعات فرم حفظ شده است؛ دوباره تلاش کنید.'); }
         finally { clearTimeout(timer); }
@@ -60,6 +65,14 @@
         }
         return data;
     }
+    function formatTicketDate(value) {
+        const date = new Date(value);
+        if (!Number.isFinite(date.getTime())) return '—';
+        return date.toLocaleString('fa-IR', {
+            year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+        });
+    }
     function badge(status) {
         const item = document.createElement('span'); item.className = 'support-badge'; item.dataset.status = status;
         item.textContent = labels[status] || status; return item;
@@ -70,8 +83,11 @@
             const item = document.createElement('li'); const button = document.createElement('button'); button.type = 'button';
             button.classList.toggle('is-selected',ticket.reference === selected && view !== 'create'); button.setAttribute('aria-pressed',String(ticket.reference === selected && view !== 'create'));
             const title = document.createElement('strong'); title.textContent = ticket.subject;
-            const when = document.createElement('small'); when.textContent = new Date(ticket.updated_at).toLocaleString('fa-IR');
-            button.append(title,when,badge(ticket.status)); button.onclick = () => select(ticket.reference);
+            const when = document.createElement('small'); when.textContent = 'تاریخ ایجاد: ' + formatTicketDate(ticket.created_at);
+            const status = document.createElement('span'); status.className = 'account-ticket-status';
+            const statusLabel = document.createElement('span'); statusLabel.textContent = 'وضعیت:';
+            status.append(statusLabel,badge(ticket.status));
+            button.append(title,when,status); button.onclick = () => select(ticket.reference);
             item.append(button); $('list').append(item);
         });
     }
@@ -84,6 +100,7 @@
         ticketClosed = closed;
         $('reply-form').hidden = closed;
         $('reply').disabled = closed;
+        replyFiles?.setDisabled(closed);
         $('closed').hidden = !closed;
         $('send').hidden = closed || view !== 'detail';
         $('send').disabled = closed || sending || reading;
@@ -92,13 +109,17 @@
         setReplyClosed(ticket.status === 'closed');
         setView('detail');
         $('title').textContent = ticket.subject;
+        $('created').textContent = formatTicketDate(ticket.created_at); $('created').dateTime = ticket.created_at;
         $('status').textContent = labels[ticket.status] || ticket.status; $('status').dataset.status = ticket.status;
+        window.TicketAttachments?.revoke(attachmentUrls);
         $('messages').replaceChildren();
         (ticket.messages || []).forEach(message => {
             const item = document.createElement('article'); item.className = 'support-message' + (message.author === 'support' ? ' is-support' : '');
-            const who = document.createElement('small'); who.textContent = (message.author === 'support' ? 'پشتیبانی' : 'شما') + ' · ' + new Date(message.created_at).toLocaleString('fa-IR');
+            const who = document.createElement('small'); who.textContent = (message.author === 'support' ? 'پشتیبانی' : 'شما') + ' · ' + formatTicketDate(message.created_at);
             const body = document.createElement('p'); body.textContent = message.body;
-            item.append(who,body); $('messages').append(item);
+            item.append(who,body);
+            window.TicketAttachments?.render(item, message.attachments, attachmentUrls);
+            $('messages').append(item);
         });
         $('messages').scrollTop = $('messages').scrollHeight;
     }
@@ -110,21 +131,17 @@
             if (version !== listVersion) return;
             rows = more ? rows.concat(data.tickets.filter(ticket => !rows.some(row => row.reference === ticket.reference))) : data.tickets;
             cursor = data.next_cursor; $('more').hidden = !cursor; renderList();
-            if (view === 'empty' && !selected) {
-                if (rows.length) await select(rows[0].reference);
-                else openCreate();
-            }
         } catch (err) { if (version === listVersion) error(err); }
         finally {
             if (version === listVersion) { loading = false; $('loading').hidden = true; $('refresh').disabled = false; $('more').disabled = false; renderList(); }
         }
     }
-    function allowSwitch() { return !$('reply').value.trim() || window.confirm('پاسخ نوشته‌شده هنوز ارسال نشده است. ادامه می‌دهید؟'); }
+    function allowSwitch() { return (!$('reply').value.trim() && !replyFiles?.hasFiles()) || window.confirm('پاسخ نوشته‌شده هنوز ارسال نشده است. ادامه می‌دهید؟'); }
     async function select(reference) {
         if (creating || sending || (reference !== selected && !allowSwitch())) return;
         const version = ++detailVersion;
         if (reference !== selected || view !== 'detail') {
-            $('reply').value = ''; setView('loading');
+            $('reply').value = ''; replyFiles?.clear(); setView('loading');
             $('placeholder-text').textContent = 'در حال دریافت گفتگو…';
         }
         selected = reference; reading = true; $('send').disabled = true; clearError(); renderList();
@@ -152,8 +169,9 @@
         event.preventDefault(); if (creating || sending || !$('create-form').reportValidity()) return;
         creating = true; $('submit').disabled = true; clearError(); draftReference ||= newTicketReference();
         try {
-            const ticket = await request('/api/account/tickets',{method:'POST',body:{reference:draftReference,category:$('category').value,subject:$('subject').value.trim(),message:$('message').value.trim()}});
-            draftReference = ''; $('create-form').reset(); $('create').hidden = true;
+            const attachment_ids = createFiles ? await createFiles.upload() : [];
+            const ticket = await request('/api/account/tickets',{method:'POST',body:{reference:draftReference,category:$('category').value,subject:$('subject').value.trim(),message:$('message').value.trim(),attachment_ids}});
+            draftReference = ''; createFiles?.reset(); $('create-form').reset(); $('create').hidden = true;
             selected = ticket.reference; ++detailVersion; reading = false; $('send').disabled = ticketClosed; renderTicket(ticket); upsert(ticket); await load();
             $('detail').scrollIntoView({block:'start',behavior:'smooth'});
         } catch (err) { if (err.code === 'reference-conflict') draftReference = ''; error(err); }
@@ -163,8 +181,9 @@
         event.preventDefault(); if (!selected || ticketClosed || creating || sending || reading || !$('reply-form').reportValidity()) return;
         const reference = selected; sending = true; $('send').disabled = true; clearError();
         try {
-            const ticket = await request('/api/account/tickets/' + encodeURIComponent(reference) + '/reply',{method:'POST',body:{message:$('reply').value.trim()}});
-            $('reply').value = ''; renderTicket(ticket); upsert(ticket);
+            const attachment_ids = replyFiles ? await replyFiles.upload() : [];
+            const ticket = await request('/api/account/tickets/' + encodeURIComponent(reference) + '/reply',{method:'POST',body:{message:$('reply').value.trim(),attachment_ids}});
+            $('reply').value = ''; replyFiles?.reset(); renderTicket(ticket); upsert(ticket);
         } catch (err) {
             if (err.code === 'ticket-closed') {
                 setReplyClosed(true);

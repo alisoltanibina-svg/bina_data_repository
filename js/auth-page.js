@@ -321,7 +321,7 @@ async function apiJson(path, body) {
     const timer = window.setTimeout(() => controller.abort(), 20000);
     let response;
     try {
-        response = await fetch(`${API_BASE_URL}${path}`, {method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',cache:'no-store',signal:controller.signal,body:JSON.stringify(body)});
+        response = await (typeof apiFetch === 'function' ? apiFetch : fetch)(`${API_BASE_URL}${path}`, {method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',cache:'no-store',signal:controller.signal,body:JSON.stringify(body)});
     } catch (_) {
         authError = {code:'network',reference:''};
         const err = new Error('ارتباط برقرار نشد. اطلاعات فرم حفظ شده است؛ اتصال اینترنت را بررسی کنید و دوباره تلاش کنید.');
