@@ -7,6 +7,27 @@
     let rows = [], cursor = null, selected = '', draftReference = '', listVersion = 0, detailVersion = 0;
     let loading = false, reading = false, creating = false, sending = false, redirecting = false;
     const waits = new Map();
+    let view = 'empty';
+    function setView(next) {
+        view = next;
+        $('create').hidden = next !== 'create';
+        $('detail').hidden = next !== 'detail';
+        $('placeholder').hidden = !['empty', 'loading'].includes(next);
+        $('submit').hidden = next !== 'create';
+        $('send').hidden = next !== 'detail';
+        $('new').hidden = next === 'create';
+    }
+    function openCreate() {
+        if (creating || sending || !allowSwitch()) return;
+        ++detailVersion;
+        reading = false;
+        $('reply').value = '';
+        clearError();
+        setView('create');
+        renderList();
+        $('subject').focus();
+    }
+
     function clearError() { $('error').hidden = true; }
     function error(err) { $('error').hidden = false; $('error').textContent = (err.message || 'ارتباط با سامانه ممکن نشد. دوباره تلاش کنید.') + (err.reference ? ' · کد خطا: ' + err.reference : ''); }
     async function request(path, options = {}) {
@@ -45,7 +66,7 @@
         $('list').replaceChildren(); $('empty').hidden = rows.length !== 0 || loading;
         rows.forEach(ticket => {
             const item = document.createElement('li'); const button = document.createElement('button'); button.type = 'button';
-            button.classList.toggle('is-selected',ticket.reference === selected); button.setAttribute('aria-pressed',String(ticket.reference === selected));
+            button.classList.toggle('is-selected',ticket.reference === selected && view !== 'create'); button.setAttribute('aria-pressed',String(ticket.reference === selected && view !== 'create'));
             const title = document.createElement('strong'); title.textContent = ticket.subject;
             const when = document.createElement('small'); when.textContent = new Date(ticket.updated_at).toLocaleString('fa-IR');
             button.append(title,when,badge(ticket.status)); button.onclick = () => select(ticket.reference);
@@ -58,7 +79,8 @@
         rows.sort((a,b) => new Date(b.updated_at) - new Date(a.updated_at)); renderList();
     }
     function renderTicket(ticket) {
-        $('placeholder').hidden = true; $('detail').hidden = false;
+        setView('detail');
+        $('copy').title = 'کپی کد پیگیری'; $('copy').setAttribute('aria-label','کپی کد پیگیری');
         $('title').textContent = ticket.subject; $('reference').textContent = ticket.reference;
         $('status').textContent = labels[ticket.status] || ticket.status; $('status').dataset.status = ticket.status;
         $('messages').replaceChildren();
@@ -78,6 +100,10 @@
             if (version !== listVersion) return;
             rows = more ? rows.concat(data.tickets.filter(ticket => !rows.some(row => row.reference === ticket.reference))) : data.tickets;
             cursor = data.next_cursor; $('more').hidden = !cursor; renderList();
+            if (view === 'empty' && !selected) {
+                if (rows.length) await select(rows[0].reference);
+                else openCreate();
+            }
         } catch (err) { if (version === listVersion) error(err); }
         finally {
             if (version === listVersion) { loading = false; $('loading').hidden = true; $('refresh').disabled = false; $('more').disabled = false; renderList(); }
@@ -85,11 +111,11 @@
     }
     function allowSwitch() { return !$('reply').value.trim() || window.confirm('پاسخ نوشته‌شده هنوز ارسال نشده است. ادامه می‌دهید؟'); }
     async function select(reference) {
-        if (sending || (reference !== selected && !allowSwitch())) return;
+        if (creating || sending || (reference !== selected && !allowSwitch())) return;
         const version = ++detailVersion;
-        if (reference !== selected) {
-            $('reply').value = ''; $('detail').hidden = true; $('placeholder').hidden = false;
-            $('placeholder').textContent = 'در حال دریافت گفتگو…';
+        if (reference !== selected || view !== 'detail') {
+            $('reply').value = ''; setView('loading');
+            $('placeholder-text').textContent = 'در حال دریافت گفتگو…';
         }
         selected = reference; reading = true; $('reload').disabled = true; $('send').disabled = true; clearError(); renderList();
         try {
@@ -100,16 +126,21 @@
         } catch (err) { if (version === detailVersion) error(err); }
         finally { if (version === detailVersion) { reading = false; $('reload').disabled = false; $('send').disabled = false; } }
     }
-    $('new').onclick = () => {
-        if (sending || !allowSwitch()) return;
-        $('reply').value = ''; $('create').hidden = false; $('subject').focus();
+    $('new').onclick = openCreate;
+    $('cancel').onclick = () => {
+        if (creating) return;
+        if (selected) select(selected);
+        else {
+            setView('empty');
+            $('placeholder-text').textContent = 'برای مشاهده گفتگو، یک تیکت را انتخاب کنید.';
+            renderList();
+        }
     };
-    $('cancel').onclick = () => { $('create').hidden = true; };
     $('refresh').onclick = () => load();
     $('more').onclick = () => load(true);
     $('reload').onclick = () => { if (selected && !reading) select(selected); };
     $('copy').onclick = async () => {
-        try { await navigator.clipboard.writeText(selected); $('copy').textContent = 'کپی شد'; }
+        try { await navigator.clipboard.writeText(selected); $('copy').title = 'کپی شد'; $('copy').setAttribute('aria-label','کد پیگیری کپی شد'); }
         catch (_) { error(new Error('کپی خودکار ممکن نشد؛ کد پیگیری را از بالای گفتگو کپی کنید.')); }
     };
     $('create-form').onsubmit = async event => {
@@ -136,5 +167,6 @@
         const seconds = Math.max(0,...Array.from(waits.values(),until => Math.ceil((until-Date.now())/1000)));
         $('wait').hidden = !seconds; $('wait').textContent = seconds ? 'محدودیت موقت برخی اقدامات: ' + seconds + ' ثانیه تا تلاش بعدی.' : '';
     },1000);
+    setView('empty');
     load();
 })();

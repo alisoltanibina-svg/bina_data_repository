@@ -1,16 +1,100 @@
-.account-tickets-body{margin:0;background:#f4f5f7;color:#27300b;font-family:PeydaFaNumWeb,Tahoma,sans-serif;min-height:100dvh;height:auto;overflow:auto;display:block;line-height:1.8}
-.account-tickets-body [hidden]{display:none!important}
-.account-tickets-page{width:min(1240px,100%);margin:calc(75px + var(--banner-gap,16px)) auto 0;padding:30px 24px 48px}
-.account-tickets-heading{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:22px}
-.account-tickets-heading h1{font-size:1.7rem;margin:0}.account-tickets-heading p{font-size:.85rem;color:#697058;margin:0 0 4px}
-.account-ticket-actions{display:flex;gap:10px;flex-wrap:wrap}.account-ticket-create{max-width:850px;margin:0 0 22px}
-.account-ticket-layout{display:grid;grid-template-columns:minmax(240px,320px) minmax(0,1fr);gap:18px;align-items:start}
-.account-ticket-layout>.support-card{margin:0;min-width:0}.account-ticket-detail{scroll-margin-top:110px}.account-ticket-inbox{padding:18px}
-.account-ticket-list{padding:0;margin:16px 0;list-style:none;display:grid;gap:8px;max-height:65vh;overflow:auto}
-.account-ticket-list button{font:inherit;cursor:pointer;width:100%;padding:13px;text-align:right;border:1px solid #dfe4d1;border-radius:12px;background:#fff;color:#27300b}
-.account-ticket-list button.is-selected{background:#f0f4e5;border-color:#697331}.account-ticket-list button:focus-visible{outline:3px solid #a9b36e;outline-offset:2px}
-.account-ticket-list strong{display:block;overflow-wrap:anywhere}.account-ticket-list small{display:block;font-size:.75rem;color:#697058;margin-top:6px}
-.account-ticket-list .support-badge{margin-top:8px}.account-ticket-detail-head{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
-.account-ticket-detail h2{overflow-wrap:anywhere}.account-ticket-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0}.account-ticket-meta code{font-family:ui-monospace,Consolas,monospace;overflow-wrap:anywhere;font-size:.9rem}.account-ticket-meta button{padding:5px 10px;font-size:.8rem}
-.account-ticket-placeholder{color:#697058}.account-ticket-placeholder p{margin:0}.account-tickets-body .support-badge[data-status="awaiting_user"]{background:#fff0d2;color:#7a4d00}.account-tickets-body .support-badge[data-status="closed"]{background:#eef0f2;color:#5c6570}
-@media(max-width:800px){.account-tickets-page{padding:22px 14px 36px}.account-tickets-heading{align-items:start;flex-direction:column;gap:14px}.account-ticket-layout{grid-template-columns:minmax(0,1fr)}.account-ticket-list{max-height:300px}.account-ticket-layout>.support-card{padding:18px 14px}.account-ticket-detail{scroll-margin-top:110px}}
+.account-tickets-body {
+    margin: 0; min-height: 100dvh; height: auto; overflow: auto; display: flow-root;
+    background: #e8d9b8 var(--curtain-image) var(--curtain-position, center center) / cover no-repeat fixed;
+    color: #515811; font-family: PeydaFaNumWeb, Tahoma, sans-serif; line-height: 1.8;
+}
+.account-tickets-body [hidden] { display: none !important; }
+.account-tickets-body .visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.account-tickets-body #top-banner .banner-seg, .account-tickets-body #top-banner .top-nav { display: none !important; }
+.account-tickets-page { width: min(1280px, 100%); margin: calc(75px + var(--banner-gap, 16px) + 34px) auto 0; padding: 0 24px 48px; }
+.account-tickets-desk {
+    padding: 26px 24px 28px; border: 1px solid rgba(255,255,255,.26); border-radius: 24px;
+    background: rgba(232,217,185,.38); backdrop-filter: blur(20px) saturate(1.12); -webkit-backdrop-filter: blur(20px) saturate(1.12);
+    box-shadow: 0 10px 30px rgba(81,88,17,.08), inset 0 1px 0 rgba(255,255,255,.35);
+}
+.account-tickets-heading { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
+.account-tickets-heading h1 { margin: 2px 0 0; font-size: 1.7rem; font-weight: 800; }
+.account-tickets-back { display: inline-flex; align-items: center; gap: 8px; color: #857443; font-size: .84rem; text-decoration: none; }
+.account-tickets-back svg { width: 22px; height: 22px; }
+.account-tickets-back:hover { color: #515811; }
+.account-ticket-actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.account-ticket-refresh-button { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 46px; width: 46px; height: 46px; padding: 0; border: 1px solid rgba(255,255,255,.3); border-radius: 50%; background: rgba(244,237,215,.38); color: #515811; box-shadow: 0 3px 7px rgba(81,88,17,.12); cursor: pointer; }
+.account-ticket-refresh-button:hover:not(:disabled) { background: rgba(255,255,255,.6); }
+.account-ticket-refresh-button svg { display: block; flex: none; }
+.account-ticket-actions .support-button { min-width: 150px; min-height: 46px; padding: 9px 22px; font-weight: 600; }
+.account-tickets-body .support-button.secondary { color: #66662d; border-color: transparent; background: rgba(244,237,215,.38); box-shadow: 0 3px 7px rgba(81,88,17,.12), inset 0 1px 0 rgba(255,255,255,.35); }
+.account-ticket-layout { display: grid; grid-template-columns: 200px minmax(0,1fr); gap: 26px; align-items: start; }
+.account-ticket-inbox, .account-ticket-workspace { min-width: 0; }
+.account-ticket-inbox h2, .account-ticket-section-head h2 { margin: 0; color: #88774c; font-size: .95rem; font-weight: 500; }
+.account-ticket-inbox h2 { margin-bottom: 20px; padding-inline: 14px; }
+.account-ticket-inbox-card { padding: 12px; border-radius: 22px; background: rgba(239,227,198,.34); box-shadow: 0 4px 8px rgba(81,88,17,.1), inset 0 1px 0 rgba(255,255,255,.3); }
+.account-ticket-list { list-style: none; padding: 2px 4px; margin: 0; display: grid; gap: 10px; max-height: 440px; overflow: auto; scrollbar-width: thin; scrollbar-color: #a59358 transparent; }
+.account-ticket-list button { width: 100%; padding: 12px 14px; border: 1px solid transparent; border-radius: 18px; background: rgba(244,235,213,.36); color: #64672f; text-align: right; cursor: pointer; font: inherit; box-shadow: 0 3px 6px rgba(81,88,17,.1), inset 0 1px 0 rgba(255,255,255,.32); }
+.account-ticket-list button.is-selected { background: rgba(255,255,255,.88); border-color: rgba(255,255,255,.6); color: #515811; }
+.account-ticket-list strong { display: block; font-size: .82rem; font-weight: 600; overflow-wrap: anywhere; }
+.account-ticket-list small { display: block; margin-top: 6px; color: #81784e; font-size: .66rem; }
+.account-ticket-list .support-badge { margin-top: 7px; font-size: .62rem; }
+.account-ticket-inbox .support-hint { color: #736a41; font-size: .82rem; padding: 4px 10px; }
+.account-ticket-inbox #my-ticket-more { width: 100%; margin-top: 12px; font-size: .8rem; }
+.account-ticket-workspace { min-height: 320px; }
+.account-ticket-section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 28px; margin-bottom: 18px; }
+.account-ticket-form { display: grid; gap: 20px; }
+.account-ticket-form label { display: block; min-width: 0; }
+.account-ticket-form-row { display: grid; grid-template-columns: minmax(200px,.9fr) minmax(0,2fr); gap: 18px; }
+.account-tickets-body input, .account-tickets-body select, .account-tickets-body textarea { font: inherit; color: #515811; box-sizing: border-box; width: 100%; min-width: 0; }
+.account-ticket-form-row input, .account-ticket-form-row select { height: 48px; padding: 0 20px; border: 1px solid transparent; border-radius: 999px; background: rgba(241,230,201,.55); box-shadow: 0 4px 7px rgba(81,88,17,.12), inset 0 1px 0 rgba(255,255,255,.35); font-size: .9rem; }
+.account-ticket-form-row input::placeholder { color: #8c7d50; opacity: 1; }
+.account-ticket-form-row select { cursor: pointer; color: #766b41; }
+.account-ticket-form-row option { background: #f7f1df; color: #515811; }
+.account-ticket-description { padding: 16px 20px 12px; border-radius: 22px; background: rgba(241,230,201,.5); box-shadow: 0 4px 7px rgba(81,88,17,.12), inset 0 1px 0 rgba(255,255,255,.3); }
+.account-ticket-description>span { color: #88774c; font-size: .9rem; }
+.account-ticket-description textarea { display: block; border: 0; padding: 8px 0; background: transparent; resize: vertical; min-height: 145px; }
+.account-ticket-description:focus-within { outline: 2px solid #858e46; outline-offset: 3px; }
+.account-ticket-description textarea:focus-visible { outline: none; }
+.account-ticket-placeholder { min-height: 300px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 30px; border-radius: 22px; background: rgba(241,230,201,.25); color: #7a7046; }
+.account-ticket-placeholder svg { width: 44px; height: 44px; opacity: .65; }
+.account-ticket-placeholder p { margin: 0; text-align: center; font-size: .9rem; }
+.account-ticket-detail { scroll-margin-top: 110px; }
+.account-ticket-detail-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+.account-ticket-detail-head h2 { margin: 0; font-size: 1.05rem; font-weight: 600; overflow-wrap: anywhere; }
+.account-ticket-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 8px 0 18px; color: #81734a; font-size: .77rem; }
+.account-ticket-meta code { display: inline-block; direction: ltr; unicode-bidi: isolate; font-family: ui-monospace, Consolas, monospace; color: #68652f; overflow-wrap: anywhere; }
+.account-ticket-meta>span { min-width: 0; overflow-wrap: anywhere; }
+.account-ticket-text-button { padding: 2px 0; border: 0; background: transparent; color: #68652f; font: inherit; font-size: .78rem; cursor: pointer; text-decoration: underline; text-underline-offset: 4px; }
+.account-ticket-icon-button { width: 30px; height: 30px; padding: 6px; border: 0; border-radius: 50%; background: rgba(255,255,255,.4); color: #68652f; cursor: pointer; }
+.account-ticket-icon-button svg { display: block; width: 100%; height: 100%; }
+.account-ticket-detail .support-messages { display: grid; align-content: start; gap: 16px; margin: 0 0 16px; max-height: 340px; min-height: 180px; padding: 18px; overflow: auto; scrollbar-width: thin; border-radius: 22px; background: rgba(241,230,201,.38); box-shadow: 0 4px 7px rgba(81,88,17,.1), inset 0 1px 0 rgba(255,255,255,.3); }
+.account-ticket-detail .support-message { width: min(92%,660px); justify-self: start; padding: 12px 16px; border: 1px solid rgba(255,255,255,.35); border-radius: 18px 18px 4px 18px; background: rgba(255,255,255,.78); color: #515811; }
+.account-ticket-detail .support-message.is-support { justify-self: end; background: rgba(221,221,180,.64); border-radius: 18px 18px 18px 4px; }
+.account-ticket-detail .support-message small { color: #7a7046; font-size: .7rem; }
+.account-ticket-detail .support-message p { margin: 5px 0 0; font-size: .88rem; line-height: 1.9; }
+.account-ticket-reply { display: grid; gap: 8px; }
+.account-ticket-reply label { padding-inline: 10px; font-size: .84rem; color: #81734a; }
+.account-ticket-reply textarea { display: block; min-height: 66px; padding: 14px 20px; border: 1px solid rgba(255,255,255,.6); border-radius: 22px; background: rgba(255,255,255,.88); resize: vertical; font-size: .9rem; }
+.account-tickets-body .support-badge { color: #626b27; background: rgba(228,233,199,.85); }
+.account-tickets-body .support-badge[data-status="awaiting_user"] { color: #805f14; background: #f2e6be; }
+.account-tickets-body .support-badge[data-status="closed"] { color: #746f55; background: #e6dfcb; }
+.account-tickets-body button:focus-visible, .account-tickets-body a:focus-visible, .account-tickets-body input:focus-visible, .account-tickets-body select:focus-visible, .account-ticket-reply textarea:focus-visible { outline: 2px solid #7c873b; outline-offset: 3px; }
+.account-tickets-body button:disabled { opacity: .5; cursor: wait; }
+@media (max-width:800px) {
+    .account-tickets-page { margin-top: calc(75px + var(--banner-gap,16px) + 16px); padding: 0 12px 28px; }
+    .account-tickets-desk { padding: 20px 16px; border-radius: 22px; }
+    .account-tickets-heading { align-items: start; flex-direction: column; gap: 18px; margin-bottom: 22px; }
+    .account-tickets-heading h1 { font-size: 1.5rem; }
+    .account-ticket-actions { width: 100%; gap: 8px; }
+    .account-ticket-actions .support-button { flex: 1 1 auto; min-width: 0; min-height: 42px; padding: 8px 14px; font-size: .8rem; }
+    .account-ticket-layout { grid-template-columns: minmax(0,1fr); gap: 22px; }
+    .account-ticket-inbox h2 { margin-bottom: 10px; padding-inline: 4px; }
+    .account-ticket-inbox-card { padding: 8px; }
+    .account-ticket-list { display: flex; gap: 8px; max-height: none; overflow-x: auto; padding: 4px; scroll-snap-type: x proximity; }
+    .account-ticket-list>li { flex: 0 0 176px; scroll-snap-align: start; }
+    .account-ticket-list button { min-height: 104px; }
+    .account-ticket-inbox #my-ticket-more { width: auto; }
+    .account-ticket-form-row { grid-template-columns: minmax(0,1fr); gap: 14px; }
+    .account-ticket-form-row input, .account-ticket-form-row select { font-size: .84rem; padding-inline: 16px; }
+    .account-ticket-meta { gap: 8px; }
+    .account-ticket-detail .support-messages { padding: 12px; max-height: 380px; }
+    .account-ticket-detail .support-message { width: 96%; }
+    .account-ticket-workspace { min-height: 280px; }
+}
+@media (prefers-reduced-motion:reduce) { .account-tickets-body * { scroll-behavior: auto !important; } }

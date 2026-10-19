@@ -12,27 +12,46 @@
 <body class="account-tickets-body">
  <div id="top-banner" data-page="tickets"></div><script src="../js/banner.js"></script>
  <main class="account-tickets-page">
-  <header class="account-tickets-heading"><div><p>حساب کاربری</p><h1>تیکت‌های من</h1></div><div class="account-ticket-actions"><button type="button" id="my-ticket-new" class="support-button">ثبت تیکت جدید</button><button type="button" id="my-ticket-refresh" class="support-button secondary">تازه‌سازی فهرست</button></div></header>
-  <p id="my-ticket-error" class="support-error" role="alert" hidden></p><p id="my-ticket-wait" class="support-hint" aria-live="polite" hidden></p>
-  <section class="support-card account-ticket-create" id="my-ticket-create" hidden>
-   <h2>تیکت جدید</h2>
-   <form id="my-ticket-create-form">
-    <label>در کدام بخش مشکل دارید؟<select id="my-ticket-category" name="category"><option value="atlas">اطلس</option><option value="explorer">کاوشگر</option><option value="profile">پروفایل</option><option value="account">حساب کاربری</option><option value="login">ورود</option><option value="register">ثبت‌نام</option><option value="reset">بازیابی رمز</option><option value="otp">کد پیامک</option><option value="other">سایر موارد</option></select></label>
-    <label>عنوان کوتاه<input id="my-ticket-subject" name="subject" minlength="3" maxlength="160" required autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></label>
-    <label>شرح مشکل<textarea id="my-ticket-message" name="message" rows="5" maxlength="4000" required></textarea></label>
-    <div class="account-ticket-actions"><button type="submit" id="my-ticket-submit" class="support-button">ثبت تیکت</button><button type="button" id="my-ticket-cancel" class="support-button secondary">انصراف</button></div>
-   </form>
+  <section class="account-tickets-desk" aria-labelledby="tickets-heading">
+   <header class="account-tickets-heading">
+    <div><a class="account-tickets-back" href="profile.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/><circle cx="12" cy="12" r="10"/></svg><span>حساب کاربری</span></a><h1 id="tickets-heading">تیکت‌های من</h1></div>
+    <div class="account-ticket-actions">
+     <button type="button" id="my-ticket-new" class="support-button">ثبت تیکت</button>
+     <button type="submit" id="my-ticket-submit" form="my-ticket-create-form" class="support-button" hidden>ثبت تیکت</button>
+     <button type="submit" id="my-ticket-send" form="my-ticket-reply-form" class="support-button" hidden>ارسال پاسخ</button>
+     <button type="button" id="my-ticket-refresh" class="account-ticket-refresh-button" aria-label="تازه‌سازی فهرست" title="تازه‌سازی فهرست"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 11a9 9 0 0 1 15.4-6.4L21 7"/><path d="M21 3v4h-4"/><path d="M21 13a9 9 0 0 1-15.4 6.4L3 17"/><path d="M7 17H3v4"/></svg></button>
+    </div>
+   </header>
+   <p id="my-ticket-error" class="support-error" role="alert" hidden></p><p id="my-ticket-wait" class="support-hint" aria-live="polite" hidden></p>
+   <div class="account-ticket-layout">
+    <aside class="account-ticket-inbox" aria-labelledby="tickets-inbox-heading">
+     <h2 id="tickets-inbox-heading">گفتگوهای شما</h2>
+     <div class="account-ticket-inbox-card">
+      <p id="my-ticket-loading" class="support-hint" role="status">در حال دریافت تیکت‌ها…</p><p id="my-ticket-empty" class="support-hint" hidden>هنوز تیکتی ثبت نکرده‌اید.</p>
+      <ul id="my-ticket-list" class="account-ticket-list"></ul><button type="button" id="my-ticket-more" class="support-button secondary" hidden>نمایش بیشتر</button>
+     </div>
+    </aside>
+    <div class="account-ticket-workspace">
+     <section class="account-ticket-create" id="my-ticket-create" hidden aria-labelledby="tickets-create-heading">
+      <header class="account-ticket-section-head"><h2 id="tickets-create-heading">تیکت جدید</h2><button type="button" id="my-ticket-cancel" class="account-ticket-text-button">انصراف</button></header>
+      <form id="my-ticket-create-form" class="account-ticket-form">
+       <div class="account-ticket-form-row">
+        <label class="account-ticket-category"><span class="visually-hidden">در کدام بخش مشکل دارید؟</span><select id="my-ticket-category" name="category" required><option value="" disabled selected>در کدام بخش مشکل دارید؟</option><option value="atlas">اطلس</option><option value="explorer">کاوشگر</option><option value="profile">پروفایل</option><option value="account">حساب کاربری</option><option value="login">ورود</option><option value="register">ثبت‌نام</option><option value="reset">بازیابی رمز</option><option value="otp">کد پیامک</option><option value="other">سایر موارد</option></select></label>
+        <label><span class="visually-hidden">عنوان کوتاه</span><input id="my-ticket-subject" name="subject" placeholder="عنوان کوتاه" minlength="3" maxlength="160" required autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></label>
+       </div>
+       <label class="account-ticket-description"><span>شرح مشکل</span><textarea id="my-ticket-message" name="message" rows="6" maxlength="4000" required></textarea></label>
+      </form>
+     </section>
+     <section class="account-ticket-placeholder" id="my-ticket-placeholder"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M10 10h28a5 5 0 0 1 5 5v17a5 5 0 0 1-5 5H23l-12 8v-8h-1a5 5 0 0 1-5-5V15a5 5 0 0 1 5-5Z"/><path d="M14 20h20M14 28h13"/></svg><p id="my-ticket-placeholder-text">برای مشاهده گفتگو، یک تیکت را انتخاب کنید.</p></section>
+     <article class="account-ticket-detail" id="my-ticket-detail" hidden>
+      <header class="account-ticket-detail-head"><h2 id="my-ticket-title"></h2><span id="my-ticket-status" class="support-badge"></span></header>
+      <div class="account-ticket-meta"><span>کد پیگیری <code id="my-ticket-reference" dir="ltr"></code></span><button type="button" id="my-ticket-copy" class="account-ticket-icon-button" aria-label="کپی کد پیگیری" title="کپی کد پیگیری"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M15 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></svg></button><button type="button" id="my-ticket-reload" class="account-ticket-text-button">بررسی پاسخ تازه</button></div>
+      <div id="my-ticket-messages" class="support-messages" aria-live="polite"></div>
+      <form id="my-ticket-reply-form" class="account-ticket-reply"><label for="my-ticket-reply">پاسخ شما</label><textarea id="my-ticket-reply" rows="2" minlength="2" maxlength="4000" required aria-label="پاسخ شما"></textarea></form>
+     </article>
+    </div>
+   </div>
   </section>
-  <div class="account-ticket-layout">
-   <aside class="support-card account-ticket-inbox" aria-label="فهرست تیکت‌ها"><h2>گفتگوهای شما</h2><p id="my-ticket-loading" class="support-hint" role="status">در حال دریافت تیکت‌ها…</p><p id="my-ticket-empty" class="support-hint" hidden>هنوز تیکتی ثبت نکرده‌اید.</p><ul id="my-ticket-list" class="account-ticket-list"></ul><button type="button" id="my-ticket-more" class="support-button secondary" hidden>نمایش بیشتر</button></aside>
-   <section class="support-card account-ticket-placeholder" id="my-ticket-placeholder"><p>برای مشاهده گفتگو، یک تیکت را انتخاب کنید.</p></section>
-   <article class="support-card account-ticket-detail" id="my-ticket-detail" hidden>
-    <header class="account-ticket-detail-head"><h2 id="my-ticket-title"></h2><span id="my-ticket-status" class="support-badge"></span></header>
-    <div class="account-ticket-meta"><code id="my-ticket-reference" dir="ltr"></code><button type="button" id="my-ticket-copy" class="support-button secondary">کپی کد پیگیری</button><button type="button" id="my-ticket-reload" class="support-button secondary">بررسی پاسخ تازه</button></div>
-    <div id="my-ticket-messages" class="support-messages" aria-live="polite"></div>
-    <form id="my-ticket-reply-form"><label>پاسخ شما<textarea id="my-ticket-reply" rows="4" minlength="2" maxlength="4000" required></textarea></label><button type="submit" id="my-ticket-send" class="support-button">ارسال پاسخ</button></form>
-   </article>
-  </div>
  </main>
 </body>
 </html>
