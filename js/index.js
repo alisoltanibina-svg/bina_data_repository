@@ -11,6 +11,12 @@ function curtainScroller() {
     return (curtain && curtain.querySelector('.entry-scroll')) || curtain;
 }
 
+function isMobileAtlasCovered() {
+    return window.matchMedia('(max-width: 767px)').matches
+        && !!document.getElementById('entry-view-curtain')
+        && (!document.documentElement.classList.contains('atlas-view') || document.documentElement.classList.contains('curtain-auth'));
+}
+
 function deferMobileCurtainMapSync() {
     return !!(window.atlasCurtainMotion && window.atlasCurtainMotion.deferMapSync());
 }
@@ -21,7 +27,7 @@ function syncVisualViewportHeight() {
     if (ae && ae.matches && ae.matches('input, textarea, select') && !document.documentElement.classList.contains('curtain-auth')) return;
     const vp = window.visualViewport;
     const h = Math.round((vp && vp.height) || window.innerHeight || 0);
-    if (h > 0) document.documentElement.style.setProperty('--vvh', h + 'px');
+    if (h > 0 && document.documentElement.style.getPropertyValue('--vvh') !== h + 'px') document.documentElement.style.setProperty('--vvh', h + 'px');
 }
 
 function initCurtainBannerOffset() {
@@ -31,24 +37,30 @@ function initCurtainBannerOffset() {
     if (!curtain || !banner) return;
     const sync = () => {
         if (window.atlasCurtainMotion && window.atlasCurtainMotion.isMoving()) return;
+        // Read dimensions together before writing styles to avoid repeated forced layout.
+        const bannerH = `${Math.round(banner.getBoundingClientRect().bottom)}px`;
+        const dockH = dock ? `${Math.max(76, Math.round(dock.getBoundingClientRect().height) || 0)}px` : '';
         syncVisualViewportHeight();
-        curtain.style.setProperty('--curtain-banner-h', `${Math.round(banner.getBoundingClientRect().bottom)}px`);
-        if (dock) {
-            const dockH = Math.max(76, Math.round(dock.getBoundingClientRect().height) || 0);
-            curtain.style.setProperty('--curtain-dock-h', `${dockH}px`);
-        }
+        if (curtain.style.getPropertyValue('--curtain-banner-h') !== bannerH) curtain.style.setProperty('--curtain-banner-h', bannerH);
+        if (dock && curtain.style.getPropertyValue('--curtain-dock-h') !== dockH) curtain.style.setProperty('--curtain-dock-h', dockH);
+    };
+    let frame = 0;
+    const requestSync = () => {
+        if (!isCompactMap()) { sync(); return; }
+        if (frame) return;
+        frame = requestAnimationFrame(() => { frame = 0; sync(); });
     };
     sync();
     if (typeof ResizeObserver !== 'undefined') {
-        const ro = new ResizeObserver(sync);
+        const ro = new ResizeObserver(requestSync);
         ro.observe(banner);
         if (dock) ro.observe(dock);
     } else {
-        window.addEventListener('resize', sync);
+        window.addEventListener('resize', requestSync);
     }
-    window.addEventListener('resize', sync);
-    if (window.visualViewport) window.visualViewport.addEventListener('resize', sync);
-    window.addEventListener('atlascurtainsettled', sync);
+    window.addEventListener('resize', requestSync);
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', requestSync);
+    window.addEventListener('atlascurtainsettled', requestSync);
 }
 
 function initCurtainReveal() {
@@ -333,7 +345,11 @@ function bindMapPanelDock() {
     placeAtlasNav();
     syncDock();
     if (typeof MutationObserver === 'function') {
+        let lastAtlas = document.documentElement.classList.contains('atlas-view');
         const mo = new MutationObserver(function () {
+            const atlas = document.documentElement.classList.contains('atlas-view');
+            if (isCompactMap() && atlas === lastAtlas) return;
+            lastAtlas = atlas;
             placeAtlasNav();
             syncDock();
         });
@@ -1048,6 +1064,8 @@ async function initMap() {
         minZoom: worldMinZoom(),
         maxZoom: MAP_MAX_ZOOM,
         zoomControl: false,
+        // Mobile resizing is already managed by our observer and visibility guard.
+        trackResize: !isCompactMap(),
         worldCopyJump: false,
         maxBounds: MAP_WORLD_BOUNDS,
         maxBoundsViscosity: 1.0
@@ -1071,7 +1089,7 @@ async function initMap() {
             if (w < 2 || h < 2 || (w === lastW && h === lastH)) return;
             lastW = w;
             lastH = h;
-            if (deferMobileCurtainMapSync()) return;
+            if (isMobileAtlasCovered() || deferMobileCurtainMapSync()) return;
             map.invalidateSize({ animate: false, pan: false });
             refitMapView({ animate: false });
         });
@@ -1331,7 +1349,8 @@ function updateRightPanel(provinceName) {
 
 // Responsive resize handling: keep maps and charts sized correctly across displays
 const onGlobalResize = debounce(() => {
-    if (deferMobileCurtainMapSync()) return;
+    // Keyboard/browser-chrome resizes must not refit the map hidden under account forms.
+    if (isMobileAtlasCovered() || deferMobileCurtainMapSync()) return;
     try { if (map && typeof map.invalidateSize === 'function') map.invalidateSize(true); } catch (e) {}
     try { refitMapView({ animate: false }); } catch (e) {}
     try { if (rankingBarChart && typeof rankingBarChart.resize === 'function') rankingBarChart.resize(); } catch (e) {}

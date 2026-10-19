@@ -723,3 +723,8 @@ body.profile-body #birth_date.is-filled {
     body.profile-body .register-card textarea,
     body.profile-body .register-card select { scroll-margin-block:100px 24px; }
 }
+
+@media (max-width:767px) {
+    body.profile-body .register-card { backdrop-filter:blur(8px) saturate(1.1); -webkit-backdrop-filter:blur(8px) saturate(1.1); }
+    body.profile-body .register-field>span,body.profile-body .register-field input { transition:none; }
+}

@@ -485,3 +485,7 @@ body.auth-body .register-error {
 
     body.auth-body .register-card h1 { font-size: 1.4rem; }
 }
+
+@media (max-width:767px) {
+    body.auth-body .register-card { backdrop-filter:blur(8px) saturate(1.1); -webkit-backdrop-filter:blur(8px) saturate(1.1); }
+}

@@ -17,6 +17,7 @@
             return true;
         }
         cleanup();
+        if (typeof map !== 'undefined' && map && typeof map.stop === 'function') map.stop();
         const version = ++generation;
         if (!moving) root.style.setProperty('--curtain-motion-height', curtain.getBoundingClientRect().height + 'px');
         moving = true; pendingMap = open;

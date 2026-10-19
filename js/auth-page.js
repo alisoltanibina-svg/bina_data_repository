@@ -96,7 +96,14 @@ function setError(name, message) {
     }
 }
 
+let authPanelVersion = 0;
+let authPanelTimer = 0;
+let mobileAuthAnimation = null;
+
 function showPanel(id) {
+    const version = ++authPanelVersion;
+    window.clearTimeout(authPanelTimer);
+    if (mobileAuthAnimation) { mobileAuthAnimation.cancel(); mobileAuthAnimation = null; }
     authStage = id;
     updateAuthSupport();
     const apply = () => {
@@ -111,8 +118,18 @@ function showPanel(id) {
         apply();
         return;
     }
+    if (window.matchMedia('(max-width: 767px)').matches) {
+        apply();
+        stage.classList.remove('is-swap');
+        if (typeof stage.animate === 'function') mobileAuthAnimation = stage.animate([
+            {opacity:0,transform:'translate3d(0,8px,0)'},
+            {opacity:1,transform:'translate3d(0,0,0)'}
+        ], {duration:180,easing:'ease-out'});
+        return;
+    }
     stage.classList.add('is-swap');
-    window.setTimeout(() => {
+    authPanelTimer = window.setTimeout(() => {
+        if (version !== authPanelVersion) return;
         apply();
         stage.classList.remove('is-swap');
     }, 180);
@@ -136,6 +153,9 @@ function openCurtainAuth() {
 }
 
 function closeCurtainAuth() {
+    ++authPanelVersion;
+    window.clearTimeout(authPanelTimer);
+    if (mobileAuthAnimation) { mobileAuthAnimation.cancel(); mobileAuthAnimation = null; }
     clearOtpVerification();
     const stage = document.getElementById('entry-auth-stage');
     const home = document.getElementById('entry-launch-home');
@@ -402,7 +422,20 @@ function revealFocusedAuthField(input) {
     if (!stage || !stage.contains(input) || !document.documentElement.classList.contains('curtain-auth')) return;
     document.documentElement.classList.add('auth-keyboard-open');
     [0, 180, 380].forEach(delay => window.setTimeout(() => {
-        if (document.activeElement === input) input.scrollIntoView({ block: 'center', inline: 'nearest', behavior: delay ? 'smooth' : 'auto' });
+        if (document.activeElement !== input || stage.hidden || !document.documentElement.classList.contains('curtain-auth')) return;
+        const scroller = document.querySelector('#entry-view-curtain .entry-scroll');
+        if (!scroller) return;
+        const viewport = window.visualViewport;
+        if (viewport && viewport.scale > 1.05) return;
+        const viewportTop = viewport ? viewport.offsetTop : 0;
+        const viewportBottom = viewportTop + (viewport ? viewport.height : window.innerHeight);
+        const area = scroller.getBoundingClientRect();
+        const bounds = input.getBoundingClientRect();
+        const top = Math.max(viewportTop, area.top) + 12;
+        const bottom = Math.min(viewportBottom, area.bottom) - 16;
+        if (bottom <= top || bounds.bottom <= bounds.top) return;
+        const delta = bounds.top < top ? bounds.top - top : bounds.bottom > bottom ? bounds.bottom - bottom : 0;
+        if (Math.abs(delta) > 1) scroller.scrollBy({top:delta,behavior:'auto'});
     }, delay));
 }
 

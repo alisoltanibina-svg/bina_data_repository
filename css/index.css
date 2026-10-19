@@ -2242,3 +2242,26 @@ html.atlas-view .index-item.active .index-item-text {
     }
     html.mobile-curtain-moving .entry-scroll { transition:none; }
 }
+
+/* Mobile account motion changes opacity/transform, not card geometry each frame. */
+@media (max-width:767px) {
+    .entry-hero-stack,.entry-launch,.entry-scroll { transition:none; }
+    .entry-launch { backdrop-filter:blur(8px) saturate(1.1); -webkit-backdrop-filter:blur(8px) saturate(1.1); }
+    html.curtain-to-profile .entry-launch { backdrop-filter:blur(8px) saturate(1.1); -webkit-backdrop-filter:blur(8px) saturate(1.1); }
+    html.curtain-auth .entry-auth-stage { animation:mobile-auth-stage-in .18s ease-out; }
+    html.curtain-auth .entry-scroll { scroll-behavior:auto; }
+    #auth-register .register-field>span,#auth-register .register-field input { transition:none; }
+    html.mobile-curtain-moving .leaflet-tile-pane,
+    html.mobile-curtain-moving path.leaflet-interactive,
+    html.mobile-curtain-moving #map,
+    html.mobile-curtain-moving #left-popup-panel,
+    html.mobile-curtain-moving #right-panel,
+    html.mobile-curtain-moving #map-legend { transition:none !important; }
+    html.treat-v1.mobile-curtain-moving .floating-box,
+    html.treat-v1.mobile-curtain-moving .right-card,
+    html.treat-v1.mobile-curtain-moving #left-popup-panel { backdrop-filter:none; -webkit-backdrop-filter:none; }
+}
+@keyframes mobile-auth-stage-in {
+    from { opacity:0; transform:translate3d(0,8px,0); }
+    to { opacity:1; transform:translate3d(0,0,0); }
+}

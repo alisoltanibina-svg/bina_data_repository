@@ -242,7 +242,10 @@
     }
 
     function goHomeFromProfile() {
-        try { sessionStorage.setItem('bina-profile-return', '1'); } catch (e) {}
+        try {
+            if (window.matchMedia('(max-width: 767px)').matches) sessionStorage.removeItem('bina-profile-return');
+            else sessionStorage.setItem('bina-profile-return', '1');
+        } catch (e) {}
         window.location.href = homeHref();
     }
 
@@ -260,6 +263,10 @@
     }
 
     function playProfileReturn() {
+        if (window.matchMedia('(max-width: 767px)').matches) {
+            document.documentElement.classList.remove('curtain-to-profile', 'curtain-to-profile-instant');
+            return;
+        }
         if (!document.documentElement.classList.contains('curtain-to-profile')) return;
         if (!document.getElementById('entry-dock')) return;
         requestAnimationFrame(function () {

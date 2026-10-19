@@ -33,18 +33,15 @@ html.auth-pending body {
     visibility: hidden;
 }
 
-@media (max-width: 767px) {
-    @view-transition {
-        navigation: none;
-    }
-    .entry-launch,
-    body.profile-body #profile-main {
-        view-transition-name: none;
-    }
-}
-
 @view-transition {
     navigation: auto;
+}
+
+/* Keep this after the default so mobile navigation does not capture large snapshots. */
+@media (max-width: 767px) {
+    @view-transition { navigation: none; }
+    html .entry-launch,
+    html body.profile-body #profile-main { view-transition-name: none; }
 }
 
 ::view-transition-group(account-card) {
