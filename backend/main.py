@@ -905,6 +905,7 @@ class ProfileBody(InputBody):
 
 
 _MEMBERSHIP_HTTP = {
+    "sms-unavailable": 503,
     "first_name": 400,
     "last_name": 400,
     "phone": 400,

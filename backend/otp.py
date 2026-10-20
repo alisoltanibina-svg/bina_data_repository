@@ -22,7 +22,6 @@ from backend.settings import get_settings
 log = logging.getLogger("backend.otp")
 
 PURPOSES = frozenset({"register", "reset"})
-DEV_OTP = "123456"
 _LOOKUP_TEMPLATE_DEFAULT = "binaappotp"
 
 
@@ -237,6 +236,12 @@ def send_otp(phone: str, purpose: str) -> dict:
 
     with db_session() as session:
         _assert_send_allowed(session, phone, purpose)
+        # Fail before changing challenges or creating a code when SMS is unavailable.
+        if not _kavenegar_configured():
+            raise MembershipError(
+                "sms-unavailable",
+                "ارسال پیامک تأیید موقتاً در دسترس نیست. لطفاً بعداً دوباره تلاش کنید.",
+            )
         latest = session.execute(
             select(OtpChallenge)
             .where(
@@ -262,7 +267,7 @@ def send_otp(phone: str, purpose: str) -> dict:
         for row in open_rows:
             row.consumed_at = now
 
-        code = DEV_OTP if not _kavenegar_configured() else f"{secrets.randbelow(1_000_000):06d}"
+        code = f"{secrets.randbelow(1_000_000):06d}"
         salt = secrets.token_hex(8)
         session.add(
             OtpChallenge(
@@ -274,10 +279,6 @@ def send_otp(phone: str, purpose: str) -> dict:
                 attempts=0,
             )
         )
-
-    if not _kavenegar_configured():
-        log.info("otp send skipped (no API key) phone=%s purpose=%s", _mask_phone(phone), purpose)
-        return {"ok": True, "ttl_seconds": ttl, "resend_seconds": cooldown}
 
     def _deliver() -> None:
         try:
