@@ -4,6 +4,20 @@
 //   lazy-loading of large background images, and search suggestions.
 // Notes: Comments standardized to English; Persian UI strings are not modified.
 
+// Format scores consistently; years keep their ungrouped calendar labels.
+const explorerNumberFormatter = new Intl.NumberFormat('en-US', {
+    useGrouping: true,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
+});
+
+function formatExplorerNumber(value) {
+    if (value === null || value === undefined || value === '' || !Number.isFinite(Number(value))) return '';
+    // Normalize rounded negative zero before adding grouping and Persian digits.
+    const rounded = Number(Number(value).toFixed(2));
+    return toFa(explorerNumberFormatter.format(rounded === 0 ? 0 : rounded));
+}
+
 // -- Explorer page initialization --
 function registerExplorerChartPlugin() {
     if (typeof Chart === 'undefined' || registerExplorerChartPlugin._done) return;
@@ -867,7 +881,7 @@ function drawScatterProvince() {
                     bodyFont: { family: 'PeydaFaNumWeb', size: 13, weight: 'bold' },
                     callbacks: {
                         title: (items) => (items[0] && items[0].raw && items[0].raw.province) || '',
-                        label: (ctx) => `امتیاز: ${toFaFixed(ctx.parsed.y, 2)}`
+                        label: (ctx) => `امتیاز: ${formatExplorerNumber(ctx.parsed.y)}`
                     }
                 }
             },
@@ -890,7 +904,7 @@ function drawScatterProvince() {
                         includeBounds: false,
                         font: { family: 'PeydaFaNumWeb' },
                         color: '#64748b',
-                        callback: (v) => toFaFixed(v, 2)
+                        callback: (v) => formatExplorerNumber(v)
                     },
                     grid: { color: '#e2e8f0', drawBorder: false },
                     title: {
@@ -954,7 +968,7 @@ function renderIndicatorTable() {
         currentChartYears.forEach(year => {
             const cell = document.createElement('td');
             const score = scoresByProvinceYear.get(`${provinceName}\u0000${year}`);
-            cell.textContent = Number.isFinite(score) ? toFaFixed(score, 2) : '—';
+            cell.textContent = Number.isFinite(score) ? formatExplorerNumber(score) : '—';
             row.appendChild(cell);
         });
         body.appendChild(row);
@@ -1179,13 +1193,13 @@ function updateExplorerMapLegend(min, max, hasValues) {
     const minLabel = document.getElementById('explorer-map-legend-min');
     const maxLabel = document.getElementById('explorer-map-legend-max');
     if (!minLabel || !maxLabel) return;
-    minLabel.textContent = hasValues ? toFa(Math.floor(min)) : '—';
-    maxLabel.textContent = hasValues ? toFa(Math.ceil(max)) : '—';
+    minLabel.textContent = hasValues ? formatExplorerNumber(Math.floor(min)) : '—';
+    maxLabel.textContent = hasValues ? formatExplorerNumber(Math.ceil(max)) : '—';
     const bar = document.querySelector('.explorer-map-legend-bar');
     if (bar) Array.from(bar.children).forEach((segment, index) => {
         const lower = min + (max - min) * index / EXPLORER_LEGEND_STAGES;
         const upper = min + (max - min) * (index + 1) / EXPLORER_LEGEND_STAGES;
-        const label = hasValues ? `امتیاز از ${toFaFixed(lower, 2)} تا ${toFaFixed(upper, 2)}` : 'بدون داده';
+        const label = hasValues ? `امتیاز از ${formatExplorerNumber(lower)} تا ${formatExplorerNumber(upper)}` : 'بدون داده';
         segment.setAttribute('aria-label', label);
         segment.title = label;
     });
@@ -1374,7 +1388,7 @@ function renderExplorerMap() {
                 layer.bringToFront();
             });
             const score = scores.get(normalizeMapProvinceName(name));
-            const scoreText = Number.isFinite(score) ? `امتیاز: ${toFaFixed(score, 2)}` : 'داده‌ای ثبت نشده است';
+            const scoreText = Number.isFinite(score) ? `امتیاز: ${formatExplorerNumber(score)}` : 'داده‌ای ثبت نشده است';
             layer.bindTooltip(`${escapeMapLabel(name)}<br>${scoreText}`, { sticky: true, direction: 'top', className: 'explorer-score-tooltip' });
             explorerProvinceLabel(name, feature).addTo(explorerMapLabelsLayer);
         }
@@ -1536,12 +1550,15 @@ function getChartOptions() {
                 titleFont: { family: 'PeydaFaNumWeb', size: 14 }, bodyFont: { family: 'PeydaFaNumWeb', size: 13, weight: 'bold' }, rtl: true,
                 backgroundColor: 'rgba(255, 255, 255, 0.95)', titleColor: '#1f2937', bodyColor: '#1f2937',
                 borderColor: '#e5e7eb', borderWidth: 1, padding: 12, boxPadding: 6,
-                displayColors: true
+                displayColors: true,
+                callbacks: {
+                    label: (ctx) => `${ctx.dataset.label ? ctx.dataset.label + ': ' : ''}${formatExplorerNumber(ctx.parsed.y)}`
+                }
             }
         },
         scales: {
             x: { ticks: { font: { family: 'PeydaFaNumWeb' }, color: '#64748b' }, grid: { display: false } },
-            y: { ...getIndicatorScaleBounds(), ticks: { includeBounds: false, font: { family: 'PeydaFaNumWeb' }, color: '#64748b' }, grid: { color: '#e2e8f0', drawBorder: false }, border: { dash: [4, 4] } }
+            y: { ...getIndicatorScaleBounds(), ticks: { includeBounds: false, callback: formatExplorerNumber, font: { family: 'PeydaFaNumWeb' }, color: '#64748b' }, grid: { color: '#e2e8f0', drawBorder: false }, border: { dash: [4, 4] } }
         }
     };
 }
