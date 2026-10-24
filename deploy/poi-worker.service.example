@@ -13,6 +13,7 @@ Restart=on-failure
 RestartSec=15
 TimeoutStopSec=60
 KillSignal=SIGTERM
+LimitCORE=0
 NoNewPrivileges=true
 PrivateTmp=true
 

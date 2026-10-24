@@ -7,6 +7,8 @@
     const time = t => t ? new Date(t).toLocaleString('fa-IR', {timeZone:'Asia/Tehran'}) : '—';
     let loadPromise = null, actionBusy = false, lastStatus = null, jobId = '', layersLoaded = false;
     const readinessMessages = {
+        authorization_required: 'گردآوری تا تکمیل NDA و تأیید مجوز استفادهٔ داخلی متوقف است. نمایش اطلاعات POI روی نقشه مجاز نیست.',
+        storage_cleanup_required: 'اطلاعات قدیمی Nearby هنوز در پایگاه داده وجود دارد. پیش از ادامه، فرمان پاک‌سازی را با پردازشگر متوقف اجرا کنید.',
         missing_service_key: 'کلید سرویس نشان هنوز تنظیم نشده است؛ گردآوری قابل شروع نیست. پس از فعال‌سازی دسترسی، NESHAN_SERVICE_API_KEY را روی سرور تنظیم کنید.',
         no_active_job: 'برنامهٔ فعالی وجود ندارد. برای آماده‌سازی، بخش «ساخت برنامهٔ سراسری جدید» را باز کنید. ساخت برنامه به نشان درخواستی نمی‌فرستد.',
         worker_not_running: 'پردازشگر گردآوری اجرا نشده یا ارتباط آن قطع است. برای ادامه، ابتدا پردازشگر جداگانه را روی سرور اجرا کنید.'
@@ -31,7 +33,7 @@
         $('poi-readiness').textContent = readinessMessages[data.resume_blocked_reason] || (data.paused ? 'گردآوری متوقف است؛ برای ادامه از دکمهٔ «ادامهٔ گردآوری» استفاده کنید.' : 'گردآوری برای پردازش برنامهٔ فعال آماده است.');
         $('poi-worker').textContent = 'وضعیت: ' + (labels[data.state] || data.state) + ' · پردازشگر: ' + (data.worker_alive ? 'متصل' : 'قطع / اجرا نشده');
         $('poi-timing').textContent = 'آخرین ضربان: ' + time(data.heartbeat_at) + ' · زودترین درخواست بعدی: ' + time(data.next_request_at);
-        const reasonLabels = {'No worker or job yet':'هنوز پردازشگر یا برنامه‌ای ثبت نشده است.', 'Paused by administrator':'گردآوری با درخواست مدیر متوقف شده است.', 'New job ready; resume to begin':'برنامهٔ جدید آماده است؛ پس از آماده‌شدن کلید و پردازشگر می‌توانید گردآوری را ادامه دهید.', 'NESHAN_SERVICE_API_KEY is not configured':'کلید سرویس نشان تنظیم نشده است.'};
+        const reasonLabels = {'Nearby produced no new usable hashes; review area/category with Neshan before continuing':'Nearby هش جدیدی برای دریافت جزئیات برنگرداند. برای جلوگیری از درخواست‌های انبوه بدون POI، گردآوری متوقف شد؛ ناحیه و لایه را با نشان بررسی کنید.','No worker or job yet':'هنوز پردازشگر یا برنامه‌ای ثبت نشده است.', 'Paused by administrator':'گردآوری با درخواست مدیر متوقف شده است.', 'New job ready; resume to begin':'برنامهٔ جدید آماده است؛ پس از آماده‌شدن کلید و پردازشگر می‌توانید گردآوری را ادامه دهید.', 'NESHAN_SERVICE_API_KEY is not configured':'کلید سرویس نشان تنظیم نشده است.'};
         $('poi-reason').textContent = reasonLabels[data.reason] || data.reason || '';
         updateControls();
         $('poi-summary').replaceChildren();
@@ -45,6 +47,7 @@
         card('هش تکراری؛ درخواست جلوگیری‌شده',num(job && job.duplicates_skipped));
         card('نامزد مکان تکراری برای بررسی',num(data.duplicate_reviews));
         card('نتیجه بدون هش قابل استفاده',num(job && job.missing_hashes));
+        card('جست‌وجوی بدون نتیجه',num(job && job.empty_searches));
         const areas = job ? job.areas : [], grouped = new Map();
         areas.forEach(row => { const entry = grouped.get(row.province) || {complete:0,pending:0,failed:0,uncertain:0}; entry[row.status] = (entry[row.status] || 0)+row.count; grouped.set(row.province,entry); });
         const complete = areas.filter(r=>r.status==='complete').reduce((sum,r)=>sum+r.count,0);
@@ -105,7 +108,7 @@
         try {
             const [requests,reviews] = await Promise.all([adminFetch('/api/admin/poi/requests'+(jobId?'?job_id='+encodeURIComponent(jobId):'')),adminFetch('/api/admin/poi/duplicate-reviews')]);
             $('poi-history').replaceChildren(); $('poi-raw').textContent='';
-            requests.forEach(row=>{const li=document.createElement('li');const button=document.createElement('button');button.type='button';button.textContent=`${row.id} · ${row.kind} · ${labels[row.outcome] || row.outcome} · ${row.http_status || '—'} · ${time(row.started_at)}`;button.onclick=async()=>{try{$('poi-raw').textContent=JSON.stringify(await adminFetch('/api/admin/poi/requests/'+row.id),null,2);}catch(err){error(err);}};li.append(button);$('poi-history').append(li);});
+            requests.forEach(row=>{const li=document.createElement('li');const button=document.createElement('button');button.type='button';button.textContent=`${row.id} · ${row.kind} · ${labels[row.outcome] || row.outcome} · ${row.http_status || '—'} · نتایج: ${row.result_count ?? '—'} · هش: ${row.hash_count ?? '—'} · در صف جزئیات: ${row.queued_count ?? '—'} · ${time(row.started_at)}`;button.onclick=async()=>{try{$('poi-raw').textContent=JSON.stringify(await adminFetch('/api/admin/poi/requests/'+row.id),null,2);}catch(err){error(err);}};li.append(button);$('poi-history').append(li);});
             $('poi-reviews').replaceChildren();reviews.forEach(row=>{const li=document.createElement('li');li.textContent=row.place_id+' / '+row.other_place_id+' · '+row.reason;$('poi-reviews').append(li);});
         } catch(err) { error(err); }
     };

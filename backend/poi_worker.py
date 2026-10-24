@@ -1,5 +1,6 @@
 """Run with python -m backend.poi_worker. Never started by FastAPI lifecycle hooks."""
 import argparse
+from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
 import logging
@@ -10,18 +11,26 @@ from uuid import uuid4
 from sqlalchemy import select, text, update, func
 from sqlalchemy.orm import Session
 from backend import database
-from backend.poi import (LOCK_KEY, ACTIVE, control, now, plan_province, next_target, apply_reply, create_job)
+from backend.poi import (LOCK_KEY, ACTIVE, control, now, plan_province, next_target, apply_reply, create_job, storage_cleanup_required)
 from backend.poi_models import PoiControl, PoiJob, PoiSegment, PoiDetailTask, PoiRequest
 from backend.poi_provider import Neshan
 from backend.settings import get_settings
 
 log = logging.getLogger('poi_worker')
 
+@dataclass
+class PendingDetail:
+    segment_id: int
+    provider_id: str
+    attempts: int = 0
+
+
 class Worker:
     def __init__(self, provider, result_cap=0):
         self.provider, self.result_cap = provider, result_cap
         self.worker_id = socket.gethostname()[:50] + ':' + uuid4().hex
         self.stop = threading.Event()
+        self.pending = []  # Nearby hashes exist only in this process memory.
 
     def heartbeat(self):
         while not self.stop.wait(5):
@@ -39,11 +48,17 @@ class Worker:
         pending = session.scalars(select(PoiRequest).where(PoiRequest.outcome=='dispatched')).all()
         for req in pending:
             req.outcome, req.error, req.finished_at = 'uncertain', 'worker_interrupted_after_dispatch', now()
-            target = session.get(PoiSegment if req.kind=='nearby' else PoiDetailTask, req.target_id)
+            target = session.get(PoiSegment if req.target_type=='segment' else PoiDetailTask, req.target_id)
             if target: target.status = 'uncertain'
-        if pending or c.in_flight:
+        abandoned = session.scalars(select(PoiSegment).where(PoiSegment.status=='processing')).all()
+        for segment in abandoned: segment.status='uncertain'
+        if pending or c.in_flight or abandoned:
             c.paused, c.reason = True, 'Interrupted request has an unknown outcome; inspect history before retrying'
             c.next_request_at = max(c.next_request_at or now(), now()+timedelta(seconds=60))
+        if storage_cleanup_required(session):
+            c.paused, c.reason = True, 'Legacy Nearby data requires reviewed cleanup before collection'
+        if not get_settings().neshan_collection_authorized:
+            c.paused, c.reason = True, 'NDA/internal-use collection authorization is not configured'
         c.in_flight, c.worker_id, c.heartbeat_at = None, self.worker_id, now()
 
     def tick(self, connection, backend_pid):
@@ -59,15 +74,24 @@ class Worker:
             job = session.scalar(select(PoiJob).where(PoiJob.status.in_(ACTIVE)).order_by(PoiJob.created_at).limit(1))
             if not job: return
             job.status = 'running'
-            target = next_target(session, job)
+            pending_detail = self.pending[0] if self.pending else None
+            if pending_detail:
+                row = session.get(PoiSegment,pending_detail.segment_id)
+                if row.job_id != job.id or row.status != 'processing':
+                    self.pending.clear()
+                    c.paused,c.reason=True,'Transient Details batch requires review'
+                    return
+                target = ('details',row,{'hash':pending_detail.provider_id})
+            else:
+                target = next_target(session, job)
             if target is None:
                 planning_job_id = job.id
             else:
-                if target[0] == 'skip': return
                 if c.next_request_at and c.next_request_at > now(): return
                 kind, row, params = target
-                row.attempts += 1
-                req = PoiRequest(job_id=job.id, kind=kind, target_id=row.id, outcome='dispatched')
+                if pending_detail: pending_detail.attempts += 1
+                else: row.attempts += 1
+                req = PoiRequest(job_id=job.id, kind=kind, target_id=row.id, target_type='segment', outcome='dispatched')
                 session.add(req)
                 session.flush()
                 request_id = req.id
@@ -92,7 +116,18 @@ class Worker:
             raise RuntimeError('Collector lost its lock during the request')
         connection.commit()
         with Session(bind=connection) as session, session.begin():
-            apply_reply(session, request_id, reply, self.result_cap)
+            hashes=apply_reply(session,request_id,reply,self.result_cap,
+                detail_hash=pending_detail.provider_id if pending_detail else None,
+                detail_attempts=pending_detail.attempts if pending_detail else 0)
+            req=session.get(PoiRequest,request_id)
+            segment=session.get(PoiSegment,req.target_id)
+            if kind=='nearby':
+                self.pending=[PendingDetail(segment.id,h) for h in hashes]
+            elif req.outcome=='successful':
+                self.pending.pop(0)
+            elif segment.status in ('failed','uncertain'):
+                self.pending.clear()
+        del reply
 
     def run(self):
         with database.engine.connect() as connection:
@@ -136,10 +171,10 @@ def main():
         return
     settings = get_settings()
     key = settings.neshan_service_api_key.get_secret_value().strip()
-    if not key:
+    if not key or not settings.neshan_collection_authorized:
         with database.db_session() as session:
-            c=control(session);c.paused=True;c.reason='NESHAN_SERVICE_API_KEY is not configured'
-        raise SystemExit('Configure the server service key before starting the worker')
+            c=control(session);c.paused=True;c.reason='NDA/internal-use authorization or server service key is not configured'
+        raise SystemExit('Configure NESHAN_SERVICE_API_KEY and confirm NDA/internal-use rights with NESHAN_COLLECTION_AUTHORIZED=true')
     worker = Worker(Neshan(key), max(0,settings.neshan_nearby_result_cap))
     for event in (signal.SIGINT, signal.SIGTERM): signal.signal(event, lambda *_: worker.stop.set())
     worker.run()

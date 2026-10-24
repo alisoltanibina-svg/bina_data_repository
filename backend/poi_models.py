@@ -68,6 +68,7 @@ class PoiSegment(Base):
     status = C(S(16), nullable=False, default='pending', server_default='pending')
     attempts = counter()
     review_reason = C(T)
+    pending_details = counter()
 
 class PoiPlace(Base):
     __tablename__ = 'poi_places'
@@ -114,15 +115,20 @@ class PoiDetailTask(Base):
 
 class PoiRequest(Base):
     __tablename__ = 'poi_requests'
-    __table_args__ = (Index('idx_poi_request_job_outcome','job_id','kind','outcome'),)
+    __table_args__ = (Index('idx_poi_request_job_outcome','job_id','kind','outcome'),
+        CK("kind != 'nearby' OR raw_response IS NULL", name='ck_poi_no_nearby_payload'),)
     id = C(B, primary_key=True)
     job_id = job_fk()
     kind = C(S(12), nullable=False)
     target_id = C(B, nullable=False)
+    target_type = C(S(16), nullable=False, default='segment', server_default='segment')
+    result_count = C(I)
+    hash_count = C(I)
+    queued_count = C(I)
     outcome = C(S(16), nullable=False, default='dispatched')
     http_status = C(I)
     error = C(T)
-    raw_response = C(JSONB)
+    raw_response = C(JSONB(none_as_null=True))
     started_at = C(DateTime(timezone=True), nullable=False, server_default=func.now())
     finished_at = timestamp()
 

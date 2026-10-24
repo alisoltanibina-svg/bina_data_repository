@@ -62,7 +62,7 @@ test('an older poll cannot leave controls in the state before a pause',async()=>
 });
 
 test('missing job or worker explains why resume is unavailable',async()=>{
-    for(const reason of ['no_active_job','worker_not_running']) {
+    for(const reason of ['no_active_job','worker_not_running','authorization_required','storage_cleanup_required']) {
         const p=page(report({can_resume:false,resume_blocked_reason:reason}));await p.load();
         assert.equal(p.el('poi-resume').disabled,true);
         assert.ok(p.el('poi-readiness').textContent.length>20);

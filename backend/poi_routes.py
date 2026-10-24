@@ -73,7 +73,7 @@ def build_router(require_admin, require_user):
             if before: query=query.where(PoiRequest.id<before)
             rows=session.scalars(query).all()
             return response([dict(id=r.id,job_id=r.job_id,kind=r.kind,target_id=r.target_id,outcome=r.outcome,
-                http_status=r.http_status,error=r.error,started_at=r.started_at,finished_at=r.finished_at) for r in rows])
+                http_status=r.http_status,error=r.error,result_count=r.result_count,hash_count=r.hash_count,queued_count=r.queued_count,started_at=r.started_at,finished_at=r.finished_at) for r in rows])
 
     @router.get('/api/admin/poi/requests/{request_id}')
     def history_detail(request_id: int, request: Request):
@@ -81,7 +81,8 @@ def build_router(require_admin, require_user):
         with database.db_session() as session:
             row=session.get(PoiRequest,request_id)
             if not row: raise HTTPException(404,detail='Request not found')
-            return response(dict(id=row.id,outcome=row.outcome,raw_response=row.raw_response,error=row.error))
+            return response(dict(id=row.id,outcome=row.outcome,raw_response=row.raw_response if row.kind=='details' else None,error=row.error,
+                result_count=row.result_count,hash_count=row.hash_count,queued_count=row.queued_count))
 
     @router.get('/api/admin/poi/duplicate-reviews')
     def duplicate_reviews(request: Request, offset: int=Query(0,ge=0)):
@@ -99,35 +100,15 @@ def build_router(require_admin, require_user):
         return query
 
     @router.get('/api/pois')
-    def places(request: Request, category: str=Query('',max_length=100),province: str=Query('',max_length=100),
-               county: str=Query('',max_length=100),bbox: str=Query('',max_length=120),
-               after: UUID | None=None,limit: int=Query(500,ge=1,le=1000)):
-        require_user(request)
-        query=filter_places(select(PoiPlace),category,province,county).order_by(PoiPlace.id).limit(limit+1)
-        if after: query=query.where(PoiPlace.id>after)
-        if bbox:
-            try:
-                west,south,east,north=map(float,bbox.split(','))
-                if not (-180<=west<=east<=180 and -90<=south<=north<=90): raise ValueError()
-            except ValueError: raise HTTPException(422,detail='bbox must be west,south,east,north') from None
-            query=query.where(PoiPlace.longitude.between(west,east),PoiPlace.latitude.between(south,north))
-        with database.db_session() as session:
-            rows=session.scalars(query).all()
-            more=len(rows)>limit;rows=rows[:limit]
-            categories={}
-            if rows:
-                for place_id,slug in session.execute(select(PoiPlaceCategory.place_id,PoiPlaceCategory.category)
-                    .where(PoiPlaceCategory.place_id.in_([r.id for r in rows]))): categories.setdefault(place_id,[]).append(slug)
-            return response(dict(type='FeatureCollection',features=[dict(type='Feature',id=str(r.id),
-                geometry=dict(type='Point',coordinates=[r.longitude,r.latitude]),
-                properties=dict(name=r.name,address=r.address,province=r.province_name,county=r.county_name,
-                    categories=categories.get(r.id,[]),resolved_at=r.resolved_at,spatial_status=r.spatial_status)) for r in rows],
-                next_cursor=str(rows[-1].id) if more else None))
-
     @router.get('/api/pois/counts')
+    def map_data_disabled(request: Request):
+        require_user(request)
+        raise HTTPException(403,detail='مجوز نشان فقط استفادهٔ داخلی از اطلاعات POI را اجازه می‌دهد؛ نمایش روی نقشه مجاز نیست.')
+
+    @router.get('/api/admin/poi/counts')
     def counts(request: Request,category: str=Query('',max_length=100),province: str=Query('',max_length=100),
                county: str=Query('',max_length=100)):
-        require_user(request)
+        require_admin(request)
         with database.db_session() as session:
             query=filter_places(select(PoiPlace.province_name,PoiPlace.county_name,func.count()),category,province,county)
             rows=session.execute(query.group_by(PoiPlace.province_name,PoiPlace.county_name)).all()

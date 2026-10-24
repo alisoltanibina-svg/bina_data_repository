@@ -372,133 +372,125 @@ reads/claims, forged formats, traversal/control filenames, image bombs, metadata
 stripping, quotas, concurrent claims, close-during-upload races, stale uploads,
 orphan cleanup, CSRF, chunked body limits, and unexpected fields.
 
-## Nationwide POI collection
+## POI collection: NDA and retention restrictions
 
-The acquisition subsystem shares the application database and admin authentication,
-with a separate worker process. FastAPI never launches a collector. The admin panel's
-**گردآوری مکان‌ها** tab polls stored state every five seconds while visible.
+Neshan's account-specific support instruction supplied for this project permits
+retaining only POI Details output for internal use, forbids retaining Search/Nearby
+output, and forbids displaying the retained POI data on a map. The previous GeoJSON
+endpoint is disabled (HTTP 403), including for administrators. The aggregate endpoint
+is now admin-only at `/api/admin/poi/counts` for internal analysis; it must not be
+wired into a map. The generic `/api/pois/counts` endpoint is also disabled.
 
-Install dependencies and apply the migration before deploying the new API:
+Collection is disabled by default. `NESHAN_COLLECTION_AUTHORIZED=true` is an operator
+acknowledgement that the required NDA has been completed and Neshan has authorized
+this internal use; it is not automatic verification or a grant of rights. Confirm
+the applicable agreement covers the intended acquisition scope, permanent identity
+keys attached to successfully retrieved Details, internal aggregation, and the
+30–60 second scheduled handoff. Do not enable collection before that confirmation.
 
-```bash
-pip install -r requirements.txt
-alembic upgrade head
-python scripts/build_frontend.py
-```
+Nearby bodies are used transiently to extract hashes in memory. They are not saved
+in request history, place tables, caches, or durable task queues. Nearby names,
+coordinates, icons, categories and addresses are discarded. Only successful Details
+output creates or updates a place. Stable UUIDs and unique `(provider, provider_id)`
+identities apply to those Details records. Category associations come exclusively
+from Details output. Request timestamps/status, request origins and operational
+counts are retained; no Nearby payload or pending hash is written to them.
 
-Set `NESHAN_SERVICE_API_KEY` in the server environment or `.env`. This is a private
-service key, separate from the browser-visible `NESHAN_MAP_API_KEY`. Activate both
-services through Neshan support and confirm the account's collection/storage rights
-and account-specific quotas. The adapter follows the documented contracts:
-[Nearby](https://platform.neshan.org/docs/api/search-category/nearby/)
-(`GET /v1/nearby`, `location=lat,lng`, `layer`, `searchRadius`) and
-[Details](https://platform.neshan.org/docs/api/search-category/poi-details/)
-(`GET /v1/point`, one `hash`). No bulk Details endpoint is assumed.
+The worker prioritizes every fresh hash in the current in-memory batch before any
+further Nearby search. All calls, including retries, share the persisted 30–60 second
+cooldown and respect longer provider deadlines. A response with zero new eligible
+hashes (including an empty `nearestPoints` array, all missing hashes, or only resolved
+identities) automatically pauses collection. This conservative local rule prevents
+an unattended sequence of Nearby-only calls. It is not a provider-published request
+limit. Review the origin/category and obtain guidance from Neshan on handling empty
+rural/border cells before resuming; do not repeatedly resume to bypass this stop.
+There is no fake Details call when a response contains no hash.
 
-Start the independent worker under a process supervisor:
+Pause finishes an already dispatched request. Successful Details is saved; Nearby
+is still never saved. Pending hashes can remain in memory while the same worker is
+paused. A worker restart loses that volatile batch, marks its geographic segment
+uncertain, and pauses for review. Explicitly requeueing the segment reissues Nearby
+and skips Details identities already saved. Exact restoration of pending Nearby
+hashes across restarts is intentionally not supported under the non-retention rule.
+Operating-system swap, process dumps and external proxy/HTTP logs must also be
+reviewed; the service example disables core dumps. Avoid HTTP payload logging.
 
-```bash
-python -m backend.poi_worker
-```
+### Upgrade an existing installation
 
-A systemd example is in `deploy/poi-worker.service.example`; adjust the installation
-paths and service account. The worker owns a dedicated PostgreSQL session advisory
-lock, preventing another worker on the same database from dispatching calls. It
-checks connection identity before dispatch and before saving responses. Heartbeats
-run every five seconds. A heartbeat older than 45 seconds is reported as interrupted.
-Closing the panel, refreshing it, or restarting FastAPI has no effect on this worker.
+1. Pause collection and stop the actual collector process/service. FastAPI and the
+   worker are independent; restarting FastAPI alone does not stop an old worker.
+2. Deploy the new code and install requirements, then run `alembic upgrade head`.
+   Migration `0016_poi_nonretention` adds operational counts and a constraint that
+   rejects every new Nearby payload write. It pauses existing control state and
+   deliberately leaves old payloads for the explicit reviewed cleanup command.
+3. Review the cleanup dry run from the project root:
 
-Create a job in the admin tab, choose documented category identifiers and a radius
-(500–5000 metres), then press Resume. `formal_school` means school, whereas `school`
-is an educational institution. Jobs start paused; only one may be active at a time.
-Alternatively create a paused job from the CLI:
+   ```bash
+   python -m scripts.cleanup_nearby_storage
+   ```
 
-```bash
-python -m backend.poi_worker create --categories mosque,formal_school,library,park,hospital --radius 2000
-```
+4. To apply that reviewed removal, with the worker stopped:
 
-The planner snapshots and hashes `data/iran.geojson`, validates its 31 provinces,
-and visits provinces in stable administrative-code order. Each province's grid is
-committed atomically when it becomes the next province to process. Each grid cell
-intersecting a polygon receives an overlapping circumscribing search circle; this
-includes islands, rural land, narrow border slivers and remote regions. Search
-centres may fall just outside a boundary to cover its edge. Discovery coordinates
-and actual Details coordinates are assigned to administrative polygons independently
-of the search origin. Details are drained before the next Nearby request, and before
-progressing to another province. Failed or uncertain work is separately reported.
-The panel distinguishes planned areas from provinces still awaiting planning.
+   ```bash
+   python -m scripts.cleanup_nearby_storage --apply
+   ```
 
-At a 30–60 second interval, nationwide acquisition can take many months or longer,
-depending on radius, category count and number of discovered hashes. The worker
-always waits **an additional random 30–60 seconds after a response**; sequential
-HTTP requests alone do not impose this delay. Nearby, Details and every retry share
-one persisted schedule. Pause/resume preserves the deadline. HTTP 429/482 respects
-`Retry-After` and extends backoff. HTTP 481 (quota), 480/483/484/485 (access), and
-401/402/403 automatically pause with a visible reason. Server errors have bounded
-exponential retries; other failures pause for review. Redirects and hidden HTTP
-retries are disabled.
+   This irreversibly clears existing Nearby payloads, removes unresolved discovery
+   records and obsolete durable hash tasks, and rebuilds category links using only
+   saved Details output. It preserves confirmed Details records and UUIDs. It refuses
+   to apply while a worker owns the collection lock and leaves collection paused.
+   Database backups, WAL archives, exports and logs are not erased by this command;
+   arrange their retention/remediation according to the NDA and your records policy.
+5. Review the NDA/internal-use authorization and set `NESHAN_SERVICE_API_KEY` plus
+   `NESHAN_COLLECTION_AUTHORIZED=true` only when authorized. Do not put the private
+   service key in `NESHAN_MAP_API_KEY`, which is browser-visible.
+6. Build the frontend (`python scripts/build_frontend.py`), restart the existing
+   FastAPI service, and start one worker with `python -m backend.poi_worker` under a
+   supervisor. `deploy/poi-worker.service.example` is an example, not an installed
+   service. Confirm its paths and actual installed unit name.
+7. Review the existing geographic plan before pressing Resume. The empty searches
+   already observed do not demonstrate POI access or useful discovery coverage.
 
-Pause is serialized with dispatch in PostgreSQL. A committed dispatch is in flight:
-its response finishes and a successful result is saved even if Pause was pressed.
-The panel shows Pausing until it finishes, then Paused. Pause stops new Nearby,
-Details and retry attempts, and survives process restarts. Network timeouts, malformed
-responses and interrupted dispatches are **uncertain**, rather than counted as success
-or automatically retried. Inspect their raw responses in the request history. The
-explicit requeue control returns only failed/uncertain work to the same scheduler,
-leaves the job paused, and does not bypass cooldowns or resolved-hash deduplication.
-A provider may have received an uncertain request; exactly-once external execution
-cannot be guaranteed across a crash without provider idempotency support.
+The admin panel shows explicit setup blockers, worker heartbeat, waiting/paused
+state, request totals, empty-search counts and Details handoff counts. Request
+history provides `result_count`, `hash_count`, and `queued_count` for Nearby; its raw
+response is always null, even when historical payloads await cleanup. Polling the
+status route only reads the application's database and does not call Neshan.
 
-`poi_places` assigns stable internal UUIDs and has a unique `(provider, provider_id)`
-constraint. `poi_place_categories` preserves multiple category memberships without
-additional Details requests. Details payloads and request outcomes are retained in
-JSONB. Similar names within approximately 80 metres under different identifiers
-create review candidates; they are not merged automatically. The panel exposes
-candidates and both UUIDs for review.
+### Geographic planning and internal analysis
 
-Spatial matching uses Shapely's indexed point-in-polygon operation over versioned
-GeoJSON, without requiring a new PostGIS extension on the existing database.
-Shared boundary points are flagged ambiguous instead of choosing a province at
-random. The repository currently has **no county polygons**. To enable county
-assignment, supply a WGS84 GeoJSON FeatureCollection when creating a job:
+The existing `data/iran.geojson` supplies 31 province polygons. The planner snapshots
+and hashes these boundaries and visits stable province order, with overlapping
+500–5000 metre circles covering every intersecting grid cell, including remote land
+and border slivers. Planning a province commits atomically. Search coverage is never
+labelled as proven completeness of real-world places. This geometric plan remains
+subject to the authorized acquisition scope and the empty-search pause above.
+
+Only Details coordinates are spatially matched using Shapely against versioned
+polygons. Province/county names parsed from addresses remain separate, heuristic
+fields. No county dataset is bundled. To import WGS84 county polygons when creating
+a paused job, provide a GeoJSON FeatureCollection with `name`, `province_name`, and
+preferably stable `code` properties:
 
 ```bash
 python -m backend.poi_worker create --categories mosque,library --radius 2000 --counties /path/to/counties.geojson
 ```
 
-County feature properties must include `name`, `province_name` (matching an existing
-province), and preferably a stable `code`. Without county geometry, `county_name`
-remains null. Import county data for each job requiring county assignment. Postal
-province/county/city hints are stored separately as `address_province`,
-`address_county`, `address_city`, with `address_parse_status`. Unlabelled city tokens
-are heuristic, and unlabelled county names are not guessed. These hints never drive
-counts or spatial assignment. County density indicators also require county
-population data, which is not present in the current schema.
+Without that dataset, spatial county assignment stays null. Population density
+indicators require corresponding population data. Initial jobs skip identities
+already resolved through Details. Refresh jobs explicitly select `mode=refresh`
+and a timezone-aware `refresh_before` cutoff to intentionally retrieve old Details.
 
-Authenticated consumers can read local records without calling Neshan:
+The worker is independent of the browser and FastAPI, holds a dedicated PostgreSQL
+session advisory lock, and emits a heartbeat every five seconds. Quota/access errors
+pause collection, rate-limit responses extend backoff, and uncertain failures require
+review. Multiple hashes with matching Details names and close Details coordinates
+are flagged for internal review and never automatically merged.
 
-- `GET /api/pois?category=mosque&province=...&county=...&bbox=west,south,east,north`
-  returns GeoJSON, with at most 1000 features per page and a `next_cursor` passed as
-  `after` on the next request. Features include local IDs and category memberships.
-- `GET /api/pois/counts?category=library` returns unique resolved counts grouped by
-  spatial province/county. It does not count unresolved discoveries or claim that
-  those counts represent every real-world facility.
-- Admin status, history and controls live under `/api/admin/poi/` and reuse the
-  existing administrator session and CSRF protection.
-
-Completed searches do **not** prove provider-data completeness. Missing hashes,
-malformed responses and a configured result ceiling remain visible. If Neshan
-confirms a Nearby result cap, set `NESHAN_NEARBY_RESULT_CAP` to that value; reaching
-it marks segments for review. A subsequent job with a smaller radius can revisit
-those areas while skipping resolved hashes. No undocumented pagination or maximum
-result count is invented. Initial jobs skip already resolved hashes. Refresh jobs
-must explicitly select `mode=refresh` and a timezone-aware `refresh_before` cutoff;
-only records resolved before that cutoff are intentionally requested again.
-
-Collector tests use only an explicitly supplied disposable PostgreSQL database and
-mock every provider request. They create and remove their own temporary schema:
+Tests use an explicitly supplied disposable `TEST_DATABASE_URL`, isolated schemas,
+and mocked provider responses; they make no Nearby or Details calls:
 
 ```bash
-# Set TEST_DATABASE_URL to a disposable PostgreSQL database, then:
 python -B -m unittest discover -s tests -p test_poi_collection.py -v
+node --test tests/admin_poi_controls.test.cjs
 ```

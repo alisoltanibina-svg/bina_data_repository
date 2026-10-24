@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 import random
 from uuid import uuid4
-from sqlalchemy import select, func, or_, update
+from sqlalchemy import select, func, update
 from sqlalchemy.dialects.postgresql import insert
 from backend import database
 from backend.poi_models import (PoiControl, PoiBoundary, PoiCategory, PoiJob, PoiSegment,
@@ -86,20 +86,8 @@ def plan_province(session, job):
 
 
 def next_target(session, job):
-    # Drain all Details from the earliest province before another Nearby search.
     segment = session.scalar(select(PoiSegment).where(PoiSegment.job_id == job.id,
         PoiSegment.status == 'pending').order_by(PoiSegment.province_order, PoiSegment.id).limit(1))
-    task = session.scalar(select(PoiDetailTask).where(PoiDetailTask.job_id == job.id,
-        PoiDetailTask.status == 'pending').order_by(PoiDetailTask.province_order, PoiDetailTask.id).limit(1))
-    if task and (not segment or task.province_order <= segment.province_order):
-        place = session.get(PoiPlace, task.place_id)
-        # Resolved hashes are skipped even when an administrator requeues uncertain work.
-        if place.resolved_at and (job.mode == 'initial' or place.resolved_at >= job.refresh_before):
-            task.status = 'complete'
-            job.duplicates_skipped += 1
-            session.flush()
-            return 'skip', None, None
-        return 'details', task, {'hash': place.provider_id}
     if segment:
         return 'nearby', segment, {'location': f'{segment.latitude},{segment.longitude}',
                                   'layer': segment.category, 'searchRadius': segment.radius_m}
@@ -107,33 +95,33 @@ def next_target(session, job):
 
 
 def discover(session, job, segment, items):
+    """Return an in-memory handoff, never write Nearby places or identifiers to disk."""
+    hashes, seen = [], set()
     for item in items:
         provider_id = item.get('poiHash')
         if not provider_id:
             job.missing_hashes += 1
             segment.review_reason = 'Some results have no usable poiHash'
             continue
-        from backend.poi_provider import coordinates
-        lat, lon = coordinates(item['location'])
-        values = dict(id=uuid4(), provider=job.provider, provider_id=provider_id, name=item['name'],
-                      normalized_name=normalize(item['name']), latitude=lat, longitude=lon,
-                      boundary_version=job.boundary_version, **boundary_index(job.boundary_version).assign(lat,lon))
-        session.execute(insert(PoiPlace).values(**values).on_conflict_do_nothing(index_elements=['provider','provider_id']))
-        place = session.scalar(select(PoiPlace).where(PoiPlace.provider == job.provider, PoiPlace.provider_id == provider_id))
-        session.execute(insert(PoiPlaceCategory).values(place_id=place.id, category=segment.category).on_conflict_do_nothing())
-        existing = session.scalar(select(PoiDetailTask.id).where(PoiDetailTask.job_id == job.id, PoiDetailTask.place_id == place.id))
-        needs = not place.resolved_at or (job.mode == 'refresh' and place.resolved_at < job.refresh_before)
-        if needs and not existing:
-            session.add(PoiDetailTask(job_id=job.id, place_id=place.id, segment_id=segment.id,
-                                     province_order=segment.province_order))
-            session.flush()
-        else:
+        if provider_id in seen:
             job.duplicates_skipped += 1
+            continue
+        seen.add(provider_id)
+        place = session.scalar(select(PoiPlace).where(PoiPlace.provider == job.provider,
+                                                     PoiPlace.provider_id == provider_id))
+        if place and place.resolved_at and (job.mode == 'initial' or place.resolved_at >= job.refresh_before):
+            job.duplicates_skipped += 1
+        else:
+            hashes.append(provider_id)
+    return hashes
 
 
-def save_details(session, job, task, body, stamp):
+def save_details(session, job, provider_id, body, stamp):
     lat, lon = details(body)
-    place = session.get(PoiPlace, task.place_id)
+    session.execute(insert(PoiPlace).values(id=uuid4(), provider=job.provider, provider_id=provider_id,
+        name=body['name'], normalized_name=normalize(body['name']), latitude=lat, longitude=lon)
+        .on_conflict_do_nothing(index_elements=['provider','provider_id']))
+    place = session.scalar(select(PoiPlace).where(PoiPlace.provider==job.provider, PoiPlace.provider_id==provider_id))
     for key, value in {**parse_address(body), **boundary_index(job.boundary_version).assign(lat,lon)}.items():
         setattr(place, key, value)
     place.name, place.normalized_name = body['name'], normalize(body['name'])
@@ -156,13 +144,17 @@ def save_details(session, job, task, body, stamp):
             reason='Same normalized name within approximately 80 metres').on_conflict_do_nothing())
 
 
-def apply_reply(session, request_id, reply, result_cap=0):
+def apply_reply(session, request_id, reply, result_cap=0, detail_hash=None, detail_attempts=0):
     c = control(session)
     req = session.get(PoiRequest, request_id)
     job = session.get(PoiJob, req.job_id)
-    target = session.get(PoiSegment if req.kind == 'nearby' else PoiDetailTask, req.target_id)
+    target = session.get(PoiSegment if req.target_type == 'segment' else PoiDetailTask, req.target_id)
     stamp = now()
-    req.http_status, req.raw_response, req.finished_at = reply.status, reply.body if isinstance(reply.body,(dict,list)) else None, stamp
+    req.http_status, req.finished_at = reply.status, stamp
+    req.raw_response = reply.body if req.kind == 'details' and isinstance(reply.body,(dict,list)) else None
+    handoff = []
+    attempts = detail_attempts if req.kind == 'details' else target.attempts
+    retry_status = 'processing' if req.kind == 'details' else 'pending'
     c.in_flight = None
     delay = random.uniform(30,60)
     req.error = reply.error or None
@@ -177,24 +169,33 @@ def apply_reply(session, request_id, reply, result_cap=0):
         else:
             if req.kind == 'nearby':
                 items = nearby_items(reply.body)
-                discover(session, job, target, items)
+                handoff = discover(session, job, target, items)
+                req.result_count = len(items)
+                req.hash_count = sum(bool(item.get('poiHash')) for item in items)
+                req.queued_count = len(handoff)
+                target.pending_details = len(handoff)
+                if not handoff:
+                    c.paused, c.reason = True, 'Nearby produced no new usable hashes; review area/category with Neshan before continuing'
                 if result_cap and len(items) >= result_cap:
                     target.review_reason = 'Provider result cap reached; repeat with smaller search radius'
             else:
-                save_details(session, job, target, reply.body, stamp)
-            req.outcome, target.status = 'successful', 'complete'
+                if not detail_hash: raise RuntimeError('Details response has no in-memory request identity')
+                save_details(session, job, detail_hash, reply.body, stamp)
+                target.pending_details = max(0, target.pending_details - 1)
+            req.outcome = 'successful'
+            target.status = 'processing' if target.pending_details else 'complete'
     elif reply.status in {401,402,403,480,481,483,484,485}:
-        req.outcome, target.status = 'failed', 'pending'
+        req.outcome, target.status = 'failed', retry_status
         c.paused, c.reason = True, f'Provider quota or service access requires attention (HTTP {reply.status})'
     elif reply.status in {429,482}:
-        req.outcome, target.status = 'failed', 'pending'
-        delay = max(delay, reply.retry_after, min(3600, 60 * 2 ** min(target.attempts, 6)))
+        req.outcome, target.status = 'failed', retry_status
+        delay = max(delay, reply.retry_after, min(3600, 60 * 2 ** min(attempts, 6)))
     elif reply.status is None:
         req.outcome, target.status = 'uncertain', 'uncertain'
         c.paused, c.reason = True, 'Transport outcome unknown; review before explicitly retrying'
-    elif reply.status >= 500 and target.attempts < 5:
-        req.outcome, target.status = 'failed', 'pending'
-        delay = max(delay, reply.retry_after, min(3600, 60 * 2 ** target.attempts))
+    elif reply.status >= 500 and attempts < 5:
+        req.outcome, target.status = 'failed', retry_status
+        delay = max(delay, reply.retry_after, min(3600, 60 * 2 ** attempts))
     else:
         req.outcome, target.status = 'failed', 'failed'
         c.paused, c.reason = True, f'Request failed (HTTP {reply.status}); inspect history'
@@ -202,6 +203,7 @@ def apply_reply(session, request_id, reply, result_cap=0):
         delay = max(delay, min(reply.retry_after, 31536000))
     # No pause/resume action can shorten this provider-wide deadline.
     c.next_request_at = stamp + timedelta(seconds=delay)
+    return handoff
 
 
 def retry_unresolved(session, job_id):
@@ -218,14 +220,23 @@ def retry_unresolved(session, job_id):
     c.paused, c.reason = True, 'Unresolved work requeued; resume when ready'
 
 
-def collection_readiness(c, job):
+def storage_cleanup_required(session):
+    return bool(session.scalar(select(PoiRequest.id).where(PoiRequest.kind=='nearby',
+        PoiRequest.raw_response.is_not(None)).limit(1)) or
+        session.scalar(select(PoiPlace.id).where(PoiPlace.resolved_at.is_(None)).limit(1)) or
+        session.scalar(select(PoiDetailTask.id).where(PoiDetailTask.status=='pending').limit(1)))
+
+
+def collection_readiness(c, job, cleanup_required=False):
     from backend.settings import get_settings
     key_configured = bool(get_settings().neshan_service_api_key.get_secret_value().strip())
     alive = bool(c and c.heartbeat_at and (now()-c.heartbeat_at).total_seconds() < 45)
     active_job = bool(job and job.status in ACTIVE)
-    blocked = ('missing_service_key' if not key_configured else 'no_active_job' if not active_job
+    authorized = get_settings().neshan_collection_authorized
+    blocked = ('missing_service_key' if not key_configured else 'authorization_required' if not authorized
+               else 'storage_cleanup_required' if cleanup_required else 'no_active_job' if not active_job
                else 'worker_not_running' if not alive else '')
-    return dict(service_key_configured=key_configured, worker_alive=alive,
+    return dict(service_key_configured=key_configured, collection_authorized=authorized, worker_alive=alive,
                 resume_blocked_reason=blocked, can_resume=bool(c and c.paused and not blocked),
                 can_pause=bool(active_job and (not c or not c.paused)))
 
@@ -233,8 +244,10 @@ def collection_readiness(c, job):
 def resume_collection(session):
     c = control(session)
     job = session.scalar(select(PoiJob).where(PoiJob.status.in_(ACTIVE)).limit(1))
-    readiness = collection_readiness(c, job)
+    readiness = collection_readiness(c, job, storage_cleanup_required(session))
     messages = {
+        'authorization_required': 'ابتدا تکمیل NDA و مجوز استفادهٔ داخلی را تأیید و NESHAN_COLLECTION_AUTHORIZED را تنظیم کنید.',
+        'storage_cleanup_required': 'دادهٔ قدیمی Nearby هنوز ذخیره شده است؛ پاک‌سازی بررسی‌شده باید پیش از ادامه انجام شود.',
         'missing_service_key': 'کلید سرویس نشان تنظیم نشده است. ابتدا NESHAN_SERVICE_API_KEY را روی سرور تنظیم کنید.',
         'no_active_job': 'برنامهٔ فعالی برای ادامه وجود ندارد. ابتدا یک برنامهٔ گردآوری بسازید.',
         'worker_not_running': 'پردازشگر گردآوری اجرا نشده یا ارتباط آن قطع است. ابتدا پردازشگر را اجرا کنید.',
@@ -247,7 +260,7 @@ def resume_collection(session):
 def status(session):
     c = session.get(PoiControl, 1)
     job = session.scalar(select(PoiJob).order_by(PoiJob.created_at.desc()).limit(1))
-    readiness = collection_readiness(c, job)
+    readiness = collection_readiness(c, job, storage_cleanup_required(session))
     alive = readiness['worker_alive']
     state = 'interrupted'
     if c and c.paused: state = 'pausing' if c.in_flight and alive else 'paused'
@@ -265,7 +278,6 @@ def status(session):
         provinces = session.execute(select(PoiSegment.province_order, PoiSegment.province_name,
             PoiSegment.status, func.count()).where(PoiSegment.job_id == job.id).group_by(
                 PoiSegment.province_order,PoiSegment.province_name,PoiSegment.status).order_by(PoiSegment.province_order)).all()
-        details_counts = session.execute(select(PoiDetailTask.status,func.count()).where(PoiDetailTask.job_id == job.id).group_by(PoiDetailTask.status)).all()
         incomplete = {o for o,p,s,n in provinces if s != 'complete'}
         incomplete.update(session.scalars(select(PoiDetailTask.province_order).where(
             PoiDetailTask.job_id==job.id,PoiDetailTask.status!='complete').distinct()).all())
@@ -276,7 +288,13 @@ def status(session):
             duplicates_skipped=job.duplicates_skipped,missing_hashes=job.missing_hashes,
             requests=[dict(kind=k,outcome=o,count=n) for k,o,n in counts],
             areas=[dict(order=o,province=p,status=s,count=n) for o,p,s,n in provinces],
-            details=dict(details_counts),
+            details={'complete':sum(n for k,o,n in counts if k=='details' and o=='successful'),
+                'pending':session.scalar(select(func.coalesce(func.sum(PoiSegment.pending_details),0)).where(
+                    PoiSegment.job_id==job.id,PoiSegment.status=='processing')),
+                'uncertain':session.scalar(select(func.coalesce(func.sum(PoiSegment.pending_details),0)).where(
+                    PoiSegment.job_id==job.id,PoiSegment.status.in_(['uncertain','failed'])))},
+            empty_searches=session.scalar(select(func.count()).select_from(PoiRequest).where(
+                PoiRequest.job_id==job.id,PoiRequest.kind=='nearby',PoiRequest.result_count==0)),
             flagged_segments=session.scalar(select(func.count()).select_from(PoiSegment).where(
                 PoiSegment.job_id==job.id,PoiSegment.review_reason.is_not(None))))
     output['categories'] = [dict(category=slug,unique_saved=n) for slug,n in session.execute(

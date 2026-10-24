@@ -45,7 +45,7 @@ class GeographyTests(unittest.TestCase):
         self.assertEqual(hints['address_city'],'Tehran')
         self.assertEqual(hints['address_parse_status'],'heuristic')
     def test_provider_contract_and_retry_after(self):
-        self.assertEqual(nearby_items(nearby(ITEM)),[ITEM])
+        self.assertEqual(nearby_items(nearby(ITEM)),[{'poiHash':'hash-a'}])
         self.assertEqual(coordinates(DETAILS['location']),(35.7,51.4))
         for loc in ({'x':float('nan'),'y':35},{'x':False,'y':35},{'x':1,'y':100}):
             with self.assertRaises(ValueError): coordinates(loc)
@@ -58,7 +58,7 @@ class CollectorTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         from backend.settings import Settings
-        settings=Settings(_env_file=None,database_url=os.environ['TEST_DATABASE_URL'],captcha_enabled=False)
+        settings=Settings(_env_file=None,database_url=os.environ['TEST_DATABASE_URL'],captcha_enabled=False,neshan_collection_authorized=True)
         cls.settings_patch=patch('backend.settings.get_settings',return_value=settings);cls.settings_patch.start()
         cls.addClassCleanup(cls.settings_patch.stop)
         from backend import database, poi, poi_models as m
@@ -115,21 +115,24 @@ class CollectorTests(unittest.TestCase):
         self.assertEqual([k for k,_ in self.calls],['nearby','details','nearby'])
         self.assertEqual(self.scalar(select(func.count()).select_from(self.m.PoiPlace)),1)
         self.assertEqual(self.scalar(select(self.m.PoiPlace.id)),place_id)
-        self.assertEqual(self.scalar(select(func.count()).select_from(self.m.PoiPlaceCategory)),2)
-    def test_pause_during_dispatch_saves_response_and_survives_restart(self):
+        self.assertEqual(self.scalar(select(func.count()).select_from(self.m.PoiPlaceCategory)),1)
+    def test_pause_during_dispatch_saves_details_and_survives_restart(self):
+        self.tick();self.clear_cooldown()
         def dispatch(kind,params):
+            self.assertEqual(kind,'details')
             with self.db.db_session() as s:
                 c=self.poi.control(s);c.heartbeat_at=self.poi.now()
                 self.assertEqual(self.poi.set_paused(s,True)['state'],'pausing')
-            return Reply(200,nearby(ITEM))
+            return Reply(200,DETAILS)
         self.provider.request=dispatch;self.tick()
         with self.db.db_session() as s:
             state=self.poi.status(s);self.assertEqual(state['state'],'paused');deadline=state['next_request_at']
             self.assertEqual(s.get(self.m.PoiSegment,self.segment_id).status,'complete')
+            self.assertEqual(s.scalar(select(self.m.PoiPlace.raw_details)),DETAILS)
             self.worker.recover(s);self.assertTrue(self.poi.control(s).paused)
             self.poi.set_paused(s,False);self.assertEqual(self.poi.control(s).next_request_at,deadline)
         self.tick()
-        self.assertEqual(self.scalar(select(func.count()).select_from(self.m.PoiRequest)),1)
+        self.assertEqual(self.scalar(select(func.count()).select_from(self.m.PoiRequest)),2)
     def test_quota_access_and_rate_limits(self):
         for code in (480,481,483,484,485):
             with self.db.db_session() as s: self.poi.set_paused(s,False)
@@ -156,7 +159,7 @@ class CollectorTests(unittest.TestCase):
     def test_malformed_nearby_cannot_partially_apply(self):
         malformed=dict(ITEM,location={'x':float('inf'),'y':35})
         # HTTP parser could produce this non-finite number; avoid JSONB serialization itself masking validation.
-        malformed['location']={'x':51,'y':200}
+        malformed['poiHash']=123
         self.provider.request=lambda *_:Reply(200,nearby(ITEM,malformed));self.tick()
         self.assertEqual(self.scalar(select(func.count()).select_from(self.m.PoiPlace)),0)
         self.assertEqual(self.scalar(select(self.m.PoiRequest.outcome)),'uncertain')
@@ -168,7 +171,9 @@ class CollectorTests(unittest.TestCase):
         with self.db.db_session() as s:
             p=s.scalar(select(self.m.PoiPlace));p.resolved_at=self.poi.now()-timedelta(days=2)
             job=s.get(self.m.PoiJob,self.job_id);job.mode='refresh';job.refresh_before=self.poi.now()-timedelta(days=1)
-            task=s.scalar(select(self.m.PoiDetailTask));task.status='pending'
+            from backend.poi_worker import PendingDetail
+            segment=s.get(self.m.PoiSegment,self.segment_id);segment.status='processing';segment.pending_details=1
+            self.worker.pending=[PendingDetail(self.segment_id,p.provider_id)]
         self.clear_cooldown();self.tick();self.assertEqual([k for k,_ in self.calls],['nearby','details','details'])
     def test_cross_hash_duplicates_flagged_without_merge(self):
         self.provider.request=lambda *_:Reply(200,nearby(ITEM,dict(ITEM,poiHash='hash-b')))
@@ -267,10 +272,9 @@ class CollectorTests(unittest.TestCase):
             self.assertEqual(client.post('/api/admin/poi/resume',json={}).status_code,200)
         self.tick();self.clear_cooldown();self.tick()
         result=client.get('/api/pois?category=library&bbox=50,35,52,37')
-        self.assertEqual(result.status_code,200,result.text)
-        self.assertEqual(result.json()['features'][0]['geometry']['coordinates'],[51.4,35.7])
-        self.assertEqual(client.get('/api/pois?bbox=NaN,0,51,35').status_code,422)
-        counts=client.get('/api/pois/counts?category=library').json()
+        self.assertEqual(result.status_code,403,result.text)
+        self.assertEqual(client.get('/api/pois/counts?category=library').status_code,403)
+        counts=client.get('/api/admin/poi/counts?category=library').json()
         self.assertEqual(counts['counts'][0]['count'],1)
         self.assertFalse(counts['completeness_verified'])
         self.assertEqual(len(client.get('/api/admin/poi/requests').json()),2)
@@ -299,6 +303,88 @@ class CollectorTests(unittest.TestCase):
                 self.assertEqual(report['resume_blocked_reason'],'no_active_job')
                 self.assertFalse(report['can_resume'])
                 self.assertFalse(report['can_pause'])
+
+    def test_nearby_payload_and_hashes_are_not_persisted_before_details(self):
+        self.tick()
+        with self.db.db_session() as s:
+            self.assertEqual(s.scalar(select(func.count()).select_from(self.m.PoiPlace)),0)
+            self.assertEqual(s.scalar(select(func.count()).select_from(self.m.PoiDetailTask)),0)
+            self.assertEqual(s.scalar(select(func.count()).select_from(self.m.PoiPlaceCategory)),0)
+            req=s.scalar(select(self.m.PoiRequest))
+            self.assertIsNone(req.raw_response)
+            self.assertEqual((req.result_count,req.hash_count,req.queued_count),(1,1,1))
+            self.assertEqual(s.get(self.m.PoiSegment,self.segment_id).status,'processing')
+        self.assertEqual(self.worker.pending[0].provider_id,'hash-a')
+        self.clear_cooldown();self.tick()
+        with self.db.db_session() as s:
+            place=s.scalar(select(self.m.PoiPlace))
+            self.assertEqual(place.name,DETAILS['name'])
+            self.assertEqual(place.raw_details,DETAILS)
+            self.assertEqual(place.provider_id,'hash-a')
+
+    def test_empty_nearby_pauses_instead_of_continuing_nearby_only(self):
+        self.provider.request=lambda *_:Reply(200,nearby())
+        self.tick()
+        with self.db.db_session() as s:
+            c=self.poi.control(s);self.assertTrue(c.paused)
+            req=s.scalar(select(self.m.PoiRequest))
+            self.assertEqual(req.outcome,'successful')
+            self.assertEqual((req.result_count,req.hash_count,req.queued_count),(0,0,0))
+            self.assertIsNone(req.raw_response)
+            self.assertEqual(self.poi.status(s)['job']['empty_searches'],1)
+        self.clear_cooldown();self.tick()
+        self.assertEqual(self.scalar(select(func.count()).select_from(self.m.PoiRequest)),1)
+
+    def test_restart_cannot_restore_a_nearby_hash_from_database(self):
+        self.tick()
+        replacement=self.Worker(self.provider)
+        with self.db.db_session() as s:
+            replacement.recover(s)
+            self.assertTrue(self.poi.control(s).paused)
+            self.assertEqual(s.get(self.m.PoiSegment,self.segment_id).status,'uncertain')
+        self.assertEqual(replacement.pending,[])
+        self.assertEqual(self.scalar(select(func.count()).select_from(self.m.PoiPlace)),0)
+
+    def test_nda_authorization_is_required_before_resume(self):
+        from backend.settings import get_settings
+        from pydantic import SecretStr
+        with patch.object(get_settings(),'neshan_service_api_key',SecretStr('test-key')),patch.object(
+                get_settings(),'neshan_collection_authorized',False):
+            with self.db.db_session() as s:
+                self.poi.set_paused(s,True)
+                self.poi.control(s).heartbeat_at=self.poi.now()
+                self.assertEqual(self.poi.status(s)['resume_blocked_reason'],'authorization_required')
+                with self.assertRaises(ValueError): self.poi.resume_collection(s)
+
+    def test_cleanup_is_dry_run_by_default_and_preserves_details(self):
+        from scripts.cleanup_nearby_storage import cleanup
+        from uuid import uuid4
+        self.tick();self.clear_cooldown();self.tick()
+        with self.db.db_session() as s:
+            saved=s.scalar(select(self.m.PoiPlace));saved_id=saved.id
+            legacy=self.m.PoiPlace(id=uuid4(),provider='neshan',provider_id='legacy-discovery',
+                name='Nearby only',normalized_name='nearby only',latitude=35,longitude=51)
+            s.add(legacy);s.flush()
+            s.add(self.m.PoiDetailTask(job_id=self.job_id,place_id=legacy.id,segment_id=self.segment_id,province_order=0))
+            s.flush()
+            counts=cleanup(s)
+            self.assertEqual(counts['unresolved_discoveries'],1)
+            self.assertEqual(s.scalar(select(func.count()).select_from(self.m.PoiPlace)),2)
+            cleanup(s,apply=True)
+        with self.db.db_session() as s:
+            self.assertEqual(s.scalar(select(func.count()).select_from(self.m.PoiPlace)),1)
+            self.assertEqual(s.scalar(select(self.m.PoiPlace.id)),saved_id)
+            self.assertEqual(s.scalar(select(self.m.PoiPlace.raw_details)),DETAILS)
+            self.assertEqual(s.scalar(select(func.count()).select_from(self.m.PoiDetailTask)),0)
+            self.assertFalse(self.poi.storage_cleanup_required(s))
+            self.assertTrue(self.poi.control(s).paused)
+
+    def test_database_rejects_any_new_nearby_payload(self):
+        from sqlalchemy.exc import IntegrityError
+        with self.assertRaises(IntegrityError):
+            with self.db.db_session() as s:
+                s.add(self.m.PoiRequest(job_id=self.job_id,kind='nearby',target_id=self.segment_id,
+                    raw_response=nearby(ITEM)))
 
     def test_completed_searches_do_not_claim_completeness(self):
         self.tick();self.clear_cooldown();self.tick();self.clear_cooldown();self.tick()

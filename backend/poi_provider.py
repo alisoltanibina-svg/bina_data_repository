@@ -78,11 +78,10 @@ def nearby_items(body):
     items = points['nearestPoints']
     for item in items:
         if not isinstance(item, dict): raise ValueError('invalid_nearby_item')
-        coordinates(item.get('location'))
-        if not isinstance(item.get('name'), str): raise ValueError('invalid_nearby_name')
         if item.get('poiHash') is not None and (not isinstance(item['poiHash'], str) or len(item['poiHash']) > 2048):
             raise ValueError('invalid_hash')
-    return items
+    # Discard names, coordinates, category metadata and all other Nearby content.
+    return [{'poiHash': item.get('poiHash')} for item in items]
 
 
 def details(body):
