@@ -29,6 +29,8 @@ class Worker:
     def __init__(self, provider, result_cap=0):
         self.provider, self.result_cap = provider, result_cap
         self.worker_id = socket.gethostname()[:50] + ':' + uuid4().hex
+        key_fingerprint = getattr(provider, 'key_fingerprint', None)
+        if key_fingerprint: self.worker_id += ':k' + key_fingerprint
         self.stop = threading.Event()
         self.pending = []  # Nearby hashes exist only in this process memory.
 
@@ -157,6 +159,7 @@ class Worker:
 
 
 def main():
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(name)s: %(message)s')
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='command')
     create = sub.add_parser('create', help='Create a paused nationwide job, optionally importing county boundaries')
@@ -177,6 +180,7 @@ def main():
         raise SystemExit('Configure NESHAN_SERVICE_API_KEY and confirm NDA/internal-use rights with NESHAN_COLLECTION_AUTHORIZED=true')
     worker = Worker(Neshan(key), max(0,settings.neshan_nearby_result_cap))
     for event in (signal.SIGINT, signal.SIGTERM): signal.signal(event, lambda *_: worker.stop.set())
+    log.info('Collector starting; key fingerprint=%s; collection follows persisted pause state', worker.provider.key_fingerprint)
     worker.run()
 
 if __name__ == '__main__': main()

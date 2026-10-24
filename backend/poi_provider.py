@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 import json
+import hashlib
 import math
 import socket
 from urllib.error import HTTPError, URLError
@@ -32,10 +33,24 @@ def retry_after(value, now=None):
         return min(31536000, max(0, (parsedate_to_datetime(value) - (now or datetime.now(timezone.utc))).total_seconds()))
     except (ValueError, TypeError, OverflowError): return 0
 
+def access_error_message(kind, status):
+    service = 'Nearby (/v1/nearby)' if kind == 'nearby' else 'POI Details (/v1/point)'
+    causes = {
+        480: 'KeyNotFound: the supplied key was not accepted',
+        481: 'LimitExceeded: the account quota is exhausted',
+        483: 'ApiKeyTypeError: this key type does not match the service',
+        484: 'ApiWhiteListError: the key scope does not authorize this request; ask Neshan to verify its restrictions and the observed request source',
+        485: 'ApiServiceListError: this service is not enabled for the key',
+    }
+    cause = causes.get(status, 'provider authentication or service-access refusal')
+    return f'Neshan {service} rejected the request (HTTP {status}): {cause}. Collection paused; verify access before resuming.'
+
+
 class Neshan:
     def __init__(self, api_key):
         if not api_key: raise ValueError('NESHAN_SERVICE_API_KEY is required')
         self.api_key = api_key
+        self.key_fingerprint = hashlib.sha256(api_key.encode('utf-8')).hexdigest()[:12]
         self.opener = build_opener(NoRedirect())
 
     def request(self, kind, params):

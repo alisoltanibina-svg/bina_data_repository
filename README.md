@@ -457,6 +457,61 @@ history provides `result_count`, `hash_count`, and `queued_count` for Nearby; it
 response is always null, even when historical payloads await cleanup. Polling the
 status route only reads the application's database and does not call Neshan.
 
+### Diagnose access failures before retrying
+
+HTTP 484 is Neshan's `ApiWhiteListError` (key scope/whitelist authorization), not the
+quota code 481. The collector now names the rejected service in its pause reason:
+Nearby `/v1/nearby` or POI Details `/v1/point`. A restart does not verify or modify the
+provider's restrictions. Do not repeatedly resume an unchanged access failure.
+
+From the same activated environment/shell used to launch the worker, run:
+
+```bash
+python -m backend.poi_diagnostics
+```
+
+This is read-only. It makes no Nearby/Details calls, does not resume collection,
+and does not read response payloads or place records. It reports configuration
+source, secret-free SHA-256 key fingerprints, duplicate key assignments, accidental
+browser-key reuse, proxy types, migrations, heartbeat and recent request metadata.
+It suppresses exception text and database URLs to avoid leaking credentials. Newly
+started workers record their key fingerprint in their existing worker identifier
+and print that fingerprint at startup; an older worker's fingerprint is unknown.
+
+For one optional unauthenticated public IPv4 lookup, use:
+
+```bash
+python -m backend.poi_diagnostics --egress-ip
+```
+
+That lookup contacts `api.ipify.org`, never Neshan, and sends no API key. It reports
+the IP that observer sees. Destination-specific routing/proxies may differ, so
+Neshan must confirm the source it sees on the rejected request.
+
+If the report shows an environment override that differs from `.env`, update or
+remove that override in the actual launcher. For an interactive Bash worker whose
+reviewed configuration is `/opt/app/.env`, remove the displayed override names from
+that shell, rerun diagnostics, and verify the effective/file fingerprints match.
+For example, when the override name is `NESHAN_SERVICE_API_KEY`:
+
+```bash
+unset NESHAN_SERVICE_API_KEY
+python -m backend.poi_diagnostics --egress-ip
+```
+
+Do not unset a key intentionally managed only through the environment; update it
+there instead. A systemd/supervisor environment must be corrected in that launcher,
+not only in an unrelated interactive shell. The diagnostic's `environment_key_names`
+field identifies case variants without printing values.
+
+Once the correct credential source is established, send Neshan the failing service,
+HTTP code, request time and observed IP (never paste the secret key into a public
+message). Have them verify the authorized server key, key restrictions and the
+source they see. Only after they confirm the restriction is corrected, start one
+worker with `python -m backend.poi_worker`. If a restart interrupted a volatile
+Details batch, explicitly requeue that uncertain segment in the admin panel before
+resuming. No new database migration is needed for these diagnostic changes.
+
 ### Geographic planning and internal analysis
 
 The existing `data/iran.geojson` supplies 31 province polygons. The planner snapshots

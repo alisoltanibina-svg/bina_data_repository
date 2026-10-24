@@ -10,7 +10,7 @@ from backend import database
 from backend.poi_models import (PoiControl, PoiBoundary, PoiCategory, PoiJob, PoiSegment,
     PoiPlace, PoiPlaceCategory, PoiDetailTask, PoiRequest, PoiDuplicateReview)
 from backend.poi_geo import BoundaryIndex, grid, load_boundaries, normalize, parse_address
-from backend.poi_provider import nearby_items, details
+from backend.poi_provider import nearby_items, details, access_error_message
 
 LOCK_KEY = 741923816
 ACTIVE = ('pending', 'running')
@@ -186,7 +186,7 @@ def apply_reply(session, request_id, reply, result_cap=0, detail_hash=None, deta
             target.status = 'processing' if target.pending_details else 'complete'
     elif reply.status in {401,402,403,480,481,483,484,485}:
         req.outcome, target.status = 'failed', retry_status
-        c.paused, c.reason = True, f'Provider quota or service access requires attention (HTTP {reply.status})'
+        c.paused, c.reason = True, access_error_message(req.kind, reply.status)
     elif reply.status in {429,482}:
         req.outcome, target.status = 'failed', retry_status
         delay = max(delay, reply.retry_after, min(3600, 60 * 2 ** min(attempts, 6)))

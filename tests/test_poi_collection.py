@@ -386,6 +386,23 @@ class CollectorTests(unittest.TestCase):
                 s.add(self.m.PoiRequest(job_id=self.job_id,kind='nearby',target_id=self.segment_id,
                     raw_response=nearby(ITEM)))
 
+    def test_details_484_pause_identifies_the_actual_rejected_service(self):
+        self.tick();self.clear_cooldown()
+        self.provider.request=lambda *_:Reply(484,{'status':'ApiWhiteListError'})
+        self.tick()
+        with self.db.db_session() as session:
+            c=self.poi.control(session)
+            self.assertTrue(c.paused)
+            self.assertIn('POI Details (/v1/point)',c.reason)
+            self.assertIn('ApiWhiteListError',c.reason)
+            self.assertNotIn('quota',c.reason)
+            latest=session.scalar(select(self.m.PoiRequest).order_by(self.m.PoiRequest.id.desc()).limit(1))
+            self.assertEqual(latest.kind,'details')
+            self.assertEqual(latest.http_status,484)
+            self.assertEqual(latest.outcome,'failed')
+        self.tick()
+        self.assertEqual(self.scalar(select(func.count()).select_from(self.m.PoiRequest)),2)
+
     def test_completed_searches_do_not_claim_completeness(self):
         self.tick();self.clear_cooldown();self.tick();self.clear_cooldown();self.tick()
         with self.db.db_session() as s:
