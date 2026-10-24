@@ -4,6 +4,9 @@ from functools import lru_cache
 from pathlib import Path
 import random
 import math
+import hashlib
+import re
+from collections import Counter
 from uuid import uuid4
 from sqlalchemy import select, func, update
 from sqlalchemy.dialects.postgresql import insert
@@ -227,7 +230,7 @@ def apply_reply(session, request_id, reply, result_cap=0, detail_hash=None, deta
                 req.hash_count = sum(bool(item.get('poiHash')) for item in items)
                 req.queued_count = len(handoff)
                 target.pending_details = len(handoff)
-                if not handoff:
+                if not handoff and (c.collection_mode=='pilot' or not job.search_dataset_version):
                     c.paused, c.reason = True, 'Nearby produced no new usable hashes; review area/category with Neshan before continuing'
                 if result_cap and len(items) >= result_cap:
                     target.review_reason = 'Provider result cap reached; repeat with smaller search radius'
@@ -269,8 +272,12 @@ def retry_unresolved(session, job_id):
     if session.scalar(select(PoiJob.id).where(PoiJob.status.in_(ACTIVE), PoiJob.id != job.id)):
         raise ValueError('Another job is active')
     for model in (PoiSegment, PoiDetailTask):
-        session.execute(update(model).where(model.job_id == job.id, model.status.in_(['failed','uncertain']))
-                        .values(status='pending', attempts=0))
+        if job.search_dataset_version and model==PoiDetailTask: continue
+        query=update(model).where(model.job_id == job.id, model.status.in_(['failed','uncertain']))
+        if model==PoiSegment:
+            query=query.where(PoiSegment.id==c.pilot_segment_id if c.collection_mode=='pilot' else
+                PoiSegment.kind==('settlement' if job.search_dataset_version else 'grid'))
+        session.execute(query.values(status='pending',attempts=0))
     job.status = 'running'
     c.paused, c.reason = True, 'Unresolved work requeued; resume when ready'
 
@@ -282,7 +289,7 @@ def storage_cleanup_required(session):
         session.scalar(select(PoiDetailTask.id).where(PoiDetailTask.status=='pending').limit(1)))
 
 
-def collection_readiness(c, job, cleanup_required=False, pilot=None):
+def collection_readiness(c, job, cleanup_required=False, pilot=None, unresolved_work=False):
     from backend.settings import get_settings
     key_configured = bool(get_settings().neshan_service_api_key.get_secret_value().strip())
     alive = bool(c and c.heartbeat_at and (now()-c.heartbeat_at).total_seconds() < 45)
@@ -293,11 +300,15 @@ def collection_readiness(c, job, cleanup_required=False, pilot=None):
         if not pilot or not job or pilot.job_id!=job.id: pilot_block='pilot_required'
         elif pilot.status=='complete': pilot_block='pilot_completed'
         elif pilot.status in ('failed','uncertain'): pilot_block='pilot_review_required'
-    blocked = ('missing_service_key' if not key_configured else 'authorization_required' if not authorized
+    revision=collector_revision()
+    worker_revision=re.search(r':v([0-9a-f]{12})(?::|$)',c.worker_id or '') if c else None
+    outdated=bool(alive and c.worker_id and (not worker_revision or worker_revision.group(1)!=revision))
+    blocked = ('worker_outdated' if outdated else 'missing_service_key' if not key_configured else 'authorization_required' if not authorized
                else 'storage_cleanup_required' if cleanup_required else 'no_active_job' if not active_job
-               else pilot_block if pilot_block
+               else pilot_block if pilot_block else 'unresolved_work' if unresolved_work
                else 'worker_not_running' if not alive else '')
     return dict(service_key_configured=key_configured, collection_authorized=authorized, worker_alive=alive,
+                worker_revision=worker_revision.group(1) if worker_revision else None,expected_worker_revision=revision,
                 resume_blocked_reason=blocked, can_resume=bool(c and c.paused and not blocked),
                 can_pause=bool(active_job and (not c or not c.paused)))
 
@@ -306,8 +317,10 @@ def resume_collection(session):
     c = control(session)
     job = session.scalar(select(PoiJob).where(PoiJob.status.in_(ACTIVE)).limit(1))
     pilot=session.get(PoiSegment,c.pilot_segment_id) if c and c.pilot_segment_id else None
-    readiness = collection_readiness(c, job, storage_cleanup_required(session),pilot)
+    readiness = collection_readiness(c, job, storage_cleanup_required(session),pilot,unresolved_scope(session,job,c))
     messages = {
+        'unresolved_work':'ابتدا درخواست‌های ناموفق یا نامطمئن محدودهٔ فعلی را بررسی و در صورت نیاز به صف بازگردانید.',
+        'worker_outdated':'پردازشگر نسخهٔ قدیمی را اجرا می‌کند؛ سرویس گردآوری را بازراه‌اندازی کنید.',
         'pilot_required': 'ابتدا یک آزمایش تک‌ناحیه‌ای در استان فعلی آماده کنید؛ اجرای سراسری متوقف است.',
         'pilot_completed': 'آزمایش تک‌ناحیه‌ای پایان یافته است؛ گزارش آن را بررسی کنید. اجرای سراسری همچنان متوقف است.',
         'pilot_review_required': 'آزمایش ناموفق یا نامطمئن است؛ پیش از تلاش دوباره تاریخچه را بررسی و موارد حل‌نشده را بازگردانی کنید.',
@@ -326,13 +339,14 @@ def status(session):
     c = session.get(PoiControl, 1)
     job = session.scalar(select(PoiJob).order_by(PoiJob.created_at.desc()).limit(1))
     pilot=session.get(PoiSegment,c.pilot_segment_id) if c and c.pilot_segment_id else None
-    readiness = collection_readiness(c, job, storage_cleanup_required(session),pilot)
+    readiness = collection_readiness(c, job, storage_cleanup_required(session),pilot,unresolved_scope(session,job,c))
     alive = readiness['worker_alive']
     state = 'interrupted'
     if c and c.paused: state = 'pausing' if c.in_flight and alive else 'paused'
     elif alive: state = 'running' if c.in_flight else 'waiting'
     if not alive and not readiness['service_key_configured']: state = 'not_configured'
     elif not alive and (not job or job.status not in ACTIVE): state = 'idle'
+    if job and job.status not in ACTIVE and not (c and c.in_flight):state=job.status
     output = dict(**readiness, state=state, paused=c.paused if c else True, reason=c.reason if c else 'No worker or job yet',
         heartbeat_at=c.heartbeat_at if c else None,
         next_request_at=c.next_request_at if c else None, in_flight=c.in_flight if c else None,
@@ -373,6 +387,16 @@ def status(session):
         select(PoiSourceDataset).order_by(PoiSourceDataset.created_at.desc())).all()]
     if job and job.search_dataset_version:
         output['coverage_label']='فقط محدودهٔ شعاع جست‌وجو پیرامون نقاط فایل؛ پوشش کامل شهرها و روستاها تأیید نشده است.'
+    output['geography']=geographic_progress(session,job) if job and job.search_dataset_version else None
+    output['reported_at']=now()
+    proof=bool(job and pilot and pilot.job_id==job.id and pilot.settlement_id and pilot.status=='complete' and
+        pilot.radius_m==job.radius_m and not pilot.review_reason and not pilot.pending_details and output['pilot']['details_saved'])
+    output['can_start_collection']=bool((c and c.collection_mode=='coverage' or proof) and job and job.search_dataset_version and c and c.paused and alive and
+        readiness['service_key_configured'] and readiness['collection_authorized'] and
+        not storage_cleanup_required(session) and readiness['resume_blocked_reason'] in ('','pilot_completed'))
+    if output['geography']:
+        output['job']['completed_provinces']=sum(r['complete'] for r in output['geography']['provinces'])
+        output['job']['remaining_provinces']=len(output['geography']['provinces'])-output['job']['completed_provinces']
     output['categories'] = [dict(category=slug,unique_saved=n) for slug,n in session.execute(
         select(PoiPlaceCategory.category,func.count()).join(PoiPlace,PoiPlace.id==PoiPlaceCategory.place_id)
         .where(PoiPlace.resolved_at.is_not(None)).group_by(PoiPlaceCategory.category))]
@@ -459,3 +483,79 @@ def plan_settlement_province(session,job):
                 status='complete' if pilot else 'pending',planning_note=f'Reused identical successful pilot {pilot.id}' if pilot else None))
     job.planned_settlement_provinces+=1
     return True
+
+
+@lru_cache(maxsize=1)
+def collector_revision():
+    """Identify loaded collector releases without recording secrets or response data."""
+    root=Path(__file__).resolve().parent
+    digest=hashlib.sha256()
+    for name in ('poi.py','poi_worker.py','poi_models.py','poi_provider.py','poi_geo.py'):
+        digest.update(name.encode());digest.update((root/name).read_bytes())
+    return digest.hexdigest()[:12]
+
+
+def start_collection(session):
+    c,job=paused_job(session)
+    if not job.search_dataset_version:raise ValueError('ابتدا مجموعهٔ جغرافیایی را به برنامه متصل کنید.')
+    if c.collection_mode=='pilot':enable_settlement_plan(session)
+    # This transaction rolls back promotion if readiness fails; it never dispatches HTTP.
+    return resume_collection(session)
+
+
+def geographic_progress(session,job):
+    """Progress of finite supplied-point/category searches; never national land coverage."""
+    provinces=session.scalars(select(PoiBoundary).where(PoiBoundary.version==job.boundary_version,
+        PoiBoundary.level=='province').order_by(PoiBoundary.code)).all()
+    point_counts=Counter()
+    for name,n in session.execute(select(PoiSettlement.province_name,func.count()).where(
+        PoiSettlement.version==job.search_dataset_version,PoiSettlement.state=='ready').group_by(PoiSettlement.province_name)):
+        point_counts[normalize(name)]+=n
+    scope=(PoiSegment.job_id==job.id,PoiSegment.kind=='settlement',PoiSegment.category.in_(job.categories),
+        PoiSettlement.version==job.search_dataset_version,PoiSettlement.state=='ready')
+    totals={}
+    for name,state,n in session.execute(select(PoiSettlement.province_name,PoiSegment.status,func.count()).join(
+        PoiSettlement,PoiSettlement.id==PoiSegment.settlement_id).where(*scope).group_by(PoiSettlement.province_name,PoiSegment.status)):
+        totals.setdefault(normalize(name),Counter())[state]+=n
+    finished_points=Counter()
+    # A point finishes only after every requested category and its Details handoff finish.
+    finished=select(PoiSettlement.id,PoiSettlement.province_name).join(PoiSegment,PoiSegment.settlement_id==PoiSettlement.id).where(
+        *scope,PoiSegment.status=='complete',PoiSegment.pending_details==0).group_by(PoiSettlement.id,PoiSettlement.province_name).having(
+        func.count(func.distinct(PoiSegment.category))==len(job.categories))
+    for _,name in session.execute(finished):finished_points[normalize(name)]+=1
+    empty=Counter()
+    empty_request=select(PoiRequest.id).where(PoiRequest.target_type=='segment',PoiRequest.target_id==PoiSegment.id,
+        PoiRequest.kind=='nearby',PoiRequest.outcome=='successful',PoiRequest.queued_count==0).exists()
+    for name,n in session.execute(select(PoiSettlement.province_name,func.count()).select_from(PoiSegment).join(
+        PoiSettlement,PoiSettlement.id==PoiSegment.settlement_id).where(*scope,empty_request).group_by(PoiSettlement.province_name)):
+        empty[normalize(name)]+=n
+    flagged=Counter()
+    for name,n in session.execute(select(PoiSettlement.province_name,func.count()).select_from(PoiSegment).join(
+        PoiSettlement,PoiSettlement.id==PoiSegment.settlement_id).where(*scope,
+        PoiSegment.review_reason.is_not(None),~PoiSegment.status.in_(['failed','uncertain'])).group_by(PoiSettlement.province_name)):
+        flagged[normalize(name)]+=n
+    rows=[]
+    for order,p in enumerate(provinces):
+        key=normalize(p.name);counts=totals.get(key,Counter());expected=point_counts[key]*len(job.categories)
+        done=counts['complete'];planned=sum(counts.values());review=counts['failed']+counts['uncertain']+flagged[key]
+        rows.append(dict(order=order,province=p.name,total_points=point_counts[key],completed_points=finished_points[key],
+            expected_searches=expected,completed_searches=done,pending_searches=max(0,expected-done),
+            in_progress=counts['processing'],review_searches=review,empty_searches=empty[key],
+            unplanned_searches=max(0,expected-planned),percent=round(100*done/expected,2) if expected else None,
+            complete=bool(expected and done==expected)))
+    expected=sum(r['expected_searches'] for r in rows);done=sum(r['completed_searches'] for r in rows)
+    total_points=sum(point_counts.values());points_done=sum(finished_points.values())
+    current=next((r['province'] for r in rows if r['expected_searches'] and not r['complete']),None)
+    return dict(scope='supplied_point_buffers',expected_searches=expected,completed_searches=done,
+        percent=round(100*done/expected,2) if expected else None,total_points=total_points,completed_points=points_done,
+        point_percent=round(100*points_done/total_points,2) if total_points else None,
+        excluded_points=session.scalar(select(func.count()).select_from(PoiSettlement).where(
+            PoiSettlement.version==job.search_dataset_version,PoiSettlement.state=='review')),
+        current_province=current,empty_searches=sum(empty.values()),provinces=rows)
+
+
+def unresolved_scope(session,job,c):
+    if not job or job.status not in ACTIVE:return False
+    scope=PoiSegment.id==c.pilot_segment_id if c and c.collection_mode=='pilot' else PoiSegment.kind==('settlement' if job.search_dataset_version else 'grid')
+    return bool(session.scalar(select(PoiSegment.id).where(PoiSegment.job_id==job.id,scope,
+        PoiSegment.status.in_(['failed','uncertain'])).limit(1)))

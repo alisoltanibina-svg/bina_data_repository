@@ -11,7 +11,7 @@ from uuid import uuid4
 from sqlalchemy import select, text, update, func
 from sqlalchemy.orm import Session
 from backend import database
-from backend.poi import (LOCK_KEY, ACTIVE, control, now, plan_province, next_target, apply_reply, create_job, storage_cleanup_required, create_pilot)
+from backend.poi import (LOCK_KEY, ACTIVE, control, now, plan_province, next_target, apply_reply, create_job, storage_cleanup_required, create_pilot, collector_revision)
 from backend.poi_models import PoiControl, PoiJob, PoiSegment, PoiDetailTask, PoiRequest
 from backend.poi_provider import Neshan
 from backend.settings import get_settings
@@ -28,7 +28,7 @@ class PendingDetail:
 class Worker:
     def __init__(self, provider, result_cap=0):
         self.provider, self.result_cap = provider, result_cap
-        self.worker_id = socket.gethostname()[:50] + ':' + uuid4().hex
+        self.worker_id = socket.gethostname()[:32] + ':' + uuid4().hex[:16] + ':v' + collector_revision()
         key_fingerprint = getattr(provider, 'key_fingerprint', None)
         if key_fingerprint: self.worker_id += ':k' + key_fingerprint
         self.stop = threading.Event()
@@ -112,11 +112,17 @@ class Worker:
             with Session(bind=connection) as session, session.begin():
                 job = session.get(PoiJob, planning_job_id)
                 if plan_province(session, job): return
-                unresolved = sum(session.scalar(select(func.count()).select_from(model).where(model.job_id==job.id,
-                    model.status.in_(['failed','uncertain']))) for model in (PoiSegment,PoiDetailTask))
+                scope=PoiSegment.kind==('settlement' if job.search_dataset_version else 'grid')
+                unresolved=session.scalar(select(func.count()).select_from(PoiSegment).where(PoiSegment.job_id==job.id,
+                    scope,PoiSegment.status.in_(['failed','uncertain'])))
+                if not job.search_dataset_version:
+                    unresolved+=session.scalar(select(func.count()).select_from(PoiDetailTask).where(PoiDetailTask.job_id==job.id,
+                        PoiDetailTask.status.in_(['failed','uncertain'])))
                 flagged = session.scalar(select(func.count()).select_from(PoiSegment).where(PoiSegment.job_id==job.id,
-                    PoiSegment.review_reason.is_not(None)))
+                    scope,PoiSegment.review_reason.is_not(None)))
                 job.status = 'needs_review' if unresolved or flagged or job.missing_hashes else 'completed'
+                c=control(session)
+                c.paused,c.reason=True,'Collection plan finished; review flagged results' if job.status=='needs_review' else 'Collection plan finished'
             return
         # Committed dispatch is the boundary for pause. No DB transaction spans HTTP.
         reply = self.provider.request(kind, params)
@@ -196,7 +202,7 @@ def main():
         raise SystemExit('Configure NESHAN_SERVICE_API_KEY and confirm NDA/internal-use rights with NESHAN_COLLECTION_AUTHORIZED=true')
     worker = Worker(Neshan(key), max(0,settings.neshan_nearby_result_cap))
     for event in (signal.SIGINT, signal.SIGTERM): signal.signal(event, lambda *_: worker.stop.set())
-    log.info('Collector starting; key fingerprint=%s; collection follows persisted pause state', worker.provider.key_fingerprint)
+    log.info('Collector starting; revision=%s; key fingerprint=%s; collection follows persisted pause state', collector_revision(), worker.provider.key_fingerprint)
     worker.run()
 
 if __name__ == '__main__': main()

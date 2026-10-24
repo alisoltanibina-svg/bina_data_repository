@@ -50,58 +50,67 @@
         </header>
 
         <section id="view-poi" hidden aria-label="گردآوری مکان‌ها">
-            <p class="support-hint">مطابق مجوز اعلام‌شدهٔ نشان، فقط خروجی POI برای استفادهٔ داخلی نگهداری می‌شود. خروجی Nearby ذخیره نمی‌شود و نمایش اطلاعات POI روی نقشه مجاز نیست.</p>
-            <p class="support-hint">پایان جست‌وجوی نواحی به معنی کشف همهٔ مکان‌های واقعی نیست. انتساب استان و شهرستان بر پایهٔ مرز جغرافیایی است.</p>
+            <p class="support-hint">گردآوری به‌صورت خودکار بین نقاط و استان‌ها ادامه می‌یابد. نتیجه‌های بدون هش قابل استفاده رد می‌شوند؛ هش‌های جدید پیش از جست‌وجوی بعدی برای دریافت جزئیات ارسال می‌شوند.</p>
             <p id="poi-error" class="support-error" role="alert" hidden></p>
             <div class="support-admin-toolbar">
-                <button type="button" class="admin-btn" id="poi-pause">توقف همهٔ درخواست‌ها</button>
-                <button type="button" class="admin-btn" id="poi-resume">ادامهٔ گردآوری</button>
+                <button type="button" class="admin-btn" id="poi-resume">شروع / ادامهٔ گردآوری</button>
+                <button type="button" class="admin-btn admin-btn-ghost" id="poi-pause">توقف گردآوری</button>
                 <button type="button" class="admin-btn admin-btn-ghost" id="poi-refresh">تازه‌سازی گزارش</button>
             </div>
-            <p id="poi-readiness" class="support-hint" role="status" aria-live="polite"></p>
-            <p class="support-hint">تازه‌سازی خودکار این گزارش فقط اطلاعات پایگاه دادهٔ سامانه را می‌خواند و درخواستی به نشان ارسال نمی‌کند.</p>
-            <p id="poi-worker" role="status" aria-live="polite"></p>
-            <p id="poi-timing"></p><p id="poi-reason"></p>
+            <p id="poi-report-time" class="support-hint"></p>
+            <p class="support-hint">گزارش فقط با بازکردن این بخش، انجام عملیات یا زدن دکمهٔ تازه‌سازی خوانده می‌شود. بستن صفحه اجرای گردآوری را متوقف نمی‌کند.</p>
+            <p id="poi-readiness" role="status" aria-live="polite"></p>
+            <p id="poi-worker"></p><p id="poi-timing"></p><p id="poi-reason"></p>
             <article class="support-card">
-                <h2>آزمایش تک‌ناحیه‌ای</h2>
-                <p>ابتدا مختصات یک مکان شناخته‌شده در استان فعلی را انتخاب کنید. آزمایش فقط همین ناحیه را جست‌وجو می‌کند، جزئیات هش‌های جدید را می‌گیرد و سپس متوقف می‌شود. شبکهٔ سراسری همچنان متوقف می‌ماند.</p>
-                <p id="poi-pilot-status" role="status" aria-live="polite"></p>
-                <section class="poi-source-controls" aria-label="منابع جست‌وجو">
-                    <p>فایل‌های شما فقط نقاط آغاز جست‌وجو را مشخص می‌کنند؛ پوشش کامل شهرها و روستاها تأیید نشده است. نقاط نیازمند بررسی اجرا نمی‌شوند.</p>
-                    <p id="poi-source-summary"></p>
-                    <label>مجموعهٔ واردشده<select id="poi-source-select"></select></label>
-                    <button type="button" class="admin-btn" id="poi-source-attach">اتصال مجموعه در حالت توقف</button>
-                    <label>نقطهٔ آماده در استان فعلی<select id="poi-settlement-select"><option value="">انتخاب نقطه</option></select></label>
-                    <button type="button" class="admin-btn" id="poi-settlement-enable">آماده‌سازی برنامهٔ نقاط پس از آزمایش موفق</button>
-                </section>
-                <form id="poi-pilot-form">
-                    <label>عرض جغرافیایی (Latitude)<input id="poi-pilot-lat" type="number" min="24" max="41" step="any" required dir="ltr"></label>
-                    <label>طول جغرافیایی (Longitude)<input id="poi-pilot-lon" type="number" min="43" max="64" step="any" required dir="ltr"></label>
-                    <label>دستهٔ آزمایش<select id="poi-pilot-category" required></select></label>
-                    <label>شعاع آزمایش (متر)<input id="poi-pilot-radius" type="number" min="500" max="5000" value="500" required></label>
-                    <p>آماده‌سازی فقط برنامه را ثبت می‌کند؛ برای ارسال درخواست، بعد از بررسی مختصات دکمهٔ «ادامهٔ گردآوری» را بزنید. ساخت آزمایش جدید، آزمایشِ در صف قبلی را جایگزین می‌کند؛ سابقهٔ آن حذف نمی‌شود.</p>
-                    <button type="submit" class="admin-btn" id="poi-pilot-prepare">آماده‌سازی آزمایش در حالت توقف</button>
-                </form>
+                <h2>پیشرفت جغرافیایی برنامه</h2>
+                <p id="poi-source-summary"></p>
+                <p id="poi-coverage"></p>
+                <label for="poi-progress">پیشرفت جست‌وجوی نقاط مجموعه</label>
+                <progress id="poi-progress" max="100" value="0"></progress>
+                <p id="poi-progress-label"></p>
+                <p class="support-hint">این درصد، سهم جست‌وجوهای تمام‌شده از همهٔ نقاط و دسته‌های مجموعه است؛ پوشش کامل مساحت شهرها، روستاها یا همهٔ مکان‌های واقعی نیست. نقاط نیازمند بررسی جداگانه نمایش داده می‌شوند.</p>
+                <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th scope="col">استان</th><th scope="col">پیشرفت</th><th scope="col">نقاط تمام‌شده</th><th scope="col">جست‌وجوی تمام‌شده / کل</th><th scope="col">باقی‌مانده</th><th scope="col">بدون هش جدید</th><th scope="col">نیازمند بررسی</th></tr></thead><tbody id="poi-areas"></tbody></table></div>
             </article>
             <div class="admin-ops" id="poi-summary"></div>
-            <h2>پیشرفت استان‌ها و نواحی برنامه‌ریزی‌شده</h2>
-            <p id="poi-coverage"></p>
-            <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th scope="col">استان</th><th scope="col">جست‌وجوی تمام‌شده</th><th scope="col">باقی‌مانده</th><th scope="col">ناموفق / نامطمئن</th></tr></thead><tbody id="poi-areas"></tbody></table></div>
-            <h2>مکان‌های یکتای ذخیره‌شده به تفکیک دسته</h2><ul id="poi-categories"></ul>
-            <details><summary>ساخت برنامهٔ سراسری جدید</summary>
+            <details id="poi-setup">
+                <summary>تنظیم برنامه و مجموعهٔ جغرافیایی</summary>
+                <p id="poi-job-config"></p>
+                <div id="poi-attach-panel" class="poi-source-controls">
+                    <label>مجموعهٔ واردشده<select id="poi-source-select"></select></label>
+                    <button type="button" class="admin-btn" id="poi-source-attach">اتصال مجموعه به برنامهٔ فعلی</button>
+                </div>
                 <form id="poi-create" class="support-card">
+                    <h3>ساخت برنامهٔ جدید</h3>
+                    <label>مجموعهٔ جغرافیایی<select id="poi-create-source" required></select></label>
                     <label>دسته‌بندی‌ها<select id="poi-layers" multiple size="8" required aria-describedby="poi-layer-help"></select></label>
                     <p id="poi-layer-help">برای انتخاب چند مورد از Ctrl یا Command استفاده کنید. formal_school مدرسه و school مؤسسهٔ آموزشی است.</p>
-                    <label>شعاع هر جست‌وجو (متر)<input id="poi-radius" type="number" min="500" max="5000" value="2000" required></label>
-                    <label>سیاست گردآوری<select id="poi-mode"><option value="initial">گردآوری اولیه؛ رد کردن هش‌های حل‌شده</option><option value="refresh">به‌روزرسانی عمدی جزئیات قدیمی</option></select></label>
-                    <label id="poi-cutoff-wrap" hidden>به‌روزرسانی رکوردهای قدیمی‌تر از<input id="poi-cutoff" type="datetime-local"></label>
-                    <button type="submit" class="admin-btn">ساخت برنامه در حالت توقف</button>
+                    <label>شعاع جست‌وجو (متر)<input id="poi-radius" type="number" min="500" max="5000" value="500" required></label>
+                    <label>سیاست گردآوری<select id="poi-mode"><option value="initial">گردآوری اولیه</option><option value="refresh">به‌روزرسانی عمدی جزئیات قدیمی</option></select></label>
+                    <label id="poi-cutoff-wrap" hidden>رکوردهای قدیمی‌تر از<input id="poi-cutoff" type="datetime-local"></label>
+                    <button type="submit" class="admin-btn" id="poi-create-submit">ثبت برنامه در حالت توقف</button>
                 </form>
             </details>
-            <details><summary>تاریخچهٔ درخواست‌ها و موارد نیازمند بررسی</summary>
-                <p>درخواست نامطمئن ممکن است به سرویس رسیده باشد. تلاش دوباره را پس از بررسی انجام دهید.</p>
-                <button type="button" class="admin-btn" id="poi-retry">بازگرداندن درخواست‌های ناموفق و نامطمئن به صف</button>
-                <button type="button" class="admin-btn admin-btn-ghost" id="poi-history-load">نمایش تاریخچه و نامزدهای تکراری</button>
+            <details id="poi-verification" hidden>
+                <summary>بررسی اولیهٔ اتصال Nearby به جزئیات POI</summary>
+                <p>این بررسی یک‌بار پیش از فعال‌سازی برنامه انجام می‌شود. یک نقطه از فایل انتخاب کنید؛ مختصات به‌صورت خودکار خوانده می‌شود. پس از دریافت موفق جزئیات، دکمهٔ اصلی گردآوری کل برنامه را فعال می‌کند.</p>
+                <p id="poi-pilot-status"></p>
+                <form id="poi-pilot-form">
+                    <label>نقطهٔ آماده در استان فعلی<select id="poi-settlement-select" required></select></label>
+                    <p id="poi-point-coordinates" dir="ltr"></p>
+                    <label>دستهٔ بررسی<select id="poi-pilot-category" required></select></label>
+                    <p>شعاع و دسته‌ها از برنامهٔ فعلی خوانده می‌شوند. آماده‌سازی درخواستی به نشان ارسال نمی‌کند.</p>
+                    <button type="submit" class="admin-btn" id="poi-pilot-prepare">آماده‌سازی بررسی اتصال</button>
+                </form>
+            </details>
+            <details>
+                <summary>آمار داخلی مکان‌های ذخیره‌شده</summary>
+                <p>فقط خروجی جزئیات POI برای استفادهٔ داخلی ذخیره می‌شود. خروجی Nearby ذخیره نمی‌شود و اطلاعات نشان روی نقشه نمایش داده نمی‌شود.</p>
+                <ul id="poi-categories"></ul>
+            </details>
+            <details><summary>تاریخچه و بررسی درخواست‌ها، شامل سوابق برنامهٔ قبلی</summary>
+                <p>سوابق قبلی حفظ شده‌اند و در درصد پیشرفت مجموعهٔ فعلی محاسبه نمی‌شوند. درخواست نامطمئن ممکن است به سرویس رسیده باشد؛ بازگرداندن آن به صف نیازمند بررسی است.</p>
+                <button type="button" class="admin-btn" id="poi-retry">بازگرداندن موارد ناموفق و نامطمئن برنامهٔ فعلی به صف</button>
+                <button type="button" class="admin-btn admin-btn-ghost" id="poi-history-load">نمایش تاریخچه</button>
                 <ul id="poi-history"></ul><pre id="poi-raw" dir="ltr"></pre><ul id="poi-reviews"></ul>
             </details>
         </section>

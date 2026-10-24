@@ -840,3 +840,6 @@ body.admin-body {
 
 #view-poi .poi-source-controls { display: grid; gap: .75rem; margin-block: 1rem; }
 #view-poi .poi-source-controls label { display: grid; gap: .4rem; }
+
+#poi-progress { display: block; width: 100%; height: 1.1rem; accent-color: #515811; margin-block: .75rem; }
+#poi-point-coordinates { overflow-wrap: anywhere; }

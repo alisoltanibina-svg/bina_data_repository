@@ -43,7 +43,7 @@ data/bina_dashboard_database.db
 artifacts/
 output/
 /deploy/*
-!/deploy/poi-worker.service.example
+!/deploy/poi-worker.service
 uvicorn.bat
 
 .gitconfig

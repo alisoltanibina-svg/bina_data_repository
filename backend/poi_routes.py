@@ -16,6 +16,7 @@ class JobBody(InputBody):
     radius_m: int = Field(default=2000,ge=500,le=5000)
     mode: Literal['initial','refresh'] = 'initial'
     refresh_before: datetime | None = None
+    search_dataset_version: str | None = Field(default=None,min_length=64,max_length=64)
 
 
 class SourceBody(InputBody):
@@ -57,6 +58,7 @@ def build_router(require_admin, require_user):
         try:
             with database.db_session() as session:
                 job = poi.create_job(session, body.categories, body.radius_m, body.mode, body.refresh_before)
+                if body.search_dataset_version:poi.attach_sources(session,body.search_dataset_version)
                 return response({'id':str(job.id),'paused':True},201)
         except ValueError as error: raise HTTPException(409,detail=str(error)) from error
 
@@ -97,6 +99,13 @@ def build_router(require_admin, require_user):
         require_admin(request)
         try:
             with database.db_session() as session:return response(poi.enable_settlement_plan(session))
+        except ValueError as error:raise HTTPException(409,detail=str(error)) from error
+
+    @router.post('/api/admin/poi/start')
+    def start(request: Request):
+        require_admin(request)
+        try:
+            with database.db_session() as session:return response(poi.start_collection(session))
         except ValueError as error:raise HTTPException(409,detail=str(error)) from error
 
     @router.post('/api/admin/poi/pause')

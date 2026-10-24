@@ -1,15 +1,17 @@
 [Unit]
-Description=Dashboard Neshan POI acquisition worker
+Description=Bina Neshan POI collection
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-User=dashboard
+User=root
 WorkingDirectory=/opt/app
 EnvironmentFile=/opt/app/.env
-ExecStart=/opt/app/.venv/bin/python -m backend.poi_worker
-Restart=on-failure
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/app/venv/bin/python -m backend.poi_worker
+Restart=always
 RestartSec=15
 TimeoutStopSec=60
 KillSignal=SIGTERM

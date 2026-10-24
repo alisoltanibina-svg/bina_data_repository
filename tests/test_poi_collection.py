@@ -631,4 +631,152 @@ class CollectorTests(unittest.TestCase):
             self.assertIsNone(request.raw_response);self.assertEqual(request.hash_count,0)
             with self.assertRaises(ValueError):self.poi.enable_settlement_plan(session)
 
+    def test_production_empty_skips_to_valid_hash_drains_details_and_finishes(self):
+        self.import_sources()
+        with self.db.db_session() as session:
+            c=self.poi.control(session);c.collection_mode='coverage';c.paused=False
+        def response(kind,params):
+            self.calls.append((kind,params))
+            if kind=='details':return Reply(200,DETAILS)
+            return Reply(200,nearby()) if len(self.calls)==1 else Reply(200,nearby(ITEM))
+        self.provider.request=response
+        self.tick()  # Plan the first province without provider traffic.
+        with self.db.db_session() as session:
+            g=self.poi.status(session)['geography']
+            self.assertEqual((g['completed_searches'],g['expected_searches'],g['percent']),(0,2,0))
+            self.assertEqual(g['excluded_points'],2)
+        self.tick();self.assertFalse(self.scalar(select(self.m.PoiControl.paused)))
+        self.assertFalse(self.worker.stop.is_set())
+        self.clear_cooldown();self.tick();self.clear_cooldown();self.tick()
+        self.assertEqual([kind for kind,_ in self.calls],['nearby','nearby','details'])
+        self.tick()
+        with self.db.db_session() as session:
+            g=self.poi.status(session)['geography']
+            self.assertEqual((g['completed_searches'],g['expected_searches'],g['percent']),(2,2,100))
+            self.assertEqual(g['empty_searches'],1);self.assertEqual(g['completed_points'],2)
+            self.assertEqual(session.get(self.m.PoiSegment,self.segment_id).status,'pending')
+            self.assertEqual(session.get(self.m.PoiJob,self.job_id).status,'completed')
+            self.assertEqual(self.poi.status(session)['state'],'completed')
+            self.assertTrue(self.poi.control(session).paused)
+        self.assertFalse(self.worker.stop.is_set())
+
+    def test_source_progress_includes_unplanned_provinces_and_all_categories(self):
+        catalogue=self.import_sources()
+        from uuid import uuid4
+        with self.db.db_session() as session:
+            session.add(self.m.PoiBoundary(version='test',level='province',code='B',name='B',geometry=mapping(box(52,35,54,37))))
+            session.add(self.m.PoiSettlement(id=uuid4(),version=catalogue.version,code='b-point',name='B City',declared_province='B',
+                province_name='B',county_name='County B',latitude=35.5,longitude=53,state='ready',priority=0,source_metadata={}))
+            job=session.get(self.m.PoiJob,self.job_id);job.categories=['library','park']
+            session.add(self.m.PoiCategory(slug='park',title='Park'));session.flush()
+            self.poi.plan_province(session,job);session.flush()
+            segment=session.scalar(select(self.m.PoiSegment).where(self.m.PoiSegment.kind=='settlement').order_by(self.m.PoiSegment.id))
+            segment.status='complete';session.flush()
+            g=self.poi.geographic_progress(session,job)
+            self.assertEqual(g['expected_searches'],6);self.assertEqual(g['completed_searches'],1)
+            self.assertEqual(g['completed_points'],0);self.assertEqual(g['percent'],16.67)
+            self.assertEqual(g['provinces'][1]['expected_searches'],2)
+            self.assertEqual(g['provinces'][1]['unplanned_searches'],2)
+            self.assertEqual(g['provinces'][1]['percent'],0)
+
+    def test_production_advances_provinces_without_manual_resume(self):
+        catalogue=self.import_sources()
+        from uuid import uuid4
+        with self.db.db_session() as session:
+            session.add(self.m.PoiBoundary(version='test',level='province',code='B',name='B',geometry=mapping(box(52,35,54,37))))
+            session.add(self.m.PoiSettlement(id=uuid4(),version=catalogue.version,code='b-point',name='B City',declared_province='B',
+                province_name='B',latitude=35.5,longitude=53,state='ready',priority=0,source_metadata={}))
+            c=self.poi.control(session);c.collection_mode='coverage';c.paused=False
+        self.provider.request=lambda kind,params:self.calls.append((kind,params)) or Reply(200,nearby())
+        for _ in range(7):self.clear_cooldown();self.tick()
+        self.assertEqual(len(self.calls),3)
+        self.assertIn('53',self.calls[-1][1]['location'])
+        self.assertEqual(self.scalar(select(self.m.PoiJob.planned_settlement_provinces)),2)
+        self.assertEqual(self.scalar(select(self.m.PoiJob.status)),'completed')
+        self.assertEqual(self.scalar(select(func.count()).select_from(self.m.PoiPlace)),0)
+
+    def test_current_worker_revision_required_before_resume(self):
+        from backend.settings import get_settings
+        from pydantic import SecretStr
+        with patch.object(get_settings(),'neshan_service_api_key',SecretStr('test-only')):
+            with self.db.db_session() as session:
+                c=self.poi.control(session);c.paused=True;c.heartbeat_at=self.poi.now();c.worker_id='old-process:k123456abcdef'
+                self.assertEqual(self.poi.status(session)['resume_blocked_reason'],'worker_outdated')
+                with self.assertRaises(ValueError):self.poi.resume_collection(session)
+                c.worker_id=self.worker.worker_id
+                self.assertTrue(self.poi.status(session)['can_resume'])
+                self.assertLessEqual(len(c.worker_id),100)
+
+    def test_start_promotes_existing_successful_verification_atomically(self):
+        self.import_sources()
+        with self.db.db_session() as session:
+            point=self.poi.source_points(session)[0]
+            self.poi.create_pilot(session,0,0,'library',2000,point['id'])
+            self.poi.control(session).paused=False
+        self.tick();self.clear_cooldown();self.tick()
+        from backend.settings import get_settings
+        from pydantic import SecretStr
+        with patch.object(get_settings(),'neshan_service_api_key',SecretStr('test-only')):
+            with self.db.db_session() as session:
+                c=self.poi.control(session);c.heartbeat_at=self.poi.now();c.worker_id=self.worker.worker_id
+                self.assertTrue(self.poi.status(session)['can_start_collection'])
+                self.poi.start_collection(session)
+                self.assertEqual(c.collection_mode,'coverage');self.assertFalse(c.paused)
+        self.assertEqual(len(self.calls),2)
+        self.tick()  # Planning reuses verification, with no provider request.
+        self.assertEqual(len(self.calls),2)
+
+    def test_source_retry_does_not_requeue_retired_grid(self):
+        self.import_sources()
+        with self.db.db_session() as session:
+            self.poi.control(session).collection_mode='coverage'
+            session.get(self.m.PoiSegment,self.segment_id).status='uncertain'
+            job=session.get(self.m.PoiJob,self.job_id);self.poi.plan_province(session,job);session.flush()
+            segment=session.scalar(select(self.m.PoiSegment).where(self.m.PoiSegment.kind=='settlement'))
+            segment.status='uncertain';session.flush()
+            self.poi.retry_unresolved(session,self.job_id);session.flush()
+            self.assertEqual(segment.status,'pending')
+            self.assertEqual(session.get(self.m.PoiSegment,self.segment_id).status,'uncertain')
+
+    def test_production_start_api_requires_admin_and_reuses_verification(self):
+        self.import_sources()
+        with self.db.db_session() as session:
+            point=self.poi.source_points(session)[0]
+            self.poi.create_pilot(session,0,0,'library',2000,point['id'])
+            self.poi.control(session).paused=False
+        self.tick();self.clear_cooldown();self.tick()
+        from backend.main import app
+        from backend import membership
+        from backend.models import User
+        from fastapi.testclient import TestClient
+        from backend.settings import get_settings
+        from pydantic import SecretStr
+        with self.db.db_session() as session:
+            session.add(User(phone='09120000888',first_name='Production',last_name='Admin',is_admin=True,is_active=True,
+                password_hash=membership.hash_password('testing-password')))
+            c=self.poi.control(session);c.heartbeat_at=self.poi.now();c.worker_id=self.worker.worker_id
+        client=TestClient(app,headers={'X-CSRF-Protection':'1'});self.addCleanup(client.close)
+        self.assertEqual(client.post('/api/admin/poi/start',json={}).status_code,401)
+        token=membership.authenticate('09120000888','testing-password')['token'];client.cookies.set(membership.SESSION_COOKIE,token)
+        with patch.object(get_settings(),'neshan_service_api_key',SecretStr('test-only')):
+            response=client.post('/api/admin/poi/start',json={});self.assertEqual(response.status_code,200,response.text)
+        self.assertFalse(response.json()['paused']);self.assertEqual(len(self.calls),2)
+        self.assertEqual(self.scalar(select(self.m.PoiControl.collection_mode)),'coverage')
+
+    def test_hashless_items_continue_without_retaining_provider_payload(self):
+        self.import_sources()
+        with self.db.db_session() as session:
+            c=self.poi.control(session);c.collection_mode='coverage';c.paused=False
+        self.provider.request=lambda kind,params:self.calls.append((kind,params)) or Reply(200,nearby({'name':'NOT-RETAINED'}))
+        self.tick();self.tick()
+        with self.db.db_session() as session:
+            self.assertFalse(self.poi.control(session).paused)
+            req=session.scalar(select(self.m.PoiRequest));self.assertIsNone(req.raw_response)
+            self.assertEqual((req.result_count,req.hash_count,req.queued_count),(1,0,0))
+            self.assertEqual(session.scalar(select(func.count()).select_from(self.m.PoiPlace)),0)
+            g=self.poi.status(session)['geography']
+            self.assertEqual(g['completed_searches'],1);self.assertEqual(g['empty_searches'],1)
+            self.assertEqual(g['provinces'][0]['review_searches'],1)
+        self.clear_cooldown();self.tick();self.assertEqual(len(self.calls),2)
+
 if __name__ == '__main__': unittest.main()

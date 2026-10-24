@@ -372,331 +372,181 @@ reads/claims, forged formats, traversal/control filenames, image bombs, metadata
 stripping, quotas, concurrent claims, close-during-upload races, stale uploads,
 orphan cleanup, CSRF, chunked body limits, and unexpected fields.
 
-## POI collection: NDA and retention restrictions
+## Production POI collection
 
-Neshan's account-specific support instruction supplied for this project permits
-retaining only POI Details output for internal use, forbids retaining Search/Nearby
-output, and forbids displaying the retained POI data on a map. The previous GeoJSON
-endpoint is disabled (HTTP 403), including for administrators. The aggregate endpoint
-is now admin-only at `/api/admin/poi/counts` for internal analysis; it must not be
-wired into a map. The generic `/api/pois/counts` endpoint is also disabled.
+The admin collection tab has one production workflow: attach the supplied source
+catalogue, verify the Nearby-to-Details connection once, then start automatic
+collection. Existing successful verification is reused. There is no manual
+latitude/longitude form and no parallel nationwide-grid interface. Original grid
+segments, origins, and requests remain in history and are never dispatched by an
+attached-source plan. No database migration is added by this production update;
+`alembic upgrade head` remains part of deployment for installations behind head.
 
-Collection is disabled by default. `NESHAN_COLLECTION_AUTHORIZED=true` is an operator
-acknowledgement that the required NDA has been completed and Neshan has authorized
-this internal use; it is not automatic verification or a grant of rights. Confirm
-the applicable agreement covers the intended acquisition scope, permanent identity
-keys attached to successfully retrieved Details, internal aggregation, and the
-30–60 second scheduled handoff. Do not enable collection before that confirmation.
+The worker is a separate managed service. Browser reports are **manual**: opening
+the collection tab, clicking refresh, or completing an administrative action reads
+the database. There is no interval/background report polling. The report timestamp
+makes its age explicit. Closing the page has no effect on collection. Worker
+heartbeats every five seconds remain internal database health signals, not browser
+requests or provider calls.
 
-Nearby bodies are used transiently to extract hashes in memory. They are not saved
-in request history, place tables, caches, or durable task queues. Nearby names,
-coordinates, icons, categories and addresses are discarded. Only successful Details
-output creates or updates a place. Stable UUIDs and unique `(provider, provider_id)`
-identities apply to those Details records. Category associations come exclusively
-from Details output. Request timestamps/status, request origins and operational
-counts are retained; no Nearby payload or pending hash is written to them.
+### Automatic progression and progress rates
 
-The worker prioritizes every fresh hash in the current in-memory batch before any
-further Nearby search. All calls, including retries, share the persisted 30–60 second
-cooldown and respect longer provider deadlines. A response with zero new eligible
-hashes (including an empty `nearestPoints` array, all missing hashes, or only resolved
-identities) automatically pauses collection. This conservative local rule prevents
-an unattended sequence of Nearby-only calls. It is not a provider-published request
-limit. Review the origin/category and obtain guidance from Neshan on handling empty
-rural/border cells before resuming; do not repeatedly resume to bypass this stop.
-There is no fake Details call when a response contains no hash.
+For a source-backed production plan, the worker automatically advances between
+point/category searches and provinces. Following the operator's clarification of
+Neshan's instruction, a response with no new usable hashes completes that search
+and advances after the existing cooldown. This includes empty responses, results
+without hashes, and hashes already resolved under the job's initial/refresh policy.
+No fake Details request is sent. Every new eligible hash goes through Details
+before the next Nearby request. There is no manual restart at a point/province
+boundary. Collection completion leaves the worker running and idle.
 
-Pause finishes an already dispatched request. Successful Details is saved; Nearby
-is still never saved. Pending hashes can remain in memory while the same worker is
-paused. A worker restart loses that volatile batch, marks its geographic segment
-uncertain, and pauses for review. Explicitly requeueing the segment reissues Nearby
-and skips Details identities already saved. Exact restoration of pending Nearby
-hashes across restarts is intentionally not supported under the non-retention rule.
-Operating-system swap, process dumps and external proxy/HTTP logs must also be
-reviewed; the service example disables core dumps. Avoid HTTP payload logging.
+A one-point connection verification still ends after that point. It is a setup
+check, not the production scheduler. Once successful Details is confirmed, the
+main **شروع / ادامهٔ گردآوری خودکار** button promotes the existing verification and
+starts production in one transaction. Preparation and promotion themselves do not
+call the provider. Failed, uncertain, quota/access, and unexpected-schema outcomes
+still pause for review. A paused collection leaves its worker running; restarting
+the service does not bypass a persisted pause. Source retries do not requeue the
+retired grid. The admin blocks resume when the live worker's code revision differs
+from the deployed backend, addressing the previously observed old-worker issue.
 
-### Upgrade an existing installation
+Geographic progress uses the complete eligible catalogue, including provinces not
+yet planned. The denominator is eligible supplied points × selected categories.
+Each search completes after its Details handoff, if any, finishes. Empty searches
+count as finished searches and have a separate count. A point completes only after
+all selected categories finish. National and province percentages, point counts,
+remaining searches, and failed/uncertain counts are displayed. Quarantined points
+are displayed separately and excluded from the executable denominator. This is
+progress of **buffers around supplied points**, not a percentage of Iran's land,
+all village/city footprints, or all real POIs. Old grid/history totals do not alter
+these progress percentages.
 
-1. Pause collection and stop the actual collector process/service. FastAPI and the
-   worker are independent; restarting FastAPI alone does not stop an old worker.
-2. Deploy the new code and install requirements, then run `alembic upgrade head`.
-   Migration `0016_poi_nonretention` adds operational counts and a constraint that
-   rejects every new Nearby payload write. It pauses existing control state and
-   deliberately leaves old payloads for the explicit reviewed cleanup command.
-3. Review the cleanup dry run from the project root:
+### Source catalogue
 
-   ```bash
-   python -m scripts.cleanup_nearby_storage
-   ```
-
-4. To apply that reviewed removal, with the worker stopped:
-
-   ```bash
-   python -m scripts.cleanup_nearby_storage --apply
-   ```
-
-   This irreversibly clears existing Nearby payloads, removes unresolved discovery
-   records and obsolete durable hash tasks, and rebuilds category links using only
-   saved Details output. It preserves confirmed Details records and UUIDs. It refuses
-   to apply while a worker owns the collection lock and leaves collection paused.
-   Database backups, WAL archives, exports and logs are not erased by this command;
-   arrange their retention/remediation according to the NDA and your records policy.
-5. Review the NDA/internal-use authorization and set `NESHAN_SERVICE_API_KEY` plus
-   `NESHAN_COLLECTION_AUTHORIZED=true` only when authorized. Do not put the private
-   service key in `NESHAN_MAP_API_KEY`, which is browser-visible.
-6. Build the frontend (`python scripts/build_frontend.py`), restart the existing
-   FastAPI service, and start one worker with `python -m backend.poi_worker` under a
-   supervisor. `deploy/poi-worker.service.example` is an example, not an installed
-   service. Confirm its paths and actual installed unit name.
-7. Prepare and run a single-area pilot as described below. The nationwide grid stays
-   paused; the empty searches already observed do not demonstrate POI access.
-
-The admin panel shows explicit setup blockers, worker heartbeat, waiting/paused
-state, request totals, empty-search counts and Details handoff counts. Request
-history provides `result_count`, `hash_count`, and `queued_count` for Nearby; its raw
-response is always null, even when historical payloads await cleanup. Polling the
-status route only reads the application's database and does not call Neshan.
-
-### Diagnose access failures before retrying
-
-HTTP 484 is Neshan's `ApiWhiteListError` (key scope/whitelist authorization), not the
-quota code 481. The collector now names the rejected service in its pause reason:
-Nearby `/v1/nearby` or POI Details `/v1/point`. A restart does not verify or modify the
-provider's restrictions. Do not repeatedly resume an unchanged access failure.
-
-From the same activated environment/shell used to launch the worker, run:
-
-```bash
-python -m backend.poi_diagnostics
-```
-
-This is read-only. It makes no Nearby/Details calls, does not resume collection,
-and does not read response payloads or place records. It reports configuration
-source, secret-free SHA-256 key fingerprints, duplicate key assignments, accidental
-browser-key reuse, proxy types, migrations, heartbeat and recent request metadata.
-It suppresses exception text and database URLs to avoid leaking credentials. Newly
-started workers record their key fingerprint in their existing worker identifier
-and print that fingerprint at startup; an older worker's fingerprint is unknown.
-
-For one optional unauthenticated public IPv4 lookup, use:
-
-```bash
-python -m backend.poi_diagnostics --egress-ip
-```
-
-That lookup contacts `api.ipify.org`, never Neshan, and sends no API key. It reports
-the IP that observer sees. Destination-specific routing/proxies may differ, so
-Neshan must confirm the source it sees on the rejected request.
-
-If the report shows an environment override that differs from `.env`, update or
-remove that override in the actual launcher. For an interactive Bash worker whose
-reviewed configuration is `/opt/app/.env`, remove the displayed override names from
-that shell, rerun diagnostics, and verify the effective/file fingerprints match.
-For example, when the override name is `NESHAN_SERVICE_API_KEY`:
-
-```bash
-unset NESHAN_SERVICE_API_KEY
-python -m backend.poi_diagnostics --egress-ip
-```
-
-Do not unset a key intentionally managed only through the environment; update it
-there instead. A systemd/supervisor environment must be corrected in that launcher,
-not only in an unrelated interactive shell. The diagnostic's `environment_key_names`
-field identifies case variants without printing values.
-
-Once the correct credential source is established, send Neshan the failing service,
-HTTP code, request time and observed IP (never paste the secret key into a public
-message). Have them verify the authorized server key, key restrictions and the
-source they see. Only after they confirm the restriction is corrected, start one
-worker with `python -m backend.poi_worker`. If a restart interrupted a volatile
-Details batch, explicitly requeue that uncertain segment in the admin panel before
-resuming. No new database migration is needed for these diagnostic changes.
-
-### Run one controlled pilot before further geographic collection
-
-Migration `0017_poi_pilot` pauses existing collection and defaults the worker to
-single-area pilot mode. Stop the old worker before migration, deploy backend and
-frontend together, run `alembic upgrade head` and `python scripts/build_frontend.py`,
-and restart the existing FastAPI service and one collector worker. These actions do
-not send a pilot request until an administrator explicitly prepares and resumes it.
-
-In the admin collection tab, open **آزمایش تک‌ناحیه‌ای**. Enter a trusted latitude and
-longitude around a known place in the current province (currently East Azerbaijan
-for the existing plan), one of the job's selected categories, and a provider-approved
-radius within the supported range. Coordinates are intentionally blank: no city,
-mosque, village or provider coverage is guessed. Prefer a Neshan-approved reference
-point when validating account access and the Nearby-to-Details handoff.
-
-Press **آماده‌سازی آزمایش در حالت توقف**. This only creates one pilot segment with
-your own search parameters; it makes no provider calls and leaves the job paused.
-Verify the displayed origin, category and radius, then press Resume. The worker
-searches only that segment, drains its new hashes through Details under the existing
-cooldown, and automatically pauses after its last successful Details response. An
-empty response, missing hashes, known resolved hashes or an error also stops the
-pilot according to the existing policy. A completed Nearby search alone is not a
-successful end-to-end pilot: verify at least one successful Details request and its
-saved internal record. No stored place data is displayed on a map.
-
-The original grid segments and their origins/history are preserved. Pilot segments
-are excluded from geographic coverage totals, so a successful pilot does not mark a
-province covered. A further Resume click cannot fall through into the nationwide
-grid. Replacing a queued pilot creates a new segment and marks the previous one
-cancelled, preserving its origin/history. A pilot cannot be switched while any live
-Details batch is still being processed, or skip ahead to a different province.
-Interrupted pilots still lose unsaved hashes, pause, and require reviewed requeueing.
-
-The same paused preparation is available from the project root through the CLI;
-replace the example variable names with the actual reviewed coordinates:
-
-```bash
-python -m backend.poi_worker pilot --latitude "$PILOT_LAT" --longitude "$PILOT_LON" --category mosque --radius 500
-```
-
-The source workflow below enables only buffers around supplied settlement points,
-following a successful pilot with the same radius as the job. The old nationwide
-grid is preserved and excluded from this new scope. A successful pilot is a
-functional check, not provider authorization or proof of complete coverage.
-
-### Integrate all four user-supplied search layers
-
-The importer reads all four WGS84 layers without modifying them:
-
-| File | Role |
+| File in `data/` | Role |
 | --- | --- |
 | `area_to_search.geojson` | 2,792 rural/municipal/special-area boundaries |
 | `area_to_search2.geojson` | 31 province boundaries and capital names |
 | `area_to_search3.geojson` | 1,196 district boundaries; county polygons derived by union within each normalized province/county name |
 | `area_to_search4.geojson` | 1,457 named settlement points used as search anchors |
 
-The current audit yields **1,454 ready points and 3 quarantined points**. زیوه is
-labelled اردبیل but spatially falls in آذربایجان غربی. درگهان and ابوموسی fall outside
-the supplied administrative polygons. They remain in the catalogue with reasons,
-but cannot be selected or automatically queried. Nine zero rural-area IDs receive
-content-derived fallback identities. Settlement `id`, `OBJECTID`, and `center` are
-not assumed unique or interpreted as documented settlement classifications.
-Source properties and file SHA256 hashes are preserved for provenance.
-
-These are user-supplied planning inputs, distinct from provider responses. One
-circle around each point does **not** cover an entire city, every village, or all
-land in Iran. The first file contains broad administrative areas, not reliable
-built-up footprints. Its named centres are not geocoded or guessed. County unions
-are explicitly labelled as derived from the supplied districts; they are not a
-separate authoritative county layer. No population coverage is inferred.
-
-Deploy backend/frontend and all four files together. Pause the collector and stop
-its existing process before migration/import. Use the existing service/process
-manager; do not assume a `poi-worker.service` unit exists. Then, from `/opt/app`
-with its virtual environment active:
+The current catalogue contains **1,454 ready points and 3 quarantined points**:
+زیوه has a province-label mismatch; درگهان and ابوموسی fall outside the supplied
+administrative polygons. The importer preserves their source data/review reasons
+and never selects them automatically. Source file hashes/properties and derived
+county provenance are retained. Zero rural-area IDs receive content-based fallback
+identities; settlement `id`, `OBJECTID`, and `center` values are not assumed unique
+or interpreted without a data dictionary. Importing does not geocode or guess
+populated centres. Files are not modified, and imports are immutable/idempotent.
 
 ```bash
-alembic upgrade head
-python -m scripts.import_search_layers
-python -m scripts.import_search_layers --apply
-python scripts/build_frontend.py
+python -m scripts.import_search_layers          # Offline dry run, no DB access
+python -m scripts.import_search_layers --apply  # Import snapshot, collection paused
+python -m scripts.audit_search_areas --radius 500 # Optional single-layer audit
 ```
 
-The first import command is a dry run with no database/network access. `--apply`
-imports an immutable snapshot, requires collection paused, and remains offline.
-Repeated identical imports are idempotent. Migration `0018_poi_search_sources`
-pauses collection, preserves historical grid requests, and adds source metadata.
-Restart the existing FastAPI service after deployment and start **one** worker
-using its existing process manager or `python -m backend.poi_worker`.
+### Final deployment on the current production server
 
-In **گردآوری مکان‌ها**:
+The ready unit `deploy/poi-worker.service` matches the reported installation:
+`/opt/app`, `/opt/app/venv/bin/python`, and the existing `root` runtime user. If the
+application is later moved to a dedicated account, update `User` and permissions
+before installing the unit. The unit restarts the worker after exits and starts it
+on boot; it never resets database pause/error state. Core dumps are disabled.
 
-1. Select the imported collection and click **اتصال مجموعه در حالت توقف**. This
-   attaches the snapshot to the current active job; it does not resume collection.
-2. Select a ready point in the current province. Capitals matched to the province
-   layer's capital name appear first. For this dataset the first point is تبریز:
-   latitude `38.07579266300007`, longitude `46.29811443300008`. This is a supplied
-   city anchor, not a verified mosque position. Select the intended category and
-   use the job's radius (500 m for the current production job).
-3. Prepare the pilot and explicitly resume it. Verify at least one successful
-   Details response. The pilot automatically pauses afterwards. Empty, duplicate-only,
-   quota, or access responses still pause for review; no false Details request is
-   sent when Nearby has no hashes.
-4. After reviewing the successful pilot, click **آماده‌سازی برنامهٔ نقاط پس از آزمایش موفق**,
-   then explicitly resume. This processes ready anchors in province order, one
-   point/category circle each, capital first. An identical successful pilot is
-   reused so its circle is not immediately queried again. Old grid segments are
-   preserved and never dispatched by the attached-source plan.
+1. Refresh the admin report. Let the current Details batch finish, pause collection,
+   and verify no request is in flight. Stop the actual old worker. If already
+   managed by this unit, use `sudo systemctl stop poi-worker.service`. For a manually
+   launched worker, inspect `ps -eo pid,lstart,args | grep '[b]ackend[.]poi_worker'`
+   and send `kill -TERM ACTUAL_PID` to the identified collector only. Wait for
+   `pgrep -af '[b]ackend\.poi_worker'` to show no process before proceeding.
+2. Deploy the updated code, `deploy/poi-worker.service`, and all four data files.
+   Run from the project root with its existing virtual environment:
 
-Preparing/importing/attaching/enabling does not call Neshan. Existing key, NDA
-configuration, cooldown, non-retention, access-error and restart safeguards apply.
-No provider Nearby payload or unresolved hash is durably stored; hashes are handed
-in memory to Details before proceeding. Details remain internal and unavailable
-for map display. This change does not establish legal authorization; the supplied
-Neshan restrictions still govern acquisition. Existing old empty results remain
-in history and are not retried automatically by the new point plan.
+   ```bash
+   cd /opt/app
+   source venv/bin/activate
+   python -m pip install -r requirements.txt
+   alembic upgrade head
+   python -m scripts.import_search_layers
+   python -m scripts.import_search_layers --apply
+   python scripts/build_frontend.py
+   ```
 
-### Audit the supplied area-to-search dataset before importing
+   An unchanged source import preserves the attached job, verification, and history.
+   Do not create a new job or repeat the successful verification for this update.
+3. Restart the **existing FastAPI service** using its actual installed service name;
+   it is separate from the worker. Install/start the final worker unit:
 
-`data/area_to_search.geojson` currently contains 2,792 valid Polygon/MultiPolygon
-features, with province (`Pname`), county (`Cname`), area (`Rname`) and named centre
-(`vcenter_na`) attributes. Its CRS84 coordinates are longitude/latitude. These are
-mostly broad administrative regions, with a few explicitly named municipal/special
-areas; they must not all be described as individual built-up village/city footprints.
-There are no explicit centre-coordinate attributes. The median polygon is roughly
-328 km2, and some exceed 20,000 km2. Names alone do not locate populated origins.
+   ```bash
+   sudo install -m 0644 deploy/poi-worker.service /etc/systemd/system/poi-worker.service
+   sudo systemctl daemon-reload
+   sudo systemctl enable poi-worker.service
+   sudo systemctl restart poi-worker.service
+   sudo systemctl status poi-worker.service --no-pager
+   sudo journalctl -u poi-worker.service -n 30 --no-pager
+   ```
 
-The file has 31 province labels matching the existing province catalogue. Nine
-features share zero-valued `rCode`/`r_shenaseh` placeholders; those must never be
-merged into one region. The offline audit proposes content-based fallback keys for
-those records while preserving unique positive source IDs. Province membership is
-checked at an internal geometry point, not asserted for every boundary vertex.
+   For later code updates, stop this service before deploying and restart it after
+   deploying; restarting only FastAPI leaves an old worker in memory. Do not launch
+   another foreground/nohup worker alongside the service. The database advisory
+   lock permits only one dispatcher. The startup log contains a code revision and
+   a one-way key fingerprint, never the key itself. `Restart=always` also covers a
+   clean process exit after a failed database heartbeat; database pause state stays.
+4. Hard-refresh the admin page. Existing source attachment and successful connection
+   verification remain available. Click **شروع / ادامهٔ گردآوری خودکار** once. Use
+   **تازه‌سازی گزارش** whenever a newer snapshot is needed. No manual action is
+   required between normal point/province completions or empty source searches.
+   If an access/uncertain error is shown, address that error and explicitly resume;
+   restarting the service alone is not a retry. A restart during a volatile Details
+   batch marks the interrupted segment uncertain and requires reviewed requeueing.
 
-Inspect a reproducible audit without changing any collection state:
+### Retention and provider access
+
+Neshan's account-specific instructions supplied by the operator allow retaining
+only POI Details output for internal use; Search/Nearby outputs must not be stored
+and retained POI data must not be displayed on a map. The operator subsequently
+clarified that hashless results may be skipped while valid new hashes must be sent
+to Details. This software implements that acquisition behavior; it does not grant
+or independently certify contractual authorization. `NESHAN_COLLECTION_AUTHORIZED`
+is an operator acknowledgement, not provider-side access verification.
+
+Nearby bodies and pending hashes exist only in worker memory. Nearby names,
+coordinates, icons, and addresses are discarded. No Nearby payload or unresolved
+hash is written into request history, caches, place placeholders, or durable queues.
+Only successfully retrieved Details creates/updates a place. Request parameters,
+counts/status, timestamps, and supplied geographic source inputs are retained.
+All provider calls/retries share the persistent 30–60 second cooldown and longer
+provider deadlines. Pausing or restarting cannot shorten that deadline. A crash
+loses any volatile hash batch, pauses the uncertain segment, and requires review.
+
+`/api/pois` and `/api/pois/counts` remain HTTP 403, including for admins. Internal
+aggregates are admin-only at `/api/admin/poi/counts` and are never wired into maps.
+Existing old Nearby retention must be remediated before collection resumes:
 
 ```bash
-python -m scripts.audit_search_areas --radius 500
+python -m scripts.cleanup_nearby_storage         # Review first, worker stopped
+python -m scripts.cleanup_nearby_storage --apply # Explicit reviewed removal
 ```
 
-Optionally use `--check-point LATITUDE LONGITUDE` to identify containing search
-regions, or `--output /path/to/audit.json` to write the report. No provider or database
-access occurs, no search origins are generated, and neither input file is changed.
-The search-count estimate is area-based, not an executed plan. Regridding these
-large administrative regions alone still implies millions of searches per category
-at a 500 m radius and does not solve the initial empty-origin problem.
+Cleanup preserves confirmed Details identities and removes old Nearby payloads,
+unresolved discovery records, and obsolete durable tasks. It refuses to apply
+while a worker holds the dispatcher lock. Backups, WAL, exports, proxy logs, swap,
+and external dumps have separate retention; avoid payload logging.
 
-This single-file audit does not import a live collection job. Use the four-layer
-source importer above to prioritize the supplied point anchors.
-Neshan's non-retention rules and the pause on empty/no-new-hash searches still apply.
-
-### Geographic planning and internal analysis
-
-The existing `data/iran.geojson` supplies 31 province polygons. The planner snapshots
-and hashes these boundaries and visits stable province order, with overlapping
-500–5000 metre circles covering every intersecting grid cell, including remote land
-and border slivers. Planning a province commits atomically. Search coverage is never
-labelled as proven completeness of real-world places. This geometric plan remains
-subject to the authorized acquisition scope and the empty-search pause above.
-
-Only Details coordinates are spatially matched using Shapely against versioned
-polygons. Province/county names parsed from addresses remain separate, heuristic
-fields. For attached search sources, county polygons are derived from supplied districts.
-For legacy jobs without attached sources, import WGS84 county polygons when creating
-a paused job, provide a GeoJSON FeatureCollection with `name`, `province_name`, and
-preferably stable `code` properties:
+For access failures, use the read-only command below. It makes no provider calls
+and does not expose the private API key. Optional `--egress-ip` makes one lookup
+to api.ipify.org; that is not proof of the source IP seen by Neshan.
 
 ```bash
-python -m backend.poi_worker create --categories mosque,library --radius 2000 --counties /path/to/counties.geojson
+python -m backend.poi_diagnostics
 ```
 
-Without either source, spatial county assignment stays null. Population density
-indicators require corresponding population data. Initial jobs skip identities
-already resolved through Details. Refresh jobs explicitly select `mode=refresh`
-and a timezone-aware `refresh_before` cutoff to intentionally retrieve old Details.
+HTTP 484 is an access/whitelist issue, not proof of exhausted quota. The error
+names the failing Nearby or POI Details endpoint. Have Neshan verify that key's
+service permissions and request source before retrying; changing radius or
+restarting cannot fix provider authorization.
 
-The worker is independent of the browser and FastAPI, holds a dedicated PostgreSQL
-session advisory lock, and emits a heartbeat every five seconds. Quota/access errors
-pause collection, rate-limit responses extend backoff, and uncertain failures require
-review. Multiple hashes with matching Details names and close Details coordinates
-are flagged for internal review and never automatically merged.
-
-Tests use an explicitly supplied disposable `TEST_DATABASE_URL`, isolated schemas,
-and mocked provider responses; they make no Nearby or Details calls:
-
-```bash
-python -B -m unittest discover -s tests -p test_poi_collection.py -v
-node --test tests/admin_poi_controls.test.cjs
-```
+Tests use an isolated `TEST_DATABASE_URL` and mocked providers. They cover empty
+continuation, Details priority, automatic province transitions, complete-catalogue
+progress, retired-grid isolation, old-worker rejection, manual reports, access
+pauses, non-retention, and interrupted-batch recovery.
