@@ -4,7 +4,7 @@ from typing import Literal
 from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
-from pydantic import Field
+from pydantic import Field, FiniteFloat
 from sqlalchemy import select, func
 from backend import database, poi
 from backend.input_security import InputBody
@@ -16,6 +16,23 @@ class JobBody(InputBody):
     radius_m: int = Field(default=2000,ge=500,le=5000)
     mode: Literal['initial','refresh'] = 'initial'
     refresh_before: datetime | None = None
+
+
+class SourceBody(InputBody):
+    version: str = Field(min_length=64,max_length=64)
+
+
+class SettlementPilotBody(InputBody):
+    settlement_id: UUID
+    category: str = Field(min_length=1,max_length=100)
+    radius_m: int = Field(default=500,ge=500,le=5000)
+
+
+class PilotBody(InputBody):
+    latitude: FiniteFloat = Field(ge=24,le=41)
+    longitude: FiniteFloat = Field(ge=43,le=64)
+    category: str = Field(min_length=1,max_length=100)
+    radius_m: int = Field(default=500,ge=500,le=5000)
 
 
 def build_router(require_admin, require_user):
@@ -42,6 +59,45 @@ def build_router(require_admin, require_user):
                 job = poi.create_job(session, body.categories, body.radius_m, body.mode, body.refresh_before)
                 return response({'id':str(job.id),'paused':True},201)
         except ValueError as error: raise HTTPException(409,detail=str(error)) from error
+
+    @router.post('/api/admin/poi/pilot')
+    def pilot(body: PilotBody,request: Request):
+        require_admin(request)
+        try:
+            with database.db_session() as session:
+                segment=poi.create_pilot(session,body.latitude,body.longitude,body.category,body.radius_m)
+                return response(dict(id=segment.id,paused=True),201)
+        except ValueError as error: raise HTTPException(409,detail=str(error)) from error
+
+    @router.post('/api/admin/poi/search-sources')
+    def attach_sources(body: SourceBody,request: Request):
+        require_admin(request)
+        try:
+            with database.db_session() as session:
+                job=poi.attach_sources(session,body.version)
+                return response(dict(version=job.search_dataset_version,paused=True))
+        except ValueError as error:raise HTTPException(409,detail=str(error)) from error
+
+    @router.get('/api/admin/poi/settlements')
+    def settlements(request: Request):
+        require_admin(request)
+        with database.db_session() as session:return response(poi.source_points(session))
+
+    @router.post('/api/admin/poi/settlement-pilot')
+    def settlement_pilot(body: SettlementPilotBody,request: Request):
+        require_admin(request)
+        try:
+            with database.db_session() as session:
+                segment=poi.create_pilot(session,0,0,body.category,body.radius_m,body.settlement_id)
+                return response(dict(id=segment.id,paused=True),201)
+        except ValueError as error:raise HTTPException(409,detail=str(error)) from error
+
+    @router.post('/api/admin/poi/settlement-plan')
+    def settlement_plan(request: Request):
+        require_admin(request)
+        try:
+            with database.db_session() as session:return response(poi.enable_settlement_plan(session))
+        except ValueError as error:raise HTTPException(409,detail=str(error)) from error
 
     @router.post('/api/admin/poi/pause')
     def pause(request: Request):

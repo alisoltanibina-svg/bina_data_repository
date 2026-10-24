@@ -448,8 +448,8 @@ reviewed; the service example disables core dumps. Avoid HTTP payload logging.
    FastAPI service, and start one worker with `python -m backend.poi_worker` under a
    supervisor. `deploy/poi-worker.service.example` is an example, not an installed
    service. Confirm its paths and actual installed unit name.
-7. Review the existing geographic plan before pressing Resume. The empty searches
-   already observed do not demonstrate POI access or useful discovery coverage.
+7. Prepare and run a single-area pilot as described below. The nationwide grid stays
+   paused; the empty searches already observed do not demonstrate POI access.
 
 The admin panel shows explicit setup blockers, worker heartbeat, waiting/paused
 state, request totals, empty-search counts and Details handoff counts. Request
@@ -512,6 +512,156 @@ worker with `python -m backend.poi_worker`. If a restart interrupted a volatile
 Details batch, explicitly requeue that uncertain segment in the admin panel before
 resuming. No new database migration is needed for these diagnostic changes.
 
+### Run one controlled pilot before further geographic collection
+
+Migration `0017_poi_pilot` pauses existing collection and defaults the worker to
+single-area pilot mode. Stop the old worker before migration, deploy backend and
+frontend together, run `alembic upgrade head` and `python scripts/build_frontend.py`,
+and restart the existing FastAPI service and one collector worker. These actions do
+not send a pilot request until an administrator explicitly prepares and resumes it.
+
+In the admin collection tab, open **آزمایش تک‌ناحیه‌ای**. Enter a trusted latitude and
+longitude around a known place in the current province (currently East Azerbaijan
+for the existing plan), one of the job's selected categories, and a provider-approved
+radius within the supported range. Coordinates are intentionally blank: no city,
+mosque, village or provider coverage is guessed. Prefer a Neshan-approved reference
+point when validating account access and the Nearby-to-Details handoff.
+
+Press **آماده‌سازی آزمایش در حالت توقف**. This only creates one pilot segment with
+your own search parameters; it makes no provider calls and leaves the job paused.
+Verify the displayed origin, category and radius, then press Resume. The worker
+searches only that segment, drains its new hashes through Details under the existing
+cooldown, and automatically pauses after its last successful Details response. An
+empty response, missing hashes, known resolved hashes or an error also stops the
+pilot according to the existing policy. A completed Nearby search alone is not a
+successful end-to-end pilot: verify at least one successful Details request and its
+saved internal record. No stored place data is displayed on a map.
+
+The original grid segments and their origins/history are preserved. Pilot segments
+are excluded from geographic coverage totals, so a successful pilot does not mark a
+province covered. A further Resume click cannot fall through into the nationwide
+grid. Replacing a queued pilot creates a new segment and marks the previous one
+cancelled, preserving its origin/history. A pilot cannot be switched while any live
+Details batch is still being processed, or skip ahead to a different province.
+Interrupted pilots still lose unsaved hashes, pause, and require reviewed requeueing.
+
+The same paused preparation is available from the project root through the CLI;
+replace the example variable names with the actual reviewed coordinates:
+
+```bash
+python -m backend.poi_worker pilot --latitude "$PILOT_LAT" --longitude "$PILOT_LON" --category mosque --radius 500
+```
+
+The source workflow below enables only buffers around supplied settlement points,
+following a successful pilot with the same radius as the job. The old nationwide
+grid is preserved and excluded from this new scope. A successful pilot is a
+functional check, not provider authorization or proof of complete coverage.
+
+### Integrate all four user-supplied search layers
+
+The importer reads all four WGS84 layers without modifying them:
+
+| File | Role |
+| --- | --- |
+| `area_to_search.geojson` | 2,792 rural/municipal/special-area boundaries |
+| `area_to_search2.geojson` | 31 province boundaries and capital names |
+| `area_to_search3.geojson` | 1,196 district boundaries; county polygons derived by union within each normalized province/county name |
+| `area_to_search4.geojson` | 1,457 named settlement points used as search anchors |
+
+The current audit yields **1,454 ready points and 3 quarantined points**. زیوه is
+labelled اردبیل but spatially falls in آذربایجان غربی. درگهان and ابوموسی fall outside
+the supplied administrative polygons. They remain in the catalogue with reasons,
+but cannot be selected or automatically queried. Nine zero rural-area IDs receive
+content-derived fallback identities. Settlement `id`, `OBJECTID`, and `center` are
+not assumed unique or interpreted as documented settlement classifications.
+Source properties and file SHA256 hashes are preserved for provenance.
+
+These are user-supplied planning inputs, distinct from provider responses. One
+circle around each point does **not** cover an entire city, every village, or all
+land in Iran. The first file contains broad administrative areas, not reliable
+built-up footprints. Its named centres are not geocoded or guessed. County unions
+are explicitly labelled as derived from the supplied districts; they are not a
+separate authoritative county layer. No population coverage is inferred.
+
+Deploy backend/frontend and all four files together. Pause the collector and stop
+its existing process before migration/import. Use the existing service/process
+manager; do not assume a `poi-worker.service` unit exists. Then, from `/opt/app`
+with its virtual environment active:
+
+```bash
+alembic upgrade head
+python -m scripts.import_search_layers
+python -m scripts.import_search_layers --apply
+python scripts/build_frontend.py
+```
+
+The first import command is a dry run with no database/network access. `--apply`
+imports an immutable snapshot, requires collection paused, and remains offline.
+Repeated identical imports are idempotent. Migration `0018_poi_search_sources`
+pauses collection, preserves historical grid requests, and adds source metadata.
+Restart the existing FastAPI service after deployment and start **one** worker
+using its existing process manager or `python -m backend.poi_worker`.
+
+In **گردآوری مکان‌ها**:
+
+1. Select the imported collection and click **اتصال مجموعه در حالت توقف**. This
+   attaches the snapshot to the current active job; it does not resume collection.
+2. Select a ready point in the current province. Capitals matched to the province
+   layer's capital name appear first. For this dataset the first point is تبریز:
+   latitude `38.07579266300007`, longitude `46.29811443300008`. This is a supplied
+   city anchor, not a verified mosque position. Select the intended category and
+   use the job's radius (500 m for the current production job).
+3. Prepare the pilot and explicitly resume it. Verify at least one successful
+   Details response. The pilot automatically pauses afterwards. Empty, duplicate-only,
+   quota, or access responses still pause for review; no false Details request is
+   sent when Nearby has no hashes.
+4. After reviewing the successful pilot, click **آماده‌سازی برنامهٔ نقاط پس از آزمایش موفق**,
+   then explicitly resume. This processes ready anchors in province order, one
+   point/category circle each, capital first. An identical successful pilot is
+   reused so its circle is not immediately queried again. Old grid segments are
+   preserved and never dispatched by the attached-source plan.
+
+Preparing/importing/attaching/enabling does not call Neshan. Existing key, NDA
+configuration, cooldown, non-retention, access-error and restart safeguards apply.
+No provider Nearby payload or unresolved hash is durably stored; hashes are handed
+in memory to Details before proceeding. Details remain internal and unavailable
+for map display. This change does not establish legal authorization; the supplied
+Neshan restrictions still govern acquisition. Existing old empty results remain
+in history and are not retried automatically by the new point plan.
+
+### Audit the supplied area-to-search dataset before importing
+
+`data/area_to_search.geojson` currently contains 2,792 valid Polygon/MultiPolygon
+features, with province (`Pname`), county (`Cname`), area (`Rname`) and named centre
+(`vcenter_na`) attributes. Its CRS84 coordinates are longitude/latitude. These are
+mostly broad administrative regions, with a few explicitly named municipal/special
+areas; they must not all be described as individual built-up village/city footprints.
+There are no explicit centre-coordinate attributes. The median polygon is roughly
+328 km2, and some exceed 20,000 km2. Names alone do not locate populated origins.
+
+The file has 31 province labels matching the existing province catalogue. Nine
+features share zero-valued `rCode`/`r_shenaseh` placeholders; those must never be
+merged into one region. The offline audit proposes content-based fallback keys for
+those records while preserving unique positive source IDs. Province membership is
+checked at an internal geometry point, not asserted for every boundary vertex.
+
+Inspect a reproducible audit without changing any collection state:
+
+```bash
+python -m scripts.audit_search_areas --radius 500
+```
+
+Optionally use `--check-point LATITUDE LONGITUDE` to identify containing search
+regions, or `--output /path/to/audit.json` to write the report. No provider or database
+access occurs, no search origins are generated, and neither input file is changed.
+The search-count estimate is area-based, not an executed plan. Regridding these
+large administrative regions alone still implies millions of searches per category
+at a 500 m radius and does not solve the initial empty-origin problem.
+
+This single-file audit does not import a live collection job. Use the four-layer
+source importer above to prioritize the supplied point anchors.
+Neshan's non-retention rules and the pause on empty/no-new-hash searches still apply.
+
 ### Geographic planning and internal analysis
 
 The existing `data/iran.geojson` supplies 31 province polygons. The planner snapshots
@@ -523,7 +673,8 @@ subject to the authorized acquisition scope and the empty-search pause above.
 
 Only Details coordinates are spatially matched using Shapely against versioned
 polygons. Province/county names parsed from addresses remain separate, heuristic
-fields. No county dataset is bundled. To import WGS84 county polygons when creating
+fields. For attached search sources, county polygons are derived from supplied districts.
+For legacy jobs without attached sources, import WGS84 county polygons when creating
 a paused job, provide a GeoJSON FeatureCollection with `name`, `province_name`, and
 preferably stable `code` properties:
 
@@ -531,7 +682,7 @@ preferably stable `code` properties:
 python -m backend.poi_worker create --categories mosque,library --radius 2000 --counties /path/to/counties.geojson
 ```
 
-Without that dataset, spatial county assignment stays null. Population density
+Without either source, spatial county assignment stays null. Population density
 indicators require corresponding population data. Initial jobs skip identities
 already resolved through Details. Refresh jobs explicitly select `mode=refresh`
 and a timezone-aware `refresh_before` cutoff to intentionally retrieve old Details.

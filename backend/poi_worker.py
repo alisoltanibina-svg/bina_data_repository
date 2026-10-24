@@ -11,7 +11,7 @@ from uuid import uuid4
 from sqlalchemy import select, text, update, func
 from sqlalchemy.orm import Session
 from backend import database
-from backend.poi import (LOCK_KEY, ACTIVE, control, now, plan_province, next_target, apply_reply, create_job, storage_cleanup_required)
+from backend.poi import (LOCK_KEY, ACTIVE, control, now, plan_province, next_target, apply_reply, create_job, storage_cleanup_required, create_pilot)
 from backend.poi_models import PoiControl, PoiJob, PoiSegment, PoiDetailTask, PoiRequest
 from backend.poi_provider import Neshan
 from backend.settings import get_settings
@@ -76,17 +76,23 @@ class Worker:
             job = session.scalar(select(PoiJob).where(PoiJob.status.in_(ACTIVE)).order_by(PoiJob.created_at).limit(1))
             if not job: return
             job.status = 'running'
+            if c.collection_mode=='pilot' and not c.pilot_segment_id:
+                c.paused,c.reason=True,'Choose a single-area pilot before continuing; nationwide grid is paused'
+                return
             pending_detail = self.pending[0] if self.pending else None
             if pending_detail:
                 row = session.get(PoiSegment,pending_detail.segment_id)
-                if row.job_id != job.id or row.status != 'processing':
+                if row.job_id != job.id or row.status != 'processing' or (c.collection_mode=='pilot' and row.id!=c.pilot_segment_id):
                     self.pending.clear()
                     c.paused,c.reason=True,'Transient Details batch requires review'
                     return
                 target = ('details',row,{'hash':pending_detail.provider_id})
             else:
-                target = next_target(session, job)
+                target = next_target(session,job,c.pilot_segment_id if c.collection_mode=='pilot' else None)
             if target is None:
+                if c.collection_mode=='pilot':
+                    c.paused,c.reason=True,'Pilot has no dispatchable work; review its result before continuing'
+                    return
                 planning_job_id = job.id
             else:
                 if c.next_request_at and c.next_request_at > now(): return
@@ -166,7 +172,17 @@ def main():
     create.add_argument('--categories', required=True, help='Comma-separated documented Nearby layer identifiers')
     create.add_argument('--radius', type=int, default=2000)
     create.add_argument('--counties', type=Path)
+    pilot=sub.add_parser('pilot',help='Prepare one selected area, paused; does not call Neshan')
+    pilot.add_argument('--latitude',required=True,type=float)
+    pilot.add_argument('--longitude',required=True,type=float)
+    pilot.add_argument('--category',required=True)
+    pilot.add_argument('--radius',default=500,type=int)
     args = parser.parse_args()
+    if args.command=='pilot':
+        with database.db_session() as session:
+            segment=create_pilot(session,args.latitude,args.longitude,args.category,args.radius)
+            print('Prepared paused single-area pilot:',segment.id,'province:',segment.province_name)
+        return
     if args.command == 'create':
         with database.db_session() as session:
             job = create_job(session, args.categories.split(','), args.radius, county_path=args.counties)

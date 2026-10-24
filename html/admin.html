@@ -62,6 +62,27 @@
             <p class="support-hint">تازه‌سازی خودکار این گزارش فقط اطلاعات پایگاه دادهٔ سامانه را می‌خواند و درخواستی به نشان ارسال نمی‌کند.</p>
             <p id="poi-worker" role="status" aria-live="polite"></p>
             <p id="poi-timing"></p><p id="poi-reason"></p>
+            <article class="support-card">
+                <h2>آزمایش تک‌ناحیه‌ای</h2>
+                <p>ابتدا مختصات یک مکان شناخته‌شده در استان فعلی را انتخاب کنید. آزمایش فقط همین ناحیه را جست‌وجو می‌کند، جزئیات هش‌های جدید را می‌گیرد و سپس متوقف می‌شود. شبکهٔ سراسری همچنان متوقف می‌ماند.</p>
+                <p id="poi-pilot-status" role="status" aria-live="polite"></p>
+                <section class="poi-source-controls" aria-label="منابع جست‌وجو">
+                    <p>فایل‌های شما فقط نقاط آغاز جست‌وجو را مشخص می‌کنند؛ پوشش کامل شهرها و روستاها تأیید نشده است. نقاط نیازمند بررسی اجرا نمی‌شوند.</p>
+                    <p id="poi-source-summary"></p>
+                    <label>مجموعهٔ واردشده<select id="poi-source-select"></select></label>
+                    <button type="button" class="admin-btn" id="poi-source-attach">اتصال مجموعه در حالت توقف</button>
+                    <label>نقطهٔ آماده در استان فعلی<select id="poi-settlement-select"><option value="">انتخاب نقطه</option></select></label>
+                    <button type="button" class="admin-btn" id="poi-settlement-enable">آماده‌سازی برنامهٔ نقاط پس از آزمایش موفق</button>
+                </section>
+                <form id="poi-pilot-form">
+                    <label>عرض جغرافیایی (Latitude)<input id="poi-pilot-lat" type="number" min="24" max="41" step="any" required dir="ltr"></label>
+                    <label>طول جغرافیایی (Longitude)<input id="poi-pilot-lon" type="number" min="43" max="64" step="any" required dir="ltr"></label>
+                    <label>دستهٔ آزمایش<select id="poi-pilot-category" required></select></label>
+                    <label>شعاع آزمایش (متر)<input id="poi-pilot-radius" type="number" min="500" max="5000" value="500" required></label>
+                    <p>آماده‌سازی فقط برنامه را ثبت می‌کند؛ برای ارسال درخواست، بعد از بررسی مختصات دکمهٔ «ادامهٔ گردآوری» را بزنید. ساخت آزمایش جدید، آزمایشِ در صف قبلی را جایگزین می‌کند؛ سابقهٔ آن حذف نمی‌شود.</p>
+                    <button type="submit" class="admin-btn" id="poi-pilot-prepare">آماده‌سازی آزمایش در حالت توقف</button>
+                </form>
+            </article>
             <div class="admin-ops" id="poi-summary"></div>
             <h2>پیشرفت استان‌ها و نواحی برنامه‌ریزی‌شده</h2>
             <p id="poi-coverage"></p>

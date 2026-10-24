@@ -11,7 +11,8 @@ def counter(): return C(I, nullable=False, default=0, server_default='0')
 
 class PoiControl(Base):
     __tablename__ = 'poi_control'
-    __table_args__ = (CK('id = 1', name='ck_poi_single_control'),)
+    __table_args__ = (CK('id = 1', name='ck_poi_single_control'),
+        CK("collection_mode IN ('pilot','coverage')",name='ck_poi_collection_mode'),)
     id = C(I, primary_key=True)
     paused = C(Boolean, nullable=False, default=True, server_default='true')
     reason = C(T, nullable=False, default='', server_default='')
@@ -19,6 +20,8 @@ class PoiControl(Base):
     heartbeat_at = timestamp()
     worker_id = C(S(100))
     in_flight = C(B)
+    collection_mode = C(S(16),nullable=False,default='pilot',server_default='pilot')
+    pilot_segment_id = C(B,FK('poi_segments.id',name='fk_poi_control_pilot_segment'))
 
 class PoiBoundary(Base):
     __tablename__ = 'poi_boundaries'
@@ -30,6 +33,7 @@ class PoiBoundary(Base):
     name = C(T, nullable=False)
     parent_name = C(T)
     geometry = C(JSONB, nullable=False)
+    source_metadata = C(JSONB)
 
 class PoiCategory(Base):
     __tablename__ = 'poi_categories'
@@ -50,6 +54,8 @@ class PoiJob(Base):
     radius_m = C(I, nullable=False)
     categories = C(JSONB, nullable=False)
     planned_provinces = counter()
+    search_dataset_version = C(S(64), FK('poi_source_datasets.version'))
+    planned_settlement_provinces = counter()
     duplicates_skipped = counter()
     missing_hashes = counter()
     created_at = C(DateTime(timezone=True), nullable=False, server_default=func.now())
@@ -62,6 +68,9 @@ class PoiSegment(Base):
     province_order = C(I, nullable=False)
     province_name = C(T, nullable=False)
     category = C(S(100), FK('poi_categories.slug'), nullable=False)
+    kind = C(S(16),nullable=False,default='grid',server_default='grid')
+    settlement_id = C(UUID(as_uuid=True), FK('poi_settlements.id'))
+    planning_note = C(T)
     latitude = C(F, nullable=False)
     longitude = C(F, nullable=False)
     radius_m = C(I, nullable=False)
@@ -138,3 +147,32 @@ class PoiDuplicateReview(Base):
     other_place_id = C(UUID(as_uuid=True), FK('poi_places.id'), primary_key=True)
     reason = C(T, nullable=False)
     status = C(S(16), nullable=False, default='pending', server_default='pending')
+
+
+class PoiSourceDataset(Base):
+    __tablename__ = 'poi_source_datasets'
+    version = C(S(64), primary_key=True)
+    manifest = C(JSONB, nullable=False)
+    summary = C(JSONB, nullable=False)
+    created_at = C(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+class PoiSettlement(Base):
+    __tablename__ = 'poi_settlements'
+    __table_args__ = (UQ('version','code',name='uq_poi_settlement_source'),
+        CK("state IN ('ready','review')",name='ck_poi_settlement_state'),
+        Index('idx_poi_settlement_province','version','province_name','state','priority'))
+    id = uid()
+    version = C(S(64), FK('poi_source_datasets.version'), nullable=False)
+    code = C(S(64), nullable=False)
+    name = C(T, nullable=False)
+    declared_province = C(T, nullable=False)
+    province_name = C(T)
+    county_name = C(T)
+    district_code = C(T)
+    rural_area_code = C(T)
+    latitude = C(F, nullable=False)
+    longitude = C(F, nullable=False)
+    state = C(S(16), nullable=False)
+    review_reason = C(T)
+    priority = C(I, nullable=False)
+    source_metadata = C(JSONB, nullable=False)

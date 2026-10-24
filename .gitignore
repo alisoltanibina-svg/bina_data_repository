@@ -21,6 +21,7 @@ venv/
 # Local development and review files; not needed on the production server.
 /tests/*
 !/tests/test_poi_collection.py
+!/tests/test_search_area_audit.py
 !/tests/test_poi_diagnostics.py
 !/tests/admin_poi_controls.test.cjs
 /docs/

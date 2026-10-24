@@ -837,3 +837,6 @@ body.admin-body {
 #view-poi details { margin-block: 1.5rem; }
 #poi-raw { max-height: 24rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
 #poi-history, #poi-reviews { max-height: 24rem; overflow: auto; overflow-wrap: anywhere; }
+
+#view-poi .poi-source-controls { display: grid; gap: .75rem; margin-block: 1rem; }
+#view-poi .poi-source-controls label { display: grid; gap: .4rem; }

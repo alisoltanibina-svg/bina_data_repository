@@ -86,7 +86,7 @@ class CollectorTests(unittest.TestCase):
         with self.db.db_session() as s:
             s.add(self.m.PoiBoundary(version='test',level='province',code='A',name='A',geometry=mapping(box(50,35,52,37))))
             s.add(self.m.PoiCategory(slug='library',title='Library'));s.flush()
-            c=self.poi.control(s);c.paused=False
+            c=self.poi.control(s);c.paused=False;c.collection_mode='coverage'
             job=self.m.PoiJob(categories=['library'],radius_m=2000,boundary_version='test',planned_provinces=31)
             s.add(job);s.flush();self.job_id=job.id
             segment=self.m.PoiSegment(job_id=job.id,province_order=0,province_name='A',category='library',latitude=35.7,longitude=51.4,radius_m=2000)
@@ -403,6 +403,144 @@ class CollectorTests(unittest.TestCase):
         self.tick()
         self.assertEqual(self.scalar(select(func.count()).select_from(self.m.PoiRequest)),2)
 
+    def prepare_pilot(self,latitude=35.7,longitude=51.4):
+        with self.db.db_session() as session:
+            self.poi.set_paused(session,True)
+            segment=self.poi.create_pilot(session,latitude,longitude,'library',500)
+            return segment.id
+
+    def test_pilot_drains_details_then_pauses_without_touching_grid(self):
+        pilot_id=self.prepare_pilot()
+        self.assertEqual(self.calls,[])
+        with self.db.db_session() as s:
+            c=self.poi.control(s)
+            self.assertEqual(c.collection_mode,'pilot')
+            self.assertEqual(c.pilot_segment_id,pilot_id)
+            self.assertTrue(c.paused)
+            self.assertEqual(s.get(self.m.PoiSegment,self.segment_id).status,'pending')
+            self.poi.set_paused(s,False)
+        self.tick();self.clear_cooldown();self.tick();self.clear_cooldown();self.tick()
+        self.assertEqual([kind for kind,_ in self.calls],['nearby','details'])
+        with self.db.db_session() as s:
+            self.assertTrue(self.poi.control(s).paused)
+            self.assertEqual(s.get(self.m.PoiSegment,pilot_id).status,'complete')
+            self.assertEqual(s.get(self.m.PoiSegment,self.segment_id).status,'pending')
+            self.assertEqual(s.scalar(select(func.count()).select_from(self.m.PoiSegment)),2)
+            report=self.poi.status(s)
+            self.assertEqual(report['pilot']['details_saved'],1)
+            self.assertEqual(report['job']['completed_provinces'],0)
+            self.assertEqual(sum(row['count'] for row in report['job']['areas']),1)
+            # Even a stale/manual resume cannot fall through into grid planning.
+            self.poi.set_paused(s,False)
+        self.tick();self.assertEqual(len(self.calls),2)
+
+    def test_pilot_empty_response_cannot_advance_the_grid(self):
+        pilot_id=self.prepare_pilot()
+        self.provider.request=lambda kind,params:self.calls.append((kind,params)) or Reply(200,nearby())
+        with self.db.db_session() as s:self.poi.set_paused(s,False)
+        self.tick();self.clear_cooldown();self.tick()
+        self.assertEqual(len(self.calls),1)
+        with self.db.db_session() as s:
+            self.assertTrue(self.poi.control(s).paused)
+            self.assertEqual(s.get(self.m.PoiSegment,self.segment_id).status,'pending')
+            self.assertIsNone(s.scalar(select(self.m.PoiRequest.raw_response)))
+            self.assertEqual(s.get(self.m.PoiSegment,pilot_id).status,'complete')
+
+    def test_pilot_requires_pause_valid_scope_and_an_interior_origin(self):
+        with self.db.db_session() as s:
+            with self.assertRaises(ValueError):self.poi.create_pilot(s,35.7,51.4,'library',500)
+            self.poi.set_paused(s,True)
+            for lat,lon,category,radius in [(35.7,49,'library',500),(float('nan'),51,'library',500),
+                    (35.7,51.4,'mosque',500),(35.7,51.4,'library',499)]:
+                with self.assertRaises(ValueError):self.poi.create_pilot(s,lat,lon,category,radius)
+            self.poi.control(s).in_flight=123
+            with self.assertRaises(ValueError):self.poi.create_pilot(s,35.7,51.4,'library',500)
+        self.assertEqual(self.scalar(select(func.count()).select_from(self.m.PoiSegment)),1)
+        self.assertEqual(self.calls,[])
+
+    def test_pilot_rejects_an_unfinished_in_memory_details_batch(self):
+        self.tick()
+        with self.db.db_session() as s:
+            self.poi.set_paused(s,True)
+            with self.assertRaises(ValueError):self.poi.create_pilot(s,35.7,51.4,'library',500)
+        self.assertEqual(self.scalar(select(func.count()).select_from(self.m.PoiSegment)),1)
+
+    def test_pilot_replacement_preserves_the_original_origin(self):
+        old_id=self.prepare_pilot();new_id=self.prepare_pilot(35.8,51.5)
+        with self.db.db_session() as s:
+            old=s.get(self.m.PoiSegment,old_id)
+            self.assertEqual((old.latitude,old.longitude),(35.7,51.4))
+            self.assertEqual(old.status,'cancelled')
+            self.assertEqual(self.poi.control(s).pilot_segment_id,new_id)
+            self.assertTrue(self.poi.control(s).paused)
+        self.assertEqual(self.calls,[])
+
+    def test_pilot_selection_survives_restart_but_hashes_do_not(self):
+        pilot_id=self.prepare_pilot()
+        with self.db.db_session() as s:self.poi.set_paused(s,False)
+        self.tick()
+        replacement=self.Worker(self.provider)
+        with self.db.db_session() as s:
+            replacement.recover(s)
+            self.assertEqual(self.poi.control(s).pilot_segment_id,pilot_id)
+            self.assertTrue(self.poi.control(s).paused)
+            self.assertEqual(s.get(self.m.PoiSegment,pilot_id).status,'uncertain')
+            self.assertEqual(s.get(self.m.PoiSegment,self.segment_id).status,'pending')
+        self.assertEqual(replacement.pending,[])
+        self.assertEqual(self.scalar(select(func.count()).select_from(self.m.PoiPlace)),0)
+
+    def test_pilot_mode_without_selection_cannot_dispatch_the_old_grid(self):
+        with self.db.db_session() as s:
+            c=self.poi.control(s);c.collection_mode='pilot';c.paused=False
+        self.tick()
+        self.assertEqual(self.calls,[])
+        self.assertTrue(self.scalar(select(self.m.PoiControl.paused)))
+
+    def test_pilot_with_two_hashes_pauses_only_after_both_details(self):
+        self.prepare_pilot()
+        self.provider.request=lambda kind,params:self.calls.append((kind,params)) or (
+            Reply(200,nearby(ITEM,dict(ITEM,poiHash='hash-b'))) if kind=='nearby' else Reply(200,DETAILS))
+        with self.db.db_session() as s:self.poi.set_paused(s,False)
+        self.tick();self.clear_cooldown();self.tick()
+        self.assertFalse(self.scalar(select(self.m.PoiControl.paused)))
+        self.clear_cooldown();self.tick()
+        self.assertTrue(self.scalar(select(self.m.PoiControl.paused)))
+        self.assertEqual([kind for kind,_ in self.calls],['nearby','details','details'])
+        self.assertEqual(self.scalar(select(func.count()).select_from(self.m.PoiPlace)),2)
+
+    def test_pilot_api_prepares_a_paused_area_without_network_calls(self):
+        from backend.main import app
+        from backend import membership
+        from backend.models import User
+        from fastapi.testclient import TestClient
+        with self.db.db_session() as s:
+            s.add(User(phone='09120000888',first_name='Pilot',last_name='Admin',is_admin=True,is_active=True,
+                password_hash=membership.hash_password('testing-password')))
+            self.poi.set_paused(s,True)
+        client=TestClient(app,headers={'X-CSRF-Protection':'1'});self.addCleanup(client.close)
+        body=dict(latitude=35.7,longitude=51.4,category='library',radius_m=500)
+        self.assertEqual(client.post('/api/admin/poi/pilot',json=body).status_code,401)
+        token=membership.authenticate('09120000888','testing-password')['token']
+        client.cookies.set(membership.SESSION_COOKIE,token)
+        result=client.post('/api/admin/poi/pilot',json=body)
+        self.assertEqual(result.status_code,201,result.text)
+        self.assertTrue(result.json()['paused'])
+        status=client.get('/api/admin/poi/status').json()
+        self.assertEqual(status['pilot']['id'],result.json()['id'])
+        self.assertEqual(status['pilot']['latitude'],35.7)
+        self.assertEqual(status['collection_mode'],'pilot')
+        self.assertEqual(self.calls,[])
+        self.assertEqual(self.scalar(select(func.count()).select_from(self.m.PoiRequest)),0)
+
+    def test_pilot_cannot_skip_to_another_province(self):
+        with self.db.db_session() as s:
+            self.poi.set_paused(s,True)
+            s.add(self.m.PoiBoundary(version='test',level='province',code='B',name='B',geometry=mapping(box(52,35,54,37))))
+        self.poi.boundary_index.cache_clear()
+        with self.db.db_session() as s:
+            with self.assertRaises(ValueError):self.poi.create_pilot(s,35.7,53,'library',500)
+        self.assertEqual(self.scalar(select(func.count()).select_from(self.m.PoiSegment)),1)
+
     def test_completed_searches_do_not_claim_completeness(self):
         self.tick();self.clear_cooldown();self.tick();self.clear_cooldown();self.tick()
         with self.db.db_session() as s:
@@ -410,5 +548,87 @@ class CollectorTests(unittest.TestCase):
             self.assertEqual(report['job']['status'],'completed')
             self.assertFalse(report['completeness_verified'])
             self.assertEqual(report['unique_saved'],1)
+
+    def import_sources(self):
+        from test_search_area_audit import SearchSourceCompilerTests
+        from tempfile import TemporaryDirectory
+        from backend.poi_sources import compile_catalogue,save_catalogue
+        with TemporaryDirectory() as d:catalogue=compile_catalogue(SearchSourceCompilerTests().files(d),['A'])
+        with self.db.db_session() as session:
+            self.assertTrue(save_catalogue(session,catalogue))
+            self.assertFalse(save_catalogue(session,catalogue))
+            c=self.poi.control(session);c.paused=True
+            self.poi.attach_sources(session,catalogue.version)
+        return catalogue
+
+    def test_source_attach_preserves_history_and_requires_pause(self):
+        from backend.poi_sources import save_catalogue
+        from test_search_area_audit import SearchSourceCompilerTests
+        from tempfile import TemporaryDirectory
+        from backend.poi_sources import compile_catalogue
+        with TemporaryDirectory() as d:catalogue=compile_catalogue(SearchSourceCompilerTests().files(d),['A'])
+        with self.db.db_session() as session:
+            save_catalogue(session,catalogue)
+            with self.assertRaises(ValueError):self.poi.attach_sources(session,catalogue.version)
+            self.poi.control(session).paused=True
+            self.poi.attach_sources(session,catalogue.version)
+            self.assertEqual(session.get(self.m.PoiSegment,self.segment_id).kind,'grid')
+            job=session.get(self.m.PoiJob,self.job_id)
+            self.assertEqual(job.boundary_version,'test');self.assertEqual(job.search_dataset_version,catalogue.version)
+            self.assertEqual(self.poi.control(session).collection_mode,'pilot')
+        self.assertEqual(self.calls,[])
+
+    def test_source_plan_requires_successful_pilot_reuses_it_and_ignores_old_grid(self):
+        cat=self.import_sources()
+        with self.db.db_session() as session:
+            with self.assertRaises(ValueError):self.poi.enable_settlement_plan(session)
+            points=self.poi.source_points(session)
+            self.assertEqual([p['name'] for p in points],['Capital','Other'])
+            pilot=self.poi.create_pilot(session,0,0,'library',2000,points[0]['id'])
+            pilot_id=pilot.id
+            self.poi.control(session).paused=False
+        self.tick();self.assertEqual(self.calls[-1][0],'nearby')
+        self.clear_cooldown();self.tick();self.assertEqual(self.calls[-1][0],'details')
+        with self.db.db_session() as session:
+            self.assertTrue(self.poi.control(session).paused)
+            pilot=session.get(self.m.PoiSegment,pilot_id)
+            pilot.review_reason='Result cap requires review'
+            with self.assertRaises(ValueError):self.poi.enable_settlement_plan(session)
+            pilot.review_reason=None
+            self.poi.enable_settlement_plan(session)
+            job=session.get(self.m.PoiJob,self.job_id)
+            self.assertTrue(self.poi.plan_province(session,job));session.flush()
+            rows=session.scalars(select(self.m.PoiSegment).where(self.m.PoiSegment.kind=='settlement').order_by(self.m.PoiSegment.id)).all()
+            self.assertEqual(len(rows),2);self.assertEqual(rows[0].status,'complete');self.assertIn(str(pilot_id),rows[0].planning_note)
+            target=self.poi.next_target(session,job)
+            self.assertEqual(target[1].settlement_id,rows[1].settlement_id)
+            self.assertNotEqual(target[1].id,self.segment_id)
+            place=session.scalar(select(self.m.PoiPlace));self.assertEqual(place.boundary_version,cat.version)
+            self.assertEqual(session.get(self.m.PoiSegment,self.segment_id).status,'pending')
+        self.assertEqual(len(self.calls),2)
+
+    def test_quarantined_source_cannot_be_used_for_pilot(self):
+        cat=self.import_sources()
+        bad=next(p for p in cat.settlements if p['state']=='review')
+        with self.db.db_session() as session:
+            with self.assertRaises(ValueError):self.poi.create_pilot(session,0,0,'library',500,bad['id'])
+            with self.assertRaises(ValueError):self.poi.create_pilot(session,35.7,51.4,'library',500)
+        self.assertEqual(self.calls,[])
+
+    def test_source_empty_result_pauses_and_never_dispatches_preserved_grid(self):
+        self.import_sources()
+        with self.db.db_session() as session:
+            point=self.poi.source_points(session)[0]
+            self.poi.create_pilot(session,0,0,'library',2000,point['id'])
+            self.poi.control(session).paused=False
+        self.provider.request=lambda kind,params:(self.calls.append((kind,params)) or Reply(200,nearby()))
+        self.tick();self.clear_cooldown();self.tick()
+        self.assertEqual(len(self.calls),1)
+        with self.db.db_session() as session:
+            self.assertTrue(self.poi.control(session).paused)
+            self.assertEqual(session.get(self.m.PoiSegment,self.segment_id).status,'pending')
+            request=session.scalar(select(self.m.PoiRequest))
+            self.assertIsNone(request.raw_response);self.assertEqual(request.hash_count,0)
+            with self.assertRaises(ValueError):self.poi.enable_settlement_plan(session)
 
 if __name__ == '__main__': unittest.main()

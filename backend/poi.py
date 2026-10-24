@@ -3,12 +3,13 @@ from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
 import random
+import math
 from uuid import uuid4
 from sqlalchemy import select, func, update
 from sqlalchemy.dialects.postgresql import insert
 from backend import database
 from backend.poi_models import (PoiControl, PoiBoundary, PoiCategory, PoiJob, PoiSegment,
-    PoiPlace, PoiPlaceCategory, PoiDetailTask, PoiRequest, PoiDuplicateReview)
+    PoiPlace, PoiPlaceCategory, PoiDetailTask, PoiRequest, PoiDuplicateReview, PoiSourceDataset, PoiSettlement)
 from backend.poi_geo import BoundaryIndex, grid, load_boundaries, normalize, parse_address
 from backend.poi_provider import nearby_items, details, access_error_message
 
@@ -51,6 +52,54 @@ def create_job(session, categories, radius_m=2000, mode='initial', refresh_befor
     return job
 
 
+def create_pilot(session, latitude, longitude, category, radius_m=500, settlement_id=None):
+    """Prepare one user-selected area; preserve the nationwide grid and request history."""
+    c=control(session)
+    if not c.paused or c.in_flight:
+        raise ValueError('ابتدا گردآوری را متوقف کنید و تا پایان درخواست جاری صبر کنید.')
+    job=session.scalar(select(PoiJob).where(PoiJob.status.in_(ACTIVE)).limit(1))
+    if not job: raise ValueError('ابتدا یک برنامهٔ گردآوری در حالت توقف بسازید.')
+    if session.scalar(select(PoiSegment.id).where(PoiSegment.job_id==job.id,
+            PoiSegment.status=='processing',PoiSegment.pending_details>0).limit(1)):
+        raise ValueError('هش‌های یک ناحیه هنوز در حافظهٔ پردازشگر منتظر POI هستند؛ ابتدا همان ناحیه را تعیین تکلیف کنید.')
+    settlement=None
+    if job.search_dataset_version:
+        settlement=session.get(PoiSettlement,settlement_id) if settlement_id else None
+        if not settlement or settlement.version!=job.search_dataset_version or settlement.state!='ready':
+            raise ValueError('یک نقطهٔ آماده از مجموعهٔ متصل انتخاب کنید.')
+        latitude,longitude=settlement.latitude,settlement.longitude
+    if category not in job.categories:
+        raise ValueError('دستهٔ آزمایش باید از دسته‌های برنامهٔ فعلی باشد.')
+    if not all(math.isfinite(v) for v in (latitude,longitude)) or not (24<=latitude<=41 and 43<=longitude<=64):
+        raise ValueError('مختصات باید عرض و طول جغرافیایی معتبر در محدودهٔ ایران باشند.')
+    if not 500<=radius_m<=5000: raise ValueError('شعاع باید بین ۵۰۰ و ۵۰۰۰ متر باشد.')
+    assignment=boundary_index(job.search_dataset_version or job.boundary_version).assign(latitude,longitude)
+    province=assignment['province_name']
+    if not province: raise ValueError('مبدأ باید داخل یک استان مشخص باشد؛ نقاط مرزی یا خارج از مرز پذیرفته نمی‌شوند.')
+    provinces=session.scalars(select(PoiBoundary).where(PoiBoundary.version==job.boundary_version,
+        PoiBoundary.level=='province').order_by(PoiBoundary.code)).all()
+    province_order=next(i for i,p in enumerate(provinces) if normalize(p.name)==normalize(province))
+    current=session.scalar(select(PoiSegment).where(PoiSegment.job_id==job.id,PoiSegment.kind=='grid',
+        PoiSegment.status!='complete').order_by(PoiSegment.province_order,PoiSegment.id).limit(1))
+    current_order=current.province_order if current else min(max(job.planned_provinces-1,0),len(provinces)-1)
+    if job.search_dataset_version:
+        pending=session.scalar(select(PoiSegment).where(PoiSegment.job_id==job.id,PoiSegment.kind=='settlement',
+            PoiSegment.status!='complete').order_by(PoiSegment.province_order,PoiSegment.id).limit(1))
+        current_order=pending.province_order if pending else min(max(job.planned_settlement_provinces-1,0),len(provinces)-1)
+    if province_order!=current_order:
+        raise ValueError('مبدأ آزمایش باید در استان فعلی برنامه باشد تا ترتیب استانی حفظ شود.')
+    previous=session.get(PoiSegment,c.pilot_segment_id) if c.pilot_segment_id else None
+    if previous and previous.status=='pending':
+        previous.status='cancelled'  # Preserve the old origin/history rather than editing it.
+    segment=PoiSegment(job_id=job.id,province_order=province_order,province_name=province,
+        category=category,latitude=latitude,longitude=longitude,radius_m=radius_m,kind='pilot',
+        settlement_id=settlement.id if settlement else None)
+    session.add(segment);session.flush()
+    c.collection_mode,c.pilot_segment_id='pilot',segment.id
+    c.reason='Single-area pilot prepared; resume explicitly to run it'
+    return segment
+
+
 def set_paused(session, paused):
     c = control(session)
     c.paused = paused
@@ -61,11 +110,13 @@ def set_paused(session, paused):
 @lru_cache(maxsize=4)
 def boundary_index(version):
     with database.db_session() as session:
-        rows = session.scalars(select(PoiBoundary).where(PoiBoundary.version == version)).all()
+        rows = session.scalars(select(PoiBoundary).where(PoiBoundary.version == version,
+            PoiBoundary.level.in_(['province','county']))).all()
         return BoundaryIndex(rows)
 
 
 def plan_province(session, job):
+    if job.search_dataset_version: return plan_settlement_province(session,job)
     provinces = session.scalars(select(PoiBoundary).where(PoiBoundary.version == job.boundary_version,
                                PoiBoundary.level == 'province').order_by(PoiBoundary.code)).all()
     if job.planned_provinces >= len(provinces): return False
@@ -85,9 +136,11 @@ def plan_province(session, job):
     return True
 
 
-def next_target(session, job):
+def next_target(session, job, pilot_segment_id=None):
     segment = session.scalar(select(PoiSegment).where(PoiSegment.job_id == job.id,
-        PoiSegment.status == 'pending').order_by(PoiSegment.province_order, PoiSegment.id).limit(1))
+        PoiSegment.status == 'pending',
+        PoiSegment.id==pilot_segment_id if pilot_segment_id else PoiSegment.kind==('settlement' if job.search_dataset_version else 'grid'))
+        .order_by(PoiSegment.province_order, PoiSegment.id).limit(1))
     if segment:
         return 'nearby', segment, {'location': f'{segment.latitude},{segment.longitude}',
                                   'layer': segment.category, 'searchRadius': segment.radius_m}
@@ -122,11 +175,11 @@ def save_details(session, job, provider_id, body, stamp):
         name=body['name'], normalized_name=normalize(body['name']), latitude=lat, longitude=lon)
         .on_conflict_do_nothing(index_elements=['provider','provider_id']))
     place = session.scalar(select(PoiPlace).where(PoiPlace.provider==job.provider, PoiPlace.provider_id==provider_id))
-    for key, value in {**parse_address(body), **boundary_index(job.boundary_version).assign(lat,lon)}.items():
+    for key, value in {**parse_address(body), **boundary_index(job.search_dataset_version or job.boundary_version).assign(lat,lon)}.items():
         setattr(place, key, value)
     place.name, place.normalized_name = body['name'], normalize(body['name'])
     place.latitude, place.longitude = lat, lon
-    place.raw_details, place.resolved_at, place.boundary_version = body, stamp, job.boundary_version
+    place.raw_details, place.resolved_at, place.boundary_version = body, stamp, job.search_dataset_version or job.boundary_version
     layer = body.get('layer')
     if isinstance(layer, dict) and isinstance(layer.get('slug'), str) and 0 < len(layer['slug']) <= 100:
         slug = layer['slug']
@@ -184,6 +237,8 @@ def apply_reply(session, request_id, reply, result_cap=0, detail_hash=None, deta
                 target.pending_details = max(0, target.pending_details - 1)
             req.outcome = 'successful'
             target.status = 'processing' if target.pending_details else 'complete'
+            if req.kind=='details' and target.status=='complete' and c.collection_mode=='pilot' and c.pilot_segment_id==target.id:
+                c.paused,c.reason=True,'Single-area pilot finished; nationwide grid remains paused'
     elif reply.status in {401,402,403,480,481,483,484,485}:
         req.outcome, target.status = 'failed', retry_status
         c.paused, c.reason = True, access_error_message(req.kind, reply.status)
@@ -227,14 +282,20 @@ def storage_cleanup_required(session):
         session.scalar(select(PoiDetailTask.id).where(PoiDetailTask.status=='pending').limit(1)))
 
 
-def collection_readiness(c, job, cleanup_required=False):
+def collection_readiness(c, job, cleanup_required=False, pilot=None):
     from backend.settings import get_settings
     key_configured = bool(get_settings().neshan_service_api_key.get_secret_value().strip())
     alive = bool(c and c.heartbeat_at and (now()-c.heartbeat_at).total_seconds() < 45)
     active_job = bool(job and job.status in ACTIVE)
     authorized = get_settings().neshan_collection_authorized
+    pilot_block=''
+    if c and c.collection_mode=='pilot':
+        if not pilot or not job or pilot.job_id!=job.id: pilot_block='pilot_required'
+        elif pilot.status=='complete': pilot_block='pilot_completed'
+        elif pilot.status in ('failed','uncertain'): pilot_block='pilot_review_required'
     blocked = ('missing_service_key' if not key_configured else 'authorization_required' if not authorized
                else 'storage_cleanup_required' if cleanup_required else 'no_active_job' if not active_job
+               else pilot_block if pilot_block
                else 'worker_not_running' if not alive else '')
     return dict(service_key_configured=key_configured, collection_authorized=authorized, worker_alive=alive,
                 resume_blocked_reason=blocked, can_resume=bool(c and c.paused and not blocked),
@@ -244,8 +305,12 @@ def collection_readiness(c, job, cleanup_required=False):
 def resume_collection(session):
     c = control(session)
     job = session.scalar(select(PoiJob).where(PoiJob.status.in_(ACTIVE)).limit(1))
-    readiness = collection_readiness(c, job, storage_cleanup_required(session))
+    pilot=session.get(PoiSegment,c.pilot_segment_id) if c and c.pilot_segment_id else None
+    readiness = collection_readiness(c, job, storage_cleanup_required(session),pilot)
     messages = {
+        'pilot_required': 'ابتدا یک آزمایش تک‌ناحیه‌ای در استان فعلی آماده کنید؛ اجرای سراسری متوقف است.',
+        'pilot_completed': 'آزمایش تک‌ناحیه‌ای پایان یافته است؛ گزارش آن را بررسی کنید. اجرای سراسری همچنان متوقف است.',
+        'pilot_review_required': 'آزمایش ناموفق یا نامطمئن است؛ پیش از تلاش دوباره تاریخچه را بررسی و موارد حل‌نشده را بازگردانی کنید.',
         'authorization_required': 'ابتدا تکمیل NDA و مجوز استفادهٔ داخلی را تأیید و NESHAN_COLLECTION_AUTHORIZED را تنظیم کنید.',
         'storage_cleanup_required': 'دادهٔ قدیمی Nearby هنوز ذخیره شده است؛ پاک‌سازی بررسی‌شده باید پیش از ادامه انجام شود.',
         'missing_service_key': 'کلید سرویس نشان تنظیم نشده است. ابتدا NESHAN_SERVICE_API_KEY را روی سرور تنظیم کنید.',
@@ -260,7 +325,8 @@ def resume_collection(session):
 def status(session):
     c = session.get(PoiControl, 1)
     job = session.scalar(select(PoiJob).order_by(PoiJob.created_at.desc()).limit(1))
-    readiness = collection_readiness(c, job, storage_cleanup_required(session))
+    pilot=session.get(PoiSegment,c.pilot_segment_id) if c and c.pilot_segment_id else None
+    readiness = collection_readiness(c, job, storage_cleanup_required(session),pilot)
     alive = readiness['worker_alive']
     state = 'interrupted'
     if c and c.paused: state = 'pausing' if c.in_flight and alive else 'paused'
@@ -271,20 +337,26 @@ def status(session):
         heartbeat_at=c.heartbeat_at if c else None,
         next_request_at=c.next_request_at if c else None, in_flight=c.in_flight if c else None,
         coverage_label='Completed searches do not establish completeness of real-world POIs',
-        completeness_verified=False, job=None)
+        completeness_verified=False, job=None,collection_mode=c.collection_mode if c else 'pilot',
+        pilot=dict(id=pilot.id,status=pilot.status,latitude=pilot.latitude,longitude=pilot.longitude,
+            radius_m=pilot.radius_m,category=pilot.category,province=pilot.province_name,
+            details_saved=session.scalar(select(func.count()).select_from(PoiRequest).where(
+                PoiRequest.target_type=='segment',PoiRequest.target_id==pilot.id,
+                PoiRequest.kind=='details',PoiRequest.outcome=='successful'))) if pilot else None)
     if job:
         counts = session.execute(select(PoiRequest.kind, PoiRequest.outcome, func.count()).where(
             PoiRequest.job_id == job.id).group_by(PoiRequest.kind, PoiRequest.outcome)).all()
         provinces = session.execute(select(PoiSegment.province_order, PoiSegment.province_name,
-            PoiSegment.status, func.count()).where(PoiSegment.job_id == job.id).group_by(
+            PoiSegment.status, func.count()).where(PoiSegment.job_id == job.id,PoiSegment.kind==('settlement' if job.search_dataset_version else 'grid')).group_by(
                 PoiSegment.province_order,PoiSegment.province_name,PoiSegment.status).order_by(PoiSegment.province_order)).all()
         incomplete = {o for o,p,s,n in provinces if s != 'complete'}
         incomplete.update(session.scalars(select(PoiDetailTask.province_order).where(
             PoiDetailTask.job_id==job.id,PoiDetailTask.status!='complete').distinct()).all())
         complete_provinces = len({o for o,p,s,n in provinces} - incomplete)
         output['job'] = dict(completed_provinces=complete_provinces, remaining_provinces=31-complete_provinces,
-            id=str(job.id),status=job.status,mode=job.mode,radius_m=job.radius_m,
-            boundary_version=job.boundary_version,planned_provinces=job.planned_provinces,total_provinces=31,
+            id=str(job.id),status=job.status,mode=job.mode,radius_m=job.radius_m,categories=job.categories,
+            boundary_version=job.boundary_version,search_dataset_version=job.search_dataset_version,
+            planned_provinces=job.planned_settlement_provinces if job.search_dataset_version else job.planned_provinces,total_provinces=31,
             duplicates_skipped=job.duplicates_skipped,missing_hashes=job.missing_hashes,
             requests=[dict(kind=k,outcome=o,count=n) for k,o,n in counts],
             areas=[dict(order=o,province=p,status=s,count=n) for o,p,s,n in provinces],
@@ -297,9 +369,93 @@ def status(session):
                 PoiRequest.job_id==job.id,PoiRequest.kind=='nearby',PoiRequest.result_count==0)),
             flagged_segments=session.scalar(select(func.count()).select_from(PoiSegment).where(
                 PoiSegment.job_id==job.id,PoiSegment.review_reason.is_not(None))))
+    output['search_sources']=[dict(version=d.version,summary=d.summary) for d in session.scalars(
+        select(PoiSourceDataset).order_by(PoiSourceDataset.created_at.desc())).all()]
+    if job and job.search_dataset_version:
+        output['coverage_label']='فقط محدودهٔ شعاع جست‌وجو پیرامون نقاط فایل؛ پوشش کامل شهرها و روستاها تأیید نشده است.'
     output['categories'] = [dict(category=slug,unique_saved=n) for slug,n in session.execute(
         select(PoiPlaceCategory.category,func.count()).join(PoiPlace,PoiPlace.id==PoiPlaceCategory.place_id)
         .where(PoiPlace.resolved_at.is_not(None)).group_by(PoiPlaceCategory.category))]
     output['unique_saved'] = session.scalar(select(func.count()).select_from(PoiPlace).where(PoiPlace.resolved_at.is_not(None)))
     output['duplicate_reviews'] = session.scalar(select(func.count()).select_from(PoiDuplicateReview).where(PoiDuplicateReview.status=='pending'))
     return output
+
+
+def paused_job(session):
+    c=control(session)
+    job=session.scalar(select(PoiJob).where(PoiJob.status.in_(ACTIVE)).limit(1))
+    if not job: raise ValueError('برنامهٔ فعال گردآوری وجود ندارد.')
+    if not c.paused or c.in_flight: raise ValueError('ابتدا گردآوری را متوقف کنید و تا پایان درخواست جاری صبر کنید.')
+    if session.scalar(select(PoiSegment.id).where(PoiSegment.job_id==job.id,
+        PoiSegment.status=='processing',PoiSegment.pending_details>0).limit(1)):
+        raise ValueError('ابتدا دریافت جزئیات هش‌های منتظر در حافظه را تعیین تکلیف کنید.')
+    return c,job
+
+
+def attach_sources(session,version):
+    c,job=paused_job(session)
+    dataset=session.get(PoiSourceDataset,version)
+    if not dataset:raise ValueError('ابتدا مجموعهٔ فایل‌ها را روی سرور وارد کنید.')
+    if job.search_dataset_version==version:return job
+    if job.search_dataset_version:raise ValueError('این برنامه قبلاً به یک نسخهٔ ثابت از مجموعه متصل شده است.')
+    original=session.scalars(select(PoiBoundary.name).where(PoiBoundary.version==job.boundary_version,PoiBoundary.level=='province')).all()
+    supplied=session.scalars(select(PoiBoundary.name).where(PoiBoundary.version==version,PoiBoundary.level=='province')).all()
+    if {normalize(n) for n in original}!={normalize(n) for n in supplied}:raise ValueError('فهرست استان‌های مجموعه با برنامهٔ فعلی تطابق ندارد.')
+    job.search_dataset_version=version
+    c.collection_mode,c.pilot_segment_id='pilot',None
+    c.reason='Search sources attached; prepare one settlement pilot first'
+    return job
+
+
+def enable_settlement_plan(session):
+    c,job=paused_job(session)
+    if not job.search_dataset_version:raise ValueError('ابتدا مجموعهٔ فایل‌ها را به برنامه متصل کنید.')
+    pilot=session.get(PoiSegment,c.pilot_segment_id) if c.pilot_segment_id else None
+    point=session.get(PoiSettlement,pilot.settlement_id) if pilot and pilot.settlement_id else None
+    if not point or pilot.job_id!=job.id or point.version!=job.search_dataset_version or point.state!='ready' or pilot.status!='complete' or pilot.radius_m!=job.radius_m or pilot.review_reason or pilot.pending_details:
+        raise ValueError('ابتدا آزمایش یک نقطه از مجموعه را با همان شعاع برنامه با موفقیت تمام کنید.')
+    saved=session.scalar(select(PoiRequest.id).where(PoiRequest.target_type=='segment',PoiRequest.target_id==pilot.id,
+        PoiRequest.kind=='details',PoiRequest.outcome=='successful').limit(1))
+    if not saved:raise ValueError('آزمایش باید حداقل یک پاسخ موفق جزئیات POI ذخیره کرده باشد.')
+    c.collection_mode='coverage'
+    c.reason='Settlement buffers enabled; collection remains paused until explicit resume'
+    return {'paused':True,'scope':'supplied_settlement_buffers'}
+
+
+def source_points(session):
+    job=session.scalar(select(PoiJob).where(PoiJob.status.in_(ACTIVE)).limit(1))
+    if not job or not job.search_dataset_version:return []
+    provinces=session.scalars(select(PoiBoundary).where(PoiBoundary.version==job.boundary_version,
+        PoiBoundary.level=='province').order_by(PoiBoundary.code)).all()
+    pending=session.scalar(select(PoiSegment).where(PoiSegment.job_id==job.id,PoiSegment.kind=='settlement',
+        PoiSegment.status!='complete').order_by(PoiSegment.province_order,PoiSegment.id).limit(1))
+    order=pending.province_order if pending else min(max(job.planned_settlement_provinces-1,0),len(provinces)-1)
+    name=normalize(provinces[order].name)
+    points=session.scalars(select(PoiSettlement).where(PoiSettlement.version==job.search_dataset_version,
+        PoiSettlement.state=='ready').order_by(PoiSettlement.priority,PoiSettlement.county_name,PoiSettlement.name,PoiSettlement.code)).all()
+    return [dict(id=str(p.id),name=p.name,province=p.province_name,county=p.county_name,latitude=p.latitude,longitude=p.longitude)
+        for p in points if normalize(p.province_name)==name]
+
+
+def plan_settlement_province(session,job):
+    provinces=session.scalars(select(PoiBoundary).where(PoiBoundary.version==job.boundary_version,
+        PoiBoundary.level=='province').order_by(PoiBoundary.code)).all()
+    order=job.planned_settlement_provinces
+    if order>=len(provinces):return False
+    province=provinces[order]
+    points=session.scalars(select(PoiSettlement).where(PoiSettlement.version==job.search_dataset_version,
+        PoiSettlement.state=='ready').order_by(PoiSettlement.priority,PoiSettlement.county_name,PoiSettlement.name,PoiSettlement.code)).all()
+    for point in points:
+        if normalize(point.province_name)!=normalize(province.name):continue
+        for category in job.categories:
+            pilot=session.scalar(select(PoiSegment).where(PoiSegment.job_id==job.id,PoiSegment.kind=='pilot',
+                PoiSegment.settlement_id==point.id,PoiSegment.category==category,PoiSegment.radius_m==job.radius_m,
+                PoiSegment.latitude==point.latitude,PoiSegment.longitude==point.longitude,PoiSegment.status=='complete',
+                PoiSegment.review_reason.is_(None),PoiSegment.pending_details==0,
+                PoiSegment.id.in_(select(PoiRequest.target_id).where(PoiRequest.target_type=='segment',
+                    PoiRequest.kind=='details',PoiRequest.outcome=='successful'))).order_by(PoiSegment.id.desc()).limit(1))
+            session.add(PoiSegment(job_id=job.id,province_order=order,province_name=province.name,category=category,
+                latitude=point.latitude,longitude=point.longitude,radius_m=job.radius_m,kind='settlement',settlement_id=point.id,
+                status='complete' if pilot else 'pending',planning_note=f'Reused identical successful pilot {pilot.id}' if pilot else None))
+    job.planned_settlement_provinces+=1
+    return True
