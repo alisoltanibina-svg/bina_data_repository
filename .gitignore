@@ -19,7 +19,8 @@ htmlcov/
 venv/
 
 # Local development and review files; not needed on the production server.
-/tests/
+/tests/*
+!/tests/test_poi_collection.py
 /docs/
 
 benchmark_100_users_report.json
@@ -38,7 +39,8 @@ data/bina_dashboard_database.db
 
 artifacts/
 output/
-deploy/
+/deploy/*
+!/deploy/poi-worker.service.example
 uvicorn.bat
 
 .gitconfig

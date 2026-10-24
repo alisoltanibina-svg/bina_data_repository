@@ -1210,6 +1210,9 @@ async def unexpected_error(request: Request, error: Exception):
 from backend.support_routes import build_router as build_support_router
 app.include_router(build_support_router(_require_admin, _raise_membership, _require_user))
 
+from backend.poi_routes import build_router as build_poi_router
+app.include_router(build_poi_router(_require_admin, _require_user))
+
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _STATIC_ROOT = Path(os.getenv("STATIC_ROOT", str(_PROJECT_ROOT))).resolve()

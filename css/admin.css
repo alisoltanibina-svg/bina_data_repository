@@ -827,3 +827,11 @@ body.admin-body {
     }
     .admin-row-actions { justify-content: flex-start; }
 }
+
+#view-poi .support-admin-toolbar { display: flex; flex-wrap: wrap; gap: .75rem; }
+#view-poi form { display: grid; gap: 1rem; margin-block: 1rem; }
+#view-poi form label { display: grid; gap: .4rem; }
+#view-poi select, #view-poi input { max-width: 100%; padding: .6rem; font: inherit; }
+#view-poi details { margin-block: 1.5rem; }
+#poi-raw { max-height: 24rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+#poi-history, #poi-reviews { max-height: 24rem; overflow: auto; overflow-wrap: anywhere; }

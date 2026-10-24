@@ -625,17 +625,21 @@ async function refreshVisibleUsers() {
 function setAdminView(view) {
     document.getElementById('view-requests').hidden = view !== 'requests';
     document.getElementById('view-users').hidden = view !== 'users';
+    const poi = document.getElementById('view-poi');
+    if (poi) poi.hidden = view !== 'poi';
     const support = document.getElementById('view-support');
     if (support) support.hidden = view !== 'support';
     const ops = document.getElementById('view-ops');
     if (ops) ops.hidden = view !== 'ops';
     const titles = {
+        poi: 'گردآوری مکان‌ها',
         support: 'تیکت‌های پشتیبانی',
         requests: 'درخواست‌های عضویت',
         users: 'حساب‌ها و عکس‌ها',
         ops: 'وضعیت سامانه'
     };
     const leads = {
+        poi: 'کنترل گردآوری سراسری، وضعیت پردازشگر و گزارش پوشش جغرافیایی.',
         support: 'مشکلات ورود و عضویت را بررسی کنید و همین‌جا به کاربر پاسخ دهید.',
         requests: 'درخواست‌های ثبت‌نام را بررسی کنید. پذیرش، حساب را می‌سازد؛ رد را می‌توان بعداً به پذیرش برگرداند.',
         users: 'حساب را موقتاً غیرفعال کنید، یا در صورت نیاز حذف کنید. عکس و سابقهٔ ویرایش هم اینجاست.',
@@ -914,6 +918,7 @@ function bind() {
     document.querySelectorAll('.admin-view-tab').forEach(btn => {
         btn.addEventListener('click', async () => {
             setAdminView(btn.dataset.view);
+            if (btn.dataset.view === 'poi' && window.AdminPoi) await window.AdminPoi.load();
             if (btn.dataset.view === 'support' && window.AdminSupport) await window.AdminSupport.load();
             if (btn.dataset.view === 'users' && !usersState.rows.length) {
                 try { await loadUsers(); } catch (err) { showNotice('بارگذاری حساب‌ها ممکن نشد.'); }

@@ -371,3 +371,134 @@ temporary private directories. The regression coverage includes cross-account
 reads/claims, forged formats, traversal/control filenames, image bombs, metadata
 stripping, quotas, concurrent claims, close-during-upload races, stale uploads,
 orphan cleanup, CSRF, chunked body limits, and unexpected fields.
+
+## Nationwide POI collection
+
+The acquisition subsystem shares the application database and admin authentication,
+with a separate worker process. FastAPI never launches a collector. The admin panel's
+**گردآوری مکان‌ها** tab polls stored state every five seconds while visible.
+
+Install dependencies and apply the migration before deploying the new API:
+
+```bash
+pip install -r requirements.txt
+alembic upgrade head
+python scripts/build_frontend.py
+```
+
+Set `NESHAN_SERVICE_API_KEY` in the server environment or `.env`. This is a private
+service key, separate from the browser-visible `NESHAN_MAP_API_KEY`. Activate both
+services through Neshan support and confirm the account's collection/storage rights
+and account-specific quotas. The adapter follows the documented contracts:
+[Nearby](https://platform.neshan.org/docs/api/search-category/nearby/)
+(`GET /v1/nearby`, `location=lat,lng`, `layer`, `searchRadius`) and
+[Details](https://platform.neshan.org/docs/api/search-category/poi-details/)
+(`GET /v1/point`, one `hash`). No bulk Details endpoint is assumed.
+
+Start the independent worker under a process supervisor:
+
+```bash
+python -m backend.poi_worker
+```
+
+A systemd example is in `deploy/poi-worker.service.example`; adjust the installation
+paths and service account. The worker owns a dedicated PostgreSQL session advisory
+lock, preventing another worker on the same database from dispatching calls. It
+checks connection identity before dispatch and before saving responses. Heartbeats
+run every five seconds. A heartbeat older than 45 seconds is reported as interrupted.
+Closing the panel, refreshing it, or restarting FastAPI has no effect on this worker.
+
+Create a job in the admin tab, choose documented category identifiers and a radius
+(500–5000 metres), then press Resume. `formal_school` means school, whereas `school`
+is an educational institution. Jobs start paused; only one may be active at a time.
+Alternatively create a paused job from the CLI:
+
+```bash
+python -m backend.poi_worker create --categories mosque,formal_school,library,park,hospital --radius 2000
+```
+
+The planner snapshots and hashes `data/iran.geojson`, validates its 31 provinces,
+and visits provinces in stable administrative-code order. Each province's grid is
+committed atomically when it becomes the next province to process. Each grid cell
+intersecting a polygon receives an overlapping circumscribing search circle; this
+includes islands, rural land, narrow border slivers and remote regions. Search
+centres may fall just outside a boundary to cover its edge. Discovery coordinates
+and actual Details coordinates are assigned to administrative polygons independently
+of the search origin. Details are drained before the next Nearby request, and before
+progressing to another province. Failed or uncertain work is separately reported.
+The panel distinguishes planned areas from provinces still awaiting planning.
+
+At a 30–60 second interval, nationwide acquisition can take many months or longer,
+depending on radius, category count and number of discovered hashes. The worker
+always waits **an additional random 30–60 seconds after a response**; sequential
+HTTP requests alone do not impose this delay. Nearby, Details and every retry share
+one persisted schedule. Pause/resume preserves the deadline. HTTP 429/482 respects
+`Retry-After` and extends backoff. HTTP 481 (quota), 480/483/484/485 (access), and
+401/402/403 automatically pause with a visible reason. Server errors have bounded
+exponential retries; other failures pause for review. Redirects and hidden HTTP
+retries are disabled.
+
+Pause is serialized with dispatch in PostgreSQL. A committed dispatch is in flight:
+its response finishes and a successful result is saved even if Pause was pressed.
+The panel shows Pausing until it finishes, then Paused. Pause stops new Nearby,
+Details and retry attempts, and survives process restarts. Network timeouts, malformed
+responses and interrupted dispatches are **uncertain**, rather than counted as success
+or automatically retried. Inspect their raw responses in the request history. The
+explicit requeue control returns only failed/uncertain work to the same scheduler,
+leaves the job paused, and does not bypass cooldowns or resolved-hash deduplication.
+A provider may have received an uncertain request; exactly-once external execution
+cannot be guaranteed across a crash without provider idempotency support.
+
+`poi_places` assigns stable internal UUIDs and has a unique `(provider, provider_id)`
+constraint. `poi_place_categories` preserves multiple category memberships without
+additional Details requests. Details payloads and request outcomes are retained in
+JSONB. Similar names within approximately 80 metres under different identifiers
+create review candidates; they are not merged automatically. The panel exposes
+candidates and both UUIDs for review.
+
+Spatial matching uses Shapely's indexed point-in-polygon operation over versioned
+GeoJSON, without requiring a new PostGIS extension on the existing database.
+Shared boundary points are flagged ambiguous instead of choosing a province at
+random. The repository currently has **no county polygons**. To enable county
+assignment, supply a WGS84 GeoJSON FeatureCollection when creating a job:
+
+```bash
+python -m backend.poi_worker create --categories mosque,library --radius 2000 --counties /path/to/counties.geojson
+```
+
+County feature properties must include `name`, `province_name` (matching an existing
+province), and preferably a stable `code`. Without county geometry, `county_name`
+remains null. Import county data for each job requiring county assignment. Postal
+province/county/city hints are stored separately as `address_province`,
+`address_county`, `address_city`, with `address_parse_status`. Unlabelled city tokens
+are heuristic, and unlabelled county names are not guessed. These hints never drive
+counts or spatial assignment. County density indicators also require county
+population data, which is not present in the current schema.
+
+Authenticated consumers can read local records without calling Neshan:
+
+- `GET /api/pois?category=mosque&province=...&county=...&bbox=west,south,east,north`
+  returns GeoJSON, with at most 1000 features per page and a `next_cursor` passed as
+  `after` on the next request. Features include local IDs and category memberships.
+- `GET /api/pois/counts?category=library` returns unique resolved counts grouped by
+  spatial province/county. It does not count unresolved discoveries or claim that
+  those counts represent every real-world facility.
+- Admin status, history and controls live under `/api/admin/poi/` and reuse the
+  existing administrator session and CSRF protection.
+
+Completed searches do **not** prove provider-data completeness. Missing hashes,
+malformed responses and a configured result ceiling remain visible. If Neshan
+confirms a Nearby result cap, set `NESHAN_NEARBY_RESULT_CAP` to that value; reaching
+it marks segments for review. A subsequent job with a smaller radius can revisit
+those areas while skipping resolved hashes. No undocumented pagination or maximum
+result count is invented. Initial jobs skip already resolved hashes. Refresh jobs
+must explicitly select `mode=refresh` and a timezone-aware `refresh_before` cutoff;
+only records resolved before that cutoff are intentionally requested again.
+
+Collector tests use only an explicitly supplied disposable PostgreSQL database and
+mock every provider request. They create and remove their own temporary schema:
+
+```bash
+# Set TEST_DATABASE_URL to a disposable PostgreSQL database, then:
+python -B -m unittest discover -s tests -p test_poi_collection.py -v
+```

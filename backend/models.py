@@ -436,3 +436,6 @@ class SupportAttachment(Base):
     state: Mapped[str] = mapped_column(String(12), nullable=False, server_default="ready")
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+# Register acquisition tables for Alembic and application/test metadata.
+from backend import poi_models as _poi_models  # noqa: E402,F401

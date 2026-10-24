@@ -26,6 +26,7 @@
     <script src="../js/ticket-attachments.js" defer></script>
  <script src="../js/admin-support.js" defer></script>
     <script src="../js/admin.js" defer></script>
+    <script src="../js/admin-poi.js" defer></script>
     <script src="../js/auth.js" defer></script>
  <link rel="stylesheet" href="../css/ticket-attachments.css">
 </head>
@@ -41,12 +42,45 @@
                 <button type="button" class="admin-view-tab is-active" role="tab" aria-selected="true" data-view="requests">درخواست‌های عضویت</button>
                 <button type="button" class="admin-view-tab" role="tab" aria-selected="false" data-view="users">حساب‌ها و عکس‌ها</button>
                 <button type="button" class="admin-view-tab" role="tab" aria-selected="false" data-view="support">تیکت‌های پشتیبانی</button>
+                <button type="button" class="admin-view-tab" role="tab" aria-selected="false" data-view="poi">گردآوری مکان‌ها</button>
                 <button type="button" class="admin-view-tab" role="tab" aria-selected="false" data-view="ops">وضعیت سامانه</button>
             </div>
             <h1 id="admin-title">درخواست‌های عضویت</h1>
             <p class="admin-lead" id="admin-lead">درخواست‌های ثبت‌نام را بررسی کنید. پذیرش، حساب را می‌سازد؛ رد، فقط پرونده را می‌بندد.</p>
         </header>
 
+        <section id="view-poi" hidden aria-label="گردآوری مکان‌ها">
+            <p class="support-hint">پایان جست‌وجوی نواحی به معنی کشف همهٔ مکان‌های واقعی نیست. انتساب استان و شهرستان بر پایهٔ مرز جغرافیایی است.</p>
+            <p id="poi-error" class="support-error" role="alert" hidden></p>
+            <div class="support-admin-toolbar">
+                <button type="button" class="admin-btn" id="poi-pause">توقف همهٔ درخواست‌ها</button>
+                <button type="button" class="admin-btn" id="poi-resume">ادامهٔ گردآوری</button>
+                <button type="button" class="admin-btn admin-btn-ghost" id="poi-refresh">تازه‌سازی گزارش</button>
+            </div>
+            <p id="poi-worker" role="status" aria-live="polite"></p>
+            <p id="poi-timing"></p><p id="poi-reason"></p>
+            <div class="admin-ops" id="poi-summary"></div>
+            <h2>پیشرفت استان‌ها و نواحی برنامه‌ریزی‌شده</h2>
+            <p id="poi-coverage"></p>
+            <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th scope="col">استان</th><th scope="col">جست‌وجوی تمام‌شده</th><th scope="col">باقی‌مانده</th><th scope="col">ناموفق / نامطمئن</th></tr></thead><tbody id="poi-areas"></tbody></table></div>
+            <h2>مکان‌های یکتای ذخیره‌شده به تفکیک دسته</h2><ul id="poi-categories"></ul>
+            <details><summary>ساخت برنامهٔ سراسری جدید</summary>
+                <form id="poi-create" class="support-card">
+                    <label>دسته‌بندی‌ها<select id="poi-layers" multiple size="8" required aria-describedby="poi-layer-help"></select></label>
+                    <p id="poi-layer-help">برای انتخاب چند مورد از Ctrl یا Command استفاده کنید. formal_school مدرسه و school مؤسسهٔ آموزشی است.</p>
+                    <label>شعاع هر جست‌وجو (متر)<input id="poi-radius" type="number" min="500" max="5000" value="2000" required></label>
+                    <label>سیاست گردآوری<select id="poi-mode"><option value="initial">گردآوری اولیه؛ رد کردن هش‌های حل‌شده</option><option value="refresh">به‌روزرسانی عمدی جزئیات قدیمی</option></select></label>
+                    <label id="poi-cutoff-wrap" hidden>به‌روزرسانی رکوردهای قدیمی‌تر از<input id="poi-cutoff" type="datetime-local"></label>
+                    <button type="submit" class="admin-btn">ساخت برنامه در حالت توقف</button>
+                </form>
+            </details>
+            <details><summary>تاریخچهٔ درخواست‌ها و موارد نیازمند بررسی</summary>
+                <p>درخواست نامطمئن ممکن است به سرویس رسیده باشد. تلاش دوباره را پس از بررسی انجام دهید.</p>
+                <button type="button" class="admin-btn" id="poi-retry">بازگرداندن درخواست‌های ناموفق و نامطمئن به صف</button>
+                <button type="button" class="admin-btn admin-btn-ghost" id="poi-history-load">نمایش تاریخچه و نامزدهای تکراری</button>
+                <ul id="poi-history"></ul><pre id="poi-raw" dir="ltr"></pre><ul id="poi-reviews"></ul>
+            </details>
+        </section>
         <div id="view-requests">
         <section class="admin-stats" aria-label="خلاصه وضعیت">
             <article class="admin-stat" data-stat="pending">
