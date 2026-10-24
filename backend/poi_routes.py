@@ -51,7 +51,9 @@ def build_router(require_admin, require_user):
     @router.post('/api/admin/poi/resume')
     def resume(request: Request):
         require_admin(request)
-        with database.db_session() as session: return response(poi.set_paused(session,False))
+        try:
+            with database.db_session() as session: return response(poi.resume_collection(session))
+        except ValueError as error: raise HTTPException(409,detail=str(error)) from error
 
     @router.post('/api/admin/poi/jobs/{job_id}/retry-unresolved')
     def retry(job_id: UUID, request: Request):

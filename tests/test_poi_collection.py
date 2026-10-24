@@ -253,8 +253,18 @@ class CollectorTests(unittest.TestCase):
         report=client.get('/api/admin/poi/status')
         self.assertEqual(report.status_code,200,report.text)
         self.assertEqual(report.headers['cache-control'],'no-store')
-        self.assertEqual(report.json()['state'],'paused')
-        client.post('/api/admin/poi/resume',json={})
+        self.assertEqual(report.json()['state'],'not_configured')
+        self.assertFalse(report.json()['service_key_configured'])
+        self.assertEqual(report.json()['resume_blocked_reason'],'missing_service_key')
+        self.assertEqual(client.post('/api/admin/poi/resume',json={}).status_code,409)
+        with self.db.db_session() as session: self.poi.control(session).heartbeat_at=self.poi.now()
+        from backend.settings import get_settings
+        from pydantic import SecretStr
+        with patch.object(get_settings(),'neshan_service_api_key',SecretStr('test-service-secret')):
+            ready=client.get('/api/admin/poi/status')
+            self.assertNotIn('test-service-secret',ready.text)
+            self.assertTrue(ready.json()['can_resume'])
+            self.assertEqual(client.post('/api/admin/poi/resume',json={}).status_code,200)
         self.tick();self.clear_cooldown();self.tick()
         result=client.get('/api/pois?category=library&bbox=50,35,52,37')
         self.assertEqual(result.status_code,200,result.text)
@@ -265,6 +275,30 @@ class CollectorTests(unittest.TestCase):
         self.assertFalse(counts['completeness_verified'])
         self.assertEqual(len(client.get('/api/admin/poi/requests').json()),2)
         self.assertEqual(client.post('/api/admin/poi/jobs',json={'categories':['unverified-layer']}).status_code,409)
+
+    def test_resume_readiness_distinguishes_setup_job_and_worker(self):
+        from backend.settings import get_settings
+        from pydantic import SecretStr
+        with self.db.db_session() as session:
+            self.poi.set_paused(session,True)
+            report=self.poi.status(session)
+            self.assertEqual(report['state'],'not_configured')
+            self.assertEqual(report['resume_blocked_reason'],'missing_service_key')
+            self.assertFalse(report['can_resume'])
+        with patch.object(get_settings(),'neshan_service_api_key',SecretStr('test-only')):
+            with self.db.db_session() as session:
+                report=self.poi.status(session)
+                self.assertEqual(report['resume_blocked_reason'],'worker_not_running')
+                with self.assertRaises(ValueError): self.poi.resume_collection(session)
+                self.poi.control(session).heartbeat_at=self.poi.now()
+                report=self.poi.status(session)
+                self.assertTrue(report['can_resume'])
+                session.get(self.m.PoiJob,self.job_id).status='completed'
+                session.flush()
+                report=self.poi.status(session)
+                self.assertEqual(report['resume_blocked_reason'],'no_active_job')
+                self.assertFalse(report['can_resume'])
+                self.assertFalse(report['can_pause'])
 
     def test_completed_searches_do_not_claim_completeness(self):
         self.tick();self.clear_cooldown();self.tick();self.clear_cooldown();self.tick()

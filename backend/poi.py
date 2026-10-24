@@ -218,16 +218,44 @@ def retry_unresolved(session, job_id):
     c.paused, c.reason = True, 'Unresolved work requeued; resume when ready'
 
 
+def collection_readiness(c, job):
+    from backend.settings import get_settings
+    key_configured = bool(get_settings().neshan_service_api_key.get_secret_value().strip())
+    alive = bool(c and c.heartbeat_at and (now()-c.heartbeat_at).total_seconds() < 45)
+    active_job = bool(job and job.status in ACTIVE)
+    blocked = ('missing_service_key' if not key_configured else 'no_active_job' if not active_job
+               else 'worker_not_running' if not alive else '')
+    return dict(service_key_configured=key_configured, worker_alive=alive,
+                resume_blocked_reason=blocked, can_resume=bool(c and c.paused and not blocked),
+                can_pause=bool(active_job and (not c or not c.paused)))
+
+
+def resume_collection(session):
+    c = control(session)
+    job = session.scalar(select(PoiJob).where(PoiJob.status.in_(ACTIVE)).limit(1))
+    readiness = collection_readiness(c, job)
+    messages = {
+        'missing_service_key': 'کلید سرویس نشان تنظیم نشده است. ابتدا NESHAN_SERVICE_API_KEY را روی سرور تنظیم کنید.',
+        'no_active_job': 'برنامهٔ فعالی برای ادامه وجود ندارد. ابتدا یک برنامهٔ گردآوری بسازید.',
+        'worker_not_running': 'پردازشگر گردآوری اجرا نشده یا ارتباط آن قطع است. ابتدا پردازشگر را اجرا کنید.',
+    }
+    reason = readiness['resume_blocked_reason']
+    if reason: raise ValueError(messages[reason])
+    return set_paused(session, False)
+
+
 def status(session):
     c = session.get(PoiControl, 1)
     job = session.scalar(select(PoiJob).order_by(PoiJob.created_at.desc()).limit(1))
-    stamp = now()
-    alive = bool(c and c.heartbeat_at and (stamp-c.heartbeat_at).total_seconds() < 45)
+    readiness = collection_readiness(c, job)
+    alive = readiness['worker_alive']
     state = 'interrupted'
     if c and c.paused: state = 'pausing' if c.in_flight and alive else 'paused'
     elif alive: state = 'running' if c.in_flight else 'waiting'
-    output = dict(state=state, paused=bool(c and c.paused), reason=c.reason if c else 'No worker or job yet',
-        heartbeat_at=c.heartbeat_at if c else None, worker_alive=alive,
+    if not alive and not readiness['service_key_configured']: state = 'not_configured'
+    elif not alive and (not job or job.status not in ACTIVE): state = 'idle'
+    output = dict(**readiness, state=state, paused=c.paused if c else True, reason=c.reason if c else 'No worker or job yet',
+        heartbeat_at=c.heartbeat_at if c else None,
         next_request_at=c.next_request_at if c else None, in_flight=c.in_flight if c else None,
         coverage_label='Completed searches do not establish completeness of real-world POIs',
         completeness_verified=False, job=None)

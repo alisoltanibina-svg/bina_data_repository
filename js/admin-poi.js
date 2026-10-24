@@ -1,11 +1,23 @@
 // Collection controls only observe durable worker state; this page never starts a worker.
 (() => {
     const $ = id => document.getElementById(id);
-    const labels = {running:'در حال اجرا',waiting:'در انتظار',pausing:'در حال توقف',paused:'متوقف',interrupted:'ارتباط پردازشگر قطع شده',pending:'در صف',completed:'جست‌وجوهای برنامه تمام شده',needs_review:'نیازمند بررسی',successful:'موفق',failed:'ناموفق',uncertain:'نامطمئن',dispatched:'ارسال‌شده',initial:'اولیه',refresh:'به‌روزرسانی'};
+    const labels = {not_configured:'پیکربندی نشده',idle:'بدون برنامهٔ فعال',running:'در حال اجرا',waiting:'در انتظار',pausing:'در حال توقف',paused:'متوقف',interrupted:'ارتباط پردازشگر قطع شده',pending:'در صف',completed:'جست‌وجوهای برنامه تمام شده',needs_review:'نیازمند بررسی',successful:'موفق',failed:'ناموفق',uncertain:'نامطمئن',dispatched:'ارسال‌شده',initial:'اولیه',refresh:'به‌روزرسانی'};
     const titles = {mosque:'مسجد',formal_school:'مدرسه',school:'مؤسسهٔ آموزشی',library:'کتابخانه',park:'بوستان',hospital:'بیمارستان',cinema:'سینما',theater:'تئاتر',university:'دانشگاه'};
     const num = n => Number(n || 0).toLocaleString('fa-IR');
     const time = t => t ? new Date(t).toLocaleString('fa-IR', {timeZone:'Asia/Tehran'}) : '—';
-    let busy = false, jobId = '', layersLoaded = false;
+    let loadPromise = null, actionBusy = false, lastStatus = null, jobId = '', layersLoaded = false;
+    const readinessMessages = {
+        missing_service_key: 'کلید سرویس نشان هنوز تنظیم نشده است؛ گردآوری قابل شروع نیست. پس از فعال‌سازی دسترسی، NESHAN_SERVICE_API_KEY را روی سرور تنظیم کنید.',
+        no_active_job: 'برنامهٔ فعالی وجود ندارد. برای آماده‌سازی، بخش «ساخت برنامهٔ سراسری جدید» را باز کنید. ساخت برنامه به نشان درخواستی نمی‌فرستد.',
+        worker_not_running: 'پردازشگر گردآوری اجرا نشده یا ارتباط آن قطع است. برای ادامه، ابتدا پردازشگر جداگانه را روی سرور اجرا کنید.'
+    };
+    function updateControls() {
+        $('poi-pause').disabled = actionBusy || !lastStatus || !lastStatus.can_pause;
+        $('poi-resume').disabled = actionBusy || !lastStatus || !lastStatus.can_resume;
+        $('poi-retry').disabled = actionBusy || !lastStatus || !lastStatus.job || !!lastStatus.in_flight;
+        $('poi-pause').title = lastStatus && !lastStatus.can_pause ? 'گردآوری فعالی برای توقف وجود ندارد یا قبلاً متوقف شده است.' : '';
+        $('poi-resume').title = lastStatus ? (readinessMessages[lastStatus.resume_blocked_reason] || '') : '';
+    }
     function error(err) { $('poi-error').hidden = false; $('poi-error').textContent = err.message || 'دریافت گزارش ممکن نشد.'; }
     function card(title, value) {
         const item = document.createElement('article'); item.className = 'admin-ops-card';
@@ -14,12 +26,14 @@
         item.append(heading, body); $('poi-summary').append(item);
     }
     function render(data) {
+        lastStatus = data;
         const job = data.job; jobId = job ? job.id : '';
+        $('poi-readiness').textContent = readinessMessages[data.resume_blocked_reason] || (data.paused ? 'گردآوری متوقف است؛ برای ادامه از دکمهٔ «ادامهٔ گردآوری» استفاده کنید.' : 'گردآوری برای پردازش برنامهٔ فعال آماده است.');
         $('poi-worker').textContent = 'وضعیت: ' + (labels[data.state] || data.state) + ' · پردازشگر: ' + (data.worker_alive ? 'متصل' : 'قطع / اجرا نشده');
         $('poi-timing').textContent = 'آخرین ضربان: ' + time(data.heartbeat_at) + ' · زودترین درخواست بعدی: ' + time(data.next_request_at);
-        $('poi-reason').textContent = data.reason || '';
-        $('poi-pause').disabled = data.paused; $('poi-resume').disabled = !data.paused || !job;
-        $('poi-retry').disabled = !job || !!data.in_flight;
+        const reasonLabels = {'No worker or job yet':'هنوز پردازشگر یا برنامه‌ای ثبت نشده است.', 'Paused by administrator':'گردآوری با درخواست مدیر متوقف شده است.', 'New job ready; resume to begin':'برنامهٔ جدید آماده است؛ پس از آماده‌شدن کلید و پردازشگر می‌توانید گردآوری را ادامه دهید.', 'NESHAN_SERVICE_API_KEY is not configured':'کلید سرویس نشان تنظیم نشده است.'};
+        $('poi-reason').textContent = reasonLabels[data.reason] || data.reason || '';
+        updateControls();
         $('poi-summary').replaceChildren();
         const requests = job ? job.requests : [];
         const total = kind => requests.filter(r => r.kind === kind).reduce((sum,r) => sum+r.count,0);
@@ -41,22 +55,38 @@
         $('poi-categories').replaceChildren();
         data.categories.forEach(row=>{const li=document.createElement('li');li.textContent=(titles[row.category] || row.category)+': '+num(row.unique_saved);$('poi-categories').append(li);});
     }
-    async function load() {
-        if (busy) return; busy = true;
-        try {
-            $('poi-error').hidden = true;
-            render(await adminFetch('/api/admin/poi/status'));
-            if (!layersLoaded) {
-                const layers = await adminFetch('/api/admin/poi/categories');
-                layers.forEach(slug=>{const option=document.createElement('option');option.value=slug;option.textContent=titles[slug] || slug;option.selected=['mosque','formal_school','library','park','hospital'].includes(slug);$('poi-layers').append(option);});
-                layersLoaded = true;
-            }
-        } catch (err) { error(err); } finally { busy = false; }
+    function load() {
+        if (loadPromise) return loadPromise;
+        loadPromise = (async () => {
+            try {
+                $('poi-error').hidden = true;
+                render(await adminFetch('/api/admin/poi/status'));
+                if (!layersLoaded) {
+                    const layers = await adminFetch('/api/admin/poi/categories');
+                    layers.forEach(slug=>{const option=document.createElement('option');option.value=slug;option.textContent=titles[slug] || slug;option.selected=['mosque','formal_school','library','park','hospital'].includes(slug);$('poi-layers').append(option);});
+                    layersLoaded = true;
+                }
+            } catch (err) { error(err); }
+            finally { loadPromise = null; }
+        })();
+        return loadPromise;
     }
     async function action(button, path, body) {
+        if (actionBusy) return;
+        actionBusy = true;
         button.disabled = true;
-        try { await adminFetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body || {})}); await load(); }
-        catch(err) { error(err); } finally { button.disabled = false; }
+        updateControls();
+        try {
+            await adminFetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body || {})});
+            // Finish any older poll, then fetch the state after this mutation.
+            if (loadPromise) await loadPromise;
+            await load();
+        } catch(err) { error(err); }
+        finally {
+            actionBusy = false;
+            button.disabled = false;
+            updateControls();
+        }
     }
     $('poi-pause').onclick = () => action($('poi-pause'),'/api/admin/poi/pause');
     $('poi-resume').onclick = () => action($('poi-resume'),'/api/admin/poi/resume');
@@ -81,5 +111,6 @@
     };
     // Polling is read-only and stops while this view or browser tab is hidden.
     setInterval(()=>{if (!document.hidden && !$('view-poi').hidden) load();},5000);
+    updateControls();
     window.AdminPoi = {load};
 })();
