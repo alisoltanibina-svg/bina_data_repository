@@ -12,6 +12,12 @@ from backend.poi_coverage import Circle,METRIC_CRS,ALGORITHM,PRECISION_M,project
 from backend.poi_geo import normalize
 
 
+def result_limit_mode(plan):
+    if plan.result_limit>0:return 'capped'
+    mode=(plan.summary or {}).get('result_limit_mode')
+    return mode if mode in ('unknown','unlimited') else 'unconfigured'
+
+
 def plan_for(session,job):
     return session.scalar(select(Plan).where(Plan.job_id==job.id)) if job else None
 
@@ -158,7 +164,7 @@ def finalize_plan(session,plan):
     from backend.poi import control,ACTIVE
     if session.scalar(select(PoiJob.id).where(PoiJob.id==plan.job_id,PoiJob.status.in_(ACTIVE))):
         c=control(session);c.paused=True
-        c.reason='Polygon plan verified; provider result limit required' if plan.result_limit<=0 else 'Polygon plan verified; resume explicitly to begin'
+        c.reason='Polygon plan verified; provider result limit required' if result_limit_mode(plan)=='unconfigured' else 'Polygon plan verified; resume explicitly to begin'
     return plan
 
 
@@ -230,6 +236,7 @@ def progress(session,plan):
     expected=(total or 0)*categories
     return dict(scope='verified_polygon_union_and_3km_points',plan_id=str(plan.id),planning_state=plan.state,
         coverage_verified=plan.summary.get('coverage_verified',False),pending_tiles=pending_tiles,result_limit=plan.result_limit,
+        result_limit_mode=result_limit_mode(plan),adaptive_subdivision_enabled=plan.result_limit>0,
         point_radius_m=3000,polygon_radius_m=plan.radius_m,metric_area_m2=plan.metric_area_m2,completed_area_m2=finished/categories,
         area_percent=round(100*finished/denominator,4) if denominator else 0,
         percent=round(100*done/expected,2) if expected else 0,completed_searches=done,expected_searches=expected,
@@ -245,5 +252,5 @@ def blocker(session,job):
     if not plan:return ''
     if plan.summary.get('algorithm')!=ALGORITHM:return 'coverage_algorithm_mismatch'
     if plan.state!='ready':return 'coverage_not_ready'
-    if plan.result_limit<=0:return 'coverage_limit_required'
+    if result_limit_mode(plan)=='unconfigured':return 'coverage_limit_required'
     return ''

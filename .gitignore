@@ -17,6 +17,8 @@ htmlcov/
 !.env.example
 .venv/
 venv/
+tmp/
+tests/
 
 # Local development and review files; not needed on the production server.
 /tests/*

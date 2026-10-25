@@ -29,7 +29,8 @@ class CoverageBody(InputBody):
 
 
 class CoverageLimitBody(InputBody):
-    result_limit: int = Field(ge=1,le=2147483647,strict=True)
+    mode: Literal['capped','unknown','unlimited'] = 'capped'
+    result_limit: int | None = Field(default=None,ge=1,le=2147483647,strict=True)
 
 
 class SettlementPilotBody(InputBody):
@@ -78,7 +79,7 @@ def build_router(require_admin, require_user):
         require_admin(request)
         from backend import poi_preparation as preparation
         try:
-            with database.db_session() as session:preparation.set_limit(session,body.result_limit)
+            with database.db_session() as session:preparation.set_limit(session,body.result_limit,body.mode)
             return response(dict(paused=True))
         except ValueError as error:raise HTTPException(409,detail=str(error)) from error
 

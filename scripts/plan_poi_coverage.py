@@ -1,7 +1,7 @@
 """Offline preparation/export for the existing PostgreSQL POI collector.
 
 Audit is read-only. Create/build never dispatch provider requests. Execution
-requires an explicitly started existing worker and a confirmed provider result cap.
+requires an explicitly started existing worker and an explicit result-limit mode.
 """
 import argparse,csv,json,math,sys,gzip
 from pathlib import Path
@@ -136,6 +136,7 @@ def main():
             if session.scalar(select(PoiRequest.id).where(PoiRequest.job_id==plan.job_id).limit(1)):
                 raise SystemExit('Result cap is immutable after dispatch; use a new reviewed plan if provider limits change')
             plan.result_limit=args.result_limit
+            plan.summary={**(plan.summary or {}),'result_limit_mode':'capped'}
             if plan.state=='ready' and session.scalar(select(PoiJob.id).where(PoiJob.id==plan.job_id,PoiJob.status.in_(poi.ACTIVE))):
                 c.reason='Polygon plan verified; resume explicitly to begin'
             print('Confirmed result limit saved; collection remains paused')

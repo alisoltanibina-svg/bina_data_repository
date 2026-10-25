@@ -68,8 +68,14 @@
                 <progress id="poi-preparation-progress" value="0" max="100" aria-label="پیشرفت آماده‌سازی پوشش"></progress>
                 <p class="support-hint">آماده‌سازی درخواستی به نشان نمی‌فرستد. می‌توانید صفحه را ببندید و بعداً با «تازه‌سازی گزارش» پیشرفت را ببینید. اگر آماده‌سازی قطع شد، همان دکمه ادامه می‌دهد.</p>
                 <form id="poi-coverage-limit-form">
-                    <label>سقف نتایج هر درخواست، پس از تأیید نشان<input id="poi-coverage-limit" type="number" min="1" max="2147483647" step="1" placeholder="تا زمان تأیید، خالی بگذارید" required></label>
-                    <button type="submit" class="admin-btn admin-btn-ghost" id="poi-coverage-limit-save">ثبت سقف تأییدشدهٔ نشان</button>
+                    <label>وضعیت سقف نتایج هر درخواست<select id="poi-coverage-limit-mode" required>
+                        <option value="">یک وضعیت انتخاب کنید</option>
+                        <option value="unknown">نشان هنوز سقفی اعلام نکرده است</option>
+                        <option value="capped">نشان سقف عددی را تأیید کرده است</option>
+                        <option value="unlimited">نشان صریحاً بدون سقف بودن پاسخ را تأیید کرده است</option>
+                    </select></label>
+                    <label id="poi-coverage-limit-number" hidden>سقف عددی تأییدشده<input id="poi-coverage-limit" type="number" min="1" max="2147483647" step="1" disabled></label>
+                    <button type="submit" class="admin-btn admin-btn-ghost" id="poi-coverage-limit-save">ثبت وضعیت سقف نتایج</button>
                 </form>
                 <p id="poi-coverage-limit-status" class="support-hint"></p>
             </article>

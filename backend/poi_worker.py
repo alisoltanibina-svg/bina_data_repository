@@ -78,7 +78,7 @@ class Worker:
             if not job: return
             block=coverage.blocker(session,job)
             if block:
-                c.paused,c.reason=True,'Polygon plan requires completed coverage verification and a confirmed provider result limit'
+                c.paused,c.reason=True,'Polygon plan requires completed coverage verification and a result-limit mode'
                 return
             job.status = 'running'
             if c.collection_mode=='pilot' and not c.pilot_segment_id:

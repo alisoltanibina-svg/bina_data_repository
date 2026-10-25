@@ -175,8 +175,10 @@ def run(task_id):
                 connection.rollback();connection.execute(text('SELECT pg_advisory_unlock(:key)'),dict(key=PLANNING_LOCK));connection.commit()
 
 
-def set_limit(session,limit):
-    if not 1<=limit<=2147483647:raise ValueError('سقف تأییدشده باید عدد صحیح مثبت باشد.')
+def set_limit(session,limit=None,mode='capped'):
+    if mode not in ('capped','unknown','unlimited'):raise ValueError('وضعیت سقف نتایج معتبر نیست.')
+    if mode=='capped' and (not isinstance(limit,int) or isinstance(limit,bool) or not 1<=limit<=2147483647):raise ValueError('سقف تأییدشده باید عدد صحیح مثبت باشد.')
+    if mode!='capped' and limit is not None:raise ValueError('برای سقف اعلام‌نشده یا بدون سقف، عدد وارد نکنید.')
     if busy(session):raise ValueError('ابتدا تا پایان آماده‌سازی صبر کنید.')
     c=poi.control(session)
     if not c.paused or c.in_flight:raise ValueError('ابتدا گردآوری را متوقف کنید.')
@@ -184,7 +186,8 @@ def set_limit(session,limit):
     if not plan:raise ValueError('ابتدا برنامهٔ پوشش را آماده کنید.')
     if session.scalar(select(PoiRequest.id).where(PoiRequest.job_id==plan.job_id).limit(1)):
         raise ValueError('پس از ارسال درخواست، سقف این برنامه قابل تغییر نیست.')
-    plan.result_limit=limit
+    plan.result_limit=limit if mode=='capped' else 0
+    plan.summary={**(plan.summary or {}),'result_limit_mode':mode}
     if plan.state=='ready':c.reason='Polygon plan verified; resume explicitly to begin'
 
 

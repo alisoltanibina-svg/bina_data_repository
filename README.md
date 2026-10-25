@@ -501,11 +501,21 @@ interrupted, the same preparation button resumes committed verified tiles. An
 interrupted uncommitted source import restarts its transaction. Preparation uses
 one geometry worker to limit its impact on the API server and never calls Neshan.
 
-After Neshan confirms the Nearby maximum result count, enter that positive integer
-in **سقف نتایج هر درخواست، پس از تأیید نشان** and save it. Leave it blank while
-unknown; collection remains blocked. Preparing or saving the limit never starts
-collection. When coverage is ready and the managed worker/key/access checks pass,
-use **شروع / ادامهٔ گردآوری خودکار**. No manually typed coordinates are required.
+In **وضعیت سقف نتایج هر درخواست**, choose and save one of these modes:
+
+- **نشان هنوز سقفی اعلام نکرده است**: collect without inventing a numeric cap.
+  Geographic coverage is still verified, but result completeness is unverified;
+  count-based dense-area subdivision is disabled.
+- **نشان سقف عددی را تأیید کرده است**: enter the positive integer supplied by
+  Neshan. Count-based adaptive subdivision is enabled.
+- **نشان صریحاً بدون سقف بودن پاسخ را تأیید کرده است**: use only after that
+  explicit provider confirmation. No numeric count-based subdivision is used.
+
+A fresh plan still starts unconfigured and paused: selecting and saving a mode
+never starts collection. Once geometric coverage is ready and worker/key/access
+checks pass, use **شروع / ادامهٔ گردآوری خودکار**. Existing saved Details and the
+verified search plan remain intact; no rebuild is needed to configure this mode.
+No manually typed coordinates are required.
 
 The CLI workflow below remains available for operators who prefer it.
 
@@ -562,20 +572,25 @@ until all tiles are verified. CSV export is available by using a `.csv` filename
 
 ### Result limits and recursive subdivision
 
-Neshan's public Nearby documentation does not specify a pagination mechanism or a
-maximum result count. The operator has not yet obtained that limit. **No limit is
-guessed.** A new plan defaults to `result_limit=0`, and provider dispatch remains
-blocked until the maximum count is confirmed by Neshan and recorded:
+A new plan defaults to `result_limit=0` and an unconfigured result-limit mode.
+Configure the mode in admin before starting. The explicit unknown mode permits
+collection with result completeness labelled unverified and count-based
+subdivision disabled. A numeric cap is not guessed. Zero alone continues to mean
+unconfigured; it does not silently opt a plan into unknown or unlimited mode.
+
+For a confirmed numeric maximum, the CLI remains available:
 
 ```bash
 python -m scripts.plan_poi_coverage set-limit --plan PLAN_ID --result-limit CONFIRMED_LIMIT
 ```
 
 `CONFIRMED_LIMIT` must be the actual positive integer supplied by Neshan, not an
-example value or the largest count seen in a test. Ask whether results below that
-limit are exhaustive and whether the account has any pagination/truncation rules.
-Unexpected continuation/pagination markers halt collection instead of silently treating a page as complete. The limit is immutable after this job has dispatched requests. A confirmed value
-can alternatively be supplied with `create --result-limit ...` before execution.
+example value or the largest count seen in a test. A positive value can also be
+supplied with `create --result-limit ...`. The setting is immutable after this job
+has dispatched requests. Unexpected continuation/pagination markers still halt
+collection in every mode; unknown mode does not guess how to fetch another page.
+The geometric coverage guarantee does not prove that a provider response contains
+every matching place.
 
 When a response reaches the configured limit, its valid new hashes go through
 Details first. The affected target is covered again using verified smaller circles,
@@ -600,7 +615,7 @@ sudo systemctl status poi-worker.service --no-pager
 ```
 
 In admin, hard-refresh and click **شروع / ادامهٔ گردآوری خودکار** once the plan is
-ready and its confirmed result cap is recorded. The new plan uses its own verified
+ready and its result-limit mode is saved. The new plan uses its own verified
 centres; no manual coordinates or repeated pilot are needed. Empty/no-new-hash
 responses advance automatically. New valid hashes are sent to Details before the
 next Nearby call. Point, tile, and province transitions need no manual restart.
