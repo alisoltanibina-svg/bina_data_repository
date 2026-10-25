@@ -5,8 +5,14 @@
     const titles={mosque:'مسجد',formal_school:'مدرسه',school:'مؤسسهٔ آموزشی',library:'کتابخانه',park:'بوستان',hospital:'بیمارستان',cinema:'سینما',theater:'تئاتر',university:'دانشگاه'};
     const num=n=>Number(n || 0).toLocaleString('fa-IR');
     const time=t=>t?new Date(t).toLocaleString('fa-IR',{timeZone:'Asia/Tehran'}):'—';
+    const provinceLabel=name=>name==='Unassigned source points'?'بدون انتساب به مرزهای موجود':name;
     const pct=n=>n==null?'—':num(n)+'٪';
-    const reasonLabels={'Collection plan finished':'جست‌وجوهای برنامه پایان یافته‌اند؛ سرویس پردازشگر روشن می‌ماند.',
+    const reasonLabels={
+        'Polygon plan prepared; complete offline coverage verification before starting':'برنامهٔ چندضلعی ساخته شده است؛ تأیید هندسی کامل باید پیش از شروع پایان یابد.',
+        'Polygon plan verified; provider result limit required':'پوشش هندسی کامل تأیید شده است؛ سقف نتایج Nearby هنوز باید از نشان دریافت و ثبت شود.',
+        'Polygon plan verified; resume explicitly to begin':'پوشش هندسی کامل تأیید شده است؛ برای اجرا شروع گردآوری را بزنید.',
+        'Polygon plan requires completed coverage verification and a confirmed provider result limit':'تأیید هندسی کامل و ثبت سقف نتایج نشان پیش از اجرا لازم است.',
+        'Provider result limit still reached at minimum radius; coverage requires review':'حتی در کمترین شعاع، پاسخ به سقف نتایج رسیده است؛ ناحیه هنوز کامل نیست و نیاز به بررسی دارد.','Collection plan finished':'جست‌وجوهای برنامه پایان یافته‌اند؛ سرویس پردازشگر روشن می‌ماند.',
             'Collection plan finished; review flagged results':'جست‌وجوها پایان یافته‌اند؛ موارد علامت‌گذاری‌شده را بررسی کنید.',
             'Search sources attached; prepare one settlement pilot first':'مجموعه متصل شد؛ ابتدا آزمایش یک نقطه را آماده کنید.',
             'Settlement buffers enabled; collection remains paused until explicit resume':'برنامهٔ نقاط آماده است و هنوز متوقف است؛ برای اجرا دکمهٔ ادامه را بزنید.',
@@ -15,6 +21,9 @@
             'Choose a single-area pilot before continuing; nationwide grid is paused':'ابتدا بررسی اولیهٔ اتصال را از تنظیمات این بخش آماده کنید.',
             'Pilot has no dispatchable work; review its result before continuing':'آزمایش درخواست جدیدی برای ارسال ندارد؛ نتیجهٔ آن را بررسی کنید.','Nearby produced no new usable hashes; review area/category with Neshan before continuing':'بررسی اتصال هش جدیدی نداشت. سرویس روشن است؛ یک نقطهٔ دیگر برای بررسی اتصال انتخاب کنید.','No worker or job yet':'هنوز پردازشگر یا برنامه‌ای ثبت نشده است.', 'Paused by administrator':'گردآوری با درخواست مدیر متوقف شده است.', 'New job ready; resume to begin':'برنامهٔ جدید آماده است؛ پس از آماده‌شدن کلید و پردازشگر می‌توانید گردآوری را ادامه دهید.', 'NESHAN_SERVICE_API_KEY is not configured':'کلید سرویس نشان تنظیم نشده است.'};
     const readinessMessages={
+        coverage_algorithm_mismatch:'نسخهٔ الگوریتم پوشش تغییر کرده است؛ برنامه باید بازسازی و تأیید شود.',
+        coverage_not_ready:'برنامهٔ پوشش چندضلعی‌ها در حال ساخت و تأیید هندسی است؛ پس از پایان آماده می‌شود.',
+        coverage_limit_required:'سقف نتایج Nearby باید از نشان تأیید و روی برنامه ثبت شود تا تقسیم خودکار نواحی پرتراکم قابل اعتماد باشد.',
         unresolved_work:'ابتدا درخواست‌های ناموفق یا نامطمئن محدودهٔ فعلی را در تاریخچه بررسی کنید.',
         worker_outdated:'پردازشگر نسخهٔ قدیمی را اجرا می‌کند؛ سرویس گردآوری را بازراه‌اندازی کنید.',
         pilot_required:'برای فعال‌سازی برنامه ابتدا بررسی اتصال را آماده و اجرا کنید.',
@@ -61,15 +70,21 @@
             readinessMessages[d.resume_blocked_reason] || (d.paused?'گردآوری متوقف است؛ سرویس پردازشگر برای ادامه آماده می‌ماند.':'گردآوری خودکار فعال است؛ برای دیدن وضعیت جدید، گزارش را تازه‌سازی کنید.');
         const sources=d.search_sources || [],key=sources.map(r=>r.version).join(',');
         if(key!==sourceKey){
-            ['poi-source-select','poi-create-source'].forEach(id=>options(id,sources,r=>r.version,r=>num(r.summary.ready)+' نقطهٔ آماده · '+r.version.slice(0,12)));
+            const legacySources=sources.filter(r=>!r.summary.algorithm?.startsWith('full-polygon-and-point'));
+            ['poi-source-select','poi-create-source'].forEach(id=>options(id,legacySources,r=>r.version,r=>num(r.summary.ready)+' نقطهٔ آماده · '+r.version.slice(0,12)));
             sourceKey=key;
         }
         const source=sources.find(r=>r.version===job?.search_dataset_version);
         $('poi-source-summary').textContent=source?`${num(source.summary.ready)} نقطهٔ آماده · ${num(source.summary.review)} نیازمند بررسی: ${(source.summary.review_points || []).map(p=>p.name).join('،')}`:
             'مجموعهٔ جغرافیایی به برنامه متصل نشده است. تنظیمات را باز کنید.';
+        if(source?.summary.point_warnings){const warnings=source.summary.point_warnings;$('poi-source-summary').textContent=`${num(source.summary.ready)} نقطهٔ مشمول جست‌وجوی ۳ کیلومتری · ${num(warnings.outside_or_ambiguous_province)} نقطه خارج از مرزهای ارائه‌شده · ${num(warnings.name_requires_review)} نام نیازمند بازبینی. پرچم‌های کیفیت در دادهٔ خروجی حفظ شده‌اند.`;}
         $('poi-attach-panel').hidden=!isActive() || !!job?.search_dataset_version;
-        $('poi-create').hidden=!!isActive();
+        const hasPolygonSources=sources.some(r=>r.summary.algorithm?.startsWith('full-polygon-and-point'));
+        $('poi-create').hidden=!!isActive() || hasPolygonSources;
+        $('poi-full-plan-help').hidden=!hasPolygonSources;
+        $('poi-full-plan-help').textContent=d.geography?.plan_id?`طرح پوشش: ${d.geography.plan_id} · ${d.geography.pending_tiles} کاشی باقی‌مانده برای تأیید. ساخت و ادامهٔ ساخت از برنامه‌ساز آفلاین انجام می‌شود؛ دکمهٔ شروع پس از تأیید هندسه و ثبت سقف نتایج فعال می‌شود.`:'برای این مجموعه، برنامهٔ پوشش چندضلعی را با برنامه‌ساز آفلاین آماده کنید؛ برنامهٔ نقطه‌ای قدیمی پوشش مساحتی ایجاد نمی‌کند.';
         $('poi-job-config').textContent=job?`برنامه ${job.id} · شعاع ${num(job.radius_m)} متر · دسته‌ها: ${(job.categories || []).map(c=>titles[c] || c).join('،')} · ${labels[job.status] || job.status}`:'هنوز برنامه‌ای وجود ندارد.';
+        if(g?.scope==='verified_polygon_union_and_3km_points')$('poi-job-config').textContent += ` · شعاع نقاط ${num(g.point_radius_m)} متر · شعاع چندضلعی‌ها ${num(g.polygon_radius_m)} متر`;
         if(!job?.search_dataset_version)$('poi-setup').open=true;
         $('poi-verification').hidden=!isActive() || !job.search_dataset_version || d.collection_mode!=='pilot' || !!d.can_start_collection;
         $('poi-pilot-status').textContent=pilot?`بررسی ${num(pilot.id)} · ${pilot.province} · ${labels[pilot.status] || pilot.status} · پاسخ جزئیات موفق: ${num(pilot.details_saved)}`:'هنوز بررسی اتصال آماده نشده است.';
@@ -83,13 +98,15 @@
         card('درخواست ناموفق / نامطمئن',num(requests.filter(r=>['failed','uncertain'].includes(r.outcome)).reduce((n,r)=>n+r.count,0)));
         card('جزئیات منتظر در حافظه',num(job?.details?.pending));
         card('نتیجهٔ فاقد هش قابل استفاده',num(job?.missing_hashes));
-        $('poi-progress').value=g?.percent || 0;
+        const polygonPlan=g?.scope==='verified_polygon_union_and_3km_points';
+        $('poi-progress').value=polygonPlan?(g.area_percent || 0):(g?.percent || 0);
         $('poi-progress-label').textContent=g?`${pct(g.percent)} · ${num(g.completed_searches)} از ${num(g.expected_searches)} جست‌وجو · ${num(g.completed_points)} از ${num(g.total_points)} نقطه تمام شده · ${num(g.empty_searches)} جست‌وجو بدون هش جدید · ${num(g.excluded_points)} نقطه خارج از اجرا`:'پیشرفت پس از اتصال مجموعه نمایش داده می‌شود.';
-        $('poi-coverage').textContent=g?`استان فعلی: ${g.current_province || 'نقاط برنامه پایان یافته‌اند'} · استان‌های با نقاط تمام‌شده: ${num(g.provinces.filter(r=>r.complete).length)} از ${num(g.provinces.length)}`:'سوابق شبکهٔ قبلی در پیشرفت مجموعه محاسبه نمی‌شوند.';
+        if(polygonPlan)$('poi-progress-label').textContent=`پوشش مساحتی انجام‌شده: ${pct(g.area_percent)} · ${num(g.completed_area_m2/1e6)} از ${num(g.metric_area_m2/1e6)} کیلومتر مربع · جست‌وجوهای ۳ کیلومتری نقاط: ${num(g.completed_point_searches)} از ${num(g.expected_point_searches)} · ${num(g.pending_tiles)} کاشی منتظر تأیید · سقف نتایج: ${g.result_limit?num(g.result_limit):'تأیید نشده'}`;
+        $('poi-coverage').textContent=g?`استان فعلی: ${provinceLabel(g.current_province) || 'نقاط برنامه پایان یافته‌اند'} · گروه‌های جغرافیایی تمام‌شده: ${num(g.provinces.filter(r=>r.complete).length)} از ${num(g.provinces.length)}`:'سوابق شبکهٔ قبلی در پیشرفت مجموعه محاسبه نمی‌شوند.';
         $('poi-areas').replaceChildren();
         (g?.provinces || []).forEach(r=>{
             const tr=document.createElement('tr');
-            [r.province,pct(r.percent),num(r.completed_points)+' / '+num(r.total_points),num(r.completed_searches)+' / '+num(r.expected_searches),num(r.pending_searches),num(r.empty_searches),num(r.review_searches)].forEach(value=>{const td=document.createElement('td');td.textContent=value;tr.append(td);});
+            [provinceLabel(r.province),pct(r.percent),polygonPlan?num(r.completed_area_m2/1e6)+' / '+num(r.area_m2/1e6)+' km²':num(r.completed_points)+' / '+num(r.total_points),num(r.completed_searches)+' / '+num(r.expected_searches),num(r.pending_searches),num(r.empty_searches),num(r.review_searches)].forEach((value,index)=>{const td=document.createElement('td');if(polygonPlan && index===2)td.dir='ltr';td.textContent=value;tr.append(td);});
             $('poi-areas').append(tr);
         });
         $('poi-categories').replaceChildren();

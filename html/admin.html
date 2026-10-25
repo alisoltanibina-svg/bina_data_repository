@@ -65,16 +65,17 @@
                 <h2>پیشرفت جغرافیایی برنامه</h2>
                 <p id="poi-source-summary"></p>
                 <p id="poi-coverage"></p>
-                <label for="poi-progress">پیشرفت جست‌وجوی نقاط مجموعه</label>
+                <label for="poi-progress">پیشرفت پوشش برنامه</label>
                 <progress id="poi-progress" max="100" value="0"></progress>
                 <p id="poi-progress-label"></p>
-                <p class="support-hint">این درصد، سهم جست‌وجوهای تمام‌شده از همهٔ نقاط و دسته‌های مجموعه است؛ پوشش کامل مساحت شهرها، روستاها یا همهٔ مکان‌های واقعی نیست. نقاط نیازمند بررسی جداگانه نمایش داده می‌شوند.</p>
-                <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th scope="col">استان</th><th scope="col">پیشرفت</th><th scope="col">نقاط تمام‌شده</th><th scope="col">جست‌وجوی تمام‌شده / کل</th><th scope="col">باقی‌مانده</th><th scope="col">بدون هش جدید</th><th scope="col">نیازمند بررسی</th></tr></thead><tbody id="poi-areas"></tbody></table></div>
+                <p class="support-hint">در برنامهٔ چندضلعی، درصد مساحتی بر پایهٔ بخش‌های پوشیده‌شده و جست‌وجوهای تکمیل‌شده محاسبه می‌شود. نقاط با شعاع ۳ کیلومتر جداگانه گزارش می‌شوند. تأیید هندسی به معنی کامل‌بودن پایگاه دادهٔ نشان نیست. برنامه‌های قدیمی فقط درصد جست‌وجوی نقاط را نشان می‌دهند.</p>
+                <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th scope="col">استان</th><th scope="col">پیشرفت</th><th scope="col">نقاط / مساحت تمام‌شده</th><th scope="col">جست‌وجوی تمام‌شده / کل</th><th scope="col">باقی‌مانده</th><th scope="col">بدون هش جدید</th><th scope="col">نیازمند بررسی</th></tr></thead><tbody id="poi-areas"></tbody></table></div>
             </article>
             <div class="admin-ops" id="poi-summary"></div>
             <details id="poi-setup">
                 <summary>تنظیم برنامه و مجموعهٔ جغرافیایی</summary>
                 <p id="poi-job-config"></p>
+                <p id="poi-full-plan-help" hidden></p>
                 <div id="poi-attach-panel" class="poi-source-controls">
                     <label>مجموعهٔ واردشده<select id="poi-source-select"></select></label>
                     <button type="button" class="admin-btn" id="poi-source-attach">اتصال مجموعه به برنامهٔ فعلی</button>

@@ -2,6 +2,7 @@
 from uuid import uuid4
 from sqlalchemy import Column as C, BigInteger as B, Boolean, Integer as I, Text as T, String as S, Float as F, DateTime, ForeignKey as FK, UniqueConstraint as UQ, CheckConstraint as CK, Index, func, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.orm import deferred
 from backend.models import Base
 
 def uid(): return C(UUID(as_uuid=True), primary_key=True, default=uuid4)
@@ -62,7 +63,9 @@ class PoiJob(Base):
 
 class PoiSegment(Base):
     __tablename__ = 'poi_segments'
-    __table_args__ = (Index('idx_poi_segment_queue', 'job_id','province_order','status','id'),)
+    __table_args__ = (Index('idx_poi_segment_queue', 'job_id','province_order','status','id'),
+        UQ('job_id','coverage_circle_id','category',name='uq_poi_coverage_dispatch'),
+        Index('idx_poi_segment_parent','parent_segment_id'),)
     id = C(B, primary_key=True)
     job_id = job_fk()
     province_order = C(I, nullable=False)
@@ -70,6 +73,8 @@ class PoiSegment(Base):
     category = C(S(100), FK('poi_categories.slug'), nullable=False)
     kind = C(S(16),nullable=False,default='grid',server_default='grid')
     settlement_id = C(UUID(as_uuid=True), FK('poi_settlements.id'))
+    coverage_circle_id = C(B, FK('poi_coverage_circles.id'))
+    parent_segment_id = C(B, FK('poi_segments.id'))
     planning_note = C(T)
     latitude = C(F, nullable=False)
     longitude = C(F, nullable=False)
@@ -176,3 +181,54 @@ class PoiSettlement(Base):
     review_reason = C(T)
     priority = C(I, nullable=False)
     source_metadata = C(JSONB, nullable=False)
+
+
+class PoiCoveragePlan(Base):
+    __tablename__='poi_coverage_plans'
+    id=uid()
+    job_id=C(UUID(as_uuid=True),FK('poi_jobs.id'),nullable=False,unique=True)
+    source_version=C(S(64),FK('poi_source_datasets.version'),nullable=False)
+    state=C(S(20),nullable=False,default='planning')
+    metric_crs=C(T,nullable=False)
+    geometry=deferred(C(JSONB,nullable=False))
+    radius_m=C(I,nullable=False)
+    point_radius_m=C(I,nullable=False,default=3000)
+    minimum_radius_m=C(I,nullable=False,default=50)
+    result_limit=C(I,nullable=False,default=0)
+    metric_area_m2=C(F,nullable=False)
+    summary=C(JSONB,nullable=False,default=dict)
+    created_at=C(DateTime(timezone=True),nullable=False,server_default=func.now())
+
+class PoiCoverageTile(Base):
+    __tablename__='poi_coverage_tiles'
+    __table_args__=(UQ('plan_id','code',name='uq_poi_coverage_tile'),)
+    id=C(B,primary_key=True)
+    plan_id=C(UUID(as_uuid=True),FK('poi_coverage_plans.id'),nullable=False,index=True)
+    code=C(T,nullable=False)
+    geometry=C(JSONB,nullable=False)
+    state=C(S(16),nullable=False,default='pending')
+    certificate=C(JSONB)
+
+class PoiCoverageCircle(Base):
+    __tablename__='poi_coverage_circles'
+    __table_args__=(UQ('plan_id','code',name='uq_poi_coverage_circle'),)
+    id=C(B,primary_key=True)
+    plan_id=C(UUID(as_uuid=True),FK('poi_coverage_plans.id'),nullable=False,index=True)
+    code=C(T,nullable=False)
+    kind=C(S(16),nullable=False)
+    x=C(F,nullable=False)
+    y=C(F,nullable=False)
+    latitude=C(F,nullable=False)
+    longitude=C(F,nullable=False)
+    radius_m=C(I,nullable=False)
+    province_order=C(I,nullable=False)
+    province_name=C(T,nullable=False)
+    associations=C(JSONB,nullable=False)
+    target_geometry=C(JSONB)
+
+class PoiCoverageContribution(Base):
+    __tablename__='poi_coverage_contributions'
+    tile_id=C(B,FK('poi_coverage_tiles.id'),primary_key=True)
+    circle_id=C(B,FK('poi_coverage_circles.id'),primary_key=True)
+    province_name=C(T,primary_key=True)
+    area_m2=C(F,nullable=False)

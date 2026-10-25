@@ -67,3 +67,5 @@ Thumbs.db
 
 assets/images/avatars/*
 !assets/images/avatars/.gitkeep
+
+!/tests/test_poi_coverage.py

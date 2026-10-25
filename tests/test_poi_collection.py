@@ -779,4 +779,151 @@ class CollectorTests(unittest.TestCase):
             self.assertEqual(g['provinces'][0]['review_searches'],1)
         self.clear_cooldown();self.tick();self.assertEqual(len(self.calls),2)
 
+    def prepare_polygon_plan(self,result_limit=2,minimum=50,build=True):
+        from backend.poi_sources import Catalogue
+        from backend.poi_coverage import project,METRIC_CRS
+        from backend.poi_coverage_state import create_plan,Builder,finalize_plan
+        from pyproj import Transformer
+        from shapely.ops import transform
+        from uuid import uuid4
+        center=project([Point(51.4,35.7)])[0]
+        inverse=Transformer.from_crs(METRIC_CRS,'EPSG:4326',always_xy=True)
+        polygon=transform(inverse.transform,box(center.x-1000,center.y-1000,center.x+5000,center.y+1000))
+        point=dict(id=uuid4(),code='village-a',name='Village A',declared_province='A',province_name='A',county_name='County',
+            district_code=None,rural_area_code=None,latitude=35.7,longitude=51.4,state='ready',review_reason=None,priority=1,source_metadata={})
+        catalogue=Catalogue('c'*64,{},[dict(level='province',code='A',name='A',parent_name=None,geometry_wkb=polygon.wkb,source_metadata={})],
+            [point],dict(ready=1,review=0,settlements=1,review_points=[]))
+        with self.db.db_session() as session:
+            self.poi.control(session).paused=True
+            plan=create_plan(session,catalogue,['library'],500,minimum,result_limit,True);plan_id=plan.id;job_id=plan.job_id
+        if not build:return plan_id,job_id
+        with self.db.db_session() as session:
+            plan=session.get(self.m.PoiCoveragePlan,plan_id);builder=Builder(session,plan)
+        with self.db.db_session() as session:
+            plan=session.get(self.m.PoiCoveragePlan,plan_id)
+            for tile in session.scalars(select(self.m.PoiCoverageTile).where(self.m.PoiCoverageTile.plan_id==plan_id)):
+                builder.build_one(session,plan,tile)
+            session.flush();finalize_plan(session,plan)
+            self.poi.control(session).paused=False
+        self.poi.boundary_index.cache_clear()
+        return plan_id,job_id
+
+    def test_polygon_plan_preserves_old_job_and_has_verified_coverage(self):
+        plan_id,job_id=self.prepare_polygon_plan()
+        with self.db.db_session() as session:
+            plan=session.get(self.m.PoiCoveragePlan,plan_id)
+            self.assertEqual(plan.state,'ready');self.assertTrue(plan.summary['coverage_verified'])
+            self.assertEqual(plan.summary['uncovered_area_m2'],0)
+            self.assertEqual(session.get(self.m.PoiJob,self.job_id).status,'needs_review')
+            report=self.poi.status(session)['geography']
+            self.assertEqual(report['scope'],'verified_polygon_union_and_3km_points')
+            self.assertEqual(report['area_percent'],0);self.assertEqual(report['point_radius_m'],3000)
+            circles=session.scalars(select(self.m.PoiCoverageCircle).where(self.m.PoiCoverageCircle.plan_id==plan_id)).all()
+            self.assertTrue(any(c.kind=='point' and c.radius_m==3000 for c in circles))
+            self.assertTrue(any(c.kind=='polygon' for c in circles))
+            self.assertEqual(session.get(self.m.PoiSegment,self.segment_id).status,'pending')
+
+    def test_unknown_provider_limit_blocks_polygon_dispatch(self):
+        plan_id,job_id=self.prepare_polygon_plan(result_limit=0)
+        self.tick();self.assertEqual(self.calls,[])
+        self.assertTrue(self.scalar(select(self.m.PoiControl.paused)))
+
+    def test_saturated_polygon_request_subdivides_and_drains_details_first(self):
+        plan_id,job_id=self.prepare_polygon_plan()
+        self.provider.request=lambda kind,params:self.calls.append((kind,params)) or (
+            Reply(200,nearby(ITEM,dict(ITEM,poiHash='hash-b'))) if kind=='nearby' else Reply(200,DETAILS))
+        self.tick()
+        with self.db.db_session() as session:
+            parent=session.scalar(select(self.m.PoiSegment).where(self.m.PoiSegment.job_id==job_id,self.m.PoiSegment.kind=='coverage').order_by(self.m.PoiSegment.id))
+            parent_id=parent.id
+            children=session.scalars(select(self.m.PoiSegment).where(self.m.PoiSegment.parent_segment_id==parent_id)).all()
+            self.assertGreater(len(children),1);self.assertTrue(all(c.radius_m==1500 for c in children))
+            self.assertEqual(parent.status,'processing');self.assertEqual(parent.pending_details,2)
+            from backend.poi_coverage import Circle,refinement_target,PRECISION_M
+            from shapely import set_precision,union_all
+            from shapely.geometry import shape
+            parent_circle=session.get(self.m.PoiCoverageCircle,parent.coverage_circle_id)
+            target=refinement_target(Circle(parent_circle.code,parent_circle.x,parent_circle.y,parent_circle.radius_m))
+            pieces=[shape(session.get(self.m.PoiCoverageCircle,c.coverage_circle_id).target_geometry) for c in children]
+            self.assertTrue(set_precision(target.difference(union_all(pieces)),PRECISION_M).is_empty)
+            self.assertIsNone(session.scalar(select(self.m.PoiRequest.raw_response)))
+        self.clear_cooldown();self.tick();self.clear_cooldown();self.tick()
+        self.assertEqual([kind for kind,_ in self.calls],['nearby','details','details'])
+        self.assertEqual(self.scalar(select(self.m.PoiSegment.status).where(self.m.PoiSegment.id==parent_id)),'subdivided')
+        self.provider.request=lambda kind,params:self.calls.append((kind,params)) or Reply(200,nearby())
+        for _ in children:self.clear_cooldown();self.tick()
+        self.assertEqual(self.scalar(select(self.m.PoiSegment.status).where(self.m.PoiSegment.id==parent_id)),'complete')
+
+    def test_polygon_transport_retry_keeps_in_memory_details_batch(self):
+        plan_id,job_id=self.prepare_polygon_plan()
+        self.tick();self.clear_cooldown()
+        self.provider.request=lambda kind,params:self.calls.append((kind,params)) or Reply(None,error='transport_outcome_unknown')
+        self.tick()
+        self.assertEqual(len(self.worker.pending),1)
+        self.assertFalse(self.scalar(select(self.m.PoiControl.paused)))
+        self.clear_cooldown();self.provider.request=lambda kind,params:self.calls.append((kind,params)) or Reply(200,DETAILS)
+        self.tick()
+        self.assertEqual([kind for kind,_ in self.calls],['nearby','details','details'])
+        self.assertEqual(self.scalar(select(func.count()).select_from(self.m.PoiPlace)),1)
+
+    def test_polygon_tile_rollback_and_checkpoint_resume_are_idempotent(self):
+        from backend.poi_coverage_state import Builder,finalize_plan
+        plan_id,job_id=self.prepare_polygon_plan(build=False)
+        with self.db.db_session() as session:builder=Builder(session,session.get(self.m.PoiCoveragePlan,plan_id))
+        with self.assertRaisesRegex(RuntimeError,'interrupt'):
+            with self.db.db_session() as session:
+                plan=session.get(self.m.PoiCoveragePlan,plan_id)
+                tile=session.scalar(select(self.m.PoiCoverageTile).where(self.m.PoiCoverageTile.plan_id==plan_id))
+                builder.build_one(session,plan,tile);raise RuntimeError('interrupt')
+        self.assertEqual(self.scalar(select(func.count()).select_from(self.m.PoiCoverageCircle).where(self.m.PoiCoverageCircle.plan_id==plan_id,self.m.PoiCoverageCircle.kind=='polygon')),0)
+        with self.db.db_session() as session:
+            plan=session.get(self.m.PoiCoveragePlan,plan_id)
+            for tile in session.scalars(select(self.m.PoiCoverageTile).where(self.m.PoiCoverageTile.plan_id==plan_id)):
+                self.assertTrue(builder.build_one(session,plan,tile))
+                self.assertFalse(builder.build_one(session,plan,tile))
+            session.flush();finalize_plan(session,plan);self.assertEqual(plan.state,'ready')
+        self.assertEqual(self.calls,[])
+
+    def test_polygon_minimum_radius_saturation_pauses_after_details_drain(self):
+        plan_id,job_id=self.prepare_polygon_plan(minimum=500)
+        with self.db.db_session() as session:
+            for row in session.scalars(select(self.m.PoiSegment).where(self.m.PoiSegment.job_id==job_id,self.m.PoiSegment.radius_m==3000)):row.status='complete'
+        self.provider.request=lambda kind,params:self.calls.append((kind,params)) or (
+            Reply(200,nearby(ITEM,dict(ITEM,poiHash='hash-b'))) if kind=='nearby' else Reply(200,DETAILS))
+        self.tick();self.assertFalse(self.scalar(select(self.m.PoiControl.paused)))
+        self.clear_cooldown();self.tick();self.clear_cooldown();self.tick()
+        self.assertEqual([kind for kind,_ in self.calls],['nearby','details','details'])
+        self.assertTrue(self.scalar(select(self.m.PoiControl.paused)))
+        self.tick();self.assertEqual(len(self.calls),3)
+
+    def test_polygon_transport_retries_are_bounded(self):
+        plan_id,job_id=self.prepare_polygon_plan()
+        self.provider.request=lambda kind,params:self.calls.append((kind,params)) or Reply(None,error='transport_outcome_unknown')
+        for _ in range(5):self.clear_cooldown();self.tick()
+        self.assertEqual(len(self.calls),5);self.assertTrue(self.scalar(select(self.m.PoiControl.paused)))
+        self.clear_cooldown();self.tick();self.assertEqual(len(self.calls),5)
+        with self.db.db_session() as session:
+            self.assertTrue(all(r.raw_response is None for r in session.scalars(select(self.m.PoiRequest))))
+
+    def test_failed_details_body_cannot_persist_an_unresolved_hash(self):
+        self.prepare_polygon_plan();self.tick();self.clear_cooldown()
+        self.provider.request=lambda kind,params:Reply(403,{'hash':'hash-a','error':'refused'})
+        self.tick()
+        with self.db.db_session() as session:
+            request=session.scalar(select(self.m.PoiRequest).order_by(self.m.PoiRequest.id.desc()).limit(1))
+            self.assertEqual(request.kind,'details');self.assertIsNone(request.raw_response)
+            self.assertEqual(session.scalar(select(func.count()).select_from(self.m.PoiPlace)),0)
+
+    def test_full_coverage_sources_cannot_be_attached_as_legacy_point_job(self):
+        from backend.poi_sources import save_catalogue
+        from test_search_area_audit import SearchSourceCompilerTests
+        from backend.poi_sources import compile_catalogue
+        from tempfile import TemporaryDirectory
+        with TemporaryDirectory() as d:catalogue=compile_catalogue(SearchSourceCompilerTests().files(d),['A'])
+        catalogue.summary['algorithm']='full-polygon-and-point-sources-v1'
+        with self.db.db_session() as session:
+            save_catalogue(session,catalogue);self.poi.control(session).paused=True
+            with self.assertRaises(ValueError):self.poi.attach_sources(session,catalogue.version)
+        self.assertEqual(self.calls,[])
+
 if __name__ == '__main__': unittest.main()

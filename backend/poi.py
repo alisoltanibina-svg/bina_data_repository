@@ -15,6 +15,7 @@ from backend.poi_models import (PoiControl, PoiBoundary, PoiCategory, PoiJob, Po
     PoiPlace, PoiPlaceCategory, PoiDetailTask, PoiRequest, PoiDuplicateReview, PoiSourceDataset, PoiSettlement)
 from backend.poi_geo import BoundaryIndex, grid, load_boundaries, normalize, parse_address
 from backend.poi_provider import nearby_items, details, access_error_message
+from backend import poi_coverage_state as coverage
 
 LOCK_KEY = 741923816
 ACTIVE = ('pending', 'running')
@@ -62,6 +63,7 @@ def create_pilot(session, latitude, longitude, category, radius_m=500, settlemen
         raise ValueError('ابتدا گردآوری را متوقف کنید و تا پایان درخواست جاری صبر کنید.')
     job=session.scalar(select(PoiJob).where(PoiJob.status.in_(ACTIVE)).limit(1))
     if not job: raise ValueError('ابتدا یک برنامهٔ گردآوری در حالت توقف بسازید.')
+    if coverage.plan_for(session,job):raise ValueError('برنامهٔ چندضلعی از مراکز تأییدشدهٔ خودش استفاده می‌کند؛ بررسی تک‌نقطه‌ای برای این برنامه لازم نیست.')
     if session.scalar(select(PoiSegment.id).where(PoiSegment.job_id==job.id,
             PoiSegment.status=='processing',PoiSegment.pending_details>0).limit(1)):
         raise ValueError('هش‌های یک ناحیه هنوز در حافظهٔ پردازشگر منتظر POI هستند؛ ابتدا همان ناحیه را تعیین تکلیف کنید.')
@@ -119,6 +121,7 @@ def boundary_index(version):
 
 
 def plan_province(session, job):
+    if coverage.plan_for(session,job):return False
     if job.search_dataset_version: return plan_settlement_province(session,job)
     provinces = session.scalars(select(PoiBoundary).where(PoiBoundary.version == job.boundary_version,
                                PoiBoundary.level == 'province').order_by(PoiBoundary.code)).all()
@@ -140,10 +143,11 @@ def plan_province(session, job):
 
 
 def next_target(session, job, pilot_segment_id=None):
+    coverage_plan=coverage.plan_for(session,job)
     segment = session.scalar(select(PoiSegment).where(PoiSegment.job_id == job.id,
         PoiSegment.status == 'pending',
-        PoiSegment.id==pilot_segment_id if pilot_segment_id else PoiSegment.kind==('settlement' if job.search_dataset_version else 'grid'))
-        .order_by(PoiSegment.province_order, PoiSegment.id).limit(1))
+        PoiSegment.id==pilot_segment_id if pilot_segment_id else PoiSegment.kind==('coverage' if coverage_plan else 'settlement' if job.search_dataset_version else 'grid'))
+        .order_by(PoiSegment.province_order,PoiSegment.parent_segment_id.is_(None), PoiSegment.id).limit(1))
     if segment:
         return 'nearby', segment, {'location': f'{segment.latitude},{segment.longitude}',
                                   'layer': segment.category, 'searchRadius': segment.radius_m}
@@ -204,10 +208,12 @@ def apply_reply(session, request_id, reply, result_cap=0, detail_hash=None, deta
     c = control(session)
     req = session.get(PoiRequest, request_id)
     job = session.get(PoiJob, req.job_id)
+    coverage_plan=coverage.plan_for(session,job)
     target = session.get(PoiSegment if req.target_type == 'segment' else PoiDetailTask, req.target_id)
     stamp = now()
     req.http_status, req.finished_at = reply.status, stamp
-    req.raw_response = reply.body if req.kind == 'details' and isinstance(reply.body,(dict,list)) else None
+    # Failed/unvalidated Details can echo a still-unresolved Nearby hash.
+    req.raw_response = None
     handoff = []
     attempts = detail_attempts if req.kind == 'details' else target.attempts
     retry_status = 'processing' if req.kind == 'details' else 'pending'
@@ -232,14 +238,18 @@ def apply_reply(session, request_id, reply, result_cap=0, detail_hash=None, deta
                 target.pending_details = len(handoff)
                 if not handoff and (c.collection_mode=='pilot' or not job.search_dataset_version):
                     c.paused, c.reason = True, 'Nearby produced no new usable hashes; review area/category with Neshan before continuing'
-                if result_cap and len(items) >= result_cap:
+                if coverage_plan and coverage_plan.result_limit and len(items)>=coverage_plan.result_limit:
+                    coverage.subdivide(session,job,target,coverage_plan)
+                if not coverage_plan and result_cap and len(items) >= result_cap:
                     target.review_reason = 'Provider result cap reached; repeat with smaller search radius'
             else:
                 if not detail_hash: raise RuntimeError('Details response has no in-memory request identity')
                 save_details(session, job, detail_hash, reply.body, stamp)
+                req.raw_response=reply.body
                 target.pending_details = max(0, target.pending_details - 1)
             req.outcome = 'successful'
             target.status = 'processing' if target.pending_details else 'complete'
+            if coverage_plan and not target.pending_details:coverage.settle(session,target)
             if req.kind=='details' and target.status=='complete' and c.collection_mode=='pilot' and c.pilot_segment_id==target.id:
                 c.paused,c.reason=True,'Single-area pilot finished; nationwide grid remains paused'
     elif reply.status in {401,402,403,480,481,483,484,485}:
@@ -249,8 +259,13 @@ def apply_reply(session, request_id, reply, result_cap=0, detail_hash=None, deta
         req.outcome, target.status = 'failed', retry_status
         delay = max(delay, reply.retry_after, min(3600, 60 * 2 ** min(attempts, 6)))
     elif reply.status is None:
-        req.outcome, target.status = 'uncertain', 'uncertain'
-        c.paused, c.reason = True, 'Transport outcome unknown; review before explicitly retrying'
+        req.outcome='uncertain'
+        if coverage_plan and attempts<5:
+            target.status=retry_status
+            delay=max(delay,min(3600,60*2**attempts))
+        else:
+            target.status='uncertain'
+            c.paused, c.reason = True, 'Transport outcome unknown; review before explicitly retrying'
     elif reply.status >= 500 and attempts < 5:
         req.outcome, target.status = 'failed', retry_status
         delay = max(delay, reply.retry_after, min(3600, 60 * 2 ** attempts))
@@ -276,8 +291,10 @@ def retry_unresolved(session, job_id):
         query=update(model).where(model.job_id == job.id, model.status.in_(['failed','uncertain']))
         if model==PoiSegment:
             query=query.where(PoiSegment.id==c.pilot_segment_id if c.collection_mode=='pilot' else
-                PoiSegment.kind==('settlement' if job.search_dataset_version else 'grid'))
-        session.execute(query.values(status='pending',attempts=0))
+                PoiSegment.kind==('coverage' if coverage.plan_for(session,job) else 'settlement' if job.search_dataset_version else 'grid'))
+        if model==PoiSegment and coverage.plan_for(session,job):
+            session.execute(query.values(status='pending',attempts=0,review_reason=None))
+        else:session.execute(query.values(status='pending',attempts=0))
     job.status = 'running'
     c.paused, c.reason = True, 'Unresolved work requeued; resume when ready'
 
@@ -289,7 +306,7 @@ def storage_cleanup_required(session):
         session.scalar(select(PoiDetailTask.id).where(PoiDetailTask.status=='pending').limit(1)))
 
 
-def collection_readiness(c, job, cleanup_required=False, pilot=None, unresolved_work=False):
+def collection_readiness(c, job, cleanup_required=False, pilot=None, unresolved_work=False, coverage_block=''):
     from backend.settings import get_settings
     key_configured = bool(get_settings().neshan_service_api_key.get_secret_value().strip())
     alive = bool(c and c.heartbeat_at and (now()-c.heartbeat_at).total_seconds() < 45)
@@ -305,7 +322,7 @@ def collection_readiness(c, job, cleanup_required=False, pilot=None, unresolved_
     outdated=bool(alive and c.worker_id and (not worker_revision or worker_revision.group(1)!=revision))
     blocked = ('worker_outdated' if outdated else 'missing_service_key' if not key_configured else 'authorization_required' if not authorized
                else 'storage_cleanup_required' if cleanup_required else 'no_active_job' if not active_job
-               else pilot_block if pilot_block else 'unresolved_work' if unresolved_work
+               else coverage_block if coverage_block else pilot_block if pilot_block else 'unresolved_work' if unresolved_work
                else 'worker_not_running' if not alive else '')
     return dict(service_key_configured=key_configured, collection_authorized=authorized, worker_alive=alive,
                 worker_revision=worker_revision.group(1) if worker_revision else None,expected_worker_revision=revision,
@@ -317,8 +334,11 @@ def resume_collection(session):
     c = control(session)
     job = session.scalar(select(PoiJob).where(PoiJob.status.in_(ACTIVE)).limit(1))
     pilot=session.get(PoiSegment,c.pilot_segment_id) if c and c.pilot_segment_id else None
-    readiness = collection_readiness(c, job, storage_cleanup_required(session),pilot,unresolved_scope(session,job,c))
+    readiness = collection_readiness(c, job, storage_cleanup_required(session),pilot,unresolved_scope(session,job,c),coverage.blocker(session,job))
     messages = {
+        'coverage_algorithm_mismatch':'نسخهٔ الگوریتم پوشش تغییر کرده است؛ برنامهٔ پوشش را با نسخهٔ فعلی بازسازی و تأیید کنید.',
+        'coverage_not_ready':'تولید و تأیید هندسی همهٔ کاشی‌های پوشش هنوز تمام نشده است.',
+        'coverage_limit_required':'سقف نتایج Nearby باید از نشان تأیید و در برنامه ثبت شود؛ بدون آن کامل‌بودن نتایج قابل بررسی نیست.',
         'unresolved_work':'ابتدا درخواست‌های ناموفق یا نامطمئن محدودهٔ فعلی را بررسی و در صورت نیاز به صف بازگردانید.',
         'worker_outdated':'پردازشگر نسخهٔ قدیمی را اجرا می‌کند؛ سرویس گردآوری را بازراه‌اندازی کنید.',
         'pilot_required': 'ابتدا یک آزمایش تک‌ناحیه‌ای در استان فعلی آماده کنید؛ اجرای سراسری متوقف است.',
@@ -339,7 +359,7 @@ def status(session):
     c = session.get(PoiControl, 1)
     job = session.scalar(select(PoiJob).order_by(PoiJob.created_at.desc()).limit(1))
     pilot=session.get(PoiSegment,c.pilot_segment_id) if c and c.pilot_segment_id else None
-    readiness = collection_readiness(c, job, storage_cleanup_required(session),pilot,unresolved_scope(session,job,c))
+    readiness = collection_readiness(c, job, storage_cleanup_required(session),pilot,unresolved_scope(session,job,c),coverage.blocker(session,job))
     alive = readiness['worker_alive']
     state = 'interrupted'
     if c and c.paused: state = 'pausing' if c.in_flight and alive else 'paused'
@@ -387,13 +407,16 @@ def status(session):
         select(PoiSourceDataset).order_by(PoiSourceDataset.created_at.desc())).all()]
     if job and job.search_dataset_version:
         output['coverage_label']='فقط محدودهٔ شعاع جست‌وجو پیرامون نقاط فایل؛ پوشش کامل شهرها و روستاها تأیید نشده است.'
-    output['geography']=geographic_progress(session,job) if job and job.search_dataset_version else None
+    coverage_plan=coverage.plan_for(session,job)
+    output['geography']=coverage.progress(session,coverage_plan) if coverage_plan else geographic_progress(session,job) if job and job.search_dataset_version else None
     output['reported_at']=now()
     proof=bool(job and pilot and pilot.job_id==job.id and pilot.settlement_id and pilot.status=='complete' and
         pilot.radius_m==job.radius_m and not pilot.review_reason and not pilot.pending_details and output['pilot']['details_saved'])
     output['can_start_collection']=bool((c and c.collection_mode=='coverage' or proof) and job and job.search_dataset_version and c and c.paused and alive and
         readiness['service_key_configured'] and readiness['collection_authorized'] and
         not storage_cleanup_required(session) and readiness['resume_blocked_reason'] in ('','pilot_completed'))
+    if coverage_plan:
+        output['coverage_label']='پوشش کامل هندسهٔ چندضلعی‌ها و جست‌وجوی شعاع ۳ کیلومتر برای نقاط؛ پیشرفت مساحتی جداگانه نمایش داده می‌شود.'
     if output['geography']:
         output['job']['completed_provinces']=sum(r['complete'] for r in output['geography']['provinces'])
         output['job']['remaining_provinces']=len(output['geography']['provinces'])-output['job']['completed_provinces']
@@ -421,6 +444,8 @@ def attach_sources(session,version):
     dataset=session.get(PoiSourceDataset,version)
     if not dataset:raise ValueError('ابتدا مجموعهٔ فایل‌ها را روی سرور وارد کنید.')
     if job.search_dataset_version==version:return job
+    if dataset.summary.get('algorithm','').startswith('full-polygon-and-point'):
+        raise ValueError('این مجموعه باید با برنامه‌ساز پوشش چندضلعی آماده شود؛ اتصال به برنامهٔ قدیمی فقط جست‌وجوی نقطه‌ای ایجاد می‌کند.')
     if job.search_dataset_version:raise ValueError('این برنامه قبلاً به یک نسخهٔ ثابت از مجموعه متصل شده است.')
     original=session.scalars(select(PoiBoundary.name).where(PoiBoundary.version==job.boundary_version,PoiBoundary.level=='province')).all()
     supplied=session.scalars(select(PoiBoundary.name).where(PoiBoundary.version==version,PoiBoundary.level=='province')).all()
@@ -485,12 +510,11 @@ def plan_settlement_province(session,job):
     return True
 
 
-@lru_cache(maxsize=1)
 def collector_revision():
     """Identify loaded collector releases without recording secrets or response data."""
     root=Path(__file__).resolve().parent
     digest=hashlib.sha256()
-    for name in ('poi.py','poi_worker.py','poi_models.py','poi_provider.py','poi_geo.py'):
+    for name in ('poi.py','poi_worker.py','poi_models.py','poi_provider.py','poi_geo.py','poi_coverage.py','poi_coverage_state.py','poi_coverage_sources.py'):
         digest.update(name.encode());digest.update((root/name).read_bytes())
     return digest.hexdigest()[:12]
 
@@ -556,6 +580,6 @@ def geographic_progress(session,job):
 
 def unresolved_scope(session,job,c):
     if not job or job.status not in ACTIVE:return False
-    scope=PoiSegment.id==c.pilot_segment_id if c and c.collection_mode=='pilot' else PoiSegment.kind==('settlement' if job.search_dataset_version else 'grid')
+    scope=PoiSegment.id==c.pilot_segment_id if c and c.collection_mode=='pilot' else PoiSegment.kind==('coverage' if coverage.plan_for(session,job) else 'settlement' if job.search_dataset_version else 'grid')
     return bool(session.scalar(select(PoiSegment.id).where(PoiSegment.job_id==job.id,scope,
         PoiSegment.status.in_(['failed','uncertain'])).limit(1)))

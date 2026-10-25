@@ -12,6 +12,7 @@ from sqlalchemy import select, text, update, func
 from sqlalchemy.orm import Session
 from backend import database
 from backend.poi import (LOCK_KEY, ACTIVE, control, now, plan_province, next_target, apply_reply, create_job, storage_cleanup_required, create_pilot, collector_revision)
+from backend import poi_coverage_state as coverage
 from backend.poi_models import PoiControl, PoiJob, PoiSegment, PoiDetailTask, PoiRequest
 from backend.poi_provider import Neshan
 from backend.settings import get_settings
@@ -75,6 +76,10 @@ class Worker:
             if c.paused or self.stop.is_set(): return
             job = session.scalar(select(PoiJob).where(PoiJob.status.in_(ACTIVE)).order_by(PoiJob.created_at).limit(1))
             if not job: return
+            block=coverage.blocker(session,job)
+            if block:
+                c.paused,c.reason=True,'Polygon plan requires completed coverage verification and a confirmed provider result limit'
+                return
             job.status = 'running'
             if c.collection_mode=='pilot' and not c.pilot_segment_id:
                 c.paused,c.reason=True,'Choose a single-area pilot before continuing; nationwide grid is paused'
@@ -112,7 +117,8 @@ class Worker:
             with Session(bind=connection) as session, session.begin():
                 job = session.get(PoiJob, planning_job_id)
                 if plan_province(session, job): return
-                scope=PoiSegment.kind==('settlement' if job.search_dataset_version else 'grid')
+                coverage_plan=coverage.plan_for(session,job)
+                scope=PoiSegment.kind==('coverage' if coverage_plan else 'settlement' if job.search_dataset_version else 'grid')
                 unresolved=session.scalar(select(func.count()).select_from(PoiSegment).where(PoiSegment.job_id==job.id,
                     scope,PoiSegment.status.in_(['failed','uncertain'])))
                 if not job.search_dataset_version:

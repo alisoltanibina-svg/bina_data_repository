@@ -70,3 +70,17 @@ test('completed verification activates production directly without another pilot
  assert.equal(p.el('poi-verification').hidden,true);await p.el('poi-resume').onclick();
  assert.equal(p.calls.filter(c=>c.method==='POST')[0].path,'/api/admin/poi/start');
 });
+
+
+test('polygon plans show area progress and do not offer legacy point-only creation',async()=>{
+ const d=report();d.can_resume=false;d.can_start_collection=false;d.resume_blocked_reason='coverage_not_ready';
+ d.search_sources[0].summary.algorithm='full-polygon-and-point-sources-v1';
+ Object.assign(d.geography,{scope:'verified_polygon_union_and_3km_points',plan_id:'plan-1',area_percent:25,
+   metric_area_m2:1000000,completed_area_m2:250000,completed_point_searches:2,expected_point_searches:10,pending_tiles:3,result_limit:0});
+ const p=page(d);await p.load();
+ assert.equal(p.el('poi-progress').value,25);assert.equal(p.el('poi-create').hidden,true);
+ assert.equal(p.el('poi-create-source').options.length,0);
+ assert.match(p.el('poi-full-plan-help').textContent,/plan-1/);
+ assert.ok(!p.el('poi-progress-label').textContent.includes('???'));
+ assert.equal(p.el('poi-resume').disabled,true);
+});

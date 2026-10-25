@@ -90,6 +90,10 @@ def nearby_items(body):
     points = body.get('layerPoints')
     if not isinstance(points, dict) or not isinstance(points.get('nearestPoints'), list):
         raise ValueError('invalid_nearby_schema')
+    # Undocumented pagination must not silently turn a page into a complete area.
+    continuation=('nextPage','next_page','nextPageToken','next_page_token','nextCursor','next_cursor','hasMore','has_more')
+    if any(container.get(key) for container in (body,points) for key in continuation):
+        raise ValueError('unexpected_nearby_pagination')
     items = points['nearestPoints']
     for item in items:
         if not isinstance(item, dict): raise ValueError('invalid_nearby_item')

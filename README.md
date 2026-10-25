@@ -372,181 +372,248 @@ reads/claims, forged formats, traversal/control filenames, image bombs, metadata
 stripping, quotas, concurrent claims, close-during-upload races, stale uploads,
 orphan cleanup, CSRF, chunked body limits, and unexpected fields.
 
-## Production POI collection
+## Polygon coverage and 3 km settlement collection
 
-The admin collection tab has one production workflow: attach the supplied source
-catalogue, verify the Nearby-to-Details connection once, then start automatic
-collection. Existing successful verification is reused. There is no manual
-latitude/longitude form and no parallel nationwide-grid interface. Original grid
-segments, origins, and requests remain in history and are never dispatched by an
-attached-source plan. No database migration is added by this production update;
-`alembic upgrade head` remains part of deployment for installations behind head.
+The collector now supports a full-polygon plan rather than one small circle per
+city. The same PostgreSQL job/request/place tables, admin controls, managed worker,
+provider adapter, and stable `(provider, provider_id)` identity constraint are used.
+Migration `0019_poi_polygon_coverage` adds coverage plans, tile certificates, shared
+circles, owned-area contributions, and parent/child search links. It pauses existing
+collection and preserves all historical jobs, requests, and resolved Details.
 
-The worker is a separate managed service. Browser reports are **manual**: opening
-the collection tab, clicking refresh, or completing an administrative action reads
-the database. There is no interval/background report polling. The report timestamp
-makes its age explicit. Closing the page has no effect on collection. Worker
-heartbeats every five seconds remain internal database health signals, not browser
-requests or provider calls.
+### Geographic inputs and generated files
 
-### Automatic progression and progress rates
+The eight inputs are read from `data/search area/area_to_search1.geojson` through
+`area_to_search8.geojson`. Their roles are detected explicitly, not from sequential
+file numbers in older directories:
 
-For a source-backed production plan, the worker automatically advances between
-point/category searches and provinces. Following the operator's clarification of
-Neshan's instruction, a response with no new usable hashes completes that search
-and advances after the existing cooldown. This includes empty responses, results
-without hashes, and hashes already resolved under the job's initial/refresh policy.
-No fake Details request is sent. Every new eligible hash goes through Details
-before the next Nearby request. There is no manual restart at a point/province
-boundary. Collection completion leaves the worker running and idle.
-
-A one-point connection verification still ends after that point. It is a setup
-check, not the production scheduler. Once successful Details is confirmed, the
-main **شروع / ادامهٔ گردآوری خودکار** button promotes the existing verification and
-starts production in one transaction. Preparation and promotion themselves do not
-call the provider. Failed, uncertain, quota/access, and unexpected-schema outcomes
-still pause for review. A paused collection leaves its worker running; restarting
-the service does not bypass a persisted pause. Source retries do not requeue the
-retired grid. The admin blocks resume when the live worker's code revision differs
-from the deployed backend, addressing the previously observed old-worker issue.
-
-Geographic progress uses the complete eligible catalogue, including provinces not
-yet planned. The denominator is eligible supplied points × selected categories.
-Each search completes after its Details handoff, if any, finishes. Empty searches
-count as finished searches and have a separate count. A point completes only after
-all selected categories finish. National and province percentages, point counts,
-remaining searches, and failed/uncertain counts are displayed. Quarantined points
-are displayed separately and excluded from the executable denominator. This is
-progress of **buffers around supplied points**, not a percentage of Iran's land,
-all village/city footprints, or all real POIs. Old grid/history totals do not alter
-these progress percentages.
-
-### Source catalogue
-
-| File in `data/` | Role |
+| Number | Role |
 | --- | --- |
-| `area_to_search.geojson` | 2,792 rural/municipal/special-area boundaries |
-| `area_to_search2.geojson` | 31 province boundaries and capital names |
-| `area_to_search3.geojson` | 1,196 district boundaries; county polygons derived by union within each normalized province/county name |
-| `area_to_search4.geojson` | 1,457 named settlement points used as search anchors |
+| 1 | 3,633 settlement observations |
+| 2 | 1,457 earlier settlement observations, merged with layer 1 |
+| 3 | 485 direct county polygons |
+| 4 | 1,196 district polygons |
+| 5 | Lake Urmia polygon; included in the requested polygon scope |
+| 6 | 31 province polygons |
+| 7 | 2,792 rural/municipal/special polygons |
+| 8 | 62,284 village/rural-place observations |
 
-The current catalogue contains **1,454 ready points and 3 quarantined points**:
-زیوه has a province-label mismatch; درگهان and ابوموسی fall outside the supplied
-administrative polygons. The importer preserves their source data/review reasons
-and never selects them automatically. Source file hashes/properties and derived
-county provenance are retained. Zero rural-area IDs receive content-based fallback
-identities; settlement `id`, `OBJECTID`, and `center` values are not assumed unique
-or interpreted without a data dictionary. Importing does not geocode or guess
-populated centres. Files are not modified, and imports are immutable/idempotent.
+The source compiler preserves file hashes and every observation's source fields.
+Layer 8's Latin-1/Windows-1256 text mix-up is recovered reversibly in memory, without
+editing its original file. Polygon associations use spatial intersections and
+versioned source codes, avoiding the inconsistent county/district identifiers in
+the supplied attributes. The layer names do not establish a complete current census
+of settlements: farms, facilities, and other named places also occur.
 
-```bash
-python -m scripts.import_search_layers          # Offline dry run, no DB access
-python -m scripts.import_search_layers --apply  # Import snapshot, collection paused
-python -m scripts.audit_search_areas --radius 500 # Optional single-layer audit
-```
+The combined snapshot contains **65,911 named point targets**. Exact coincident
+centres use one shared 3,000 m request while retaining all source associations;
+there are **65,906 distinct 3 km query centres** in the inspected snapshot. Points
+outside the supplied province/county polygons are retained with quality flags and
+an explicitly unassigned queue group; their valid geometry is not silently dropped
+or assigned a fabricated province. One questionable name is retained for review.
 
-### Final deployment on the current production server
-
-The ready unit `deploy/poi-worker.service` matches the reported installation:
-`/opt/app`, `/opt/app/venv/bin/python`, and the existing `root` runtime user. If the
-application is later moved to a dedicated account, update `User` and permissions
-before installing the unit. The unit restarts the worker after exits and starts it
-on boot; it never resets database pause/error state. Core dumps are disabled.
-
-1. Refresh the admin report. Let the current Details batch finish, pause collection,
-   and verify no request is in flight. Stop the actual old worker. If already
-   managed by this unit, use `sudo systemctl stop poi-worker.service`. For a manually
-   launched worker, inspect `ps -eo pid,lstart,args | grep '[b]ackend[.]poi_worker'`
-   and send `kill -TERM ACTUAL_PID` to the identified collector only. Wait for
-   `pgrep -af '[b]ackend\.poi_worker'` to show no process before proceeding.
-2. Deploy the updated code, `deploy/poi-worker.service`, and all four data files.
-   Run from the project root with its existing virtual environment:
-
-   ```bash
-   cd /opt/app
-   source venv/bin/activate
-   python -m pip install -r requirements.txt
-   alembic upgrade head
-   python -m scripts.import_search_layers
-   python -m scripts.import_search_layers --apply
-   python scripts/build_frontend.py
-   ```
-
-   An unchanged source import preserves the attached job, verification, and history.
-   Do not create a new job or repeat the successful verification for this update.
-3. Restart the **existing FastAPI service** using its actual installed service name;
-   it is separate from the worker. Install/start the final worker unit:
-
-   ```bash
-   sudo install -m 0644 deploy/poi-worker.service /etc/systemd/system/poi-worker.service
-   sudo systemctl daemon-reload
-   sudo systemctl enable poi-worker.service
-   sudo systemctl restart poi-worker.service
-   sudo systemctl status poi-worker.service --no-pager
-   sudo journalctl -u poi-worker.service -n 30 --no-pager
-   ```
-
-   For later code updates, stop this service before deploying and restart it after
-   deploying; restarting only FastAPI leaves an old worker in memory. Do not launch
-   another foreground/nohup worker alongside the service. The database advisory
-   lock permits only one dispatcher. The startup log contains a code revision and
-   a one-way key fingerprint, never the key itself. `Restart=always` also covers a
-   clean process exit after a failed database heartbeat; database pause state stays.
-4. Hard-refresh the admin page. Existing source attachment and successful connection
-   verification remain available. Click **شروع / ادامهٔ گردآوری خودکار** once. Use
-   **تازه‌سازی گزارش** whenever a newer snapshot is needed. No manual action is
-   required between normal point/province completions or empty source searches.
-   If an access/uncertain error is shown, address that error and explicitly resume;
-   restarting the service alone is not a retry. A restart during a volatile Details
-   batch marks the interrupted segment uncertain and requires reviewed requeueing.
-
-### Retention and provider access
-
-Neshan's account-specific instructions supplied by the operator allow retaining
-only POI Details output for internal use; Search/Nearby outputs must not be stored
-and retained POI data must not be displayed on a map. The operator subsequently
-clarified that hashless results may be skipped while valid new hashes must be sent
-to Details. This software implements that acquisition behavior; it does not grant
-or independently certify contractual authorization. `NESHAN_COLLECTION_AUTHORIZED`
-is an operator acknowledgement, not provider-side access verification.
-
-Nearby bodies and pending hashes exist only in worker memory. Nearby names,
-coordinates, icons, and addresses are discarded. No Nearby payload or unresolved
-hash is written into request history, caches, place placeholders, or durable queues.
-Only successfully retrieved Details creates/updates a place. Request parameters,
-counts/status, timestamps, and supplied geographic source inputs are retained.
-All provider calls/retries share the persistent 30–60 second cooldown and longer
-provider deadlines. Pausing or restarting cannot shorten that deadline. A crash
-loses any volatile hash batch, pauses the uncertain segment, and requires review.
-
-`/api/pois` and `/api/pois/counts` remain HTTP 403, including for admins. Internal
-aggregates are admin-only at `/api/admin/poi/counts` and are never wired into maps.
-Existing old Nearby retention must be remediated before collection resumes:
+Generated local source exports are in `output/poi_coverage/`:
+`search_boundaries.geojson`, `point_searches_3000m.geojson`, and
+`source_manifest.json`. Point exports are anchors with a `radius_m` of 3000, not
+village footprint polygons. Full planned circle exports are produced after the
+coverage build, and include `latitude`, `longitude`, `radius_m`, kind, and all
+source/polygon associations.
 
 ```bash
-python -m scripts.cleanup_nearby_storage         # Review first, worker stopped
-python -m scripts.cleanup_nearby_storage --apply # Explicit reviewed removal
+python -m scripts.plan_poi_coverage sources --output-directory output/poi_coverage
+python -m scripts.plan_poi_coverage audit --radius 2000 --output output/coverage-audit.json
 ```
 
-Cleanup preserves confirmed Details identities and removes old Nearby payloads,
-unresolved discovery records, and obsolete durable tasks. It refuses to apply
-while a worker holds the dispatcher lock. Backups, WAL, exports, proxy logs, swap,
-and external dumps have separate retention; avoid payload logging.
+These commands are offline and do not access PostgreSQL or Neshan. Output source
+exports refuse to overwrite an existing directory's generated files. The audit's
+request count is an area-based estimate before 3 km seed reuse, edge treatment,
+and redundancy removal; the exact count comes from the completed build.
 
-For access failures, use the read-only command below. It makes no provider calls
-and does not expose the private API key. Optional `--egress-ip` makes one lookup
-to api.ipify.org; that is not proof of the source IP seen by Neshan.
+The completed **2 km polygon / 3 km point** build contains **197,700 base circles
+per category**: 131,794 polygon-fill circles and 65,906 shared point circles.
+Every one of its 2,804 tiles is verified; the final tile union also covers the
+complete target union. `national_search_centres.csv.gz` and
+`national_coverage_certificate.json` contain the generated result. Adaptive
+subdivision can add further requests. The earlier 500 m plan and exports are
+preserved under `output/poi_coverage/previous_500m/` for comparison.
+
+The [downloadable data bundle](output/poi_coverage/coverage_plan_bundle.zip) contains
+all eight original geographic inputs, the generated exports, certificates, and
+verification manifest. It contains geographic planning data; deploy the repository
+code separately using the instructions below.
+
+At the existing 30-60 second pacing, those base Nearby calls alone require about
+68-138 days per category, before Details, retries, and subdivision. The pacing
+was not silently changed. Saturated 2 km searches are subdivided into smaller
+circles after the provider's result cap is confirmed and configured.
+
+### Coverage algorithm and its guarantee
+
+GeoPandas projects the WGS84 inputs into an Iran-centred, conformal transverse
+Mercator metric CRS (central meridian 54 degrees; scale factor 0.9996). A single
+national triangular lattice avoids UTM-zone and shared-polygon seam duplicates.
+Horizontal spacing is `0.98 * sqrt(3) * radius`, vertical spacing is
+`0.98 * 1.5 * radius`, with alternating half-row offsets. Circles intersecting the
+target are retained even when their centres are outside the polygon.
+
+The supplied polygons are dissolved into their union before coverage planning.
+Every valid settlement point has a fixed **3 km query**. These fixed circles also
+cover polygon areas, reducing the smaller polygon-fill requests needed. Polygon
+radius defaults to **2,000 m**. An inscribed, conservatively scaled circle polygon
+accounts for projection distortion; tests compare exported footprints to WGS84
+geodesic distances. Source-coordinate extent is validated before projection.
+
+Planning uses deterministic bounded tiles and one shared circle key across tiles.
+For each tile, the planner computes `target - union(search footprints)`, repairs
+remaining gaps, removes redundant circles only when coverage survives, and verifies
+again. Numeric geometry uses a recorded **1 mm metric precision**. Ownership pieces
+partition the target so shared circles/overlaps do not inflate area progress.
+Final verification also checks that verified tile geometries cover the entire
+polygon union and that the area ledger reconciles. Failed certificates cannot
+activate collection. The guarantee applies to the supplied projected geometry at
+that recorded precision, not the real-world currency of administrative boundaries
+or the completeness of Neshan's database.
+
+The complete Tabriz **County** example was checked offline: 311 distinct searches
+(107 point circles at 3 km plus 204 polygon-fill circles at 2 km), with zero
+uncovered area at planning precision. It is not a newly obtained Tabriz city
+boundary. Example centres and its certificate are in `output/poi_coverage/`.
+
+### Build and deploy a replacement plan
+
+Coverage dependencies require Python **3.11 or newer**. Stop the actual worker for
+deployment and finish any live Details batch first. Restarting FastAPI alone does
+not replace an already running worker. The production unit remains
+`deploy/poi-worker.service` for `/opt/app/venv/bin/python`; its persisted pause state,
+boot startup, and process-restart behavior are unchanged.
+
+From `/opt/app`, with the production environment activated:
+
+```bash
+source venv/bin/activate
+python -m pip install -r requirements.txt
+alembic upgrade head
+python -m scripts.plan_poi_coverage audit --radius 2000
+python -m scripts.plan_poi_coverage create --categories mosque --radius 2000 --replace-active
+```
+
+Use the categories actually required by your project; multiple categories are
+comma-separated. The final command returns a new plan ID. `--replace-active`
+explicitly preserves the old job as `needs_review` history, creates a paused job,
+and imports an immutable source snapshot. It refuses to replace a plan with an
+in-flight request or unresolved in-memory Details batch. Old records are not edited
+into a different geographic scope. Full source snapshots cannot be attached through
+the legacy point-only job form, preventing accidental regression to 500 m anchor
+searches.
+
+Substitute the returned ID in these commands:
+
+```bash
+python -m scripts.plan_poi_coverage build --plan PLAN_ID --workers 2
+python -m scripts.plan_poi_coverage export --plan PLAN_ID --output output/search-centres.geojson
+```
+
+The build can be long. `--workers` accepts 1–4 geometry threads; PostgreSQL writes
+remain sequential and atomic per tile. An advisory lock prevents concurrent builds
+of the same database. A stopped/interrupted build resumes with the **same command**;
+verified tiles are not rebuilt and incomplete tile writes roll back. `--max-tiles N`
+can bound a run without losing its checkpoint. There is no Neshan traffic during
+source import, planning, verification, or export. No worker may execute this plan
+until all tiles are verified. CSV export is available by using a `.csv` filename; `.csv.gz` and `.geojson.gz` produce compressed exports.
+
+### Result limits and recursive subdivision
+
+Neshan's public Nearby documentation does not specify a pagination mechanism or a
+maximum result count. The operator has not yet obtained that limit. **No limit is
+guessed.** A new plan defaults to `result_limit=0`, and provider dispatch remains
+blocked until the maximum count is confirmed by Neshan and recorded:
+
+```bash
+python -m scripts.plan_poi_coverage set-limit --plan PLAN_ID --result-limit CONFIRMED_LIMIT
+```
+
+`CONFIRMED_LIMIT` must be the actual positive integer supplied by Neshan, not an
+example value or the largest count seen in a test. Ask whether results below that
+limit are exhaustive and whether the account has any pagination/truncation rules.
+Unexpected continuation/pagination markers halt collection instead of silently treating a page as complete. The limit is immutable after this job has dispatched requests. A confirmed value
+can alternatively be supplied with `create --result-limit ...` before execution.
+
+When a response reaches the configured limit, its valid new hashes go through
+Details first. The affected target is covered again using verified smaller circles,
+recursively, down to the configured minimum radius (default 50 m). Descendant links
+and search geometry are durable. A parent contributes completed area only after
+all descendants and their Details handoffs finish. Saturation at the minimum
+radius pauses for review and never reports that area complete. Stable provider IDs
+prevent overlapping/recursive searches from creating duplicate stored places.
+
+### Execution, retries, and progress
+
+After deployment, build the frontend, restart the existing API service under its
+actual installed unit name, and start one managed worker:
+
+```bash
+python scripts/build_frontend.py
+sudo install -m 0644 deploy/poi-worker.service /etc/systemd/system/poi-worker.service
+sudo systemctl daemon-reload
+sudo systemctl enable poi-worker.service
+sudo systemctl restart poi-worker.service
+sudo systemctl status poi-worker.service --no-pager
+```
+
+In admin, hard-refresh and click **شروع / ادامهٔ گردآوری خودکار** once the plan is
+ready and its confirmed result cap is recorded. The new plan uses its own verified
+centres; no manual coordinates or repeated pilot are needed. Empty/no-new-hash
+responses advance automatically. New valid hashes are sent to Details before the
+next Nearby call. Point, tile, and province transitions need no manual restart.
+All calls/retries retain the persistent 30–60 second minimum cooldown and respect
+longer provider deadlines.
+
+Transient transport failures on new coverage jobs have bounded retries with
+backoff (up to five attempts). In-memory Details hashes are preserved during those
+retries. Persistent network failures, authorization/quota errors, unexpected
+response schemas, and minimum-radius saturation pause for review. The managed
+service remains running while collection is paused. A process crash still loses
+unsaved Nearby hashes: recovery marks the interrupted segment uncertain and
+requires explicit reviewed requeueing. Geographic progress and child searches are
+retained; arbitrary exact restoration of volatile hashes is not claimed.
+
+Reports are manual: opening the tab, completing an action, or pressing refresh
+reads PostgreSQL. There is no browser polling. The admin shows polygon-area
+completion (averaged across selected categories), root search counts, 3 km point
+search completion, pending verification tiles, and provider-limit readiness. Area
+contributions are disjoint, so overlapping circles and administrative layers do not
+double-count progress. A capped parent remains incomplete until its subtree ends.
+The worker code revision check prevents resuming an outdated loaded worker.
+
+### Retention and access restrictions
+
+Nearby output is transient. Neither payloads nor unresolved hashes enter place
+placeholders, disk queues, caches, or request bodies stored in PostgreSQL. Only
+successfully retrieved Details creates/updates a stored place; existing provider
+identities and UUIDs are preserved across replacement plans. Durable coverage
+geometry and associations come from the operator's geographic files, not Nearby.
+Request parameters/counts/status/timestamps remain operational metadata.
+
+The operator's Neshan instructions permit Details retention for internal use and
+forbid map display. `/api/pois` and `/api/pois/counts` remain HTTP 403; internal
+admin aggregates are not connected to maps. `NESHAN_COLLECTION_AUTHORIZED` remains
+an operator acknowledgement, not independent verification of provider permissions.
+No existing Nearby-retention safeguard or reviewed legacy-cleanup requirement is
+removed. Backups, WAL, proxy logs, swap and dumps have separate retention; avoid
+payload logging.
+
+For read-only key/access diagnosis:
 
 ```bash
 python -m backend.poi_diagnostics
 ```
 
-HTTP 484 is an access/whitelist issue, not proof of exhausted quota. The error
-names the failing Nearby or POI Details endpoint. Have Neshan verify that key's
-service permissions and request source before retrying; changing radius or
-restarting cannot fix provider authorization.
+HTTP 484 indicates an access/whitelist issue; a restart or larger radius cannot
+correct the provider's permissions. Check the named endpoint and have Neshan verify
+the key's scope and observed request source. Never share the private key.
 
-Tests use an isolated `TEST_DATABASE_URL` and mocked providers. They cover empty
-continuation, Details priority, automatic province transitions, complete-catalogue
-progress, retired-grid isolation, old-worker rejection, manual reports, access
-pauses, non-retention, and interrupted-batch recovery.
+Tests use an isolated `TEST_DATABASE_URL` and mocked providers. They cover holes,
+islands, outside-centred circles, spacing, conservative geodesic radii, redundancy
+removal, shared-boundary coverage, tile rollback/resumption, minimum-radius
+saturation, Details-first subdivision, transport backoff, non-retention, and legacy
+job preservation. No live Nearby/Details calls are used for verification.
