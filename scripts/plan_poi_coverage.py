@@ -20,12 +20,18 @@ def main():
     create=sub.add_parser('create');create.add_argument('--categories',required=True);create.add_argument('--radius',type=int,default=2000)
     create.add_argument('--minimum-radius',type=int,default=50);create.add_argument('--result-limit',type=int,default=0)
     create.add_argument('--replace-active',action='store_true')
+    create.add_argument('--plan-id-file',type=Path,help='Write the plan UUID after its transaction commits; refuses an existing file')
+    sub.add_parser('list',help='List committed coverage plans; read-only')
     build=sub.add_parser('build');build.add_argument('--plan',type=UUID,required=True);build.add_argument('--max-tiles',type=int,default=0);build.add_argument('--workers',type=int,default=1)
     export=sub.add_parser('export');export.add_argument('--plan',type=UUID,required=True);export.add_argument('--output',type=Path,required=True);export.add_argument('--include-refinements',action='store_true')
     limit=sub.add_parser('set-limit');limit.add_argument('--plan',type=UUID,required=True);limit.add_argument('--result-limit',type=int,required=True)
     args=parser.parse_args()
+    def report(message):print(message,file=sys.stderr,flush=True)
+    if args.command=='create' and args.plan_id_file and args.plan_id_file.exists():raise SystemExit('Plan ID file already exists; list existing plans before creating another')
     if args.command in ('audit','create','sources'):
+        if args.command=='create':report('Reading and validating geographic inputs; no provider requests')
         catalogue=compile_sources(args.directory)
+        if args.command=='create':report(f'Inputs ready: {len(catalogue.boundaries)} boundaries, {len(catalogue.settlements)} point targets')
         if args.command=='sources':
             from shapely import from_wkb
             from shapely.geometry import mapping
@@ -71,8 +77,17 @@ def main():
     from sqlalchemy.orm import Session
     if args.command=='create':
         with database.db_session() as session:
-            plan=create_plan(session,catalogue,args.categories.split(','),args.radius,args.minimum_radius,args.result_limit,args.replace_active)
-            print(json.dumps(dict(plan_id=str(plan.id),job_id=str(plan.job_id),paused=True,summary=plan.summary),ensure_ascii=False,indent=2))
+            plan=create_plan(session,catalogue,args.categories.split(','),args.radius,args.minimum_radius,args.result_limit,args.replace_active,progress=report)
+            result=dict(plan_id=str(plan.id),job_id=str(plan.job_id),paused=True,summary=plan.summary)
+        print(json.dumps(result,ensure_ascii=False,indent=2),flush=True)
+        if args.plan_id_file:
+            args.plan_id_file.parent.mkdir(parents=True,exist_ok=True)
+            with args.plan_id_file.open('x',encoding='utf-8') as output:output.write(result['plan_id']+'\n')
+            report(f'Committed plan ID written to {args.plan_id_file}')
+    elif args.command=='list':
+        with database.engine.connect() as connection:
+            rows=connection.execute(select(Plan.id.label('plan_id'),Plan.job_id,Plan.state,Plan.radius_m,Plan.point_radius_m,Plan.result_limit,Plan.created_at,PoiJob.status.label('job_status')).join(PoiJob,Plan.job_id==PoiJob.id).order_by(Plan.created_at.desc()).limit(20)).mappings().all()
+        print(json.dumps([dict(row) for row in rows],default=str,indent=2))
     elif args.command=='build':
         if args.max_tiles<0:raise SystemExit('max-tiles must be nonnegative')
         with database.engine.connect() as connection:

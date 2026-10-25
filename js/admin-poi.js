@@ -20,7 +20,7 @@
             'Single-area pilot finished; nationwide grid remains paused':'بررسی اتصال پایان یافت؛ برای فعال‌سازی برنامه، شروع گردآوری خودکار را بزنید.',
             'Choose a single-area pilot before continuing; nationwide grid is paused':'ابتدا بررسی اولیهٔ اتصال را از تنظیمات این بخش آماده کنید.',
             'Pilot has no dispatchable work; review its result before continuing':'آزمایش درخواست جدیدی برای ارسال ندارد؛ نتیجهٔ آن را بررسی کنید.','Nearby produced no new usable hashes; review area/category with Neshan before continuing':'بررسی اتصال هش جدیدی نداشت. سرویس روشن است؛ یک نقطهٔ دیگر برای بررسی اتصال انتخاب کنید.','No worker or job yet':'هنوز پردازشگر یا برنامه‌ای ثبت نشده است.', 'Paused by administrator':'گردآوری با درخواست مدیر متوقف شده است.', 'New job ready; resume to begin':'برنامهٔ جدید آماده است؛ پس از آماده‌شدن کلید و پردازشگر می‌توانید گردآوری را ادامه دهید.', 'NESHAN_SERVICE_API_KEY is not configured':'کلید سرویس نشان تنظیم نشده است.'};
-    const readinessMessages={
+    const readinessMessages={coverage_preparing:'آماده‌سازی پوشش در حال اجراست؛ گزارش را دستی تازه کنید و تا پایان آن صبر کنید.',
         coverage_algorithm_mismatch:'نسخهٔ الگوریتم پوشش تغییر کرده است؛ برنامه باید بازسازی و تأیید شود.',
         coverage_not_ready:'برنامهٔ پوشش چندضلعی‌ها در حال ساخت و تأیید هندسی است؛ پس از پایان آماده می‌شود.',
         coverage_limit_required:'سقف نتایج Nearby باید از نشان تأیید و روی برنامه ثبت شود تا تقسیم خودکار نواحی پرتراکم قابل اعتماد باشد.',
@@ -39,6 +39,10 @@
     const isActive=()=>lastStatus?.job && ['pending','running'].includes(lastStatus.job.status);
     function updateControls(){
         const d=lastStatus,j=d?.job,attached=!!j?.search_dataset_version;
+        const preparing=['queued','running'].includes(d?.preparation?.state),polygon=d?.geography?.scope==='verified_polygon_union_and_3km_points' && (!d.geography.polygon_radius_m || d.geography.polygon_radius_m===2000);
+        $('poi-coverage-prepare').disabled=actionBusy || preparing || !d?.coverage_setup?.can_prepare || !d?.coverage_setup?.sources_available || (polygon && !d.geography.pending_tiles);
+        $('poi-coverage-categories').disabled=actionBusy || preparing || polygon;
+        $('poi-coverage-limit-save').disabled=actionBusy || preparing || !polygon || !d?.paused || !!d?.in_flight || !!j?.requests?.length;
         $('poi-resume').disabled=actionBusy || !attached || !(d?.can_start_collection || d?.can_resume);
         $('poi-resume').textContent=d?.collection_mode==='pilot' && d?.can_resume?'اجرای بررسی اتصال':'شروع / ادامهٔ گردآوری خودکار';
         $('poi-resume').title=readinessMessages[d?.resume_blocked_reason] || '';
@@ -47,7 +51,8 @@
         $('poi-retry').disabled=actionBusy || !j || !d?.paused || !!d?.in_flight;
         $('poi-source-attach').disabled=actionBusy || !isActive() || !d.paused || !!d.in_flight || attached || !$('poi-source-select').value;
         $('poi-pilot-prepare').disabled=actionBusy || !isActive() || !attached || !d.paused || !!d.in_flight || d.pilot?.status==='processing' || !$('poi-settlement-select').value;
-        $('poi-create-submit').disabled=actionBusy || !!isActive();
+        $('poi-create-submit').disabled=true;
+        if(preparing)['poi-resume','poi-pause','poi-retry','poi-source-attach','poi-pilot-prepare'].forEach(id=>$(id).disabled=true);
     }
     function error(e){$('poi-error').hidden=false;$('poi-error').textContent=e.message || 'دریافت گزارش ممکن نشد.';}
     function options(id,rows,value,label){
@@ -62,6 +67,10 @@
     }
     function render(d){
         lastStatus=d;const job=d.job,pilot=d.pilot,g=d.geography;jobId=job?.id || '';
+        const prep=d.preparation;
+        $('poi-preparation-status').textContent=prep?prep.message+(prep.total_tiles?` · ${num(prep.verified_tiles)} از ${num(prep.total_tiles)} بخش`:''):(d.coverage_setup?.sources_available?'برای آماده‌سازی یا ادامهٔ برنامه، دکمه را بزنید.':'هشت فایل جغرافیایی باید در پوشهٔ دادهٔ سرور موجود باشند.');
+        $('poi-preparation-progress').value=prep?.total_tiles?100*prep.verified_tiles/prep.total_tiles:0;
+        $('poi-coverage-limit-status').textContent=g?.result_limit?`سقف ثبت‌شده: ${num(g.result_limit)}`:'سقف نتایج هنوز تأیید نشده است؛ آماده‌سازی ممکن است ولی گردآوری متوقف می‌ماند.';
         $('poi-report-time').textContent='آخرین گزارش: '+time(d.reported_at || new Date().toISOString())+' · تازه‌سازی دستی';
         $('poi-worker').textContent='وضعیت گردآوری: '+(labels[d.state] || d.state)+' · سرویس پردازشگر: '+(d.worker_alive?'متصل':'قطع / اجرا نشده');
         $('poi-timing').textContent='آخرین ضربان: '+time(d.heartbeat_at)+' · زودترین درخواست بعدی: '+time(d.next_request_at);
@@ -78,15 +87,15 @@
         $('poi-source-summary').textContent=source?`${num(source.summary.ready)} نقطهٔ آماده · ${num(source.summary.review)} نیازمند بررسی: ${(source.summary.review_points || []).map(p=>p.name).join('،')}`:
             'مجموعهٔ جغرافیایی به برنامه متصل نشده است. تنظیمات را باز کنید.';
         if(source?.summary.point_warnings){const warnings=source.summary.point_warnings;$('poi-source-summary').textContent=`${num(source.summary.ready)} نقطهٔ مشمول جست‌وجوی ۳ کیلومتری · ${num(warnings.outside_or_ambiguous_province)} نقطه خارج از مرزهای ارائه‌شده · ${num(warnings.name_requires_review)} نام نیازمند بازبینی. پرچم‌های کیفیت در دادهٔ خروجی حفظ شده‌اند.`;}
-        $('poi-attach-panel').hidden=!isActive() || !!job?.search_dataset_version;
+        $('poi-attach-panel').hidden=!!d.coverage_setup?.sources_available || !isActive() || !!job?.search_dataset_version;
         const hasPolygonSources=sources.some(r=>r.summary.algorithm?.startsWith('full-polygon-and-point'));
-        $('poi-create').hidden=!!isActive() || hasPolygonSources;
+        $('poi-create').hidden=true;
         $('poi-full-plan-help').hidden=!hasPolygonSources;
-        $('poi-full-plan-help').textContent=d.geography?.plan_id?`طرح پوشش: ${d.geography.plan_id} · ${d.geography.pending_tiles} کاشی باقی‌مانده برای تأیید. ساخت و ادامهٔ ساخت از برنامه‌ساز آفلاین انجام می‌شود؛ دکمهٔ شروع پس از تأیید هندسه و ثبت سقف نتایج فعال می‌شود.`:'برای این مجموعه، برنامهٔ پوشش چندضلعی را با برنامه‌ساز آفلاین آماده کنید؛ برنامهٔ نقطه‌ای قدیمی پوشش مساحتی ایجاد نمی‌کند.';
+        $('poi-full-plan-help').textContent=d.geography?.plan_id?`طرح پوشش: ${d.geography.plan_id} · ${num(d.geography.pending_tiles)} بخش باقی‌مانده؛ آماده‌سازی را از بالای همین صفحه ادامه دهید.`:'برنامهٔ پوشش را از بخش آماده‌سازی بالای صفحه بسازید.';
         $('poi-job-config').textContent=job?`برنامه ${job.id} · شعاع ${num(job.radius_m)} متر · دسته‌ها: ${(job.categories || []).map(c=>titles[c] || c).join('،')} · ${labels[job.status] || job.status}`:'هنوز برنامه‌ای وجود ندارد.';
         if(g?.scope==='verified_polygon_union_and_3km_points')$('poi-job-config').textContent += ` · شعاع نقاط ${num(g.point_radius_m)} متر · شعاع چندضلعی‌ها ${num(g.polygon_radius_m)} متر`;
         if(!job?.search_dataset_version)$('poi-setup').open=true;
-        $('poi-verification').hidden=!isActive() || !job.search_dataset_version || d.collection_mode!=='pilot' || !!d.can_start_collection;
+        $('poi-verification').hidden=!!d.coverage_setup?.sources_available || !isActive() || !job.search_dataset_version || d.collection_mode!=='pilot' || !!d.can_start_collection;
         $('poi-pilot-status').textContent=pilot?`بررسی ${num(pilot.id)} · ${pilot.province} · ${labels[pilot.status] || pilot.status} · پاسخ جزئیات موفق: ${num(pilot.details_saved)}`:'هنوز بررسی اتصال آماده نشده است.';
         const categories=job?.categories || [],catKey=jobId+':'+categories.join(',');
         if(catKey!==categoryKey){options('poi-pilot-category',categories,r=>r,r=>titles[r] || r);categoryKey=catKey;}
@@ -125,6 +134,8 @@
                 }
                 if(!layersLoaded){
                     const layers=await adminFetch('/api/admin/poi/categories');options('poi-layers',layers,r=>r,r=>titles[r] || r);
+                    options('poi-coverage-categories',layers,r=>r,r=>titles[r] || r);
+                    Array.from($('poi-coverage-categories').options || []).forEach(o=>o.selected=(lastStatus?.job?.categories || ['mosque']).includes(o.value));
                     Array.from($('poi-layers').options || []).forEach(o=>o.selected=['mosque','formal_school','library','park','hospital'].includes(o.value));layersLoaded=true;
                 }
                 updateControls();
@@ -138,6 +149,12 @@
             if(loadPromise)await loadPromise;await load();
         }catch(e){error(e);}finally{actionBusy=false;button.disabled=false;updateControls();}
     }
+    $('poi-coverage-form').onsubmit=event=>{event.preventDefault();return action($('poi-coverage-prepare'),'/api/admin/poi/coverage/prepare',{
+        categories:Array.from($('poi-coverage-categories').selectedOptions,o=>o.value),radius_m:2000
+    });};
+    $('poi-coverage-limit-form').onsubmit=event=>{event.preventDefault();return action($('poi-coverage-limit-save'),'/api/admin/poi/coverage/limit',{
+        result_limit:Number($('poi-coverage-limit').value)
+    });};
     $('poi-resume').onclick=()=>action($('poi-resume'),lastStatus?.collection_mode==='pilot' && lastStatus?.can_resume?'/api/admin/poi/resume':'/api/admin/poi/start');
     $('poi-pause').onclick=()=>action($('poi-pause'),'/api/admin/poi/pause');
     $('poi-refresh').onclick=load;

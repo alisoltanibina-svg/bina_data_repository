@@ -331,6 +331,8 @@ def collection_readiness(c, job, cleanup_required=False, pilot=None, unresolved_
 
 
 def resume_collection(session):
+    from backend.poi_preparation import busy
+    if busy(session):raise ValueError('آماده‌سازی پوشش در حال اجراست؛ تا پایان آن صبر کنید.')
     c = control(session)
     job = session.scalar(select(PoiJob).where(PoiJob.status.in_(ACTIVE)).limit(1))
     pilot=session.get(PoiSegment,c.pilot_segment_id) if c and c.pilot_segment_id else None
@@ -425,6 +427,14 @@ def status(session):
         .where(PoiPlace.resolved_at.is_not(None)).group_by(PoiPlaceCategory.category))]
     output['unique_saved'] = session.scalar(select(func.count()).select_from(PoiPlace).where(PoiPlace.resolved_at.is_not(None)))
     output['duplicate_reviews'] = session.scalar(select(func.count()).select_from(PoiDuplicateReview).where(PoiDuplicateReview.status=='pending'))
+    from backend import poi_preparation as preparation
+    output['preparation']=preparation.status(session)
+    preparing=bool(output['preparation'] and output['preparation']['state'] in preparation.LIVE)
+    output['coverage_setup']=dict(sources_available=all((preparation.SOURCE_DIRECTORY/f'area_to_search{i}.geojson').is_file() for i in range(1,9)),
+        can_prepare=bool((not c or c.paused) and not (c and c.in_flight) and not preparing and not (output['job'] or {}).get('details',{}).get('pending')),
+        has_plan=bool(coverage_plan))
+    if preparing:
+        output.update(can_resume=False,can_start_collection=False,resume_blocked_reason='coverage_preparing')
     return output
 
 
@@ -520,6 +530,8 @@ def collector_revision():
 
 
 def start_collection(session):
+    from backend.poi_preparation import busy
+    if busy(session):raise ValueError('آماده‌سازی پوشش در حال اجراست؛ تا پایان آن صبر کنید.')
     c,job=paused_job(session)
     if not job.search_dataset_version:raise ValueError('ابتدا مجموعهٔ جغرافیایی را به برنامه متصل کنید.')
     if c.collection_mode=='pilot':enable_settlement_plan(session)

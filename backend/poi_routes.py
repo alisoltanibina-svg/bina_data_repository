@@ -23,6 +23,15 @@ class SourceBody(InputBody):
     version: str = Field(min_length=64,max_length=64)
 
 
+class CoverageBody(InputBody):
+    categories: list[str] = Field(min_length=1,max_length=60)
+    radius_m: Literal[2000] = 2000
+
+
+class CoverageLimitBody(InputBody):
+    result_limit: int = Field(ge=1,le=2147483647,strict=True)
+
+
 class SettlementPilotBody(InputBody):
     settlement_id: UUID
     category: str = Field(min_length=1,max_length=100)
@@ -51,6 +60,27 @@ def build_router(require_admin, require_user):
     def categories(request: Request):
         require_admin(request)
         return response(sorted(LAYERS))
+
+    @router.post('/api/admin/poi/coverage/prepare')
+    def prepare_coverage(body: CoverageBody,request: Request):
+        require_admin(request)
+        from backend import poi_preparation as preparation
+        try:
+            with database.db_session() as session:
+                task,start=preparation.enqueue(session,body.categories,body.radius_m)
+                task_id=task.id
+            if start:preparation.launch(task_id)
+            return response(dict(id=str(task_id),collection_paused=True),202)
+        except ValueError as error:raise HTTPException(409,detail=str(error)) from error
+
+    @router.post('/api/admin/poi/coverage/limit')
+    def coverage_limit(body: CoverageLimitBody,request: Request):
+        require_admin(request)
+        from backend import poi_preparation as preparation
+        try:
+            with database.db_session() as session:preparation.set_limit(session,body.result_limit)
+            return response(dict(paused=True))
+        except ValueError as error:raise HTTPException(409,detail=str(error)) from error
 
     @router.post('/api/admin/poi/jobs')
     def create(body: JobBody, request: Request):

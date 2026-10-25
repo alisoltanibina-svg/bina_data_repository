@@ -57,6 +57,22 @@
                 <button type="button" class="admin-btn admin-btn-ghost" id="poi-pause">توقف گردآوری</button>
                 <button type="button" class="admin-btn admin-btn-ghost" id="poi-refresh">تازه‌سازی گزارش</button>
             </div>
+            <article class="support-card" id="poi-coverage-setup">
+                <h2>آماده‌سازی برنامهٔ جست‌وجو</h2>
+                <p>پوشش کامل مرزها با شعاع ۲ کیلومتر و جست‌وجوی نقاط با شعاع ۳ کیلومتر آماده می‌شود. اطلاعات مکان‌های ذخیره‌شده حفظ می‌شود و برنامهٔ قبلی در سوابق می‌ماند.</p>
+                <form id="poi-coverage-form">
+                    <label>دسته‌های جست‌وجو<select id="poi-coverage-categories" multiple size="5" required></select></label>
+                    <button type="submit" class="admin-btn" id="poi-coverage-prepare">آماده‌سازی / ادامهٔ ساخت پوشش</button>
+                </form>
+                <p id="poi-preparation-status" role="status" aria-live="polite"></p>
+                <progress id="poi-preparation-progress" value="0" max="100" aria-label="پیشرفت آماده‌سازی پوشش"></progress>
+                <p class="support-hint">آماده‌سازی درخواستی به نشان نمی‌فرستد. می‌توانید صفحه را ببندید و بعداً با «تازه‌سازی گزارش» پیشرفت را ببینید. اگر آماده‌سازی قطع شد، همان دکمه ادامه می‌دهد.</p>
+                <form id="poi-coverage-limit-form">
+                    <label>سقف نتایج هر درخواست، پس از تأیید نشان<input id="poi-coverage-limit" type="number" min="1" max="2147483647" step="1" placeholder="تا زمان تأیید، خالی بگذارید" required></label>
+                    <button type="submit" class="admin-btn admin-btn-ghost" id="poi-coverage-limit-save">ثبت سقف تأییدشدهٔ نشان</button>
+                </form>
+                <p id="poi-coverage-limit-status" class="support-hint"></p>
+            </article>
             <p id="poi-report-time" class="support-hint"></p>
             <p class="support-hint">گزارش فقط با بازکردن این بخش، انجام عملیات یا زدن دکمهٔ تازه‌سازی خوانده می‌شود. بستن صفحه اجرای گردآوری را متوقف نمی‌کند.</p>
             <p id="poi-readiness" role="status" aria-live="polite"></p>
@@ -80,7 +96,7 @@
                     <label>مجموعهٔ واردشده<select id="poi-source-select"></select></label>
                     <button type="button" class="admin-btn" id="poi-source-attach">اتصال مجموعه به برنامهٔ فعلی</button>
                 </div>
-                <form id="poi-create" class="support-card">
+                <form id="poi-create" class="support-card" hidden>
                     <h3>ساخت برنامهٔ جدید</h3>
                     <label>مجموعهٔ جغرافیایی<select id="poi-create-source" required></select></label>
                     <label>دسته‌بندی‌ها<select id="poi-layers" multiple size="8" required aria-describedby="poi-layer-help"></select></label>

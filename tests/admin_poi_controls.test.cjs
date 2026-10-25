@@ -84,3 +84,26 @@ test('polygon plans show area progress and do not offer legacy point-only creati
  assert.ok(!p.el('poi-progress-label').textContent.includes('???'));
  assert.equal(p.el('poi-resume').disabled,true);
 });
+
+
+test('coverage preparation starts in admin and progress stays manual',async()=>{
+ const d=report({coverage_setup:{can_prepare:true,sources_available:true,has_plan:false}});
+ const p=page(d);await p.load();p.el('poi-coverage-categories').selectedOptions=[{value:'library'}];
+ assert.equal(p.el('poi-coverage-prepare').disabled,false);
+ await p.el('poi-coverage-form').onsubmit({preventDefault(){}});
+ const write=p.calls.find(c=>c.path==='/api/admin/poi/coverage/prepare');
+ assert.deepEqual(JSON.parse(write.body),{categories:['library'],radius_m:2000});
+ const n=p.calls.length;await settle();assert.equal(p.calls.length,n);
+ p.set(report({can_resume:false,can_start_collection:false,resume_blocked_reason:'coverage_preparing',
+ coverage_setup:{can_prepare:false,sources_available:true},preparation:{state:'running',message:'Building',verified_tiles:3,total_tiles:12}}));
+ await p.load();assert.equal(p.el('poi-coverage-prepare').disabled,true);assert.equal(p.el('poi-resume').disabled,true);
+ assert.equal(p.el('poi-preparation-progress').value,25);assert.match(p.el('poi-preparation-status').textContent,/Building/);
+});
+
+test('confirmed coverage limit is saved in admin without starting collection',async()=>{
+ const d=report({coverage_setup:{can_prepare:true,sources_available:true,has_plan:true},geography:{scope:'verified_polygon_union_and_3km_points',plan_id:'plan',pending_tiles:0,result_limit:0,provinces:[]}});
+ const p=page(d);await p.load();p.el('poi-coverage-limit').value='8';
+ await p.el('poi-coverage-limit-form').onsubmit({preventDefault(){}});
+ const writes=p.calls.filter(c=>c.method==='POST');assert.equal(writes.length,1);
+ assert.equal(writes[0].path,'/api/admin/poi/coverage/limit');assert.deepEqual(JSON.parse(writes[0].body),{result_limit:8});
+});

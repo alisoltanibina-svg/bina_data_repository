@@ -16,10 +16,12 @@ def plan_for(session,job):
     return session.scalar(select(Plan).where(Plan.job_id==job.id)) if job else None
 
 
-def create_plan(session,catalogue,categories,radius=2000,minimum_radius=50,result_limit=0,replace_active=False):
+def create_plan(session,catalogue,categories,radius=2000,minimum_radius=50,result_limit=0,replace_active=False,progress=None):
     from backend import poi
     from backend.poi_sources import save_catalogue
     from backend.poi_provider import LAYERS
+    report=progress or (lambda message: None)
+    report('Checking paused collection and unfinished Details')
     c=poi.control(session)
     if not c.paused or c.in_flight:raise ValueError('Pause collection and wait for in-flight work')
     if session.scalar(select(PoiSegment.id).where(PoiSegment.status=='processing',PoiSegment.pending_details>0).limit(1)):
@@ -28,13 +30,14 @@ def create_plan(session,catalogue,categories,radius=2000,minimum_radius=50,resul
     if active and not replace_active:raise ValueError('Existing job active; explicitly use --replace-active to preserve it as history')
     if not categories or not set(categories)<=LAYERS:raise ValueError('Unknown categories')
     if not 50<=minimum_radius<=radius<=5000 or result_limit<0:raise ValueError('Invalid radii or result limit')
-    save_catalogue(session,catalogue)
+    save_catalogue(session,catalogue,progress=report)
     if active:active.status='needs_review';session.flush()
     job=poi.create_job(session,categories,max(500,radius))
     job.radius_m=radius
     job.search_dataset_version=catalogue.version
     # A source snapshot is immutable; geographic migration never edits old jobs.
     polygon_rows=catalogue.boundaries
+    report(f'Projecting and dissolving {len(polygon_rows)} polygons')
     metric=project([from_wkb(r['geometry_wkb']) for r in polygon_rows])
     target=set_precision(union_all(metric),PRECISION_M)
     plan=Plan(id=uuid4(),job_id=job.id,source_version=catalogue.version,state='planning',metric_crs=METRIC_CRS,
@@ -47,7 +50,9 @@ def create_plan(session,catalogue,categories,radius=2000,minimum_radius=50,resul
     names=sorted({r['name'] for r in province_rows},key=normalize);orders={normalize(n):i for i,n in enumerate(names)}
     grouped={};point_metric=project([Point(p['longitude'],p['latitude']) for p in catalogue.settlements])
     polygons=STRtree(metric)
-    for p,g in zip(catalogue.settlements,point_metric):
+    report(f'Preparing 3000 m circles for {len(catalogue.settlements)} point targets')
+    for number,(p,g) in enumerate(zip(catalogue.settlements,point_metric),1):
+        if number%1000==0:report(f'Point targets associated: {number} / {len(catalogue.settlements)}')
         key=circle_key(g.x,g.y,3000,'point')
         if key in grouped:grouped[key]['associations']['points'].append(p['code']);continue
         cg=Circle(key,g.x,g.y,3000,True);footprint=cg.footprint()
@@ -62,6 +67,8 @@ def create_plan(session,catalogue,categories,radius=2000,minimum_radius=50,resul
         segments=[dict(job_id=job.id,kind='coverage',coverage_circle_id=r['id'],province_order=r['province_order'],province_name=r['province_name'],
             latitude=r['latitude'],longitude=r['longitude'],radius_m=r['radius_m'],category=category) for r in created for category in job.categories]
         session.execute(insert(PoiSegment),segments)
+        report(f'Point circles saved: {min(offset+500,len(rows))} / {len(rows)}')
+    report('Preparing polygon coverage tiles')
     tile_rows=[dict(plan_id=plan.id,code=code,geometry=mapping(g),state='pending') for code,g in tiles(target,size=min(25000,radius*50))]
     for offset in range(0,len(tile_rows),100):session.execute(insert(Tile),tile_rows[offset:offset+100])
     plan.summary={**plan.summary,'tiles':len(tile_rows),'point_circles':len(rows),
@@ -69,6 +76,7 @@ def create_plan(session,catalogue,categories,radius=2000,minimum_radius=50,resul
         'point_radius_m':3000,'category_count':len(job.categories)}
     c.collection_mode,c.pilot_segment_id,c.paused='coverage',None,True
     c.reason='Polygon plan prepared; complete offline coverage verification before starting'
+    report('Preparation complete; committing plan transaction')
     return plan
 
 

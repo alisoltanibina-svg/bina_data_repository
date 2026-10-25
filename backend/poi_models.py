@@ -232,3 +232,18 @@ class PoiCoverageContribution(Base):
     circle_id=C(B,FK('poi_coverage_circles.id'),primary_key=True)
     province_name=C(T,primary_key=True)
     area_m2=C(F,nullable=False)
+
+
+class PoiPreparation(Base):
+    __tablename__='poi_preparations'
+    id=uid()
+    plan_id=C(UUID(as_uuid=True),FK('poi_coverage_plans.id'))
+    state=C(S(20),nullable=False,default='queued')
+    phase=C(S(20),nullable=False,default='sources')
+    message=C(T,nullable=False,default='')
+    categories=C(JSONB,nullable=False)
+    radius_m=C(I,nullable=False,default=2000)
+    verified_tiles=C(I,nullable=False,default=0)
+    total_tiles=C(I,nullable=False,default=0)
+    created_at=C(DateTime(timezone=True),nullable=False,server_default=func.now())
+    updated_at=C(DateTime(timezone=True),nullable=False,server_default=func.now())

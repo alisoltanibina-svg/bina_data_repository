@@ -479,6 +479,36 @@ The complete Tabriz **County** example was checked offline: 311 distinct searche
 uncovered area at planning precision. It is not a newly obtained Tabriz city
 boundary. Example centres and its certificate are in `output/poi_coverage/`.
 
+### Prepare the plan in admin (recommended)
+
+After deploying the updated code, run the normal migration/frontend build and
+restart the API and managed worker. Migration `0020_poi_admin_preparation` adds
+only durable preparation status; it does not erase saved POI Details or old jobs.
+No planning CLI commands or copied plan IDs are needed for the admin workflow.
+
+In **گردآوری مکان‌ها**, pause collection and use **آماده‌سازی / ادامهٔ ساخت پوشش**.
+The server reads the eight files already in `data/search area`, prepares 2 km
+polygon coverage and 3 km point searches, and verifies complete coverage in a
+separate process. An existing matching active plan is reused. Replacing a legacy
+job preserves its history and all resolved places. Duplicate clicks cannot launch
+concurrent preparations. If pending Details remain, finish them before preparing.
+
+The HTTP request returns immediately after scheduling. Closing the browser does
+not cancel preparation. Reports remain manual: press **تازه‌سازی گزارش** to see
+its current stage and verified tile count. No five-second polling is introduced.
+A service/server restart may interrupt the preparation process; once reported as
+interrupted, the same preparation button resumes committed verified tiles. An
+interrupted uncommitted source import restarts its transaction. Preparation uses
+one geometry worker to limit its impact on the API server and never calls Neshan.
+
+After Neshan confirms the Nearby maximum result count, enter that positive integer
+in **سقف نتایج هر درخواست، پس از تأیید نشان** and save it. Leave it blank while
+unknown; collection remains blocked. Preparing or saving the limit never starts
+collection. When coverage is ready and the managed worker/key/access checks pass,
+use **شروع / ادامهٔ گردآوری خودکار**. No manually typed coordinates are required.
+
+The CLI workflow below remains available for operators who prefer it.
+
 ### Build and deploy a replacement plan
 
 Coverage dependencies require Python **3.11 or newer**. Stop the actual worker for
@@ -505,6 +535,15 @@ in-flight request or unresolved in-memory Details batch. Old records are not edi
 into a different geographic scope. Full source snapshots cannot be attached through
 the legacy point-only job form, preventing accidental regression to 500 m anchor
 searches.
+
+Plan creation reports source-import batches and geometry preparation to stderr.
+Its JSON plan ID is printed only after the database transaction commits. To save
+the UUID directly, add `--plan-id-file output/poi-plan-id.txt` to `create`; that
+option refuses an existing file, so an earlier plan is not silently overwritten.
+`python -m scripts.plan_poi_coverage list` lists the last 20 committed plans
+without compiling source inputs or sending provider requests. A Ctrl+C during
+creation rolls back the uncommitted import and plan changes; creation must restart,
+whereas the tile build below resumes its committed checkpoints.
 
 Substitute the returned ID in these commands:
 

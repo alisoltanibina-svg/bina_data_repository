@@ -147,16 +147,19 @@ def compile_catalogue(files=None,expected_provinces=None):
     return Catalogue(version,manifest,boundaries,points,summary)
 
 
-def save_catalogue(session,catalogue):
+def save_catalogue(session,catalogue,progress=None):
     """Idempotent snapshot import. Does not attach jobs, resume workers or call APIs."""
     from sqlalchemy import select,func
     from sqlalchemy.dialects.postgresql import insert
     from backend.poi_models import PoiSourceDataset,PoiSettlement,PoiBoundary
+    report=progress or (lambda message: None)
+    report('Checking geographic source snapshot')
     existing=session.get(PoiSourceDataset,catalogue.version)
     if existing:
         count=session.scalar(select(func.count()).select_from(PoiSettlement).where(PoiSettlement.version==catalogue.version))
         boundary_count=session.scalar(select(func.count()).select_from(PoiBoundary).where(PoiBoundary.version==catalogue.version))
         if count!=catalogue.summary['settlements'] or boundary_count!=len(catalogue.boundaries):raise ValueError('Existing catalogue is incomplete; refusing to silently reuse it')
+        report('Existing complete source snapshot reused')
         return False
     session.add(PoiSourceDataset(version=catalogue.version,manifest=catalogue.manifest,summary=catalogue.summary));session.flush()
     for offset in range(0,len(catalogue.boundaries),100):
@@ -165,7 +168,10 @@ def save_catalogue(session,catalogue):
             row={k:v for k,v in record.items() if k!='geometry_wkb'}
             row.update(version=catalogue.version,geometry=mapping(from_wkb(record['geometry_wkb'])))
             rows.append(row)
+        report(f'Importing boundaries {offset+1}-{offset+len(rows)} / {len(catalogue.boundaries)}')
         session.execute(insert(PoiBoundary),rows)
+        report(f'Boundaries imported: {offset+len(rows)} / {len(catalogue.boundaries)}')
     for offset in range(0,len(catalogue.settlements),250):
         session.execute(insert(PoiSettlement),[dict(version=catalogue.version,**r) for r in catalogue.settlements[offset:offset+250]])
+        report(f'Point targets imported: {min(offset+250,len(catalogue.settlements))} / {len(catalogue.settlements)}')
     return True

@@ -561,6 +561,57 @@ class CollectorTests(unittest.TestCase):
             self.poi.attach_sources(session,catalogue.version)
         return catalogue
 
+    def test_interrupted_catalogue_import_rolls_back_without_replacing_job(self):
+        from backend.poi_sources import compile_catalogue
+        from backend.poi_coverage_state import create_plan
+        from test_search_area_audit import SearchSourceCompilerTests
+        from tempfile import TemporaryDirectory
+        with TemporaryDirectory() as directory:
+            catalogue=compile_catalogue(SearchSourceCompilerTests().files(directory),['A'])
+        with self.db.db_session() as session:self.poi.control(session).paused=True
+        messages=[]
+        def interrupt(message):
+            messages.append(message)
+            if message.startswith('Boundaries imported:'):raise KeyboardInterrupt()
+        with self.assertRaises(KeyboardInterrupt):
+            with self.db.db_session() as session:
+                create_plan(session,catalogue,['library'],replace_active=True,progress=interrupt)
+        with self.db.db_session() as session:
+            self.assertIsNone(session.get(self.m.PoiSourceDataset,catalogue.version))
+            self.assertEqual(session.scalar(select(func.count()).select_from(self.m.PoiBoundary).where(self.m.PoiBoundary.version==catalogue.version)),0)
+            self.assertEqual(session.scalar(select(func.count()).select_from(self.m.PoiCoveragePlan)),0)
+            self.assertEqual(session.get(self.m.PoiJob,self.job_id).status,'pending')
+        self.assertTrue(any(m.startswith('Importing boundaries') for m in messages))
+        self.assertEqual(self.calls,[])
+
+    def test_plan_cli_writes_committed_id_and_lists_without_compiling_inputs(self):
+        from backend.poi_sources import compile_catalogue
+        from test_search_area_audit import SearchSourceCompilerTests
+        from tempfile import TemporaryDirectory
+        from contextlib import redirect_stdout,redirect_stderr
+        from pathlib import Path
+        from io import StringIO
+        from uuid import UUID
+        from scripts.plan_poi_coverage import main
+        import json
+        with self.db.db_session() as session:self.poi.control(session).paused=True
+        with TemporaryDirectory() as directory:
+            catalogue=compile_catalogue(SearchSourceCompilerTests().files(directory),['A'])
+            id_file=Path(directory)/'plan.id';output=StringIO();progress=StringIO()
+            with patch('scripts.plan_poi_coverage.compile_sources',return_value=catalogue),patch('sys.argv',['plan','create','--categories','library','--replace-active','--plan-id-file',str(id_file)]),redirect_stdout(output),redirect_stderr(progress):
+                main()
+            plan_id=UUID(id_file.read_text().strip())
+            self.assertEqual(json.loads(output.getvalue())['plan_id'],str(plan_id))
+            with self.db.db_session() as session:
+                self.assertEqual(session.get(self.m.PoiCoveragePlan,plan_id).radius_m,2000)
+                self.assertEqual(session.get(self.m.PoiJob,self.job_id).status,'needs_review')
+            self.assertIn('committing plan transaction',progress.getvalue())
+            listed=StringIO()
+            with patch('scripts.plan_poi_coverage.compile_sources',side_effect=AssertionError('list must not compile sources')),patch('sys.argv',['plan','list']),redirect_stdout(listed):main()
+            self.assertEqual(json.loads(listed.getvalue())[0]['plan_id'],str(plan_id))
+            with patch('sys.argv',['plan','create','--categories','library','--plan-id-file',str(id_file)]),self.assertRaisesRegex(SystemExit,'already exists'):main()
+        self.assertEqual(self.calls,[])
+
     def test_source_attach_preserves_history_and_requires_pause(self):
         from backend.poi_sources import save_catalogue
         from test_search_area_audit import SearchSourceCompilerTests
@@ -779,7 +830,98 @@ class CollectorTests(unittest.TestCase):
             self.assertEqual(g['provinces'][0]['review_searches'],1)
         self.clear_cooldown();self.tick();self.assertEqual(len(self.calls),2)
 
-    def prepare_polygon_plan(self,result_limit=2,minimum=50,build=True):
+    def test_admin_preparation_reuses_plan_deduplicates_and_resumes_verified_tiles(self):
+        from backend import poi_preparation as preparation
+        from tempfile import TemporaryDirectory
+        from pathlib import Path
+        plan_id,job_id=self.prepare_polygon_plan(result_limit=0,build=False,radius=2000)
+        with TemporaryDirectory() as directory,patch.object(preparation,'SOURCE_DIRECTORY',Path(directory)):
+            for number in range(1,9):(Path(directory)/f'area_to_search{number}.geojson').touch()
+            with self.db.db_session() as session:
+                task,start=preparation.enqueue(session,['library']);task_id=task.id
+                self.assertTrue(start);self.assertEqual(task.plan_id,plan_id)
+            with self.db.db_session() as session:
+                again,start=preparation.enqueue(session,['library'])
+                self.assertFalse(start);self.assertEqual(again.id,task_id)
+                self.assertEqual(self.poi.status(session)['resume_blocked_reason'],'coverage_preparing')
+                with self.assertRaises(ValueError):self.poi.start_collection(session)
+            with patch.object(preparation.coverage,'finalize_plan',side_effect=ValueError('verification interrupted')):
+                with self.assertLogs('backend.poi_preparation',level='ERROR'):preparation.run(task_id)
+            with self.db.db_session() as session:
+                self.assertEqual(session.get(self.m.PoiPreparation,task_id).state,'failed')
+                self.assertGreater(session.scalar(select(func.count()).select_from(self.m.PoiCoverageTile).where(self.m.PoiCoverageTile.plan_id==plan_id,self.m.PoiCoverageTile.state=='verified')),0)
+                again,start=preparation.enqueue(session,['library']);new_id=again.id
+                self.assertTrue(start);self.assertEqual(again.plan_id,plan_id)
+            with patch.object(preparation.coverage.Builder,'solve',side_effect=AssertionError('verified tiles must not rebuild')):
+                preparation.run(new_id)
+            with self.db.db_session() as session:
+                task=session.get(self.m.PoiPreparation,new_id)
+                self.assertEqual(task.state,'completed');self.assertEqual(task.verified_tiles,task.total_tiles)
+                self.assertEqual(session.get(self.m.PoiCoveragePlan,plan_id).state,'ready')
+                self.assertTrue(self.poi.control(session).paused)
+                self.assertEqual(preparation.status(session)['state'],'completed')
+                preparation.set_limit(session,8)
+                self.assertEqual(session.get(self.m.PoiCoveragePlan,plan_id).result_limit,8)
+                self.assertEqual(session.scalar(select(func.count()).select_from(self.m.PoiRequest)),0)
+        self.assertEqual(self.calls,[])
+
+    def test_admin_can_prepare_2km_replacement_for_earlier_500m_plan(self):
+        from backend import poi_preparation as preparation
+        from tempfile import TemporaryDirectory
+        from pathlib import Path
+        plan_id,job_id=self.prepare_polygon_plan(build=False,radius=500)
+        with TemporaryDirectory() as directory,patch.object(preparation,'SOURCE_DIRECTORY',Path(directory)):
+            for number in range(1,9):(Path(directory)/f'area_to_search{number}.geojson').touch()
+            with self.db.db_session() as session:
+                task,start=preparation.enqueue(session,['library'],2000)
+                self.assertTrue(start);self.assertIsNone(task.plan_id)
+                self.assertEqual(session.get(self.m.PoiCoveragePlan,plan_id).radius_m,500)
+                self.assertEqual(session.get(self.m.PoiJob,job_id).status,'pending')
+        self.assertEqual(self.calls,[])
+
+    def test_admin_preparation_auth_validation_and_background_launch(self):
+        from fastapi import FastAPI,HTTPException
+        from fastapi.testclient import TestClient
+        from backend.poi_routes import build_router
+        from backend import poi_preparation as preparation
+        from tempfile import TemporaryDirectory
+        from pathlib import Path
+        self.prepare_polygon_plan(result_limit=0,build=False,radius=2000)
+        def require_admin(request):
+            if request.headers.get('X-Test-Admin')!='yes':raise HTTPException(401)
+        app=FastAPI();app.include_router(build_router(require_admin,require_admin))
+        with TestClient(app) as client,TemporaryDirectory() as directory,patch.object(preparation,'SOURCE_DIRECTORY',Path(directory)),patch.object(preparation,'launch') as launch:
+            for number in range(1,9):(Path(directory)/f'area_to_search{number}.geojson').touch()
+            self.assertEqual(client.post('/api/admin/poi/coverage/prepare',json={'categories':['library']}).status_code,401)
+            self.assertEqual(client.post('/api/admin/poi/coverage/limit',json={'result_limit':8}).status_code,401)
+            client.headers['X-Test-Admin']='yes'
+            self.assertEqual(client.post('/api/admin/poi/coverage/prepare',json={'categories':['library'],'radius_m':500}).status_code,422)
+            self.assertEqual(client.post('/api/admin/poi/coverage/prepare',json={'categories':['invalid']}).status_code,409)
+            self.assertEqual(client.post('/api/admin/poi/coverage/limit',json={'result_limit':0}).status_code,422)
+            response=client.post('/api/admin/poi/coverage/prepare',json={'categories':['library']})
+            self.assertEqual(response.status_code,202,response.text)
+            self.assertEqual(response.headers['cache-control'],'no-store')
+            self.assertEqual(launch.call_count,1)
+            self.assertEqual(client.post('/api/admin/poi/coverage/prepare',json={'categories':['library']}).json()['id'],response.json()['id'])
+            self.assertEqual(launch.call_count,1)
+            self.assertEqual(client.post('/api/admin/poi/coverage/limit',json={'result_limit':8}).status_code,409)
+        self.assertEqual(self.calls,[])
+
+    def test_abandoned_preparation_can_restart_but_a_live_planning_lock_cannot(self):
+        from backend import poi_preparation as preparation
+        with self.db.db_session() as session:
+            task=self.m.PoiPreparation(categories=['library'],radius_m=2000,state='running',phase='sources',message='old',updated_at=self.poi.now()-timedelta(minutes=5))
+            session.add(task);session.flush();task_id=task.id
+        with self.engine.connect() as connection:
+            self.assertTrue(connection.scalar(text('SELECT pg_try_advisory_lock(:key)'),{'key':preparation.PLANNING_LOCK}));connection.commit()
+            try:
+                with self.db.db_session() as session:self.assertTrue(preparation.busy(session))
+            finally:
+                connection.execute(text('SELECT pg_advisory_unlock(:key)'),{'key':preparation.PLANNING_LOCK});connection.commit()
+        with self.db.db_session() as session:
+            self.assertFalse(preparation.busy(session));self.assertEqual(preparation.status(session)['state'],'interrupted')
+
+    def prepare_polygon_plan(self,result_limit=2,minimum=50,build=True,radius=500):
         from backend.poi_sources import Catalogue
         from backend.poi_coverage import project,METRIC_CRS
         from backend.poi_coverage_state import create_plan,Builder,finalize_plan
@@ -795,7 +937,7 @@ class CollectorTests(unittest.TestCase):
             [point],dict(ready=1,review=0,settlements=1,review_points=[]))
         with self.db.db_session() as session:
             self.poi.control(session).paused=True
-            plan=create_plan(session,catalogue,['library'],500,minimum,result_limit,True);plan_id=plan.id;job_id=plan.job_id
+            plan=create_plan(session,catalogue,['library'],radius,minimum,result_limit,True);plan_id=plan.id;job_id=plan.job_id
         if not build:return plan_id,job_id
         with self.db.db_session() as session:
             plan=session.get(self.m.PoiCoveragePlan,plan_id);builder=Builder(session,plan)
