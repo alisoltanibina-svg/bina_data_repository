@@ -25,7 +25,7 @@ function normalizePhone(raw) {
 async function adminFetch(path, options) {
     const response = await (typeof apiFetch === 'function' ? apiFetch : fetch)(`${API_BASE_URL}${path}`, Object.assign({ credentials: 'include', cache: 'no-store' }, options || {}));
     if (response.status === 401 || response.status === 403) {
-        window.location.href = SITE.page('index.html') + '#auth';
+        window.location.href = SITE.page('admin-login.html');
         throw new Error('auth');
     }
     let data = null;
@@ -75,6 +75,13 @@ const AdminApi = {
     },
     ops() {
         return adminFetch('/api/admin/ops');
+    },
+    setMaintenance(enabled) {
+        return adminFetch('/api/admin/ops/maintenance', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled })
+        });
     },
     setRegistration(open) {
         return adminFetch('/api/admin/ops/registration', {
@@ -654,8 +661,22 @@ function setAdminView(view) {
     });
 }
 
+function renderMaintenance(enabled) {
+    const toggle = document.getElementById('maintenance-toggle');
+    const status = document.getElementById('maintenance-state');
+    if (status) status.textContent = enabled ? 'حالت به‌روزرسانی فعال است؛ صفحات سایت بسته هستند.' : 'سایت در دسترس است.';
+    if (toggle) {
+        toggle.dataset.enabled = enabled ? '1' : '0';
+        toggle.setAttribute('aria-checked', String(enabled));
+        toggle.textContent = enabled ? 'غیرفعال‌سازی حالت به‌روزرسانی' : 'فعال‌سازی حالت به‌روزرسانی';
+        toggle.className = enabled ? 'admin-btn admin-btn-primary' : 'admin-btn admin-btn-danger';
+        toggle.disabled = false;
+    }
+}
+
 function renderOps(data) {
     if (!data) return;
+    renderMaintenance(data.maintenance_enabled === true);
     const open = data.registration_open !== false;
     const stateEl = document.getElementById('reg-state');
     const toggle = document.getElementById('reg-toggle');
@@ -978,6 +999,22 @@ function bind() {
     if (deleteBtn) {
         deleteBtn.addEventListener('click', () => {
             if (usersState.detail) openDialog('remove-user', usersState.detail);
+        });
+    }
+    const maintenanceToggle = document.getElementById('maintenance-toggle');
+    if (maintenanceToggle) {
+        maintenanceToggle.addEventListener('click', async () => {
+            if (maintenanceToggle.disabled) return;
+            maintenanceToggle.disabled = true;
+            try {
+                const data = await AdminApi.setMaintenance(maintenanceToggle.dataset.enabled !== '1');
+                renderMaintenance(data.maintenance_enabled);
+                showNotice(data.maintenance_enabled ? 'حالت به‌روزرسانی فعال شد.' : 'سایت دوباره در دسترس است.', 'ok');
+            } catch (err) {
+                showNotice((err && err.message) || 'تغییر وضعیت سایت ممکن نشد.');
+            } finally {
+                maintenanceToggle.disabled = false;
+            }
         });
     }
     const regToggle = document.getElementById('reg-toggle');

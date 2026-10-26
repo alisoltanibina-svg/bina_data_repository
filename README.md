@@ -109,6 +109,27 @@ STATIC_ROOT=/opt/app/dist
 پس از استقرار، `dist/release.json` نسخهٔ فعال خروجی را نشان می‌دهد. هر تغییر واقعی در فایل عمومی، هش جدید می‌سازد و مرورگر URL جدید را بدون پاک‌کردن دستی کش دریافت می‌کند.
 
 
+## Site maintenance mode
+
+In the admin panel, open «وضعیت سامانه» and use «حالت به‌روزرسانی سایت».
+The setting is stored in the existing `site_settings` table; no migration is needed.
+Public pages return HTTP 503 with only the Iran artwork and
+«سایت در حال به روز رسانی است». Public data APIs also return 503.
+The admin panel and `/html/admin-login.html` remain accessible, together with
+the authentication APIs and static assets required to sign in and disable it.
+Turning maintenance off restores pages on their next request.
+
+Deploy backend and frontend together, run `python scripts/build_frontend.py`,
+set `STATIC_ROOT=/opt/app/dist`, and restart the backend. Merge the updated
+`location /` from `deploy/nginx-dashboard.conf.example` into the live Nginx
+configuration, validate it with `nginx -t`, and reload Nginx. Page requests must
+be proxied to the backend; direct Nginx HTML serving bypasses maintenance mode.
+Preserve the API and static asset locations in that example.
+
+Verification: `python -B -m unittest discover -s tests -p test_maintenance.py -v`
+and `node --test tests/admin_maintenance.test.cjs`. Tests use isolated fixtures
+and never change the project database or enable maintenance on the live site.
+
 ## Neshan Atlas and Explorer maps
 
 Atlas and Explorer use Neshan's Leaflet SDK and the `dreamy` base map. Set the web map key

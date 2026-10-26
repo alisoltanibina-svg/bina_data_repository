@@ -18,7 +18,7 @@ htmlcov/
 .venv/
 venv/
 tmp/
-tests/
+tests/*
 
 # Local development and review files; not needed on the production server.
 /tests/*
@@ -46,6 +46,7 @@ artifacts/
 output/
 /deploy/*
 !/deploy/poi-worker.service
+!/deploy/nginx-dashboard.conf.example
 uvicorn.bat
 
 .gitconfig
@@ -71,3 +72,5 @@ assets/images/avatars/*
 !assets/images/avatars/.gitkeep
 
 !/tests/test_poi_coverage.py
+!/tests/test_maintenance.py
+!/tests/admin_maintenance.test.cjs
