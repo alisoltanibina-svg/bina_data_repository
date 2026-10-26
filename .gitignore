@@ -23,6 +23,7 @@ data/.cache-version-*
 tests/*
 tests/
 data/bina_dashboard_database_new.db
+README.md
 
 # Local development and review files; not needed on the production server.
 /tests/*

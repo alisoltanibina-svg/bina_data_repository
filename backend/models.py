@@ -54,6 +54,8 @@ class KDescription(Base):
     indicator_name: Mapped[str | None] = mapped_column(Text)
     description: Mapped[str | None] = mapped_column(Text)
     source_name: Mapped[str | None] = mapped_column(Text)
+    measurement_unit: Mapped[str | None] = mapped_column(Text)
+    question: Mapped[str | None] = mapped_column(Text)
 
 
 class KIndicatorScore(Base):

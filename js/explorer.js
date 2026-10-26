@@ -587,6 +587,20 @@ function renderMosaicMenu() {
     });
 }
 
+function renderIndicatorDescription(description) {
+    const details = description || {};
+    const question = String(details.question || '').trim();
+    const unit = String(details.measurement_unit || '').trim();
+    const source = String(details.source_name || '').trim() || 'مرکز آمار و مراجع رسمی';
+    const narrative = String(details.description || '').trim() || 'توضیحات تکمیلی برای این شاخص در دسترس نیست.';
+    const questionEl = document.getElementById('indicator-question');
+    questionEl.textContent = question;
+    questionEl.hidden = !question;
+    document.getElementById('indicator-unit').textContent = `واحد اندازه‌گیری: ${unit || 'نامشخص'}`;
+    document.getElementById('indicator-source').textContent = `منبع: ${source}`;
+    document.getElementById('insight-text').textContent = narrative;
+}
+
 async function loadIndicator(indicatorName, topicName) {
     const request = ++explorerIndicatorRequest;
     activeIndicatorGlob = indicatorName;
@@ -597,6 +611,9 @@ async function loadIndicator(indicatorName, topicName) {
     document.getElementById('view-landing').style.display = 'none';
     document.getElementById('view-dashboard').classList.remove('hidden');
     document.getElementById('indicator-title').innerText = indicatorName;
+    renderIndicatorDescription(null);
+    document.getElementById('insight-text').textContent = 'در حال بارگذاری اطلاعات...';
+    document.getElementById('indicator-period').textContent = 'دوره: نامشخص';
     activeSubtopicGlob = findSubtopicForIndicator(activeTopicGlob, indicatorName);
     syncExplorerDropdowns();
 
@@ -610,11 +627,7 @@ async function loadIndicator(indicatorName, topicName) {
         const data = await response.json();
         if (request !== explorerIndicatorRequest) return;
 
-        let srcName = data.description && data.description.source_name ? data.description.source_name : "مرکز آمار و مراجع رسمی";
-        let narrative = data.description && data.description.description ? data.description.description : "توضیحات تکمیلی برای این شاخص در دسترس نیست.";
-        
-        document.getElementById('indicator-source').textContent = `منبع: ${srcName}`;
-        document.getElementById('insight-text').innerText = narrative;
+        renderIndicatorDescription(data.description);
 
         kscoreData = data.scores;
         latestYearGlob = data.latest_year != null ? Number(data.latest_year) : null;
@@ -1617,17 +1630,17 @@ function bindExplorerChrome() {
     const countryLegend = document.getElementById('btn-country-legend');
     if (countryLegend) countryLegend.addEventListener('click', toggleCountryLegend);
     const openInsight = document.getElementById('btn-open-insight');
-    const closeInsight = document.getElementById('btn-close-insight');
     function setInsightOpen(on) {
         if (!insightLayer) return;
         insightLayer.hidden = !on;
     }
-    if (openInsight) openInsight.addEventListener('click', () => setInsightOpen(true));
-    if (closeInsight) closeInsight.addEventListener('click', () => setInsightOpen(false));
+    if (openInsight) openInsight.addEventListener('click', () => setInsightOpen(insightLayer.hidden));
     if (insightLayer) {
-        insightLayer.addEventListener('click', (event) => {
-            if (event.target === insightLayer) setInsightOpen(false);
-        });
+        const insightCard = insightLayer.querySelector('.ex-insight-card');
+        document.addEventListener('click', (event) => {
+            if (insightLayer.hidden || (openInsight && openInsight.contains(event.target))) return;
+            if (insightCard && !insightCard.contains(event.target)) setInsightOpen(false);
+        }, true);
     }
 }
 

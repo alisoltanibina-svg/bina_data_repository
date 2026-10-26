@@ -153,13 +153,14 @@
                         </button>
                     </div>
                     <div class="ex-insight-layer" id="insight-layer" hidden>
-                        <section class="ex-insight-card" role="dialog" aria-modal="true" aria-labelledby="indicator-title">
-                            <button type="button" class="ex-insight-close" id="btn-close-insight" aria-label="بستن">
-                                <i class="fa-solid fa-xmark" aria-hidden="true"></i>
-                            </button>
-                            <h2 id="indicator-title">نام شاخص</h2>
+                        <section class="ex-insight-card" role="dialog" aria-modal="true" aria-labelledby="indicator-title" aria-describedby="insight-text">
+                            <div class="ex-insight-heading">
+                                <h2 id="indicator-title">نام شاخص</h2>
+                                <p id="indicator-question" hidden></p>
+                            </div>
                             <p id="insight-text">در حال بارگذاری اطلاعات...</p>
                             <div class="ex-meta">
+                                <span id="indicator-unit">واحد اندازه‌گیری: نامشخص</span>
                                 <span id="indicator-source">منبع: نامشخص</span>
                                 <span id="indicator-period">دوره: نامشخص</span>
                             </div>

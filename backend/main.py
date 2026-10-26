@@ -548,7 +548,7 @@ def _compute_explorer_indicator(name: str) -> dict:
     with db_connection() as conn:
         desc_row = fetchone_dict(
             conn,
-            "SELECT description, source_name FROM kdescription "
+            "SELECT description, source_name, measurement_unit, question FROM kdescription "
             "WHERE indicator_name = :name ORDER BY id",
             {"name": canon},
         )
