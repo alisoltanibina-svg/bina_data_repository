@@ -9,6 +9,12 @@ Purpose: Explorer catalog landing and indicator desk, in the dashboard visual id
     initial-value: #0078d7;
 }
 
+@property --insight-mask-x {
+    syntax: '<percentage>';
+    inherits: false;
+    initial-value: 100%;
+}
+
 :root {
     --banner-gap: 16px;
     --banner-side-gap: 16px;
@@ -740,19 +746,72 @@ body.explorer-body {
 }
 
 .ex-insight-open {
+    --shine: rgba(255, 237, 174, 0.95);
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    height: 32px;
-    padding: 0 14px 1px;
-    border: 1px solid #e2e5dc;
+    min-height: 40px;
+    padding: 7px 22px 8px;
+    border: 1px solid #a18447;
     border-radius: 999px;
-    background: #ffffff;
-    color: #515811;
+    background: #515811;
+    color: #fffdf3;
     font: inherit;
-    font-size: 0.78rem;
-    font-weight: 600;
+    font-size: 0.85rem;
+    font-weight: 700;
+    line-height: 1.5;
     cursor: pointer;
+    box-shadow: 0 3px 12px rgba(81, 88, 17, 0.18);
+    transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 150ms ease;
+}
+
+.ex-insight-open:hover {
+    transform: scale(1.01);
+    box-shadow: 0 5px 16px rgba(81, 88, 17, 0.25);
+}
+
+.ex-insight-open:active { transform: scale(0.97); }
+.ex-insight-open:focus-visible { outline: 3px solid #a18447; outline-offset: 3px; }
+.ex-insight-open:disabled { pointer-events: none; opacity: 0.5; }
+
+.ex-insight-label {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-mask-image: linear-gradient(-75deg, #fff calc(var(--insight-mask-x) + 20%), transparent calc(var(--insight-mask-x) + 30%), #fff calc(var(--insight-mask-x) + 100%));
+    mask-image: linear-gradient(-75deg, #fff calc(var(--insight-mask-x) + 20%), transparent calc(var(--insight-mask-x) + 30%), #fff calc(var(--insight-mask-x) + 100%));
+    animation: insight-text-shine 2s linear infinite;
+}
+
+.ex-insight-shine {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    pointer-events: none;
+    background: linear-gradient(-75deg, transparent 30%, var(--shine) 50%, transparent 70%);
+    background-size: 200% 100%;
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    animation: insight-border-shine 2s linear infinite;
+}
+
+@keyframes insight-text-shine {
+    0% { --insight-mask-x: 100%; }
+    50%, 100% { --insight-mask-x: -100%; }
+}
+
+@keyframes insight-border-shine {
+    0% { background-position: 100% 0; opacity: 0; }
+    25% { opacity: 1; }
+    50%, 100% { background-position: 0% 0; opacity: 0; }
 }
 
 .ex-chart-legend-btn {
@@ -1251,11 +1310,8 @@ body.explorer-body {
         padding-top: 4px;
     }
     .ex-insight-open {
-        height: 28px;
-        font-size: 0.72rem;
-        background: #ffffff;
-        color: #515811;
-        border: 1px solid #e2e5dc;
+        min-height: 40px;
+        font-size: 0.8rem;
     }
     .ex-chart-legend-btn {
         height: 28px;
@@ -1272,6 +1328,9 @@ body.explorer-body {
 
 @media (prefers-reduced-motion: reduce) {
     .ex-room-face { animation: none; }
+    .ex-insight-label { animation: none; -webkit-mask-image: none; mask-image: none; }
+    .ex-insight-shine { animation: none; opacity: 0; }
+    .ex-insight-open { transition: none; }
 }
 
 /* Province SVG paths use their own borders as the focus indicator. */
