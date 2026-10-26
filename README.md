@@ -117,17 +117,22 @@ Public pages return HTTP 503 with only the Iran artwork and
 «سایت در حال به روز رسانی است». Public data APIs also return 503.
 The admin panel and `/html/admin-login.html` remain accessible, together with
 the authentication APIs and static assets required to sign in and disable it.
-Turning maintenance off restores pages on their next request.
+The shared frontend also checks `/api/maintenance/status` on page load, when a
+tab becomes visible, and every 15 seconds. This redirects independently served
+HTML to the maintenance artwork page and returns visitors to their original
+page when maintenance is disabled. Admin and recovery login pages are exempt.
+The status endpoint stays readable while other public APIs return 503.
 
 Deploy backend and frontend together, run `python scripts/build_frontend.py`,
 set `STATIC_ROOT=/opt/app/dist`, and restart the backend. Merge the updated
 `location /` from `deploy/nginx-dashboard.conf.example` into the live Nginx
 configuration, validate it with `nginx -t`, and reload Nginx. Page requests must
-be proxied to the backend; direct Nginx HTML serving bypasses maintenance mode.
+be proxied to the backend for HTTP 503 page responses. If Nginx serves HTML
+directly, the frontend check still displays maintenance after checking status.
 Preserve the API and static asset locations in that example.
 
 Verification: `python -B -m unittest discover -s tests -p test_maintenance.py -v`
-and `node --test tests/admin_maintenance.test.cjs`. Tests use isolated fixtures
+and `node --test tests/admin_maintenance.test.cjs tests/maintenance_navigation.test.cjs`. Tests use isolated fixtures
 and never change the project database or enable maintenance on the live site.
 
 ## Neshan Atlas and Explorer maps

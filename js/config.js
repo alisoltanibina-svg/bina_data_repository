@@ -40,6 +40,15 @@
     };
 })(typeof window !== 'undefined' ? window : this);
 
+// HTML can be served by Nginx or a separate static host. Check maintenance
+// through the API as well as the backend's page gate.
+(function (global) {
+    if (!global.document || !global.SITE) return;
+    var script = global.document.createElement('script');
+    script.src = global.SITE.staticFile('js/maintenance.js');
+    global.document.head.appendChild(script);
+})(typeof window !== 'undefined' ? window : this);
+
 // برای آنلاین بودن از کامنت دربیاید
 // (function (global) {
 //     const hostname = (window.location.hostname || '').toLowerCase();

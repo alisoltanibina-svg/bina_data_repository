@@ -1174,6 +1174,11 @@ def admin_ops(request: Request):
     return JSONResponse(content={**ops_overview(), "maintenance_enabled": maintenance_enabled()}, headers=_AUTH_NO_STORE)
 
 
+@app.get("/api/maintenance/status")
+def public_maintenance_status():
+    return JSONResponse(content={"maintenance_enabled": maintenance_enabled()}, headers=_AUTH_NO_STORE)
+
+
 class MaintenanceToggleBody(InputBody):
     enabled: bool = Field(strict=True)
 
