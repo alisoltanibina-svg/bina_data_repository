@@ -135,6 +135,29 @@ Verification: `python -B -m unittest discover -s tests -p test_maintenance.py -v
 and `node --test tests/admin_maintenance.test.cjs tests/maintenance_navigation.test.cjs`. Tests use isolated fixtures
 and never change the project database or enable maintenance on the live site.
 
+## Refreshing Explorer indicator scores
+
+After committing a data import in the live PostgreSQL database, run from the
+server's project directory:
+
+```bash
+python scripts/refresh_data_cache.py
+```
+
+This rotates `data/.cache-version`. Every running API worker checks that shared
+file on cache access, discards old computed results, and uses new HTTP ETags.
+Cached results are rebuilt on demand. Existing cache lifetimes and HTTP caching
+headers stay the same. Hard-refresh the site (Ctrl+Shift+R) to bypass API responses
+already held in the browser. No frontend build or backend restart is required
+for subsequent data refreshes. Deploy this implementation and restart the API
+once before using the command for the first time.
+
+Run the command in the same deployed checkout as the API. If replicas use
+separate checkouts or containers, set `DATA_CACHE_VERSION_FILE` to the same
+shared, readable file for the API workers and refresh command, or run the
+command in each replica. Do not copy the runtime revision file from a laptop.
+Atlas topic scores are separate and come from `trend_score`.
+
 ## Neshan Atlas and Explorer maps
 
 Atlas and Explorer use Neshan's Leaflet SDK and the `dreamy` base map. Set the web map key

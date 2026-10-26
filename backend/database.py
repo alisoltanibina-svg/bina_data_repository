@@ -22,6 +22,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
 from backend.settings import get_settings
+from backend.cache_revision import read_revision
 
 NATIONAL_NAME = "کل کشور"
 
@@ -205,7 +206,14 @@ class ResultCache:
         self._max_entries = max_entries
 
     def fingerprint(self) -> tuple[int, int]:
-        return (self._stamp, 0)
+        with self._lock:
+            return (self._stamp, 0)
+
+    def sync_revision(self, revision: int) -> None:
+        with self._lock:
+            if self._stamp != revision:
+                self._values.clear()
+                self._stamp = revision
 
     def get(self, key: str, factory: Callable[[], T], *, ttl_seconds: float | None = None) -> T:
         if ttl_seconds is not None and ttl_seconds <= 0:
@@ -223,6 +231,7 @@ class ResultCache:
             if owner:
                 waiter = threading.Event()
                 self._waiters[key] = waiter
+                stamp = self._stamp
 
         if not owner:
             waiter.wait(timeout=120)
@@ -245,16 +254,21 @@ class ResultCache:
             raise
 
         with self._lock:
-            while len(self._values) >= self._max_entries:
-                self._values.popitem(last=False)
-            expires_at = time.monotonic() + ttl_seconds if ttl_seconds is not None else None
-            self._values[key] = (value, expires_at)
+            current = stamp == self._stamp
+            if current:
+                while len(self._values) >= self._max_entries:
+                    self._values.popitem(last=False)
+                expires_at = time.monotonic() + ttl_seconds if ttl_seconds is not None else None
+                self._values[key] = (value, expires_at)
             self._waiters.pop(key, None)
         waiter.set()
+        if not current:
+            return self.get(key, factory, ttl_seconds=ttl_seconds)
         return value
 
 _CACHE = ResultCache()
 
 
 def get_cache() -> ResultCache:
+    _CACHE.sync_revision(read_revision())
     return _CACHE

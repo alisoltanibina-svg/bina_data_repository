@@ -18,6 +18,8 @@ htmlcov/
 .venv/
 venv/
 tmp/
+data/.cache-version
+data/.cache-version-*
 tests/*
 tests/
 data/bina_dashboard_database_new.db
