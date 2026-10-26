@@ -16,18 +16,15 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/assets/images/apple-touch-icon.png">
     <link rel="stylesheet" href="../assets/fonts/peyda.css">
     <script src="../js/force-motion.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js" integrity="sha384-y49Zu59jZHJL/PLKgZPv3k2WI9c0Yp3pWB76V8OBVCb0QBKS8l4Ff3YslzHVX76Y" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.7/dist/gsap.min.js" integrity="sha384-pEQB1h4Zmn9xhS6jotzltHSIQq6N0Oh3BXkCNOH5LKI81R2NRbb9efarAJYw9gTY" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.7/dist/ScrollTrigger.min.js" integrity="sha384-TgZ1GoXcDnrw/czNfaiSZSFV1zgIRv8aQOevBA8ppS4SkNONmzYfjARpXsDfdnUE" crossorigin="anonymous"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha384-iw3OoTErCYJJB9mCa8LNS2hbsQ7M3C0EpIsO/H5+EGAkPGc6rk+V8i04oW/K5xq0" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://static.neshan.org/sdk/leaflet/v1.9.4/neshan-sdk/v1.0.8/index.css">
+    <script src="../assets/vendor/chart.js/chart.umd.min.js" defer></script>
+    <script src="../assets/vendor/chartjs-plugin-datalabels/chartjs-plugin-datalabels.min.js" defer></script>
+    <script src="../assets/vendor/gsap/gsap.min.js" defer></script>
+    <script src="../assets/vendor/gsap/ScrollTrigger.min.js" defer></script>
     <link rel="stylesheet" href="../css/global.css">
     <link rel="stylesheet" href="../css/explorer.css">
     <link rel="stylesheet" href="../css/treat-v1.css">
     <script src="../js/config.js"></script>
     <script src="../js/shared.js"></script>
-    <script src="https://static.neshan.org/sdk/leaflet/v1.9.4/neshan-sdk/v1.0.8/index.js" defer></script>
     <script src="../js/explorer.js" defer></script>
     <script src="../js/auth.js" defer></script>
 </head>
@@ -65,7 +62,7 @@
                             <button type="button" class="ex-dd-toggle" id="dd-topic-btn" aria-expanded="false">
                                 <span class="ex-dd-kicker">حوزه</span>
                                 <span class="ex-dd-value" id="dd-topic-value">—</span>
-                                <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+                                <svg class="ex-dd-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
                             </button>
                             <div class="ex-dd-menu" id="dd-topic-menu" hidden></div>
                         </div>
@@ -73,7 +70,7 @@
                             <button type="button" class="ex-dd-toggle" id="dd-subtopic-btn" aria-expanded="false">
                                 <span class="ex-dd-kicker">موضوع</span>
                                 <span class="ex-dd-value" id="dd-subtopic-value">—</span>
-                                <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+                                <svg class="ex-dd-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
                             </button>
                             <div class="ex-dd-menu" id="dd-subtopic-menu" hidden></div>
                         </div>
@@ -81,7 +78,7 @@
                             <button type="button" class="ex-dd-toggle" id="dd-indicator-btn" aria-expanded="false">
                                 <span class="ex-dd-kicker">شاخص</span>
                                 <span class="ex-dd-value" id="dd-indicator-value">—</span>
-                                <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+                                <svg class="ex-dd-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
                             </button>
                             <div class="ex-dd-menu" id="dd-indicator-menu" hidden></div>
                         </div>
@@ -140,7 +137,7 @@
                             <div class="explorer-map-status" id="explorer-map-status">در حال آماده‌سازی نقشه...</div>
                             <div id="explorer-leaflet-map" class="is-loading" aria-label="نقشه ایران" aria-busy="true" inert></div>
                             <div class="explorer-map-controls">
-                                <label class="explorer-map-timeline" for="explorer-map-timeline"><span class="explorer-map-timeline-track"><input id="explorer-map-timeline" type="range" min="0" max="0" step="1" value="0" aria-label="انتخاب سال"><span id="explorer-map-timeline-value">—</span></span></label><button type="button" class="explorer-map-play" id="btn-explorer-map-play" aria-pressed="false" aria-label="پخش سال‌ها"><i class="fa-solid fa-play" aria-hidden="true"></i><span>پخش سال‌ها</span></button>
+                                <label class="explorer-map-timeline" for="explorer-map-timeline"><span class="explorer-map-timeline-track"><input id="explorer-map-timeline" type="range" min="0" max="0" step="1" value="0" aria-label="انتخاب سال"><span id="explorer-map-timeline-value">—</span></span></label><button type="button" class="explorer-map-play" id="btn-explorer-map-play" aria-pressed="false" aria-label="پخش سال‌ها"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 3 14 9-14 9z"/></svg><span>پخش سال‌ها</span></button>
                                 <div class="explorer-map-legend" id="explorer-map-legend" aria-label="راهنمای امتیاز"><span class="explorer-map-legend-title">امتیاز همه سال‌ها</span><span class="explorer-map-legend-no-data"><span class="explorer-map-legend-no-data-swatch" aria-hidden="true"></span><span>بدون داده</span></span><span class="explorer-map-legend-scale"><span class="explorer-map-legend-bar" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span><span class="explorer-map-legend-range"><b id="explorer-map-legend-min">—</b><b id="explorer-map-legend-max">—</b></span></span></div>
                             </div>
                         </div>

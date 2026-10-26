@@ -96,6 +96,7 @@ let explorerCompareYearIndex = 0;
 let explorerMapPlaybackTimer = null;
 let explorerLeafletMap = null;
 let explorerMapInitPromise = null;
+let explorerMapSdkPromise = null;
 let explorerMapLoaded = false;
 let explorerMapGeoLayer = null;
 let explorerMapLabelsLayer = null;
@@ -123,8 +124,10 @@ let provinceColors = {};
 const API_BASE_URL = window.API_BASE_URL;
 
 async function loadExplorerData() {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
     try {
-        const response = await dashboardFetch(`${API_BASE_URL}/api/explorer/init`, { credentials: 'include' });
+        const response = await dashboardFetch(`${API_BASE_URL}/api/explorer/init`, { credentials: 'include', signal: controller.signal });
         if (response.status === 401 || response.status === 403) {
             setAuthNext({ page: 'explorer', search: window.location.search || '' });
             window.location.replace(authLoginUrl());
@@ -163,6 +166,8 @@ async function loadExplorerData() {
     } catch (err) {
         console.error("Error Loading API Data", err);
         showNotice("مشکل در ارتباط با سرور.");
+    } finally {
+        clearTimeout(timeout);
     }
 }
 
@@ -1284,10 +1289,44 @@ function syncExplorerMapViewport(forceFit = false) {
     return true;
 }
 
+function ensureExplorerMapSdk() {
+    if (explorerMapSdkPromise) return explorerMapSdkPromise;
+    explorerMapSdkPromise = new Promise((resolve, reject) => {
+        const base = 'https://static.neshan.org/sdk/leaflet/v1.9.4/neshan-sdk/v1.0.8/';
+        const style = document.createElement('link');
+        style.rel = 'stylesheet';
+        style.href = base + 'index.css';
+        const script = document.createElement('script');
+        script.src = base + 'index.js';
+        script.async = true;
+        let remaining = 2;
+        const fail = () => {
+            clearTimeout(timeout);
+            style.onload = script.onload = style.onerror = script.onerror = null;
+            style.remove();
+            script.remove();
+            reject(new Error('Neshan map SDK could not be loaded.'));
+        };
+        const ready = () => {
+            if (--remaining) return;
+            if (typeof L === 'undefined') { fail(); return; }
+            clearTimeout(timeout);
+            style.onload = script.onload = style.onerror = script.onerror = null;
+            resolve();
+        };
+        const timeout = setTimeout(fail, 15000);
+        style.onload = script.onload = ready;
+        style.onerror = script.onerror = fail;
+        document.head.append(style, script);
+    }).catch(error => { explorerMapSdkPromise = null; throw error; });
+    return explorerMapSdkPromise;
+}
+
 function initExplorerLeafletMap() {
     if (explorerLeafletMap) return Promise.resolve(explorerLeafletMap);
     if (explorerMapInitPromise) return explorerMapInitPromise;
     explorerMapInitPromise = (async () => {
+        await ensureExplorerMapSdk();
         if (typeof L === 'undefined') throw new Error('Neshan map SDK did not load.');
         const target = document.getElementById('explorer-leaflet-map');
         if (!target) throw new Error('Explorer map container is missing.');
@@ -1349,7 +1388,8 @@ function updateExplorerMapPlaybackControl() {
     button.setAttribute('aria-pressed', playing ? 'true' : 'false');
     button.setAttribute('aria-label', playing ? 'توقف پخش سال‌ها' : 'پخش سال‌ها');
     const label = button.querySelector('span'); if (label) label.textContent = playing ? 'توقف' : 'پخش سال‌ها';
-    const icon = button.querySelector('i'); if (icon) { icon.classList.toggle('fa-play', !playing); icon.classList.toggle('fa-pause', playing); }
+    const icon = button.querySelector('svg');
+    if (icon) icon.innerHTML = playing ? '<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>' : '<path d="m7 3 14 9-14 9z"/>';
 }
 
 function stopExplorerMapPlayback() {
@@ -1368,7 +1408,7 @@ function renderExplorerMap() {
     if (!currentChartYears.length) { setExplorerMapStatus('برای این شاخص، دادهٔ سالانه‌ای موجود نیست.', true); return; }
     if (!explorerMapGeoJson || !explorerLeafletMap) {
         setExplorerMapStatus('در حال بارگذاری نقشه...', true);
-        ensureExplorerMapGeoJson().then(() => initExplorerLeafletMap()).then(() => { if (currentChartMode === 'map') renderExplorerMap(); }).catch(error => {
+        ensureExplorerMapSdk().then(ensureExplorerMapGeoJson).then(() => initExplorerLeafletMap()).then(() => { if (currentChartMode === 'map') renderExplorerMap(); }).catch(error => {
             console.error('Unable to load Explorer map data', error);
             if (currentChartMode === 'map') setExplorerMapStatus('بارگذاری نقشه ممکن نشد. لطفاً صفحه را دوباره بارگذاری کنید.', true);
         });

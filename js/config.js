@@ -72,8 +72,11 @@
     function dataVersion() {
         if (!checking) {
             var options = { cache: 'no-store', credentials: 'omit' };
-            if (global.AbortSignal && typeof global.AbortSignal.timeout === 'function') {
-                options.signal = global.AbortSignal.timeout(5000);
+            var timeout;
+            if (typeof global.AbortController === 'function') {
+                var controller = new global.AbortController();
+                options.signal = controller.signal;
+                timeout = global.setTimeout(function () { controller.abort(); }, 5000);
             }
             checking = global.fetch((global.API_BASE_URL || '') + '/api/data-version', options)
                 .then(function (response) {
@@ -85,7 +88,10 @@
                     return lastVersion;
                 })
                 .catch(function () { return lastVersion; })
-                .finally(function () { checking = null; });
+                .finally(function () {
+                    if (timeout !== undefined) global.clearTimeout(timeout);
+                    checking = null;
+                });
         }
         return checking;
     }

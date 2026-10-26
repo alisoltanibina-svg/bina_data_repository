@@ -344,13 +344,14 @@ body.explorer-body {
     white-space: nowrap;
 }
 
-.ex-dd-toggle i {
+.ex-dd-icon {
     flex-shrink: 0;
-    font-size: 0.7rem;
+    width: 12px;
+    height: 12px;
     margin-inline-start: 2px;
 }
 
-.ex-dd.is-open .ex-dd-toggle i {
+.ex-dd.is-open .ex-dd-icon {
     transform: rotate(180deg);
 }
 
@@ -650,6 +651,7 @@ body.explorer-body {
 
 .explorer-score-tooltip { border: 1px solid #dfe4d1; border-radius: 8px; background: rgba(255,255,255,.96); color: #27300b; font-weight: 700; text-align: center; }
 .explorer-map-play:hover { background: #3d430c; }
+.explorer-map-play svg { width: 12px; height: 12px; flex-shrink: 0; fill: currentColor; }
 .explorer-map-play:focus-visible { outline: 3px solid rgba(81,88,17,.3); outline-offset: 2px; }
 .indicator-table-scroll {
     width: 100%;
