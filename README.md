@@ -147,10 +147,18 @@ python scripts/refresh_data_cache.py
 This rotates `data/.cache-version`. Every running API worker checks that shared
 file on cache access, discards old computed results, and uses new HTTP ETags.
 Cached results are rebuilt on demand. Existing cache lifetimes and HTTP caching
-headers stay the same. Hard-refresh the site (Ctrl+Shift+R) to bypass API responses
-already held in the browser. No frontend build or backend restart is required
+headers stay the same. Before dashboard data requests, the frontend retrieves
+`/api/data-version` with caching disabled and adds that revision to the data URL.
+Browsers therefore fetch new data after an import while reusing cached responses
+when the revision has not changed. Concurrent requests share the version check.
+Users do not need to clear their browser cache or perform a hard refresh: the
+next page load or indicator selection uses the new revision. Already displayed
+charts update when the user requests data again. If the revision endpoint is
+temporarily unavailable, the frontend retains its last known revision.
+No frontend build or backend restart is required
 for subsequent data refreshes. Deploy this implementation and restart the API
-once before using the command for the first time.
+once before using the command for the first time. Deploy the updated frontend
+build together with the backend so browsers have the version-aware requests.
 
 Run the command in the same deployed checkout as the API. If replicas use
 separate checkouts or containers, set `DATA_CACHE_VERSION_FILE` to the same

@@ -39,7 +39,7 @@ class MaintenanceMiddleware(BaseHTTPMiddleware):
         # These are required to sign in and turn maintenance off. Their APIs
         # retain their own authentication, CAPTCHA, CSRF and rate limits.
         if (path.startswith(("/api/admin/", "/api/auth/", "/assets/", "/css/", "/js/"))
-                or path in {"/api/maintenance/status", "/html/admin.html", "/html/admin", "/html/admin-login.html", "/html/admin-login"}):
+                or path in {"/api/maintenance/status", "/api/data-version", "/html/admin.html", "/html/admin", "/html/admin-login.html", "/html/admin-login"}):
             return await call_next(request)
         if await run_in_threadpool(maintenance_enabled):
             headers = {"Cache-Control": "no-store", "Retry-After": "300"}

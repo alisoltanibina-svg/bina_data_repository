@@ -508,11 +508,11 @@ async function fetchJson(url) {
 }
 
 async function fetchAtlasTrend(province, topic) {
-    const key = `${province}::${topic}`;
-    if (atlasTrendCache[key]) return atlasTrendCache[key];
-    const data = await fetchJson(
+    const key = await SITE.dataUrl(
         `${API_BASE_URL}/api/atlas/trend?province=${encodeURIComponent(province)}&topic=${encodeURIComponent(topic)}`
     );
+    if (atlasTrendCache[key]) return atlasTrendCache[key];
+    const data = await fetchJson(key);
     const series = data.series || [];
     atlasTrendCache[key] = series;
     return series;
@@ -654,7 +654,7 @@ function initIndicatorSearch() {
     if (indicatorSearchInitStarted) return;
     indicatorSearchInitStarted = true;
 
-    fetch(`${API_BASE_URL}/api/explorer/init`, { credentials: 'include' })
+    dashboardFetch(`${API_BASE_URL}/api/explorer/init`, { credentials: 'include' })
         .then(r => {
             if (!r.ok) throw new Error('explorer init ' + r.status);
             return r.json();
@@ -724,7 +724,7 @@ function initIndicatorSearch() {
 
 async function loadAllData() {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/init-atlas`, { credentials: 'include' });
+        const response = await dashboardFetch(`${API_BASE_URL}/api/init-atlas`, { credentials: 'include' });
         if (!response.ok) throw new Error(`API error: ${response.statusText}`);
         
         const data = await response.json();

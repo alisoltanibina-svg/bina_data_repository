@@ -54,7 +54,7 @@ async function fillSubtopicSelect() {
     try {
         let hierarchy = topicsHierarchy;
         if (!hierarchy || !Object.keys(hierarchy).length) {
-            const res = await fetch(`${API_BASE_URL}/api/explorer/init`, { credentials: 'include' });
+            const res = await dashboardFetch(`${API_BASE_URL}/api/explorer/init`, { credentials: 'include' });
             if (res.status === 401 || res.status === 403) {
                 setAuthNext({ page: 'bubble', search: window.location.search || '' });
                 window.location.replace(authLoginUrl());
@@ -293,7 +293,7 @@ function initBubblePreview() {
 
 async function loadPickerCatalog() {
     try {
-        const res = await fetch(`${API_BASE_URL}/api/explorer/init`, { credentials: 'include' });
+        const res = await dashboardFetch(`${API_BASE_URL}/api/explorer/init`, { credentials: 'include' });
         if (res.status === 401 || res.status === 403) {
             setAuthNext({ page: 'bubble', search: window.location.search || '' });
             window.location.replace(authLoginUrl());
@@ -369,7 +369,7 @@ async function loadBubbleData(subtopic, opts) {
     const seq = ++loadSeq;
     const prevSub = urlSubtopic;
     try {
-        const response = await fetch(`${API_BASE_URL}/api/bubble/init?topic=${encodeURIComponent(urlTopic)}&subtopic=${encodeURIComponent(sub)}`, { credentials: 'include' });
+        const response = await dashboardFetch(`${API_BASE_URL}/api/bubble/init?topic=${encodeURIComponent(urlTopic)}&subtopic=${encodeURIComponent(sub)}`, { credentials: 'include' });
         if (response.status === 401 || response.status === 403) {
             setAuthNext({ page: 'bubble', search: window.location.search || '' });
             window.location.replace(authLoginUrl());

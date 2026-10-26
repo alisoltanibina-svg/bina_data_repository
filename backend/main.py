@@ -1179,6 +1179,13 @@ def public_maintenance_status():
     return JSONResponse(content={"maintenance_enabled": maintenance_enabled()}, headers=_AUTH_NO_STORE)
 
 
+@app.get("/api/data-version")
+def public_data_version():
+    from backend.cache_revision import read_revision
+    # A string preserves the full revision in JavaScript without integer rounding.
+    return JSONResponse(content={"version": f"{read_revision():032x}"}, headers=_AUTH_NO_STORE)
+
+
 class MaintenanceToggleBody(InputBody):
     enabled: bool = Field(strict=True)
 

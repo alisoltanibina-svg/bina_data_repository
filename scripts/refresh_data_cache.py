@@ -12,7 +12,7 @@ def main() -> None:
     revision = refresh_revision()
     print(f"Data cache refreshed: {revision}")
     print("Workers will reload data on their next request; no restart or frontend build is needed.")
-    print("Hard-refresh the site (Ctrl+Shift+R) to bypass already cached browser responses.")
+    print("Browsers will use new cache URLs on the next dashboard load or data selection.")
 
 
 if __name__ == "__main__":

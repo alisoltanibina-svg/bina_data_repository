@@ -69,3 +69,42 @@
     // صفحه روی دامنه واقعی: مسیر نسبی /api
     global.API_BASE_URL = '';
 })(typeof window !== 'undefined' ? window : this);
+
+// Keep normal data response caching, but use a new cache URL after an import.
+// Only the tiny revision check bypasses the browser cache. Concurrent dashboard
+// requests share that check; later selections check again for a new revision.
+(function (global) {
+    var checking = null;
+    var lastVersion = '00000000000000000000000000000000';
+
+    function dataVersion() {
+        if (!checking) {
+            var options = { cache: 'no-store', credentials: 'omit' };
+            if (global.AbortSignal && typeof global.AbortSignal.timeout === 'function') {
+                options.signal = global.AbortSignal.timeout(5000);
+            }
+            checking = global.fetch((global.API_BASE_URL || '') + '/api/data-version', options)
+                .then(function (response) {
+                    if (!response.ok) throw new Error('Data version unavailable');
+                    return response.json();
+                })
+                .then(function (data) {
+                    if (/^[0-9a-f]{32}$/.test(data.version)) lastVersion = data.version;
+                    return lastVersion;
+                })
+                .catch(function () { return lastVersion; })
+                .finally(function () { checking = null; });
+        }
+        return checking;
+    }
+
+    global.SITE.dataUrl = async function (input) {
+        var version = await dataVersion();
+        var url = new URL(String(input), global.location.href);
+        url.searchParams.set('data_version', version);
+        return url.href;
+    };
+    global.dashboardFetch = async function (input, options) {
+        return global.fetch(await global.SITE.dataUrl(input), options);
+    };
+})(typeof window !== 'undefined' ? window : this);

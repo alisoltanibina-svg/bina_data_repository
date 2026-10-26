@@ -124,7 +124,7 @@ const API_BASE_URL = window.API_BASE_URL;
 
 async function loadExplorerData() {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/explorer/init`, { credentials: 'include' });
+        const response = await dashboardFetch(`${API_BASE_URL}/api/explorer/init`, { credentials: 'include' });
         if (response.status === 401 || response.status === 403) {
             setAuthNext({ page: 'explorer', search: window.location.search || '' });
             window.location.replace(authLoginUrl());
@@ -601,7 +601,7 @@ async function loadIndicator(indicatorName, topicName) {
     syncExplorerDropdowns();
 
     try {
-        const response = await fetch(`${API_BASE_URL}/api/explorer/indicator?name=${encodeURIComponent(indicatorName)}`, { credentials: 'include' });
+        const response = await dashboardFetch(`${API_BASE_URL}/api/explorer/indicator?name=${encodeURIComponent(indicatorName)}`, { credentials: 'include' });
         if (response.status === 401 || response.status === 403) {
             setAuthNext({ page: 'explorer', search: window.location.search || '' });
             window.location.replace(authLoginUrl());
