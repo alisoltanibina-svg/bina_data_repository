@@ -10,6 +10,7 @@ const explorerNumberFormatter = new Intl.NumberFormat('en-US', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2
 });
+const explorerLabelCollator = new Intl.Collator('fa', { sensitivity: 'base', numeric: true });
 
 function formatExplorerNumber(value) {
     if (value === null || value === undefined || value === '' || !Number.isFinite(Number(value))) return '';
@@ -230,12 +231,12 @@ function firstTopicIndicator(topic) {
 }
 
 function subtopicsOf(topic) {
-    return Object.keys(topicsHierarchy[topic] || {});
+    return Object.keys(topicsHierarchy[topic] || {}).sort(explorerLabelCollator.compare);
 }
 
 function indicatorsOf(topic, subtopic) {
     const list = (topicsHierarchy[topic] || {})[subtopic];
-    return Array.isArray(list) ? list : [];
+    return Array.isArray(list) ? [...list].sort(explorerLabelCollator.compare) : [];
 }
 
 function findSubtopicForIndicator(topic, indicator) {
@@ -541,7 +542,7 @@ function renderMosaicMenu() {
     const gen = ++mosaicRenderGen;
 
     killMosaicAnimations();
-    const topics = mosaicTopics();
+    const topics = explorerTopicsInAtlasOrder();
     if (!topics.length) {
         container.innerHTML = '';
         return;
