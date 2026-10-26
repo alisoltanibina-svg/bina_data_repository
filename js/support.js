@@ -75,7 +75,6 @@
         $('wait').hidden = !seconds;
         $('wait').textContent = seconds ? 'محدودیت موقت برای بعضی اقدامات: ' + seconds + ' ثانیه تا تلاش بعدی.' : '';
     }, 1000);
-    function latinDigits(value) { return value.replace(/[۰-۹٠-٩]/g, digit => String('۰۱۲۳۴۵۶۷۸۹'.includes(digit) ? '۰۱۲۳۴۵۶۷۸۹'.indexOf(digit) : '٠١٢٣٤٥٦٧٨٩'.indexOf(digit))); }
     function newReceipt() { return {reference:newTicketReference()}; }
     async function refreshCaptcha() {
         captchaId = '';
@@ -151,7 +150,7 @@
     $('track-form').onsubmit = event => {
         event.preventDefault();
         run($('track-submit'), async () => {
-            const candidate = {reference:latinDigits($('reference').value.trim()).toUpperCase()};
+            const candidate = {reference:toEnDigits($('reference').value.trim()).toUpperCase()};
             $('conversation').hidden = true;
             const ticket = await request('/api/support/tickets/lookup',candidate);
             access = candidate; render(ticket);

@@ -18,10 +18,6 @@ function displayName(row) {
     return parts.join(' ') || '';
 }
 
-function normalizePhone(raw) {
-    return digitsOnlyPhone(raw);
-}
-
 async function adminFetch(path, options) {
     const response = await (typeof apiFetch === 'function' ? apiFetch : fetch)(`${API_BASE_URL}${path}`, Object.assign({ credentials: 'include', cache: 'no-store' }, options || {}));
     if (response.status === 401 || response.status === 403) {
@@ -167,8 +163,8 @@ function includesText(value, query) {
 
 function includesPhone(value, query) {
     if (!query) return true;
-    const needle = normalizePhone(query);
-    const hay = normalizePhone(value);
+    const needle = digitsOnlyPhone(query);
+    const hay = digitsOnlyPhone(value);
     if (needle && hay.includes(needle)) return true;
     return String(value || '').includes(query);
 }

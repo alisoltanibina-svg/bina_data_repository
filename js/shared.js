@@ -1,5 +1,5 @@
 // File: shared.js
-// Purpose: Helpers used by atlas, explorer, bubble, and province-profile pages.
+// Purpose: Shared helpers for the dashboard and account pages.
 
 function escapeHtml(str) {
     return String(str ?? '').replace(/[&<>"']/g, ch => (
@@ -29,11 +29,6 @@ function hexToRgb(hex, fallback) {
 function toFa(num) {
     if (num === null || num === undefined) return '';
     return String(num).replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]);
-}
-
-function toFaFixed(num, digits = 2) {
-    if (num === null || num === undefined || num === '' || !isFinite(Number(num))) return '';
-    return toFa(Number(num).toFixed(digits));
 }
 
 function debounce(fn, wait) {

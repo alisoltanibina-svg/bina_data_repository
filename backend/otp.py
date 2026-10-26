@@ -15,7 +15,7 @@ from urllib.request import Request, urlopen
 from sqlalchemy import delete, func, or_, select, update
 
 from backend.database import db_session
-from backend.membership import MembershipError, assert_login_unlocked, is_mobile_phone, normalize_phone, registration_is_open
+from backend.membership import MembershipError, _mask_phone, assert_login_unlocked, is_mobile_phone, normalize_phone, registration_is_open
 from backend.models import OtpChallenge, RegistrationRequest, User
 from backend.settings import get_settings
 
@@ -23,12 +23,6 @@ log = logging.getLogger("backend.otp")
 
 PURPOSES = frozenset({"register", "reset"})
 _LOOKUP_TEMPLATE_DEFAULT = "binaappotp"
-
-
-def _mask_phone(phone: str) -> str:
-    if len(phone) < 7:
-        return "***"
-    return phone[:4] + "***" + phone[-3:]
 
 
 def _hash_code(salt: str, code: str) -> str:

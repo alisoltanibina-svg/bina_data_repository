@@ -1,6 +1,6 @@
 """Compile the eight supplied layers, preserving raw-source provenance offline."""
 from collections import Counter
-import hashlib,json,math
+import hashlib,json
 from pathlib import Path
 from uuid import uuid5,NAMESPACE_URL
 from shapely.geometry import shape

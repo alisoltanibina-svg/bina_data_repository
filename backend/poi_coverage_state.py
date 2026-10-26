@@ -1,13 +1,13 @@
 """PostgreSQL planning/progress and recursive saturation handling for the worker."""
 from collections import defaultdict
 from uuid import uuid4
-from sqlalchemy import select,func,update
+from sqlalchemy import select,func
 from sqlalchemy.dialects.postgresql import insert
 from shapely import from_wkb,union_all,set_precision,prepare
 from shapely.geometry import Point,shape,mapping
 from shapely.strtree import STRtree
 from backend.poi_models import (PoiCoveragePlan as Plan,PoiCoverageTile as Tile,PoiCoverageCircle as Search,
-    PoiCoverageContribution as Part,PoiSegment,PoiBoundary,PoiSettlement,PoiJob,PoiRequest)
+    PoiCoverageContribution as Part,PoiSegment,PoiBoundary,PoiJob)
 from backend.poi_coverage import Circle,METRIC_CRS,ALGORITHM,PRECISION_M,project,wgs84,cover,tiles,circle_key,refinement_target
 from backend.poi_geo import normalize
 

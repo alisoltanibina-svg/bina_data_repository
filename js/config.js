@@ -1,7 +1,6 @@
 // File: config.js
 // Purpose: Site path helpers after js/css/html folders, plus API_BASE_URL.
-//   Local uvicorn: absolute http://127.0.0.1:8000
-//   Deployed (Nginx same host /api): empty string so requests stay on this origin.
+//   Local previews use the deployed API; hosted pages use same-origin /api.
 
 (function (global) {
     var path = (global.location && global.location.pathname) || '';
@@ -49,14 +48,7 @@
     global.document.head.appendChild(script);
 })(typeof window !== 'undefined' ? window : this);
 
-// برای آنلاین بودن از کامنت دربیاید
-// (function (global) {
-//     const hostname = (window.location.hostname || '').toLowerCase();
-//     const isLocal = hostname === '127.0.0.1' || hostname === 'localhost';
-//     global.API_BASE_URL = isLocal ? 'http://127.0.0.1:8000' : '';
-// })(window);
-
-// برای آفلاین بودن از کامنت دربیاید
+// Local previews use the deployed API; hosted pages use their own origin.
 (function (global) {
     var loc = global.location;
 

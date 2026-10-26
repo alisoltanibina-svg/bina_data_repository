@@ -7,10 +7,9 @@ avoids UTM seam duplication. Tile boundaries never clip candidate search circles
 """
 from dataclasses import dataclass
 from functools import lru_cache,cached_property
-import hashlib
 import math
 from shapely import set_precision, union_all
-from shapely.geometry import Point, box, mapping, shape
+from shapely.geometry import Point, box
 from shapely.strtree import STRtree
 
 METRIC_CRS='+proj=tmerc +lat_0=0 +lon_0=54 +k=0.9996 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs'

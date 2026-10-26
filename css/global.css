@@ -136,11 +136,6 @@ body {
     font-family: 'PeydaFaNumWeb', Tahoma, sans-serif !important;
 }
 
-.h-screen {
-    height: 100vh;
-    height: var(--vvh);
-}
-
 #top-banner {
     position: absolute;
     top: var(--banner-gap);

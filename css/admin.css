@@ -118,17 +118,6 @@ body.admin-body {
     color: var(--ad-muted);
 }
 
-.admin-demo {
-    flex: 0 0 auto;
-    padding: 10px 14px;
-    border-radius: var(--ad-radius);
-    border: 1px solid var(--ad-line);
-    background: #fff;
-    color: var(--ad-muted);
-    font-size: 0.82rem;
-    line-height: 1.6;
-}
-
 .admin-stats {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(10.5rem, 100%), 1fr));

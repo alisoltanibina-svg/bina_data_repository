@@ -8,7 +8,7 @@ from pydantic import Field, FiniteFloat
 from sqlalchemy import select, func
 from backend import database, poi
 from backend.input_security import InputBody
-from backend.poi_models import PoiPlace, PoiPlaceCategory, PoiRequest, PoiJob, PoiDuplicateReview
+from backend.poi_models import PoiPlace, PoiPlaceCategory, PoiRequest, PoiDuplicateReview
 from backend.poi_provider import LAYERS
 
 class JobBody(InputBody):
