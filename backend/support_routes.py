@@ -6,7 +6,7 @@ from urllib.parse import unquote
 from starlette.concurrency import run_in_threadpool
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response, FileResponse
-from pydantic import ConfigDict, Field, StringConstraints, field_validator
+from pydantic import Field, StringConstraints, field_validator
 from backend.captcha import CaptchaError, CaptchaRateLimit, captcha_image, issue_challenge, verify_challenge
 from backend.membership import MembershipError
 from backend import support, ticket_attachments
@@ -53,7 +53,6 @@ class TicketUpdate(InputBody):
 
 class AccountTicketCreate(InputBody):
     attachment_ids: list[AttachmentId] = Field(default_factory=list, max_length=3)
-    model_config = ConfigDict(extra="forbid")
     reference: str = Field(default="", max_length=20, pattern=r"^(SUP-[A-Z2-7]{16})?$")
     category: TicketCategory
     subject: str = Field(min_length=3, max_length=160)
@@ -62,7 +61,6 @@ class AccountTicketCreate(InputBody):
 
 class AccountTicketReply(InputBody):
     attachment_ids: list[AttachmentId] = Field(default_factory=list, max_length=3)
-    model_config = ConfigDict(extra="forbid")
     message: str = Field(min_length=2, max_length=4000)
 
 

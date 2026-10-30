@@ -9,6 +9,12 @@ Purpose: Explorer catalog landing and indicator desk, in the dashboard visual id
     initial-value: #0078d7;
 }
 
+@property --insight-mask-x {
+    syntax: '<percentage>';
+    inherits: false;
+    initial-value: 100%;
+}
+
 :root {
     --banner-gap: 16px;
     --banner-side-gap: 16px;
@@ -344,13 +350,14 @@ body.explorer-body {
     white-space: nowrap;
 }
 
-.ex-dd-toggle i {
+.ex-dd-icon {
     flex-shrink: 0;
-    font-size: 0.7rem;
+    width: 12px;
+    height: 12px;
     margin-inline-start: 2px;
 }
 
-.ex-dd.is-open .ex-dd-toggle i {
+.ex-dd.is-open .ex-dd-icon {
     transform: rotate(180deg);
 }
 
@@ -650,6 +657,7 @@ body.explorer-body {
 
 .explorer-score-tooltip { border: 1px solid #dfe4d1; border-radius: 8px; background: rgba(255,255,255,.96); color: #27300b; font-weight: 700; text-align: center; }
 .explorer-map-play:hover { background: #3d430c; }
+.explorer-map-play svg { width: 12px; height: 12px; flex-shrink: 0; fill: currentColor; }
 .explorer-map-play:focus-visible { outline: 3px solid rgba(81,88,17,.3); outline-offset: 2px; }
 .indicator-table-scroll {
     width: 100%;
@@ -738,19 +746,72 @@ body.explorer-body {
 }
 
 .ex-insight-open {
+    --shine: rgba(255, 237, 174, 0.95);
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    height: 32px;
-    padding: 0 14px 1px;
-    border: 1px solid #e2e5dc;
+    min-height: 40px;
+    padding: 7px 22px 8px;
+    border: 1px solid #a18447;
     border-radius: 999px;
-    background: #ffffff;
-    color: #515811;
+    background: #515811;
+    color: #fffdf3;
     font: inherit;
-    font-size: 0.78rem;
-    font-weight: 600;
+    font-size: 0.85rem;
+    font-weight: 700;
+    line-height: 1.5;
     cursor: pointer;
+    box-shadow: 0 3px 12px rgba(81, 88, 17, 0.18);
+    transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 150ms ease;
+}
+
+.ex-insight-open:hover {
+    transform: scale(1.01);
+    box-shadow: 0 5px 16px rgba(81, 88, 17, 0.25);
+}
+
+.ex-insight-open:active { transform: scale(0.97); }
+.ex-insight-open:focus-visible { outline: 3px solid #a18447; outline-offset: 3px; }
+.ex-insight-open:disabled { pointer-events: none; opacity: 0.5; }
+
+.ex-insight-label {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-mask-image: linear-gradient(-75deg, #fff calc(var(--insight-mask-x) + 20%), transparent calc(var(--insight-mask-x) + 30%), #fff calc(var(--insight-mask-x) + 100%));
+    mask-image: linear-gradient(-75deg, #fff calc(var(--insight-mask-x) + 20%), transparent calc(var(--insight-mask-x) + 30%), #fff calc(var(--insight-mask-x) + 100%));
+    animation: insight-text-shine 2s linear infinite;
+}
+
+.ex-insight-shine {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    pointer-events: none;
+    background: linear-gradient(-75deg, transparent 30%, var(--shine) 50%, transparent 70%);
+    background-size: 200% 100%;
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    animation: insight-border-shine 2s linear infinite;
+}
+
+@keyframes insight-text-shine {
+    0% { --insight-mask-x: 100%; }
+    50%, 100% { --insight-mask-x: -100%; }
+}
+
+@keyframes insight-border-shine {
+    0% { background-position: 100% 0; opacity: 0; }
+    25% { opacity: 1; }
+    50%, 100% { background-position: 0% 0; opacity: 0; }
 }
 
 .ex-chart-legend-btn {
@@ -798,30 +859,15 @@ body.explorer-body {
 
 .ex-insight-layer[hidden] { display: none; }
 
-.ex-insight-close {
-    position: absolute;
-    top: 10px;
-    inset-inline-start: 10px;
-    width: 32px;
-    height: 32px;
-    border: 0;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.16);
-    color: #fff;
-    cursor: pointer;
-    display: grid;
-    place-items: center;
-}
-
 .ex-insight-card {
     position: relative;
-    width: min(100%, 28rem);
-    max-height: min(72%, 28rem);
+    width: min(100%, 48rem);
+    max-height: 90%;
     overflow: auto;
     flex: 0 0 auto;
-    padding: 18px 18px 16px;
+    padding: 0 0 4px;
     border-radius: 18px;
-    background: #515811;
+    background: transparent;
     color: #fff;
 }
 
@@ -834,12 +880,37 @@ body.explorer-body {
     min-height: 0;
 }
 
+.ex-insight-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.ex-insight-card h2,
+.ex-insight-card #indicator-question {
+    margin: 0;
+    padding: 10px 14px;
+    border-radius: 14px;
+    background: #515811;
+    color: #fff;
+    overflow-wrap: anywhere;
+}
+
 .ex-insight-card h2 {
-    margin: 0 0 10px;
-    padding-inline-start: 36px;
+    flex: 1 1 11rem;
     font-size: 1.15rem;
     font-weight: 800;
     line-height: 1.5;
+}
+
+.ex-insight-card #indicator-question {
+    flex: 2 1 20rem;
+    font-size: 1.05rem;
+    font-weight: 800;
+    line-height: 1.65;
+    white-space: pre-line;
 }
 
 .ex-insight-card #insight-text {
@@ -849,6 +920,24 @@ body.explorer-body {
     line-height: 1.85;
     color: rgba(255, 255, 255, 0.92);
     text-align: justify;
+    padding: 14px 16px;
+    border-radius: 18px;
+    background: #515811;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+}
+
+.ex-insight-card .ex-meta {
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.ex-insight-card .ex-meta span {
+    max-width: 100%;
+    border: 0;
+    background: #fff;
+    color: #515811;
+    overflow-wrap: anywhere;
 }
 
 .ex-prov-rail {
@@ -1157,16 +1246,17 @@ body.explorer-body {
         color: #515811;
     }
     .ex-insight-card {
-        background: #515811;
+        background: transparent;
         border-radius: 22px;
-        padding: 18px 18px 16px;
+        padding: 0 0 4px;
     }
     .ex-insight-card h2 {
         font-size: 1.15rem;
-        margin-bottom: 8px;
-        padding-bottom: 8px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.28);
-        display: inline-block;
+        margin: 0;
+        border: 0;
+    }
+    .ex-insight-card #indicator-question {
+        font-size: 0.95rem;
     }
     .ex-insight-card #insight-text {
         font-size: 0.78rem;
@@ -1220,11 +1310,8 @@ body.explorer-body {
         padding-top: 4px;
     }
     .ex-insight-open {
-        height: 28px;
-        font-size: 0.72rem;
-        background: #ffffff;
-        color: #515811;
-        border: 1px solid #e2e5dc;
+        min-height: 40px;
+        font-size: 0.8rem;
     }
     .ex-chart-legend-btn {
         height: 28px;
@@ -1241,6 +1328,9 @@ body.explorer-body {
 
 @media (prefers-reduced-motion: reduce) {
     .ex-room-face { animation: none; }
+    .ex-insight-label { animation: none; -webkit-mask-image: none; mask-image: none; }
+    .ex-insight-shine { animation: none; opacity: 0; }
+    .ex-insight-open { transition: none; }
 }
 
 /* Province SVG paths use their own borders as the focus indicator. */

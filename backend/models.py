@@ -54,6 +54,8 @@ class KDescription(Base):
     indicator_name: Mapped[str | None] = mapped_column(Text)
     description: Mapped[str | None] = mapped_column(Text)
     source_name: Mapped[str | None] = mapped_column(Text)
+    measurement_unit: Mapped[str | None] = mapped_column(Text)
+    question: Mapped[str | None] = mapped_column(Text)
 
 
 class KIndicatorScore(Base):
@@ -436,3 +438,6 @@ class SupportAttachment(Base):
     state: Mapped[str] = mapped_column(String(12), nullable=False, server_default="ready")
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+# Register acquisition tables for Alembic and application/test metadata.
+from backend import poi_models as _poi_models  # noqa: E402,F401

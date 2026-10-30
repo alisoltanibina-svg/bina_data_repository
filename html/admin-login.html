@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ورود مدیر</title>
+    <link rel="stylesheet" href="/assets/fonts/peyda.css">
+    <link rel="stylesheet" href="/css/admin-login.css">
+    <script src="/js/admin-login.js" defer></script>
+</head>
+<body>
+    <main>
+        <h1>ورود مدیر</h1>
+        <form id="admin-login">
+            <label>شماره همراه<input name="phone" type="tel" dir="ltr" autocomplete="username" maxlength="16" required></label>
+            <label>رمز عبور<input name="password" type="password" dir="ltr" autocomplete="current-password" maxlength="200" required></label>
+            <button id="captcha-refresh" type="button">دریافت کد امنیتی</button>
+            <img id="captcha-image" alt="کد امنیتی" hidden>
+            <label>کد امنیتی<input name="captcha_answer" dir="ltr" autocomplete="off" maxlength="5" required></label>
+            <button id="login-submit" type="submit" disabled>ورود به پنل مدیریت</button>
+            <p id="login-error" role="alert"></p>
+        </form>
+    </main>
+</body>
+</html>

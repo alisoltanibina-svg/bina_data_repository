@@ -118,17 +118,6 @@ body.admin-body {
     color: var(--ad-muted);
 }
 
-.admin-demo {
-    flex: 0 0 auto;
-    padding: 10px 14px;
-    border-radius: var(--ad-radius);
-    border: 1px solid var(--ad-line);
-    background: #fff;
-    color: var(--ad-muted);
-    font-size: 0.82rem;
-    line-height: 1.6;
-}
-
 .admin-stats {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(10.5rem, 100%), 1fr));
@@ -748,8 +737,9 @@ body.admin-body {
     overflow: auto;
 }
 
-/* Ticket details can exceed the fixed-height workspace; keep every control reachable. */
-#view-support {
+/* Long admin sections scroll inside the fixed-height workspace. */
+#view-support,
+#view-poi {
     flex: 1 1 auto;
     min-height: 0;
     min-width: 0;
@@ -827,3 +817,18 @@ body.admin-body {
     }
     .admin-row-actions { justify-content: flex-start; }
 }
+
+#view-poi .support-admin-toolbar { display: flex; flex-wrap: wrap; gap: .75rem; }
+#view-poi form { display: grid; gap: 1rem; margin-block: 1rem; }
+#view-poi form label { display: grid; gap: .4rem; }
+#view-poi [hidden] { display: none !important; }
+#view-poi select, #view-poi input { max-width: 100%; padding: .6rem; font: inherit; }
+#view-poi details { margin-block: 1.5rem; }
+#poi-raw { max-height: 24rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+#poi-history, #poi-reviews { max-height: 24rem; overflow: auto; overflow-wrap: anywhere; }
+
+#view-poi .poi-source-controls { display: grid; gap: .75rem; margin-block: 1rem; }
+#view-poi .poi-source-controls label { display: grid; gap: .4rem; }
+
+#poi-progress { display: block; width: 100%; height: 1.1rem; accent-color: #515811; margin-block: .75rem; }
+#poi-point-coordinates { overflow-wrap: anywhere; }

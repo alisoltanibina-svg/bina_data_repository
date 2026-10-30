@@ -47,16 +47,6 @@ Purpose: Photo picker on the signed-in profile page.
     display: none;
 }
 
-.profile-photo-hint {
-    margin: 0;
-    max-width: 28ch;
-    text-align: center;
-    font-size: 0.78rem;
-    font-weight: 400;
-    line-height: 1.65;
-    color: var(--rg-muted);
-}
-
 .profile-photo-clear {
     height: 34px;
     padding: 0 12px 1px;

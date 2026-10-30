@@ -79,6 +79,7 @@ from backend.membership import (
 from backend.otp import cleanup_expired_challenges as cleanup_expired_otp_challenges, send_otp, verify_otp
 from backend.ratelimit import RateLimitMiddleware
 from backend.settings import get_settings
+from backend.maintenance import MaintenanceMiddleware, maintenance_enabled, set_maintenance
 from backend.captcha import (
     CaptchaError,
     CaptchaRateLimit,
@@ -215,6 +216,13 @@ class CachedStaticFiles(StaticFiles):
             "bubble-chart", "bubble-chart.html", "html/bubble-chart", "html/bubble-chart.html",
         }:
             return RedirectResponse("/html/explorer.html", status_code=308, headers={"Cache-Control": "no-store"})
+        # Preserve Nginx's former $uri.html fallback now that page navigation
+        # passes through the backend maintenance gate.
+        relative = _normalized_static_path(path) or ""
+        if relative and not Path(relative).suffix and _static_is_public(relative + ".html"):
+            candidate = Path(self.directory) / (relative + ".html")
+            if candidate.is_file():
+                path = relative + ".html"
         if not _static_is_public(path):
             return Response(status_code=404, content="Not Found")
         response = await super().get_response(path, scope)
@@ -406,6 +414,9 @@ app.add_middleware(CORSMiddleware, allow_origins=_cors_origins(), allow_credenti
     expose_headers=["X-Request-ID", "Retry-After"])
 
 app.add_middleware(GZipMiddleware, minimum_size=500)
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_STATIC_ROOT = Path(os.getenv("STATIC_ROOT", str(_PROJECT_ROOT))).resolve()
+app.add_middleware(MaintenanceMiddleware, static_root=_STATIC_ROOT)
 app.add_middleware(SecurityHeadersMiddleware)
 
 
@@ -543,7 +554,7 @@ def _compute_explorer_indicator(name: str) -> dict:
     with db_connection() as conn:
         desc_row = fetchone_dict(
             conn,
-            "SELECT description, source_name FROM kdescription "
+            "SELECT description, source_name, measurement_unit, question FROM kdescription "
             "WHERE indicator_name = :name ORDER BY id",
             {"name": canon},
         )
@@ -1166,7 +1177,29 @@ def admin_set_user_active(user_id: int, body: UserActiveBody, request: Request):
 @app.get("/api/admin/ops")
 def admin_ops(request: Request):
     _require_admin(request)
-    return JSONResponse(content=ops_overview(), headers=_AUTH_NO_STORE)
+    return JSONResponse(content={**ops_overview(), "maintenance_enabled": maintenance_enabled()}, headers=_AUTH_NO_STORE)
+
+
+@app.get("/api/maintenance/status")
+def public_maintenance_status():
+    return JSONResponse(content={"maintenance_enabled": maintenance_enabled()}, headers=_AUTH_NO_STORE)
+
+
+@app.get("/api/data-version")
+def public_data_version():
+    from backend.cache_revision import read_revision
+    # A string preserves the full revision in JavaScript without integer rounding.
+    return JSONResponse(content={"version": f"{read_revision():032x}"}, headers=_AUTH_NO_STORE)
+
+
+class MaintenanceToggleBody(InputBody):
+    enabled: bool = Field(strict=True)
+
+
+@app.post("/api/admin/ops/maintenance")
+def admin_set_maintenance(body: MaintenanceToggleBody, request: Request):
+    _require_admin(request)
+    return JSONResponse(content={"maintenance_enabled": set_maintenance(body.enabled)}, headers=_AUTH_NO_STORE)
 
 
 @app.get("/api/admin/requests/export")
@@ -1216,9 +1249,10 @@ async def unexpected_error(request: Request, error: Exception):
 from backend.support_routes import build_router as build_support_router
 app.include_router(build_support_router(_require_admin, _raise_membership, _require_user))
 
+from backend.poi_routes import build_router as build_poi_router
+app.include_router(build_poi_router(_require_admin, _require_user))
 
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
-_STATIC_ROOT = Path(os.getenv("STATIC_ROOT", str(_PROJECT_ROOT))).resolve()
+
 app.mount(
     "/",
     CachedStaticFiles(directory=str(_STATIC_ROOT), html=True),

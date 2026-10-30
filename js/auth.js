@@ -175,7 +175,9 @@
     }
 
     function loadProfile() {
-        (typeof apiFetch === 'function' ? apiFetch : fetch)(apiBase() + '/api/auth/session', { credentials: 'include' })
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 12000);
+        (typeof apiFetch === 'function' ? apiFetch : fetch)(apiBase() + '/api/auth/session', { credentials: 'include', signal: controller.signal })
             .then(function (response) {
                 if (response.ok) return response.json();
                 if (response.status === 401 || response.status === 403) return null;
@@ -193,7 +195,7 @@
                 applyProfile(readBannerProfile() || null);
                 document.documentElement.classList.remove('auth-pending');
                 notifyAuthReady();
-            });
+            }).finally(() => clearTimeout(timeout));
     }
 
     function clearLocalSession() {

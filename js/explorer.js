@@ -10,6 +10,7 @@ const explorerNumberFormatter = new Intl.NumberFormat('en-US', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2
 });
+const explorerLabelCollator = new Intl.Collator('fa', { sensitivity: 'base', numeric: true });
 
 function formatExplorerNumber(value) {
     if (value === null || value === undefined || value === '' || !Number.isFinite(Number(value))) return '';
@@ -95,6 +96,7 @@ let explorerCompareYearIndex = 0;
 let explorerMapPlaybackTimer = null;
 let explorerLeafletMap = null;
 let explorerMapInitPromise = null;
+let explorerMapSdkPromise = null;
 let explorerMapLoaded = false;
 let explorerMapGeoLayer = null;
 let explorerMapLabelsLayer = null;
@@ -122,8 +124,10 @@ let provinceColors = {};
 const API_BASE_URL = window.API_BASE_URL;
 
 async function loadExplorerData() {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
     try {
-        const response = await fetch(`${API_BASE_URL}/api/explorer/init`, { credentials: 'include' });
+        const response = await dashboardFetch(`${API_BASE_URL}/api/explorer/init`, { credentials: 'include', signal: controller.signal });
         if (response.status === 401 || response.status === 403) {
             setAuthNext({ page: 'explorer', search: window.location.search || '' });
             window.location.replace(authLoginUrl());
@@ -162,6 +166,8 @@ async function loadExplorerData() {
     } catch (err) {
         console.error("Error Loading API Data", err);
         showNotice("مشکل در ارتباط با سرور.");
+    } finally {
+        clearTimeout(timeout);
     }
 }
 
@@ -230,12 +236,12 @@ function firstTopicIndicator(topic) {
 }
 
 function subtopicsOf(topic) {
-    return Object.keys(topicsHierarchy[topic] || {});
+    return Object.keys(topicsHierarchy[topic] || {}).sort(explorerLabelCollator.compare);
 }
 
 function indicatorsOf(topic, subtopic) {
     const list = (topicsHierarchy[topic] || {})[subtopic];
-    return Array.isArray(list) ? list : [];
+    return Array.isArray(list) ? [...list].sort(explorerLabelCollator.compare) : [];
 }
 
 function findSubtopicForIndicator(topic, indicator) {
@@ -541,7 +547,7 @@ function renderMosaicMenu() {
     const gen = ++mosaicRenderGen;
 
     killMosaicAnimations();
-    const topics = mosaicTopics();
+    const topics = explorerTopicsInAtlasOrder();
     if (!topics.length) {
         container.innerHTML = '';
         return;
@@ -586,6 +592,20 @@ function renderMosaicMenu() {
     });
 }
 
+function renderIndicatorDescription(description) {
+    const details = description || {};
+    const question = String(details.question || '').trim();
+    const unit = String(details.measurement_unit || '').trim();
+    const source = String(details.source_name || '').trim() || 'مرکز آمار و مراجع رسمی';
+    const narrative = String(details.description || '').trim() || 'توضیحات تکمیلی برای این شاخص در دسترس نیست.';
+    const questionEl = document.getElementById('indicator-question');
+    questionEl.textContent = question;
+    questionEl.hidden = !question;
+    document.getElementById('indicator-unit').textContent = `واحد اندازه‌گیری: ${unit || 'نامشخص'}`;
+    document.getElementById('indicator-source').textContent = `منبع: ${source}`;
+    document.getElementById('insight-text').textContent = narrative;
+}
+
 async function loadIndicator(indicatorName, topicName) {
     const request = ++explorerIndicatorRequest;
     activeIndicatorGlob = indicatorName;
@@ -596,11 +616,14 @@ async function loadIndicator(indicatorName, topicName) {
     document.getElementById('view-landing').style.display = 'none';
     document.getElementById('view-dashboard').classList.remove('hidden');
     document.getElementById('indicator-title').innerText = indicatorName;
+    renderIndicatorDescription(null);
+    document.getElementById('insight-text').textContent = 'در حال بارگذاری اطلاعات...';
+    document.getElementById('indicator-period').textContent = 'دوره: نامشخص';
     activeSubtopicGlob = findSubtopicForIndicator(activeTopicGlob, indicatorName);
     syncExplorerDropdowns();
 
     try {
-        const response = await fetch(`${API_BASE_URL}/api/explorer/indicator?name=${encodeURIComponent(indicatorName)}`, { credentials: 'include' });
+        const response = await dashboardFetch(`${API_BASE_URL}/api/explorer/indicator?name=${encodeURIComponent(indicatorName)}`, { credentials: 'include' });
         if (response.status === 401 || response.status === 403) {
             setAuthNext({ page: 'explorer', search: window.location.search || '' });
             window.location.replace(authLoginUrl());
@@ -609,11 +632,7 @@ async function loadIndicator(indicatorName, topicName) {
         const data = await response.json();
         if (request !== explorerIndicatorRequest) return;
 
-        let srcName = data.description && data.description.source_name ? data.description.source_name : "مرکز آمار و مراجع رسمی";
-        let narrative = data.description && data.description.description ? data.description.description : "توضیحات تکمیلی برای این شاخص در دسترس نیست.";
-        
-        document.getElementById('indicator-source').textContent = `منبع: ${srcName}`;
-        document.getElementById('insight-text').innerText = narrative;
+        renderIndicatorDescription(data.description);
 
         kscoreData = data.scores;
         latestYearGlob = data.latest_year != null ? Number(data.latest_year) : null;
@@ -1270,10 +1289,44 @@ function syncExplorerMapViewport(forceFit = false) {
     return true;
 }
 
+function ensureExplorerMapSdk() {
+    if (explorerMapSdkPromise) return explorerMapSdkPromise;
+    explorerMapSdkPromise = new Promise((resolve, reject) => {
+        const base = 'https://static.neshan.org/sdk/leaflet/v1.9.4/neshan-sdk/v1.0.8/';
+        const style = document.createElement('link');
+        style.rel = 'stylesheet';
+        style.href = base + 'index.css';
+        const script = document.createElement('script');
+        script.src = base + 'index.js';
+        script.async = true;
+        let remaining = 2;
+        const fail = () => {
+            clearTimeout(timeout);
+            style.onload = script.onload = style.onerror = script.onerror = null;
+            style.remove();
+            script.remove();
+            reject(new Error('Neshan map SDK could not be loaded.'));
+        };
+        const ready = () => {
+            if (--remaining) return;
+            if (typeof L === 'undefined') { fail(); return; }
+            clearTimeout(timeout);
+            style.onload = script.onload = style.onerror = script.onerror = null;
+            resolve();
+        };
+        const timeout = setTimeout(fail, 15000);
+        style.onload = script.onload = ready;
+        style.onerror = script.onerror = fail;
+        document.head.append(style, script);
+    }).catch(error => { explorerMapSdkPromise = null; throw error; });
+    return explorerMapSdkPromise;
+}
+
 function initExplorerLeafletMap() {
     if (explorerLeafletMap) return Promise.resolve(explorerLeafletMap);
     if (explorerMapInitPromise) return explorerMapInitPromise;
     explorerMapInitPromise = (async () => {
+        await ensureExplorerMapSdk();
         if (typeof L === 'undefined') throw new Error('Neshan map SDK did not load.');
         const target = document.getElementById('explorer-leaflet-map');
         if (!target) throw new Error('Explorer map container is missing.');
@@ -1335,7 +1388,8 @@ function updateExplorerMapPlaybackControl() {
     button.setAttribute('aria-pressed', playing ? 'true' : 'false');
     button.setAttribute('aria-label', playing ? 'توقف پخش سال‌ها' : 'پخش سال‌ها');
     const label = button.querySelector('span'); if (label) label.textContent = playing ? 'توقف' : 'پخش سال‌ها';
-    const icon = button.querySelector('i'); if (icon) { icon.classList.toggle('fa-play', !playing); icon.classList.toggle('fa-pause', playing); }
+    const icon = button.querySelector('svg');
+    if (icon) icon.innerHTML = playing ? '<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>' : '<path d="m7 3 14 9-14 9z"/>';
 }
 
 function stopExplorerMapPlayback() {
@@ -1354,7 +1408,7 @@ function renderExplorerMap() {
     if (!currentChartYears.length) { setExplorerMapStatus('برای این شاخص، دادهٔ سالانه‌ای موجود نیست.', true); return; }
     if (!explorerMapGeoJson || !explorerLeafletMap) {
         setExplorerMapStatus('در حال بارگذاری نقشه...', true);
-        ensureExplorerMapGeoJson().then(() => initExplorerLeafletMap()).then(() => { if (currentChartMode === 'map') renderExplorerMap(); }).catch(error => {
+        ensureExplorerMapSdk().then(ensureExplorerMapGeoJson).then(() => initExplorerLeafletMap()).then(() => { if (currentChartMode === 'map') renderExplorerMap(); }).catch(error => {
             console.error('Unable to load Explorer map data', error);
             if (currentChartMode === 'map') setExplorerMapStatus('بارگذاری نقشه ممکن نشد. لطفاً صفحه را دوباره بارگذاری کنید.', true);
         });
@@ -1616,17 +1670,17 @@ function bindExplorerChrome() {
     const countryLegend = document.getElementById('btn-country-legend');
     if (countryLegend) countryLegend.addEventListener('click', toggleCountryLegend);
     const openInsight = document.getElementById('btn-open-insight');
-    const closeInsight = document.getElementById('btn-close-insight');
     function setInsightOpen(on) {
         if (!insightLayer) return;
         insightLayer.hidden = !on;
     }
-    if (openInsight) openInsight.addEventListener('click', () => setInsightOpen(true));
-    if (closeInsight) closeInsight.addEventListener('click', () => setInsightOpen(false));
+    if (openInsight) openInsight.addEventListener('click', () => setInsightOpen(insightLayer.hidden));
     if (insightLayer) {
-        insightLayer.addEventListener('click', (event) => {
-            if (event.target === insightLayer) setInsightOpen(false);
-        });
+        const insightCard = insightLayer.querySelector('.ex-insight-card');
+        document.addEventListener('click', (event) => {
+            if (insightLayer.hidden || (openInsight && openInsight.contains(event.target))) return;
+            if (insightCard && !insightCard.contains(event.target)) setInsightOpen(false);
+        }, true);
     }
 }
 

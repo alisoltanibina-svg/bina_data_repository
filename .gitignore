@@ -17,9 +17,20 @@ htmlcov/
 !.env.example
 .venv/
 venv/
+tmp/
+data/.cache-version
+data/.cache-version-*
+tests/*
+tests/
+data/bina_dashboard_database_new.db
+README.md
 
 # Local development and review files; not needed on the production server.
-/tests/
+/tests/*
+!/tests/test_poi_collection.py
+!/tests/test_search_area_audit.py
+!/tests/test_poi_diagnostics.py
+!/tests/admin_poi_controls.test.cjs
 /docs/
 
 benchmark_100_users_report.json
@@ -38,7 +49,9 @@ data/bina_dashboard_database.db
 
 artifacts/
 output/
-deploy/
+/deploy/*
+!/deploy/poi-worker.service
+!/deploy/nginx-dashboard.conf.example
 uvicorn.bat
 
 .gitconfig
@@ -62,3 +75,7 @@ Thumbs.db
 
 assets/images/avatars/*
 !assets/images/avatars/.gitkeep
+
+!/tests/test_poi_coverage.py
+!/tests/test_maintenance.py
+!/tests/admin_maintenance.test.cjs

@@ -22,6 +22,9 @@ class Settings(BaseSettings):
 
     database_url: SecretStr
     neshan_map_api_key: SecretStr = SecretStr("")
+    neshan_service_api_key: SecretStr = SecretStr("")
+    neshan_nearby_result_cap: int = 0
+    neshan_collection_authorized: bool = False
     cors_origins: str = "https://app.rasadbina.ir"
     admin_phone: str = ""
     admin_password: SecretStr = SecretStr("")

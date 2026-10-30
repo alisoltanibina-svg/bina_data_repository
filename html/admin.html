@@ -26,6 +26,7 @@
     <script src="../js/ticket-attachments.js" defer></script>
  <script src="../js/admin-support.js" defer></script>
     <script src="../js/admin.js" defer></script>
+    <script src="../js/admin-poi.js" defer></script>
     <script src="../js/auth.js" defer></script>
  <link rel="stylesheet" href="../css/ticket-attachments.css">
 </head>
@@ -41,12 +42,101 @@
                 <button type="button" class="admin-view-tab is-active" role="tab" aria-selected="true" data-view="requests">درخواست‌های عضویت</button>
                 <button type="button" class="admin-view-tab" role="tab" aria-selected="false" data-view="users">حساب‌ها و عکس‌ها</button>
                 <button type="button" class="admin-view-tab" role="tab" aria-selected="false" data-view="support">تیکت‌های پشتیبانی</button>
+                <button type="button" class="admin-view-tab" role="tab" aria-selected="false" data-view="poi">گردآوری مکان‌ها</button>
                 <button type="button" class="admin-view-tab" role="tab" aria-selected="false" data-view="ops">وضعیت سامانه</button>
             </div>
             <h1 id="admin-title">درخواست‌های عضویت</h1>
             <p class="admin-lead" id="admin-lead">درخواست‌های ثبت‌نام را بررسی کنید. پذیرش، حساب را می‌سازد؛ رد، فقط پرونده را می‌بندد.</p>
         </header>
 
+        <section id="view-poi" hidden aria-label="گردآوری مکان‌ها">
+            <p class="support-hint">گردآوری به‌صورت خودکار بین نقاط و استان‌ها ادامه می‌یابد. نتیجه‌های بدون هش قابل استفاده رد می‌شوند؛ هش‌های جدید پیش از جست‌وجوی بعدی برای دریافت جزئیات ارسال می‌شوند.</p>
+            <p id="poi-error" class="support-error" role="alert" hidden></p>
+            <div class="support-admin-toolbar">
+                <button type="button" class="admin-btn" id="poi-resume">شروع / ادامهٔ گردآوری</button>
+                <button type="button" class="admin-btn admin-btn-ghost" id="poi-pause">توقف گردآوری</button>
+                <button type="button" class="admin-btn admin-btn-ghost" id="poi-refresh">تازه‌سازی گزارش</button>
+            </div>
+            <article class="support-card" id="poi-coverage-setup">
+                <h2>آماده‌سازی برنامهٔ جست‌وجو</h2>
+                <p>پوشش کامل مرزها با شعاع ۲ کیلومتر و جست‌وجوی نقاط با شعاع ۳ کیلومتر آماده می‌شود. اطلاعات مکان‌های ذخیره‌شده حفظ می‌شود و برنامهٔ قبلی در سوابق می‌ماند.</p>
+                <form id="poi-coverage-form">
+                    <label>دسته‌های جست‌وجو<select id="poi-coverage-categories" multiple size="5" required></select></label>
+                    <button type="submit" class="admin-btn" id="poi-coverage-prepare">آماده‌سازی / ادامهٔ ساخت پوشش</button>
+                </form>
+                <p id="poi-preparation-status" role="status" aria-live="polite"></p>
+                <progress id="poi-preparation-progress" value="0" max="100" aria-label="پیشرفت آماده‌سازی پوشش"></progress>
+                <p class="support-hint">آماده‌سازی درخواستی به نشان نمی‌فرستد. می‌توانید صفحه را ببندید و بعداً با «تازه‌سازی گزارش» پیشرفت را ببینید. اگر آماده‌سازی قطع شد، همان دکمه ادامه می‌دهد.</p>
+                <form id="poi-coverage-limit-form">
+                    <label>وضعیت سقف نتایج هر درخواست<select id="poi-coverage-limit-mode" required>
+                        <option value="">یک وضعیت انتخاب کنید</option>
+                        <option value="unknown">نشان هنوز سقفی اعلام نکرده است</option>
+                        <option value="capped">نشان سقف عددی را تأیید کرده است</option>
+                        <option value="unlimited">نشان صریحاً بدون سقف بودن پاسخ را تأیید کرده است</option>
+                    </select></label>
+                    <label id="poi-coverage-limit-number" hidden>سقف عددی تأییدشده<input id="poi-coverage-limit" type="number" min="1" max="2147483647" step="1" disabled></label>
+                    <button type="submit" class="admin-btn admin-btn-ghost" id="poi-coverage-limit-save">ثبت وضعیت سقف نتایج</button>
+                </form>
+                <p id="poi-coverage-limit-status" class="support-hint"></p>
+            </article>
+            <p id="poi-report-time" class="support-hint"></p>
+            <p class="support-hint">گزارش فقط با بازکردن این بخش، انجام عملیات یا زدن دکمهٔ تازه‌سازی خوانده می‌شود. بستن صفحه اجرای گردآوری را متوقف نمی‌کند.</p>
+            <p id="poi-readiness" role="status" aria-live="polite"></p>
+            <p id="poi-worker"></p><p id="poi-timing"></p><p id="poi-reason"></p>
+            <article class="support-card">
+                <h2>پیشرفت جغرافیایی برنامه</h2>
+                <p id="poi-source-summary"></p>
+                <p id="poi-coverage"></p>
+                <label for="poi-progress">پیشرفت پوشش برنامه</label>
+                <progress id="poi-progress" max="100" value="0"></progress>
+                <p id="poi-progress-label"></p>
+                <p class="support-hint">در برنامهٔ چندضلعی، درصد مساحتی بر پایهٔ بخش‌های پوشیده‌شده و جست‌وجوهای تکمیل‌شده محاسبه می‌شود. نقاط با شعاع ۳ کیلومتر جداگانه گزارش می‌شوند. تأیید هندسی به معنی کامل‌بودن پایگاه دادهٔ نشان نیست. برنامه‌های قدیمی فقط درصد جست‌وجوی نقاط را نشان می‌دهند.</p>
+                <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th scope="col">استان</th><th scope="col">پیشرفت</th><th scope="col">نقاط / مساحت تمام‌شده</th><th scope="col">جست‌وجوی تمام‌شده / کل</th><th scope="col">باقی‌مانده</th><th scope="col">بدون هش جدید</th><th scope="col">نیازمند بررسی</th></tr></thead><tbody id="poi-areas"></tbody></table></div>
+            </article>
+            <div class="admin-ops" id="poi-summary"></div>
+            <details id="poi-setup">
+                <summary>تنظیم برنامه و مجموعهٔ جغرافیایی</summary>
+                <p id="poi-job-config"></p>
+                <p id="poi-full-plan-help" hidden></p>
+                <div id="poi-attach-panel" class="poi-source-controls">
+                    <label>مجموعهٔ واردشده<select id="poi-source-select"></select></label>
+                    <button type="button" class="admin-btn" id="poi-source-attach">اتصال مجموعه به برنامهٔ فعلی</button>
+                </div>
+                <form id="poi-create" class="support-card" hidden>
+                    <h3>ساخت برنامهٔ جدید</h3>
+                    <label>مجموعهٔ جغرافیایی<select id="poi-create-source" required></select></label>
+                    <label>دسته‌بندی‌ها<select id="poi-layers" multiple size="8" required aria-describedby="poi-layer-help"></select></label>
+                    <p id="poi-layer-help">برای انتخاب چند مورد از Ctrl یا Command استفاده کنید. formal_school مدرسه و school مؤسسهٔ آموزشی است.</p>
+                    <label>شعاع جست‌وجو (متر)<input id="poi-radius" type="number" min="500" max="5000" value="500" required></label>
+                    <label>سیاست گردآوری<select id="poi-mode"><option value="initial">گردآوری اولیه</option><option value="refresh">به‌روزرسانی عمدی جزئیات قدیمی</option></select></label>
+                    <label id="poi-cutoff-wrap" hidden>رکوردهای قدیمی‌تر از<input id="poi-cutoff" type="datetime-local"></label>
+                    <button type="submit" class="admin-btn" id="poi-create-submit">ثبت برنامه در حالت توقف</button>
+                </form>
+            </details>
+            <details id="poi-verification" hidden>
+                <summary>بررسی اولیهٔ اتصال Nearby به جزئیات POI</summary>
+                <p>این بررسی یک‌بار پیش از فعال‌سازی برنامه انجام می‌شود. یک نقطه از فایل انتخاب کنید؛ مختصات به‌صورت خودکار خوانده می‌شود. پس از دریافت موفق جزئیات، دکمهٔ اصلی گردآوری کل برنامه را فعال می‌کند.</p>
+                <p id="poi-pilot-status"></p>
+                <form id="poi-pilot-form">
+                    <label>نقطهٔ آماده در استان فعلی<select id="poi-settlement-select" required></select></label>
+                    <p id="poi-point-coordinates" dir="ltr"></p>
+                    <label>دستهٔ بررسی<select id="poi-pilot-category" required></select></label>
+                    <p>شعاع و دسته‌ها از برنامهٔ فعلی خوانده می‌شوند. آماده‌سازی درخواستی به نشان ارسال نمی‌کند.</p>
+                    <button type="submit" class="admin-btn" id="poi-pilot-prepare">آماده‌سازی بررسی اتصال</button>
+                </form>
+            </details>
+            <details>
+                <summary>آمار داخلی مکان‌های ذخیره‌شده</summary>
+                <p>فقط خروجی جزئیات POI برای استفادهٔ داخلی ذخیره می‌شود. خروجی Nearby ذخیره نمی‌شود و اطلاعات نشان روی نقشه نمایش داده نمی‌شود.</p>
+                <ul id="poi-categories"></ul>
+            </details>
+            <details><summary>تاریخچه و بررسی درخواست‌ها، شامل سوابق برنامهٔ قبلی</summary>
+                <p>سوابق قبلی حفظ شده‌اند و در درصد پیشرفت مجموعهٔ فعلی محاسبه نمی‌شوند. درخواست نامطمئن ممکن است به سرویس رسیده باشد؛ بازگرداندن آن به صف نیازمند بررسی است.</p>
+                <button type="button" class="admin-btn" id="poi-retry">بازگرداندن موارد ناموفق و نامطمئن برنامهٔ فعلی به صف</button>
+                <button type="button" class="admin-btn admin-btn-ghost" id="poi-history-load">نمایش تاریخچه</button>
+                <ul id="poi-history"></ul><pre id="poi-raw" dir="ltr"></pre><ul id="poi-reviews"></ul>
+            </details>
+        </section>
         <div id="view-requests">
         <section class="admin-stats" aria-label="خلاصه وضعیت">
             <article class="admin-stat" data-stat="pending">
@@ -262,6 +352,12 @@
         </section>
         <div id="view-ops" hidden>
             <section class="admin-ops" aria-label="وضعیت سامانه">
+                <article class="admin-ops-card">
+                    <h2>حالت به‌روزرسانی سایت</h2>
+                    <p class="admin-ops-copy">با فعال‌سازی، همهٔ صفحات سایت پیام به‌روزرسانی را نشان می‌دهند. پنل مدیریت برای غیرفعال‌سازی در دسترس می‌ماند.</p>
+                    <p class="admin-ops-state" id="maintenance-state" role="status" aria-live="polite">در حال خواندن وضعیت…</p>
+                    <button type="button" class="admin-btn" id="maintenance-toggle" role="switch" aria-checked="false" disabled>فعال‌سازی حالت به‌روزرسانی</button>
+                </article>
                 <article class="admin-ops-card">
                     <h2>ثبت‌نام عمومی</h2>
                     <p class="admin-ops-copy">با بستن این گزینه، فرم عضویت جدید و ارسال کد ثبت‌نام متوقف می‌شود. حساب‌های موجود همچنان می‌توانند وارد شوند.</p>
