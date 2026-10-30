@@ -1,10 +1,5 @@
 // File: config.js
-<<<<<<< HEAD
 // Purpose: Site path helpers and same-environment API selection.
-=======
-// Purpose: Site path helpers after js/css/html folders, plus API_BASE_URL.
-//   Local previews use the deployed API; hosted pages use same-origin /api.
->>>>>>> b9a9ea4cce12af2dac8eac8aaf9473a6cb05be9a
 
 (function (global) {
     var path = (global.location && global.location.pathname) || '';
@@ -43,19 +38,6 @@
     };
 })(typeof window !== 'undefined' ? window : this);
 
-<<<<<<< HEAD
-=======
-// HTML can be served by Nginx or a separate static host. Check maintenance
-// through the API as well as the backend's page gate.
-(function (global) {
-    if (!global.document || !global.SITE) return;
-    var script = global.document.createElement('script');
-    script.src = global.SITE.staticFile('js/maintenance.js');
-    global.document.head.appendChild(script);
-})(typeof window !== 'undefined' ? window : this);
-
-// Local previews use the deployed API; hosted pages use their own origin.
->>>>>>> b9a9ea4cce12af2dac8eac8aaf9473a6cb05be9a
 (function (global) {
     var hostname = (global.location && global.location.hostname || '').toLowerCase();
     var isLocal = hostname === '127.0.0.1' || hostname === 'localhost';
