@@ -15,7 +15,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-TOP_LEVEL_FILES = ("index.html", "webmanifest.json")
+TOP_LEVEL_FILES = ("index.html", "maintenance.html", "webmanifest.json")
 PUBLIC_DIRS = ("html", "css", "js", "assets")
 VERSIONABLE_SUFFIXES = {
     ".css", ".js", ".json", ".webp", ".png", ".jpg", ".jpeg",

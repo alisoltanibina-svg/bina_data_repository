@@ -1,7 +1,5 @@
 // File: config.js
-// Purpose: Site path helpers after js/css/html folders, plus API_BASE_URL.
-//   Local uvicorn: absolute http://127.0.0.1:8000
-//   Deployed (Nginx same host /api): empty string so requests stay on this origin.
+// Purpose: Site path helpers and same-environment API selection.
 
 (function (global) {
     var path = (global.location && global.location.pathname) || '';
@@ -40,23 +38,9 @@
     };
 })(typeof window !== 'undefined' ? window : this);
 
-// برای آنلاین بودن از کامنت دربیاید
-// (function (global) {
-//     const hostname = (window.location.hostname || '').toLowerCase();
-//     const isLocal = hostname === '127.0.0.1' || hostname === 'localhost';
-//     global.API_BASE_URL = isLocal ? 'http://127.0.0.1:8000' : '';
-// })(window);
-
-// برای آفلاین بودن از کامنت دربیاید
 (function (global) {
-    var loc = global.location;
-
-    if (!loc || loc.hostname === 'localhost' || loc.hostname === '127.0.0.1') {
-        // صفحه از لپ‌تاپ باز شده: API همان سایت آنلاین
-        global.API_BASE_URL = 'https://app.rasadbina.ir';
-        return;
-    }
-
-    // صفحه روی دامنه واقعی: مسیر نسبی /api
-    global.API_BASE_URL = '';
+    var hostname = (global.location && global.location.hostname || '').toLowerCase();
+    var isLocal = hostname === '127.0.0.1' || hostname === 'localhost';
+    // A local/static copy never silently sends credentials or mutations to production.
+    global.API_BASE_URL = isLocal ? 'http://127.0.0.1:8000' : '';
 })(typeof window !== 'undefined' ? window : this);

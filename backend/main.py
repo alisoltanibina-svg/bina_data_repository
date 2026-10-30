@@ -124,7 +124,7 @@ _MEDIA_SUFFIXES = {
 _CODE_SUFFIXES = {".js", ".css"}
 _HTML_SUFFIXES = {".html", ""}
 _PUBLIC_ROOT_SUFFIXES = _HTML_SUFFIXES | _CODE_SUFFIXES
-_PUBLIC_ROOT_NAMES = {"webmanifest.json", "release.json"}
+_PUBLIC_ROOT_NAMES = {"webmanifest.json", "release.json", "maintenance.html"}
 _PUBLIC_ASSET_SUFFIXES = _MEDIA_SUFFIXES | _CODE_SUFFIXES
 _BLOCKED_SUFFIXES = {
     ".db",
@@ -370,6 +370,12 @@ app = FastAPI(
     redoc_url=None,
     openapi_url=None,
 )
+
+
+@app.get("/healthz", include_in_schema=False)
+def health_check():
+    """Liveness endpoint for the reverse proxy and external monitoring."""
+    return Response(status_code=204, headers={"Cache-Control": "no-store"})
 
 _SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
