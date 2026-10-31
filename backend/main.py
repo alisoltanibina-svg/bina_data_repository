@@ -104,6 +104,10 @@ _CACHE_HEADERS = {
     "Cache-Control": _API_CACHE_CONTROL,
     "Vary": "Accept-Encoding",
 }
+_PRIVATE_CACHE_HEADERS = {
+    "Cache-Control": _API_CACHE_CONTROL.replace("public,", "private,", 1),
+    "Vary": "Accept-Encoding, Cookie",
+}
 
 _HTML_CACHE_CONTROL = "public, max-age=0, must-revalidate"
 _MEDIA_CACHE_CONTROL = "public, max-age=604800, stale-while-revalidate=2592000"
@@ -265,17 +269,19 @@ def _cached_json(
     request: Request | None = None,
     *,
     ttl_seconds: float | None = None,
+    private: bool = False,
 ) -> Response:
+    headers = _PRIVATE_CACHE_HEADERS if private else _CACHE_HEADERS
     etag = _etag_for(key, ttl_seconds)
     if request is not None:
         incoming = request.headers.get("if-none-match", "").strip()
         if incoming == etag or incoming == f"W/{etag}":
-            return Response(status_code=304, headers={"ETag": etag, **_CACHE_HEADERS})
+            return Response(status_code=304, headers={"ETag": etag, **headers})
     body = get_cache().get(key, lambda: _json_bytes(factory()), ttl_seconds=ttl_seconds)
     return Response(
         content=body,
         media_type=JSON_MEDIA,
-        headers={"ETag": etag, **_CACHE_HEADERS},
+        headers={"ETag": etag, **headers},
     )
 
 def _thread_pool_size() -> int:
@@ -384,6 +390,7 @@ _SECURITY_HEADERS = {
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
+    "Content-Security-Policy": "object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'",
 }
 
 
@@ -392,15 +399,20 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         request.state.request_id = secrets.token_hex(8)
         response = await call_next(request)
         response.headers["X-Request-ID"] = request.state.request_id
-        if request.url.path.startswith("/api/auth/") or request.url.path.startswith("/api/support/") or request.url.path.startswith("/api/admin/support/") or request.url.path.startswith("/api/account/"):
+        if request.url.path.startswith(("/api/auth/", "/api/support/", "/api/admin/", "/api/account/")) or (request.url.path.startswith("/api/") and response.status_code >= 400):
             response.headers["Cache-Control"] = "no-store"
         for name, value in _SECURITY_HEADERS.items():
             response.headers.setdefault(name, value)
+        if request.url.scheme == "https":
+            response.headers.setdefault("Strict-Transport-Security", "max-age=31536000")
         return response
 
 
 # Rate rejection runs before body parsing; every response still gets CORS/security headers.
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_STATIC_ROOT = Path(os.getenv("STATIC_ROOT", str(_PROJECT_ROOT))).resolve()
 app.add_middleware(InputSecurityMiddleware, allowed_origins=_cors_origins())
+app.add_middleware(MaintenanceMiddleware, static_root=_STATIC_ROOT)
 app.add_middleware(RateLimitMiddleware)
 app.add_middleware(CORSMiddleware, allow_origins=_cors_origins(), allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
@@ -408,9 +420,6 @@ app.add_middleware(CORSMiddleware, allow_origins=_cors_origins(), allow_credenti
     expose_headers=["X-Request-ID", "Retry-After"])
 
 app.add_middleware(GZipMiddleware, minimum_size=500)
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
-_STATIC_ROOT = Path(os.getenv("STATIC_ROOT", str(_PROJECT_ROOT))).resolve()
-app.add_middleware(MaintenanceMiddleware, static_root=_STATIC_ROOT)
 app.add_middleware(SecurityHeadersMiddleware)
 
 
@@ -529,7 +538,7 @@ def _compute_explorer_init() -> dict:
 def get_explorer_init(request: Request):
     """Builds the hierarchy and province list on the server."""
     _require_user(request)
-    return _cached_json("explorer-init", _compute_explorer_init, request)
+    return _cached_json("explorer-init", _compute_explorer_init, request, private=True)
 
 
 def _compute_indicator_names() -> list[str]:
@@ -592,6 +601,7 @@ def get_explorer_indicator(name: str, request: Request):
         lambda: _compute_explorer_indicator(canon),
         request,
         ttl_seconds=3600,
+        private=True,
     )
 
 def _compute_subtopic_names() -> list[str]:
@@ -658,6 +668,7 @@ def get_bubble_init(request: Request, topic: str = "", subtopic: str = ""):
         lambda: _compute_bubble_init(topic_canon, subtopic_canon),
         request,
         ttl_seconds=3600,
+        private=True,
     )
 
 def _compute_topics_min() -> list[dict]:
@@ -812,8 +823,9 @@ def auth_captcha_image(captcha_id: str):
     )
 
 def _cookie_secure(request: Request) -> bool:
-    proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "").split(",")[0].strip()
-    return proto == "https"
+    # Uvicorn resolves the scheme using its trusted-proxy configuration. Never
+    # let a client-supplied forwarding header downgrade an HTTPS session cookie.
+    return request.url.scheme == "https"
 
 
 def _set_session_cookie(response: JSONResponse, token: str, request: Request) -> None:

@@ -10,8 +10,12 @@ psycopg[binary]==3.2.10
 alembic==1.16.5
 argon2-cffi==23.1.0
 python-multipart==0.0.32
-pillow==12.3.0
+pillow==13.0.0
 shapely==2.1.2
 
-geopandas==1.1.1
+geopandas==1.1.2
 pyproj==3.7.2
+
+# Security pins for transitive TLS and migration dependencies.
+certifi==2026.10.19
+Mako==1.4.2

@@ -54,6 +54,7 @@ _PROFILE_FIELDS = (
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 SESSION_COOKIE = "bina_session"
+_SESSION_TOKEN_RE = re.compile(r"[A-Za-z0-9_-]{43}")
 SESSION_DAYS = 1
 LOGIN_FAILURE_LIMIT = 5
 LOGIN_FAILURE_WINDOW = timedelta(minutes=15)
@@ -379,7 +380,7 @@ def lookup_auth_gate(phone: str) -> str:
 
 
 def profile_from_session_token(token: str) -> dict | None:
-    if not token:
+    if not isinstance(token, str) or not _SESSION_TOKEN_RE.fullmatch(token):
         return None
     digest = _token_hash(token)
     now = datetime.now(timezone.utc)
@@ -402,7 +403,7 @@ def profile_from_session_token(token: str) -> dict | None:
 
 
 def delete_session_token(token: str) -> None:
-    if not token:
+    if not isinstance(token, str) or not _SESSION_TOKEN_RE.fullmatch(token):
         return
     digest = _token_hash(token)
     with db_session() as session:

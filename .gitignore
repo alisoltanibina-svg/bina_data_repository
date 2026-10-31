@@ -52,6 +52,7 @@ output/
 /deploy/*
 !/deploy/poi-worker.service
 !/deploy/nginx-dashboard.conf.example
+!/deploy/dashboard-security-headers.conf
 uvicorn.bat
 
 .gitconfig

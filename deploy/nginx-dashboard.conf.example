@@ -9,6 +9,7 @@ map $arg_v $dashboard_static_cache {
 # Preserve the site's current TLS, canonical redirects, and security headers.
 root /opt/app/dist;
 index index.html;
+server_tokens off;
 
 location ^~ /api/ {
     # Avatars need multipart overhead; ticket images have a stricter 3 MiB API cap.
@@ -27,11 +28,13 @@ location ^~ /api/ {
 location ^~ /assets/images/avatars/ {
     alias /opt/app/assets/images/avatars/;
     add_header Cache-Control "no-cache, must-revalidate" always;
+    include /etc/nginx/snippets/dashboard-security-headers.conf;
 }
 
 location ~* \.(?:css|js|json|webp|png|jpe?g|gif|svg|ico|woff2?|ttf|geojson)$ {
     try_files $uri =404;
     add_header Cache-Control $dashboard_static_cache always;
+    include /etc/nginx/snippets/dashboard-security-headers.conf;
 }
 
 # HTML is never immutable: every navigation revalidates it and receives the
