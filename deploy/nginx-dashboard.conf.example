@@ -11,12 +11,29 @@ root /opt/app/dist;
 index index.html;
 server_tokens off;
 
+# Edge maintenance (the Nginx `default 1` switch) needs a local error document.
+# This must be in the SAME HTTPS server as the return 503 checks. Inherit the
+# real deployment root above instead of giving the error page a different root.
+# The map $uri $dashboard_maintenance_public in conf.d MUST include `volatile;`
+# when using a server-level return 503, so the internal redirect is re-evaluated.
+# This URI matches the exemption in dashboard-maintenance-map.conf.
+error_page 503 =503 /__dashboard_maintenance;
+location = /__dashboard_maintenance {
+    internal;
+    try_files /maintenance.html =503;
+    add_header Cache-Control "no-store, max-age=0" always;
+    add_header Retry-After "900" always;
+    include /etc/nginx/snippets/dashboard-security-headers.conf;
+}
+
 location ^~ /api/ {
     # Avatars need multipart overhead; ticket images have a stricter 3 MiB API cap.
     client_max_body_size 6m;
     client_body_timeout 30s;
     proxy_read_timeout 60s;
     proxy_cache off;
+    # Preserve the application's JSON maintenance/error responses.
+    proxy_intercept_errors off;
     proxy_pass http://127.0.0.1:8000;
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $remote_addr;
@@ -43,6 +60,8 @@ location / {
     # Page requests must reach the shared maintenance gate, including unknown URLs.
     # Set STATIC_ROOT=/opt/app/dist in the Uvicorn service environment.
     proxy_cache off;
+    # Preserve the designed HTML returned by MaintenanceMiddleware with 503.
+    proxy_intercept_errors off;
     proxy_pass http://127.0.0.1:8000;
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $remote_addr;

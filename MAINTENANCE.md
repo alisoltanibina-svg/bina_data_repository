@@ -9,27 +9,22 @@ requests before they reach the application.  `maintenance.html` is a standalone
 document with no external assets, so it continues to render when the rest of the
 site is intentionally unavailable.
 
-Operators reach the normal site only from a fixed VPN/operations network. Do not
-use a shared password, URL query parameter, header, or a browser cookie as a
-maintenance bypass: each is easy to leak, cache, or replay. Configure the real
-client IP correctly before relying on an IP allowlist (for example, when a CDN
-or load balancer is in front of Nginx).
+This edge switch is separate from the application's admin-panel maintenance
+switch. When edge mode blocks all public traffic, turn it off through Nginx
+configuration over SSH. The application and its admin panel cannot override it.
 
 `/healthz` remains public and returns `204` without querying the database. It is
 for liveness monitoring only; it must not be used as a general status page.
 
 ## Nginx setup
 
-Build and deploy the frontend once so `dist/maintenance.html` exists. In the
-Nginx `http` block, define the operations network. Replace the example CIDR with
-the actual, stable VPN range:
-
-```nginx
-geo $dashboard_ops_network {
-    default 0;
-    10.20.0.0/16 1;
-}
-```
+Build and deploy the frontend once so `dist/maintenance.html` exists.
+`python scripts/build_frontend.py` embeds the shared maintenance layout, font,
+background, map, and animated gear mask in that document. It makes no external
+asset or script requests, so the Nginx edge switch cannot block its artwork.
+Edit `html/maintenance.html` and `css/maintenance.css` for UI changes; the build
+regenerates the standalone document automatically. Reduced-motion preferences
+disable gear rotation.
 
 In the application's `server` block, add the following before the existing
 public and `/api/` locations. Keep the existing proxy headers in `/api/`.
@@ -38,17 +33,23 @@ include if the virtual host is an isolated `server` file.
 
 ```nginx
 # http block
-map $dashboard_ops_network $dashboard_maintenance_public {
+map $uri $dashboard_maintenance_public {
+    # Re-evaluate after the internal redirect to the exempt error-page URI.
+    volatile;
     default 0;  # change only this value to 1 to enable maintenance
-    1       0;  # operations VPN always bypasses maintenance
+    /healthz 0;
+    /__dashboard_maintenance 0;
 }
 
 # application server block
 
-error_page 503 /maintenance.html;
-location = /maintenance.html {
+# Use the SAME root as the deployed frontend. Replace this example path with
+# the actual release directory; maintenance.html must exist directly inside it.
+root /opt/app/dist;
+error_page 503 =503 /__dashboard_maintenance;
+location = /__dashboard_maintenance {
     internal;
-    root /opt/app/dist;
+    try_files /maintenance.html =503;
     add_header Cache-Control "no-store, max-age=0" always;
     add_header Retry-After "900" always;
 }
@@ -72,11 +73,44 @@ The Nginx `if` statements above only return a code; this restricted use is safe.
 If a server already defines these locations, merge the two maintenance checks
 into the existing locations rather than adding duplicates.
 
+A server-level `if ($dashboard_maintenance_public) { return 503; }` also runs
+on the internal redirect to the error document. It works with the `$uri` map
+above only when the map includes both `volatile;` and the exemption for
+`/__dashboard_maintenance`. Without `volatile;`, Nginx reuses the original
+value of `1` and returns its generic 503 page instead of the custom document.
+Do not add a maintenance check to the exact maintenance location.
+
+The API and page proxy locations should explicitly use
+`proxy_intercept_errors off;` so application-generated maintenance HTML and
+JSON are passed through unchanged. The edge's own `return 503` still uses the
+local error document above.
+
+### If Nginx shows its generic “temporarily unavailable” page
+
+Apply the error-page block in the active **HTTPS** server, not just the HTTP
+redirect server. Remove competing `error_page 503` directives in public
+locations. For a server-level maintenance check, first confirm the map includes
+`volatile;` so the exempt internal redirect is re-evaluated. Confirm that the
+deployed document exists and is readable by Nginx:
+
+```sh
+test -r /opt/app/dist/maintenance.html
+sudo nginx -t
+```
+
+Use the actual frontend root in both commands and configuration. `nginx -t`
+checks configuration syntax but does not verify that the error document exists.
+Inspect `/var/log/nginx/error.log` if the custom page still fails; a missing
+file or permission error there identifies the remaining deployment problem.
+Never point the fallback at `/html/maintenance.html` in edge mode: that page
+loads site assets, which edge mode intentionally blocks. The top-level
+`maintenance.html` is the standalone edge document.
+
 ## Operating runbook
 
 1. Before the first use, test in staging: a public anonymous request and a
-   public API request return `503`; `/healthz` returns `204`; and a request from
-   the operations VPN can use the admin panel and API.
+   public API request return `503`; `/healthz` returns `204`; and the custom
+   document renders without loading any external resources.
 2. Start maintenance by changing the map's `default` value to `1`, then run
    `sudo nginx -t`. Only if validation succeeds, run `sudo systemctl reload nginx`.
    Do not stop Uvicorn or PostgreSQL.

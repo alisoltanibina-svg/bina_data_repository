@@ -13,6 +13,10 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit, urlunsplit
 
+if __package__:
+    from .maintenance_page import standalone_maintenance_html
+else:
+    from maintenance_page import standalone_maintenance_html
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 TOP_LEVEL_FILES = ("index.html", "maintenance.html", "webmanifest.json")
@@ -34,7 +38,7 @@ CSS_URL_RE = re.compile(
 VERSION_PLACEHOLDER = "__ASSET_VERSION__"
 # Bump this when the generated public artifact format changes without a source
 # asset changing, so immutable release URLs remain content-accurate.
-BUILD_FORMAT_VERSION = b"asset-minify-v2"
+BUILD_FORMAT_VERSION = b"asset-minify-v3-maintenance-inline"
 
 
 def minify_css(text: str) -> str:
@@ -371,6 +375,11 @@ def build(source_root: Path, output: Path, requested_version: str | None = None)
 
         # User avatars are mutable runtime data and must remain outside immutable build artifacts.
         (staging / "assets" / "images" / "avatars").mkdir(parents=True, exist_ok=True)
+
+        # Edge mode blocks asset requests: embed the shared design in its error
+        # document so images, font and CSS still render with the backend offline.
+        (staging / "maintenance.html").write_text(
+            standalone_maintenance_html(source_root), encoding="utf-8")
 
         for path in staging.rglob("*.html"):
             path.write_text(rewrite_html(path.read_text(encoding="utf-8"), version), encoding="utf-8")
