@@ -60,6 +60,7 @@ h1 { margin: 0; font-size: clamp(28px, 3.2vw, 48px); line-height: 1.65; }
 p { margin: 6px 0 0; font-size: clamp(17px, 1.8vw, 27px); line-height: 1.8; text-wrap: balance; }
 @keyframes maintenance-turn { to { transform: rotate(360deg); } }
 @media (max-width: 640px) {
+    body { background-image: url('/assets/images/bg_curtain_mobile.webp'); }
     .maintenance {
         grid-template-columns: 1fr;
         justify-items: center;
