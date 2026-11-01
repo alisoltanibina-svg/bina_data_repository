@@ -33,12 +33,18 @@ include if the virtual host is an isolated `server` file.
 
 ```nginx
 # http block
-map $uri $dashboard_maintenance_public {
+geo $dashboard_maintenance_owner {
+    default 0;
+    85.133.190.130/32 1;
+}
+
+map "$dashboard_maintenance_owner:$uri" $dashboard_maintenance_public {
     # Re-evaluate after the internal redirect to the exempt error-page URI.
     volatile;
     default 0;  # change only this value to 1 to enable maintenance
-    /healthz 0;
-    /__dashboard_maintenance 0;
+    "~^1:" 0;
+    "0:/healthz" 0;
+    "0:/__dashboard_maintenance" 0;
 }
 
 # application server block
@@ -69,12 +75,32 @@ location / {
 }
 ```
 
+The complete HTTP-level configuration is also in
+`deploy/dashboard-maintenance-map.conf.example`. Replace the existing
+`/etc/nginx/conf.d/dashboard-maintenance-map.conf` with that content; do not
+install a second definition of the same variables. Keep the existing server-level
+`if ($dashboard_maintenance_public) { return 503; }` when using that layout.
+
+The fixed address `85.133.190.130` bypasses only the Nginx maintenance response.
+When the map's `default` is `0`, all addresses have normal access. When it is
+`1`, only that address gets normal site and API access, apart from the existing
+health-check exemption. Administrator authentication remains required. Anyone
+sharing that public IP can also reach the site, but does not gain admin privileges.
+Leave the `geo` block's `default` at `0`; only toggle the `map` default.
+
+This configuration assumes clients connect directly to Nginx and uses
+`$remote_addr`, not a client-supplied forwarding header. If a CDN or proxy is
+added later, review trusted client-IP handling before relying on this exception.
+Connect over the allowlisted IPv4 address; an IPv6 connection is not exempt.
+Keep the separate application maintenance switch off for this workflow: the
+Nginx exception does not bypass application maintenance or its frontend redirect.
+
 The Nginx `if` statements above only return a code; this restricted use is safe.
 If a server already defines these locations, merge the two maintenance checks
 into the existing locations rather than adding duplicates.
 
 A server-level `if ($dashboard_maintenance_public) { return 503; }` also runs
-on the internal redirect to the error document. It works with the `$uri` map
+on the internal redirect to the error document. It works with the IP-and-URI map
 above only when the map includes both `volatile;` and the exemption for
 `/__dashboard_maintenance`. Without `volatile;`, Nginx reuses the original
 value of `1` and returns its generic 503 page instead of the custom document.
@@ -114,9 +140,14 @@ loads site assets, which edge mode intentionally blocks. The top-level
 2. Start maintenance by changing the map's `default` value to `1`, then run
    `sudo nginx -t`. Only if validation succeeds, run `sudo systemctl reload nginx`.
    Do not stop Uvicorn or PostgreSQL.
-3. Verify from an anonymous browser window that the response is `503`, includes
+3. Verify from a different public IP (for example, mobile data with Wi-Fi off)
+   that the response is `503`, includes
    `Retry-After`, has `Cache-Control: no-store`, and renders the Persian page.
-   Verify `/healthz` separately.
+   Verify `/healthz` separately. From `85.133.190.130`, verify normal pages,
+   assets, APIs, and authenticated admin access while maintenance stays enabled.
+   An incognito window on the same connection also bypasses maintenance; it
+   cannot test the public maintenance response. Unauthenticated admin API
+   requests must still fail authentication.
 4. Finish maintenance by changing the map's `default` value back to `0`, repeating the syntax
    test and reload, then smoke-test one public page and one API request.
 5. Record the change owner, start/end time, release version, and rollback result.

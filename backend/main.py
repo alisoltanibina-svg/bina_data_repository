@@ -441,14 +441,14 @@ def _compute_atlas() -> dict:
         topics = fetchall_dicts(
             conn,
             "SELECT topic_name, topic_description, lower_color, upper_color, master_color "
-            "FROM topics ORDER BY id",
+            "FROM analytics.topics ORDER BY id",
         )
         trend_score = fetchall_dicts(
             conn,
             "SELECT t.province_name, t.year, t.topic_name, t.index_score, t.province_rank "
-            "FROM trend_score t "
+            "FROM analytics.trend_score t "
             "INNER JOIN ("
-            "    SELECT topic_name, MAX(year) AS year FROM trend_score GROUP BY topic_name"
+            "    SELECT topic_name, MAX(year) AS year FROM analytics.trend_score GROUP BY topic_name"
             ") latest ON t.topic_name = latest.topic_name AND t.year = latest.year "
             "WHERE t.province_name != :national "
             "ORDER BY t.topic_name, t.province_name",
@@ -492,7 +492,7 @@ def _compute_atlas_trend(province: str, topic: str) -> dict:
     with db_connection() as conn:
         series = fetchall_dicts(
             conn,
-            "SELECT year, index_score FROM trend_score "
+            "SELECT year, index_score FROM analytics.trend_score "
             "WHERE province_name = :province AND topic_name = :topic ORDER BY year",
             {"province": prov_canon, "topic": topic_canon},
         )
@@ -519,11 +519,11 @@ def _compute_explorer_init() -> dict:
     with db_connection() as conn:
         colors = fetchall_dicts(
             conn,
-            "SELECT topic_name, upper_color, lower_color, master_color FROM topics ORDER BY id",
+            "SELECT topic_name, upper_color, lower_color, master_color FROM analytics.topics ORDER BY id",
         )
         kdesc_rows = fetchall_dicts(
             conn,
-            "SELECT topic_name, subtopic_name, indicator_name FROM kdescription ORDER BY id",
+            "SELECT topic_name, subtopic_name, indicator_name FROM analytics.kdescription ORDER BY id",
         )
         provinces = list_dashboard_provinces(conn)
 
@@ -552,7 +552,7 @@ def _compute_indicator_names() -> list[str]:
         return [
             row[0]
             for row in conn.execute(
-                "SELECT DISTINCT indicator_name FROM kdescription ORDER BY indicator_name"
+                "SELECT DISTINCT indicator_name FROM analytics.kdescription ORDER BY indicator_name"
             )
         ]
 
@@ -563,18 +563,18 @@ def _compute_explorer_indicator(name: str) -> dict:
     with db_connection() as conn:
         desc_row = fetchone_dict(
             conn,
-            "SELECT description, source_name, measurement_unit, question FROM kdescription "
+            "SELECT description, source_name, measurement_unit, question FROM analytics.kdescription "
             "WHERE indicator_name = :name ORDER BY id",
             {"name": canon},
         )
         scores = fetchall_dicts(
             conn,
-            "SELECT province_name, year, value FROM kindicator_score "
+            "SELECT province_name, year, value FROM analytics.kindicator_score "
             "WHERE indicator_name = :name ORDER BY id",
             {"name": canon},
         )
         latest_year_row = conn.execute(
-            "SELECT MAX(year) AS y FROM kindicator_score WHERE indicator_name = :name",
+            "SELECT MAX(year) AS y FROM analytics.kindicator_score WHERE indicator_name = :name",
             {"name": canon},
         ).fetchone()
         latest_year = latest_year_row[0] if latest_year_row else None
@@ -582,7 +582,7 @@ def _compute_explorer_indicator(name: str) -> dict:
         if latest_year is not None:
             latest_scores = fetchall_dicts(
                 conn,
-                "SELECT province_name, year, value FROM kindicator_score "
+                "SELECT province_name, year, value FROM analytics.kindicator_score "
                 "WHERE indicator_name = :name AND year = :year AND province_name != :national "
                 "ORDER BY province_name",
                 {"name": canon, "year": latest_year, "national": NATIONAL_NAME},
@@ -615,7 +615,7 @@ def _compute_subtopic_names() -> list[str]:
         return [
             row[0]
             for row in conn.execute(
-                "SELECT DISTINCT subtopic_name FROM kdescription ORDER BY subtopic_name"
+                "SELECT DISTINCT subtopic_name FROM analytics.kdescription ORDER BY subtopic_name"
             )
         ]
 
@@ -632,15 +632,15 @@ def _compute_bubble_init(topic: str, subtopic: str) -> dict:
     with db_connection() as conn:
         color_row = fetchone_dict(
             conn,
-            "SELECT upper_color, lower_color, master_color FROM topics WHERE topic_name = :topic",
+            "SELECT upper_color, lower_color, master_color FROM analytics.topics WHERE topic_name = :topic",
             {"topic": topic_canon},
         )
         scores = fetchall_dicts(
             conn,
             "SELECT k.province_name, k.indicator_name, k.year, k.standard_value "
-            "FROM kindicator_score k "
+            "FROM analytics.kindicator_score k "
             "WHERE k.topic_name = :topic AND k.subtopic_name = :subtopic AND k.year = ("
-            "    SELECT MAX(k2.year) FROM kindicator_score k2 "
+            "    SELECT MAX(k2.year) FROM analytics.kindicator_score k2 "
             "    WHERE k2.province_name = k.province_name "
             "      AND k2.indicator_name = k.indicator_name "
             "      AND k2.topic_name = k.topic_name "
@@ -681,7 +681,7 @@ def _compute_topics_min() -> list[dict]:
     with db_connection() as conn:
         return fetchall_dicts(
             conn,
-            "SELECT topic_name, master_color FROM topics ORDER BY id",
+            "SELECT topic_name, master_color FROM analytics.topics ORDER BY id",
         )
 
 
@@ -696,7 +696,7 @@ def _compute_race_indicator_names() -> list[str]:
         return [
             row[0]
             for row in conn.execute(
-                "SELECT indicator_name FROM kindicator_score "
+                "SELECT indicator_name FROM analytics.kindicator_score "
                 "WHERE indicator_name IS NOT NULL AND TRIM(indicator_name) != '' "
                 "AND province_name != :national AND value IS NOT NULL AND year IS NOT NULL "
                 "GROUP BY indicator_name "
@@ -710,7 +710,7 @@ def _pack_curtain_race(conn, candidate: str) -> dict | None:
     years = [
         int(row[0])
         for row in conn.execute(
-            "SELECT DISTINCT year FROM kindicator_score "
+            "SELECT DISTINCT year FROM analytics.kindicator_score "
             "WHERE indicator_name = :indicator AND year IS NOT NULL ORDER BY year",
             {"indicator": candidate},
         )
@@ -719,7 +719,7 @@ def _pack_curtain_race(conn, candidate: str) -> dict | None:
         return None
     rows = fetchall_dicts(
         conn,
-        "SELECT province_name, year, value FROM kindicator_score "
+        "SELECT province_name, year, value FROM analytics.kindicator_score "
         "WHERE indicator_name = :indicator AND province_name != :national AND value IS NOT NULL "
         "ORDER BY year, province_name",
         {"indicator": candidate, "national": NATIONAL_NAME},
@@ -743,7 +743,7 @@ def _pack_curtain_race(conn, candidate: str) -> dict | None:
         return None
     topic_row = fetchone_dict(
         conn,
-        "SELECT topic_name, subtopic_name FROM kindicator_score "
+        "SELECT topic_name, subtopic_name FROM analytics.kindicator_score "
         "WHERE indicator_name = :indicator LIMIT 1",
         {"indicator": candidate},
     ) or {}
@@ -751,7 +751,7 @@ def _pack_curtain_race(conn, candidate: str) -> dict | None:
     if topic_row.get("topic_name"):
         colors = fetchone_dict(
             conn,
-            "SELECT master_color, lower_color, upper_color FROM topics WHERE topic_name = :topic",
+            "SELECT master_color, lower_color, upper_color FROM analytics.topics WHERE topic_name = :topic",
             {"topic": topic_row["topic_name"]},
         )
     return {

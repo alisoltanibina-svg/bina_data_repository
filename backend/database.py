@@ -142,7 +142,7 @@ def resolve_catalog_name(raw: str | None, candidates) -> str | None:
 def _canonical_province_map(conn: DbConn) -> dict[str, str]:
     names = [
         row[0]
-        for row in conn.execute("SELECT DISTINCT province_name FROM trend_score")
+        for row in conn.execute("SELECT DISTINCT province_name FROM analytics.trend_score")
         if row[0]
     ]
     return {normalize_fa_name(name): name for name in names}
@@ -153,7 +153,7 @@ def fetch_latest_province_pop(conn: DbConn) -> list[dict]:
     canon = _canonical_province_map(conn)
     rows = fetchall_dicts(
         conn,
-        "SELECT province_name, province_pop, year FROM province_pop",
+        "SELECT province_name, province_pop, year FROM analytics.province_pop",
     )
     best: dict[str, dict] = {}
     for row in rows:
@@ -177,7 +177,7 @@ def list_dashboard_provinces(conn: DbConn) -> list[str]:
     """Non-national provinces in display order. Falls back to trend_score if needed."""
     try:
         rows = conn.execute(
-            "SELECT province_name FROM provinces WHERE is_national = 0 ORDER BY province_name"
+            "SELECT province_name FROM analytics.provinces WHERE is_national = 0 ORDER BY province_name"
         ).fetchall()
         if rows:
             return [row[0] for row in rows]
@@ -186,7 +186,7 @@ def list_dashboard_provinces(conn: DbConn) -> list[str]:
     return [
         row[0]
         for row in conn.execute(
-            "SELECT DISTINCT province_name FROM trend_score "
+            "SELECT DISTINCT province_name FROM analytics.trend_score "
             "WHERE province_name != :national ORDER BY province_name",
             {"national": NATIONAL_NAME},
         )

@@ -15,6 +15,8 @@ from sqlalchemy import (
     Index,
     LargeBinary,
     Integer,
+    MetaData,
+    REAL,
     String,
     Text,
     UniqueConstraint,
@@ -26,12 +28,16 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
 class Base(DeclarativeBase):
-    pass
+    # Keep pre-schema names for implicit single-column indexes. SQLAlchemy's
+    # default column label includes the schema after a table moves.
+    metadata = MetaData(naming_convention={"ix": "ix_%(table_name)s_%(column_0_name)s"})
 
 
 class Topic(Base):
     __tablename__ = "topics"
-    __table_args__ = (UniqueConstraint("topic_name", name="uq_topics_name"),)
+    __table_args__ = (UniqueConstraint("topic_name", name="uq_topics_name"),
+        {"schema": "analytics"},
+    )
 
     id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
     topic_name: Mapped[str | None] = mapped_column(Text)
@@ -46,6 +52,7 @@ class KDescription(Base):
     __table_args__ = (
         UniqueConstraint("indicator_name", name="uq_kdescription_indicator"),
         Index("idx_kdescription_topic_sub", "topic_name", "subtopic_name"),
+        {"schema": "analytics"},
     )
 
     id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
@@ -76,6 +83,7 @@ class KIndicatorScore(Base):
             "indicator_name",
             "year",
         ),
+        {"schema": "analytics"},
     )
 
     id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
@@ -99,6 +107,7 @@ class TrendScore(Base):
             name="uq_trend_score",
         ),
         Index("idx_trend_score_topic_year", "topic_name", "year"),
+        {"schema": "analytics"},
     )
 
     id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
@@ -107,12 +116,16 @@ class TrendScore(Base):
     index_score: Mapped[float | None] = mapped_column(Float)
     topic_name: Mapped[str | None] = mapped_column(Text)
     province_rank: Mapped[float | None] = mapped_column(Float)
+    # Imported source metadata is single precision in the production database.
+    coverage_count: Mapped[float | None] = mapped_column(REAL)
+    max_observation_age: Mapped[float | None] = mapped_column(REAL)
 
 
 class ProvincePop(Base):
     __tablename__ = "province_pop"
     __table_args__ = (
         UniqueConstraint("province_name", "year", name="uq_province_pop"),
+        {"schema": "analytics"},
     )
 
     id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
@@ -130,6 +143,7 @@ class Cluster(Base):
             "subtopic_name",
             name="uq_clusters",
         ),
+        {"schema": "analytics"},
     )
 
     id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
@@ -142,6 +156,7 @@ class Cluster(Base):
 
 class Province(Base):
     __tablename__ = "provinces"
+    __table_args__ = {"schema": "analytics"}
 
     province_name: Mapped[str] = mapped_column(Text, primary_key=True)
     is_national: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
@@ -149,6 +164,7 @@ class Province(Base):
 
 class Pyramid(Base):
     __tablename__ = "pyramid"
+    __table_args__ = {"schema": "analytics"}
 
     province_name: Mapped[str] = mapped_column(Text, primary_key=True)
     year: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -161,7 +177,9 @@ class Pyramid(Base):
 
 class User(Base):
     __tablename__ = "users"
-    __table_args__ = (UniqueConstraint("phone", name="users_phone_key"),)
+    __table_args__ = (UniqueConstraint("phone", name="users_phone_key"),
+        {"schema": "accounts"},
+    )
 
     id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
     phone: Mapped[str] = mapped_column(String(15), nullable=False)
@@ -186,14 +204,14 @@ class User(Base):
     login_locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     deactivation_reason: Mapped[str | None] = mapped_column(String(48))
     deactivated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    deactivated_by: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
+    deactivated_by: Mapped[int | None] = mapped_column(Integer, ForeignKey("accounts.users.id", ondelete="SET NULL"))
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
     )
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     approved_by: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="SET NULL")
+        Integer, ForeignKey("accounts.users.id", ondelete="SET NULL")
     )
     avatar_path: Mapped[str | None] = mapped_column(String(255))
     updated_at: Mapped[datetime | None] = mapped_column(
@@ -217,6 +235,7 @@ class RegistrationRequest(Base):
             unique=True,
             postgresql_where=text("status = 'pending'"),
         ),
+        {"schema": "accounts"},
     )
 
     id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
@@ -236,7 +255,7 @@ class RegistrationRequest(Base):
     )
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     reviewed_by: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="SET NULL")
+        Integer, ForeignKey("accounts.users.id", ondelete="SET NULL")
     )
 
 
@@ -246,11 +265,12 @@ class UserSession(Base):
         UniqueConstraint("token_hash", name="uq_sessions_token_hash"),
         Index("idx_sessions_user_id", "user_id"),
         Index("idx_sessions_expires_at", "expires_at"),
+        {"schema": "accounts"},
     )
 
     id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
     user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey("accounts.users.id", ondelete="CASCADE"), nullable=False
     )
     token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -270,6 +290,7 @@ class OtpChallenge(Base):
             name="ck_otp_challenges_purpose",
         ),
         Index("idx_otp_challenges_phone_purpose_created", "phone", "purpose", "created_at"),
+        {"schema": "accounts"},
     )
 
     id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
@@ -297,6 +318,7 @@ class CaptchaChallenge(Base):
         Index("idx_captcha_challenges_binding_created", "binding_hash", "created_at"),
         Index("idx_captcha_challenges_ip_created", "ip_hash", "created_at"),
         Index("idx_captcha_challenges_expires", "expires_at"),
+        {"schema": "accounts"},
     )
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
@@ -314,6 +336,7 @@ class CaptchaChallenge(Base):
 
 class SiteSetting(Base):
     __tablename__ = "site_settings"
+    __table_args__ = {"schema": "app"}
 
     key: Mapped[str] = mapped_column(String(64), primary_key=True)
     value: Mapped[str] = mapped_column(String(255), nullable=False, server_default="")
@@ -321,7 +344,9 @@ class SiteSetting(Base):
 
 class LoginFailure(Base):
     __tablename__ = "login_failures"
-    __table_args__ = (Index("idx_login_failures_created_at", "created_at"),)
+    __table_args__ = (Index("idx_login_failures_created_at", "created_at"),
+        {"schema": "accounts"},
+    )
 
     id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
     phone_mask: Mapped[str] = mapped_column(String(20), nullable=False)
@@ -342,14 +367,15 @@ class ProfileRevision(Base):
             name="ck_profile_revisions_source",
         ),
         Index("idx_profile_revisions_user_created", "user_id", "created_at"),
+        {"schema": "accounts"},
     )
 
     id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
     user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey("accounts.users.id", ondelete="CASCADE"), nullable=False
     )
     actor_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="SET NULL")
+        Integer, ForeignKey("accounts.users.id", ondelete="SET NULL")
     )
     source: Mapped[str] = mapped_column(String(16), nullable=False)
     changes: Mapped[dict] = mapped_column(JSONB, nullable=False)
@@ -365,9 +391,10 @@ class SupportTicket(Base):
         CheckConstraint("status IN ('open', 'in_progress', 'awaiting_user', 'closed')", name="ck_support_ticket_status"),
         Index("idx_support_tickets_status_updated", "status", "updated_at"),
         Index("idx_support_tickets_user_updated_id", "user_id", text("updated_at DESC"), text("id DESC"), postgresql_where=text("user_id IS NOT NULL")),
+        {"schema": "support"},
     )
     id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
-    user_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id", name="fk_support_tickets_user", ondelete="CASCADE"))
+    user_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("accounts.users.id", name="fk_support_tickets_user", ondelete="CASCADE"))
     reference: Mapped[str] = mapped_column(String(20), nullable=False, unique=True)
     # Legacy column retained for schema compatibility; tracking now uses reference only.
     access_hash: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -385,20 +412,23 @@ class SupportTicket(Base):
 
 class SupportMessage(Base):
     __tablename__ = "support_messages"
-    __table_args__ = (Index("idx_support_messages_ticket_id", "ticket_id", "id"),)
+    __table_args__ = (Index("idx_support_messages_ticket_id", "ticket_id", "id"),
+        {"schema": "support"},
+    )
     id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
-    ticket_id: Mapped[int] = mapped_column(Integer, ForeignKey("support_tickets.id", ondelete="CASCADE"), nullable=False)
+    ticket_id: Mapped[int] = mapped_column(Integer, ForeignKey("support.support_tickets.id", ondelete="CASCADE"), nullable=False)
     author: Mapped[str] = mapped_column(String(12), nullable=False)
-    actor_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
+    actor_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("accounts.users.id", ondelete="SET NULL"))
     body: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
 class SupportStatusEvent(Base):
     __tablename__ = "support_status_events"
+    __table_args__ = {"schema": "support"}
     id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
-    ticket_id: Mapped[int] = mapped_column(Integer, ForeignKey("support_tickets.id", ondelete="CASCADE"), nullable=False, index=True)
-    actor_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
+    ticket_id: Mapped[int] = mapped_column(Integer, ForeignKey("support.support_tickets.id", ondelete="CASCADE"), nullable=False, index=True)
+    actor_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("accounts.users.id", ondelete="SET NULL"))
     from_status: Mapped[str] = mapped_column(String(20), nullable=False)
     to_status: Mapped[str] = mapped_column(String(20), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
@@ -406,9 +436,10 @@ class SupportStatusEvent(Base):
 
 class AccountStatusEvent(Base):
     __tablename__ = "account_status_events"
+    __table_args__ = {"schema": "accounts"}
     id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    actor_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("accounts.users.id", ondelete="CASCADE"), nullable=False, index=True)
+    actor_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("accounts.users.id", ondelete="SET NULL"))
     kind: Mapped[str] = mapped_column(String(32), nullable=False)
     reason: Mapped[str | None] = mapped_column(String(160))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
@@ -424,11 +455,12 @@ class SupportAttachment(Base):
         Index("idx_support_attachments_ticket", "ticket_id", postgresql_where=text("ticket_id IS NOT NULL")),
         Index("idx_support_attachments_uploader_created", "uploader_id", "created_at"),
         Index("idx_support_attachments_pending_expires", "expires_at", postgresql_where=text("message_id IS NULL")),
+        {"schema": "support"},
     )
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
-    uploader_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
-    ticket_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("support_tickets.id", ondelete="CASCADE"))
-    message_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("support_messages.id", ondelete="CASCADE"))
+    uploader_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("accounts.users.id", ondelete="SET NULL"))
+    ticket_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("support.support_tickets.id", ondelete="CASCADE"))
+    message_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("support.support_messages.id", ondelete="CASCADE"))
     original_name: Mapped[str] = mapped_column(String(180), nullable=False)
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
     source_bytes: Mapped[int] = mapped_column(Integer, nullable=False)

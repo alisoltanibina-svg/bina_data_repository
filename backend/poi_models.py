@@ -7,13 +7,15 @@ from backend.models import Base
 
 def uid(): return C(UUID(as_uuid=True), primary_key=True, default=uuid4)
 def timestamp(): return C(DateTime(timezone=True))
-def job_fk(): return C(UUID(as_uuid=True), FK('poi_jobs.id'), nullable=False)
+def job_fk(): return C(UUID(as_uuid=True), FK('poi.poi_jobs.id'), nullable=False)
 def counter(): return C(I, nullable=False, default=0, server_default='0')
 
 class PoiControl(Base):
     __tablename__ = 'poi_control'
     __table_args__ = (CK('id = 1', name='ck_poi_single_control'),
-        CK("collection_mode IN ('pilot','coverage')",name='ck_poi_collection_mode'),)
+        CK("collection_mode IN ('pilot','coverage')",name='ck_poi_collection_mode'),
+        {"schema": "poi"},
+    )
     id = C(I, primary_key=True)
     paused = C(Boolean, nullable=False, default=True, server_default='true')
     reason = C(T, nullable=False, default='', server_default='')
@@ -22,11 +24,13 @@ class PoiControl(Base):
     worker_id = C(S(100))
     in_flight = C(B)
     collection_mode = C(S(16),nullable=False,default='pilot',server_default='pilot')
-    pilot_segment_id = C(B,FK('poi_segments.id',name='fk_poi_control_pilot_segment'))
+    pilot_segment_id = C(B,FK('poi.poi_segments.id',name='fk_poi_control_pilot_segment'))
 
 class PoiBoundary(Base):
     __tablename__ = 'poi_boundaries'
-    __table_args__ = (UQ('version', 'level', 'code', name='uq_poi_boundary'),)
+    __table_args__ = (UQ('version', 'level', 'code', name='uq_poi_boundary'),
+        {"schema": "poi"},
+    )
     id = C(I, primary_key=True)
     version = C(S(64), nullable=False, index=True)
     level = C(S(16), nullable=False)
@@ -38,6 +42,7 @@ class PoiBoundary(Base):
 
 class PoiCategory(Base):
     __tablename__ = 'poi_categories'
+    __table_args__ = {"schema": "poi"}
     slug = C(S(100), primary_key=True)
     title = C(T, nullable=False)
 
@@ -45,7 +50,9 @@ class PoiJob(Base):
     __tablename__ = 'poi_jobs'
     __table_args__ = (CK("mode IN ('initial', 'refresh')", name='ck_poi_job_mode'),
         CK("status IN ('pending','running','completed','needs_review')", name='ck_poi_job_status'),
-        Index('uq_poi_active_job', 'provider', unique=True, postgresql_where=text("status IN ('pending','running')")))
+        Index('uq_poi_active_job', 'provider', unique=True, postgresql_where=text("status IN ('pending','running')")),
+        {"schema": "poi"},
+    )
     id = uid()
     provider = C(S(30), nullable=False, default='neshan', server_default='neshan')
     status = C(S(20), nullable=False, default='pending')
@@ -55,7 +62,7 @@ class PoiJob(Base):
     radius_m = C(I, nullable=False)
     categories = C(JSONB, nullable=False)
     planned_provinces = counter()
-    search_dataset_version = C(S(64), FK('poi_source_datasets.version'))
+    search_dataset_version = C(S(64), FK('poi.poi_source_datasets.version'))
     planned_settlement_provinces = counter()
     duplicates_skipped = counter()
     missing_hashes = counter()
@@ -65,16 +72,18 @@ class PoiSegment(Base):
     __tablename__ = 'poi_segments'
     __table_args__ = (Index('idx_poi_segment_queue', 'job_id','province_order','status','id'),
         UQ('job_id','coverage_circle_id','category',name='uq_poi_coverage_dispatch'),
-        Index('idx_poi_segment_parent','parent_segment_id'),)
+        Index('idx_poi_segment_parent','parent_segment_id'),
+        {"schema": "poi"},
+    )
     id = C(B, primary_key=True)
     job_id = job_fk()
     province_order = C(I, nullable=False)
     province_name = C(T, nullable=False)
-    category = C(S(100), FK('poi_categories.slug'), nullable=False)
+    category = C(S(100), FK('poi.poi_categories.slug'), nullable=False)
     kind = C(S(16),nullable=False,default='grid',server_default='grid')
-    settlement_id = C(UUID(as_uuid=True), FK('poi_settlements.id'))
-    coverage_circle_id = C(B, FK('poi_coverage_circles.id'))
-    parent_segment_id = C(B, FK('poi_segments.id'))
+    settlement_id = C(UUID(as_uuid=True), FK('poi.poi_settlements.id'))
+    coverage_circle_id = C(B, FK('poi.poi_coverage_circles.id'))
+    parent_segment_id = C(B, FK('poi.poi_segments.id'))
     planning_note = C(T)
     latitude = C(F, nullable=False)
     longitude = C(F, nullable=False)
@@ -89,7 +98,9 @@ class PoiPlace(Base):
     __table_args__ = (UQ('provider','provider_id', name='uq_poi_provider_identifier'),
         CK('latitude BETWEEN -90 AND 90 AND longitude BETWEEN -180 AND 180', name='ck_poi_coordinates'),
         Index('idx_poi_place_extent','longitude','latitude'), Index('idx_poi_place_admin','province_name','county_name'),
-        Index('idx_poi_place_name','normalized_name'))
+        Index('idx_poi_place_name','normalized_name'),
+        {"schema": "poi"},
+    )
     id = uid()
     provider = C(S(30), nullable=False)
     provider_id = C(T, nullable=False)
@@ -112,17 +123,20 @@ class PoiPlace(Base):
 
 class PoiPlaceCategory(Base):
     __tablename__ = 'poi_place_categories'
-    place_id = C(UUID(as_uuid=True), FK('poi_places.id'), primary_key=True)
-    category = C(S(100), FK('poi_categories.slug'), primary_key=True)
+    __table_args__ = {"schema": "poi"}
+    place_id = C(UUID(as_uuid=True), FK('poi.poi_places.id'), primary_key=True)
+    category = C(S(100), FK('poi.poi_categories.slug'), primary_key=True)
 
 class PoiDetailTask(Base):
     __tablename__ = 'poi_detail_tasks'
     __table_args__ = (UQ('job_id','place_id', name='uq_poi_detail_task'),
-        Index('idx_poi_detail_queue','job_id','province_order','status','id'))
+        Index('idx_poi_detail_queue','job_id','province_order','status','id'),
+        {"schema": "poi"},
+    )
     id = C(B, primary_key=True)
     job_id = job_fk()
-    place_id = C(UUID(as_uuid=True), FK('poi_places.id'), nullable=False)
-    segment_id = C(B, FK('poi_segments.id'), nullable=False)
+    place_id = C(UUID(as_uuid=True), FK('poi.poi_places.id'), nullable=False)
+    segment_id = C(B, FK('poi.poi_segments.id'), nullable=False)
     province_order = C(I, nullable=False)
     status = C(S(16), nullable=False, default='pending', server_default='pending')
     attempts = counter()
@@ -130,7 +144,9 @@ class PoiDetailTask(Base):
 class PoiRequest(Base):
     __tablename__ = 'poi_requests'
     __table_args__ = (Index('idx_poi_request_job_outcome','job_id','kind','outcome'),
-        CK("kind != 'nearby' OR raw_response IS NULL", name='ck_poi_no_nearby_payload'),)
+        CK("kind != 'nearby' OR raw_response IS NULL", name='ck_poi_no_nearby_payload'),
+        {"schema": "poi"},
+    )
     id = C(B, primary_key=True)
     job_id = job_fk()
     kind = C(S(12), nullable=False)
@@ -148,14 +164,16 @@ class PoiRequest(Base):
 
 class PoiDuplicateReview(Base):
     __tablename__ = 'poi_duplicate_reviews'
-    place_id = C(UUID(as_uuid=True), FK('poi_places.id'), primary_key=True)
-    other_place_id = C(UUID(as_uuid=True), FK('poi_places.id'), primary_key=True)
+    __table_args__ = {"schema": "poi"}
+    place_id = C(UUID(as_uuid=True), FK('poi.poi_places.id'), primary_key=True)
+    other_place_id = C(UUID(as_uuid=True), FK('poi.poi_places.id'), primary_key=True)
     reason = C(T, nullable=False)
     status = C(S(16), nullable=False, default='pending', server_default='pending')
 
 
 class PoiSourceDataset(Base):
     __tablename__ = 'poi_source_datasets'
+    __table_args__ = {"schema": "poi"}
     version = C(S(64), primary_key=True)
     manifest = C(JSONB, nullable=False)
     summary = C(JSONB, nullable=False)
@@ -165,9 +183,11 @@ class PoiSettlement(Base):
     __tablename__ = 'poi_settlements'
     __table_args__ = (UQ('version','code',name='uq_poi_settlement_source'),
         CK("state IN ('ready','review')",name='ck_poi_settlement_state'),
-        Index('idx_poi_settlement_province','version','province_name','state','priority'))
+        Index('idx_poi_settlement_province','version','province_name','state','priority'),
+        {"schema": "poi"},
+    )
     id = uid()
-    version = C(S(64), FK('poi_source_datasets.version'), nullable=False)
+    version = C(S(64), FK('poi.poi_source_datasets.version'), nullable=False)
     code = C(S(64), nullable=False)
     name = C(T, nullable=False)
     declared_province = C(T, nullable=False)
@@ -185,9 +205,10 @@ class PoiSettlement(Base):
 
 class PoiCoveragePlan(Base):
     __tablename__='poi_coverage_plans'
+    __table_args__ = {"schema": "poi"}
     id=uid()
-    job_id=C(UUID(as_uuid=True),FK('poi_jobs.id'),nullable=False,unique=True)
-    source_version=C(S(64),FK('poi_source_datasets.version'),nullable=False)
+    job_id=C(UUID(as_uuid=True),FK('poi.poi_jobs.id'),nullable=False,unique=True)
+    source_version=C(S(64),FK('poi.poi_source_datasets.version'),nullable=False)
     state=C(S(20),nullable=False,default='planning')
     metric_crs=C(T,nullable=False)
     geometry=deferred(C(JSONB,nullable=False))
@@ -201,9 +222,11 @@ class PoiCoveragePlan(Base):
 
 class PoiCoverageTile(Base):
     __tablename__='poi_coverage_tiles'
-    __table_args__=(UQ('plan_id','code',name='uq_poi_coverage_tile'),)
+    __table_args__=(UQ('plan_id','code',name='uq_poi_coverage_tile'),
+        {"schema": "poi"},
+    )
     id=C(B,primary_key=True)
-    plan_id=C(UUID(as_uuid=True),FK('poi_coverage_plans.id'),nullable=False,index=True)
+    plan_id=C(UUID(as_uuid=True),FK('poi.poi_coverage_plans.id'),nullable=False,index=True)
     code=C(T,nullable=False)
     geometry=C(JSONB,nullable=False)
     state=C(S(16),nullable=False,default='pending')
@@ -211,9 +234,11 @@ class PoiCoverageTile(Base):
 
 class PoiCoverageCircle(Base):
     __tablename__='poi_coverage_circles'
-    __table_args__=(UQ('plan_id','code',name='uq_poi_coverage_circle'),)
+    __table_args__=(UQ('plan_id','code',name='uq_poi_coverage_circle'),
+        {"schema": "poi"},
+    )
     id=C(B,primary_key=True)
-    plan_id=C(UUID(as_uuid=True),FK('poi_coverage_plans.id'),nullable=False,index=True)
+    plan_id=C(UUID(as_uuid=True),FK('poi.poi_coverage_plans.id'),nullable=False,index=True)
     code=C(T,nullable=False)
     kind=C(S(16),nullable=False)
     x=C(F,nullable=False)
@@ -228,16 +253,18 @@ class PoiCoverageCircle(Base):
 
 class PoiCoverageContribution(Base):
     __tablename__='poi_coverage_contributions'
-    tile_id=C(B,FK('poi_coverage_tiles.id'),primary_key=True)
-    circle_id=C(B,FK('poi_coverage_circles.id'),primary_key=True)
+    __table_args__ = {"schema": "poi"}
+    tile_id=C(B,FK('poi.poi_coverage_tiles.id'),primary_key=True)
+    circle_id=C(B,FK('poi.poi_coverage_circles.id'),primary_key=True)
     province_name=C(T,primary_key=True)
     area_m2=C(F,nullable=False)
 
 
 class PoiPreparation(Base):
     __tablename__='poi_preparations'
+    __table_args__ = {"schema": "poi"}
     id=uid()
-    plan_id=C(UUID(as_uuid=True),FK('poi_coverage_plans.id'))
+    plan_id=C(UUID(as_uuid=True),FK('poi.poi_coverage_plans.id'))
     state=C(S(20),nullable=False,default='queued')
     phase=C(S(20),nullable=False,default='sources')
     message=C(T,nullable=False,default='')

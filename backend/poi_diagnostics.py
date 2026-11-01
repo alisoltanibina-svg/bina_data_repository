@@ -68,14 +68,14 @@ def database_report(settings):
         engine=create_engine(url,connect_args={'connect_timeout':5},pool_pre_ping=True)
         with engine.connect() as conn:
             conn.execute(text('SET TRANSACTION READ ONLY'))
-            version=conn.execute(text('SELECT version_num FROM alembic_version')).scalars().all()
-            tables=set(conn.execute(text("SELECT tablename FROM pg_tables WHERE schemaname=current_schema() AND tablename IN ('poi_requests','poi_control')")).scalars())
+            version=conn.execute(text('SELECT version_num FROM public.alembic_version')).scalars().all()
+            tables=set(conn.execute(text("SELECT tablename FROM pg_tables WHERE schemaname='poi' AND tablename IN ('poi_requests','poi_control')")).scalars())
             if tables!={'poi_requests','poi_control'}:
                 return dict(status='collector_tables_missing',migration_versions=version)
             # Select only operational metadata, never response bodies, hashes or places.
-            rows=conn.execute(text('SELECT id,kind,http_status,outcome,started_at,finished_at FROM poi_requests ORDER BY id DESC LIMIT 10')).mappings().all()
-            latest_484=conn.execute(text('SELECT id,kind,http_status,outcome,started_at FROM poi_requests WHERE http_status=484 ORDER BY id DESC LIMIT 1')).mappings().first()
-            c=conn.execute(text('SELECT paused,in_flight,heartbeat_at,worker_id FROM poi_control WHERE id=1')).mappings().first()
+            rows=conn.execute(text('SELECT id,kind,http_status,outcome,started_at,finished_at FROM poi.poi_requests ORDER BY id DESC LIMIT 10')).mappings().all()
+            latest_484=conn.execute(text('SELECT id,kind,http_status,outcome,started_at FROM poi.poi_requests WHERE http_status=484 ORDER BY id DESC LIMIT 1')).mappings().first()
+            c=conn.execute(text('SELECT paused,in_flight,heartbeat_at,worker_id FROM poi.poi_control WHERE id=1')).mappings().first()
             c=dict(c) if c else None
             worker_id=c.pop('worker_id',None) if c else None
             match=re.search(r':k([0-9a-f]{12})$',worker_id or '')

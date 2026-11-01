@@ -81,3 +81,7 @@ assets/images/avatars/*
 !/tests/test_poi_coverage.py
 !/tests/test_maintenance.py
 !/tests/admin_maintenance.test.cjs
+
+# Keep the production schema migration rehearsal executable in the repository.
+!/tests/
+!/tests/test_schema_cutover.py
