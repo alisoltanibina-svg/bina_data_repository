@@ -1,5 +1,8 @@
 """Admin controls and authenticated read APIs over locally stored POIs."""
 from datetime import datetime
+from functools import lru_cache
+import json
+from pathlib import Path
 from typing import Literal
 from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -10,6 +13,18 @@ from backend import database, poi
 from backend.input_security import InputBody
 from backend.poi_models import PoiPlace, PoiPlaceCategory, PoiRequest, PoiDuplicateReview
 from backend.poi_provider import LAYERS
+
+
+@lru_cache(maxsize=1)
+def county_map(path: str, modified: int):
+    """Simplify the operator's county layer for display, without changing its source."""
+    from shapely.geometry import shape, mapping
+    source = json.loads(Path(path).read_text(encoding='utf-8-sig'))
+    return dict(type='FeatureCollection', features=[
+        dict(type='Feature', properties={},
+             geometry=mapping(shape(feature['geometry']).simplify(0.005, preserve_topology=True)))
+        for feature in source['features'] if feature.get('geometry')
+    ])
 
 class JobBody(InputBody):
     categories: list[str] = Field(min_length=1,max_length=60)
@@ -61,6 +76,28 @@ def build_router(require_admin, require_user):
     def categories(request: Request):
         require_admin(request)
         return response(sorted(LAYERS))
+
+    @router.get('/api/admin/poi/map/boundaries')
+    def map_boundaries(request: Request):
+        require_admin(request)
+        path = Path(__file__).resolve().parent.parent / 'data' / 'Shahrestan.geojson'
+        if not path.is_file():
+            raise HTTPException(404, detail='فایل مرز شهرستان‌ها موجود نیست.')
+        return response(county_map(str(path), path.stat().st_mtime_ns))
+
+    @router.get('/api/admin/poi/map/places')
+    def map_places(request: Request, after: UUID | None = None):
+        require_admin(request)
+        with database.db_session() as session:
+            query = select(PoiPlace.id, PoiPlace.name, PoiPlace.longitude, PoiPlace.latitude).where(
+                PoiPlace.resolved_at.is_not(None), PoiPlace.provider == 'neshan')
+            if after:
+                query = query.where(PoiPlace.id > after)
+            rows = session.execute(query.order_by(PoiPlace.id).limit(5001)).all()
+            page = rows[:5000]
+            return response(dict(places=[dict(id=str(r.id), name=r.name, longitude=r.longitude,
+                                             latitude=r.latitude) for r in page],
+                                 next=str(page[-1].id) if len(rows) > 5000 else None))
 
     @router.post('/api/admin/poi/coverage/prepare')
     def prepare_coverage(body: CoverageBody,request: Request):
@@ -199,7 +236,7 @@ def build_router(require_admin, require_user):
     @router.get('/api/pois/counts')
     def map_data_disabled(request: Request):
         require_user(request)
-        raise HTTPException(403,detail='مجوز نشان فقط استفادهٔ داخلی از اطلاعات POI را اجازه می‌دهد؛ نمایش روی نقشه مجاز نیست.')
+        raise HTTPException(403,detail='نمایش مکان‌های ذخیره‌شده فقط در پنل مدیریت در دسترس است.')
 
     @router.get('/api/admin/poi/counts')
     def counts(request: Request,category: str=Query('',max_length=100),province: str=Query('',max_length=100),

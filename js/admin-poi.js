@@ -152,6 +152,7 @@
                     Array.from($('poi-layers').options || []).forEach(o=>o.selected=['mosque','formal_school','library','park','hospital'].includes(o.value));layersLoaded=true;
                 }
                 updateControls();
+                if(window.AdminPoiMap)await window.AdminPoiMap.load();
             }catch(e){error(e);}finally{loadPromise=null;}
         })();return loadPromise;
     }
