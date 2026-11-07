@@ -27,6 +27,7 @@
  <script src="../js/admin-support.js" defer></script>
     <script src="../js/admin.js" defer></script>
     <script src="../js/admin-poi.js" defer></script>
+    <script src="../js/admin-poi-map.js" defer></script>
     <script src="../js/auth.js" defer></script>
  <link rel="stylesheet" href="../css/ticket-attachments.css">
 </head>
@@ -57,6 +58,14 @@
                 <button type="button" class="admin-btn admin-btn-ghost" id="poi-pause">توقف گردآوری</button>
                 <button type="button" class="admin-btn admin-btn-ghost" id="poi-refresh">تازه‌سازی گزارش</button>
             </div>
+            <article class="support-card">
+                <h2>مکان‌های ذخیره‌شده</h2>
+                <p id="poi-map-status" class="support-hint" role="status" aria-live="polite"></p>
+                <svg id="poi-map" viewBox="0 0 1000 760" role="img" aria-label="مکان‌های ذخیره‌شده روی نقشهٔ شهرستان‌های ایران">
+                    <g id="poi-map-counties"></g>
+                    <g id="poi-map-places"></g>
+                </svg>
+            </article>
             <article class="support-card" id="poi-coverage-setup">
                 <h2>آماده‌سازی برنامهٔ جست‌وجو</h2>
                 <p>پوشش کامل مرزها با شعاع ۲ کیلومتر و جست‌وجوی نقاط با شعاع ۳ کیلومتر آماده می‌شود. اطلاعات مکان‌های ذخیره‌شده حفظ می‌شود و برنامهٔ قبلی در سوابق می‌ماند.</p>
