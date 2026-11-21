@@ -50,6 +50,11 @@ def resolve_module_mapping(module):
     resolved = dict(module)
     for role in ('ref_table', 'topic', 'subtopic', 'indicator', 'filter'):
         resolved[role] = str(module.get(role) or '').strip()
+    # Imported unquoted references follow PostgreSQL's lowercase identifier rule.
+    # Normalize before both information_schema lookup and quoted SQL generation.
+    parts = [part.strip() for part in resolved['ref_table'].split('.')]
+    if len(parts) in (1, 2) and all(re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', part) for part in parts):
+        resolved['ref_table'] = '.'.join(part.lower() for part in parts)
     if monitor_module(resolved):
         resolved['ref_table'] = resolved['ref_table'] or 'kdescription'
         # These defaults describe only the existing Monitor metadata table.

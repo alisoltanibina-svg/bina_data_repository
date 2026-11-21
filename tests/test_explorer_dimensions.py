@@ -47,6 +47,19 @@ class ExplorerDimensionsTest(unittest.TestCase):
             self.assertIn('"dimensions" AS "filter"', sql)
             self.assertIn('"topic_name" AS "topic"', sql)
 
+    def test_imported_mixed_case_reference_uses_lowercase_table(self):
+        for ref in ('Kdescription', 'KDESCRIPTION', 'Analytics.Kdescription', ' Analytics . Kdescription '):
+            with self.subTest(ref=ref):
+                module = {'module_name': 'Monitor Indicators', 'ref_table': ref}
+                resolved = resolve_module_mapping(module)
+                self.assertIn(resolved['ref_table'], ('kdescription', 'analytics.kdescription'))
+                sql = catalog_sql(module, ['topic_name', 'subtopic_name', 'indicator_name', 'dimensions'])
+                self.assertIn('FROM "analytics"."kdescription"', sql)
+                self.assertEqual(module['ref_table'], ref)
+        for ref in ('Accounts.Users', 'analytics.kdescription; DROP TABLE users'):
+            with self.assertRaises(ValueError):
+                catalog_sql({'ref_table': ref}, [])
+
     def test_optional_custom_mappings_produce_null_fields(self):
         for role in ('topic', 'subtopic', 'indicator', 'filter'):
             for blank in (None, '', '  '):
@@ -143,6 +156,31 @@ class ExplorerStartupTest(unittest.TestCase):
         self.assertEqual(result['hierarchy'], {'Domain': {'Subject': ['Example']}})
         self.assertEqual(result['modules'][0]['indicator_dimensions']['Example'], '{sex}')
         self.assertIsNone(source['ref_table'])
+
+    def test_reported_imported_module_rows_resolve_catalog(self):
+        from unittest.mock import Mock
+        ns, _ = self.namespace()
+        source = dict(module_name='نماگرهای دیده‌بان', ref_table='Kdescription', topic='topic_name',
+                      subtopic='subtopic_name', indicator='indicator_name', filter='dimensions')
+        other_modules = [{'data': {'module_name': name, 'ref_table': ref}}
+                         for name, ref in [('Statistics', 'Sudescription'), ('Places', 'poi'), ('Actors', 'actors')]]
+        def fetch(conn, sql, params=None):
+            if 'analytics.topics' in sql: return []
+            if 'analytics.modules' in sql: return [{'data': source}] + other_modules
+            if 'information_schema.columns' in sql:
+                self.assertEqual(params, {'table': 'kdescription'})
+                return [{'column_name': c} for c in ('topic_name', 'subtopic_name', 'indicator_name', 'dimensions')]
+            self.assertIn('FROM "analytics"."kdescription"', sql)
+            return [{'topic': 'Domain', 'subtopic': 'Subject', 'indicator': 'Example', 'filter': '{province}'}]
+        ns['fetchall_dicts'] = Mock(side_effect=fetch)
+        response = ns['get_explorer_init'](object())
+        import json
+        result = json.loads(response)
+        self.assertEqual(len(result['modules']), 4)
+        self.assertEqual(result['hierarchy'], {'Domain': {'Subject': ['Example']}})
+        self.assertEqual([m['active'] for m in result['modules']], [True, False, False, False])
+        self.assertEqual(source['ref_table'], 'Kdescription')
+        self.assertEqual(ns['fetchall_dicts'].call_count, 4)
 
     def test_custom_empty_mappings_and_inactive_module_do_not_fail(self):
         from unittest.mock import Mock

@@ -17,7 +17,9 @@ standard defaults for Monitor Indicators when its reference is empty or `kdescri
 For other reference tables, blank field mappings produce NULL catalog fields; rows without
 a Domain, Subject, or Indicator do not create navigable entries. A module with no reference
 and no Monitor defaults has an empty catalog. These defaults are resolved in memory and
-never written back to the database. Explicit nonempty mappings remain validated.
+never written back to the database. Imported unquoted reference names are normalized
+to lowercase, so `Kdescription` and `Analytics.Kdescription` resolve to
+`analytics.kdescription`. Explicit nonempty mappings remain validated.
 
 Scores accept a JSON object or imported text such as `{province: 2, sex:1}`.
 Dimension declarations accept PostgreSQL arrays, JSON arrays, or `{province, sex}` text.
