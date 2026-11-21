@@ -808,11 +808,29 @@ function renderDimensionFilters() {
         const legend = document.createElement('legend');
         legend.textContent = titles[filter.name] || filter.name;
         group.append(legend);
+        const inputs = [];
+        const actions = document.createElement('div');
+        actions.className = 'ex-filter-actions';
+        [[true, 'انتخاب همه'], [false, 'پاک کردن همه']].forEach(([selectAll, text]) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = text;
+            button.setAttribute('aria-label', `${text} — ${titles[filter.name] || filter.name}`);
+            button.disabled = !filter.values.length;
+            button.addEventListener('click', () => {
+                explorerFilterSelection[filter.name] = new Set(selectAll ? filter.values.map(value => value.value) : []);
+                inputs.forEach(input => { input.checked = selectAll; });
+                applyDimensionFilters();
+            });
+            actions.append(button);
+        });
+        group.append(actions);
         filter.values.forEach(value => {
             const label = document.createElement('label');
             const input = document.createElement('input');
             input.type = 'checkbox';
             input.checked = explorerFilterSelection[filter.name].has(value.value);
+            inputs.push(input);
             input.addEventListener('change', () => {
                 const selected = explorerFilterSelection[filter.name];
                 if (input.checked) selected.add(value.value); else selected.delete(value.value);

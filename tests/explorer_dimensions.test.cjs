@@ -30,7 +30,7 @@ function fixture() {
         window:{API_BASE_URL:'', clearInterval(){}, addEventListener(){}},
         document:{getElementById:element, querySelector:element,
             querySelectorAll(selector){return selector==='[data-explorer-section]' ? railSections.map(section=>element(`dd-${section}-btn`)) : [];},
-            createElement:makeElement, addEventListener(type,fn){events[type]=fn;}},
+            createElement:makeElement, createTextNode(text){return {textContent:text};}, addEventListener(type,fn){events[type]=fn;}},
         onReady(){}, debounce:fn=>fn, toFa:String, requestAnimationFrame(fn){fn();}, cancelAnimationFrame(){}});
     vm.runInContext(fs.readFileSync('js/explorer.js','utf8'), context);
     return {context, element, events, run:code=>vm.runInContext(code,context)};
@@ -158,4 +158,27 @@ test('all rail sections can open before selection and explain prerequisites', ()
     assert.match(f.element('dd-indicator-menu').children[0].textContent,/ابتدا حوزه و موضوع/);
     assert.match(f.element('dimension-filters').children[0].textContent,/پس از انتخاب/);
     assert.equal(f.run('activeIndicatorGlob'),null);
+});
+
+test('filter bulk actions update checkboxes and data without changing other dimensions or closing the panel', () => {
+    const f=fixture();
+    f.run(`explorerRawScores=[1,2].map(sex=>({year:1400,value:sex*10,province_name:'Tehran',series_id:'sex'+sex,series_label:'Tehran / '+sex,dim_cat_values:{province:'2',sex:String(sex)}}));
+        explorerFilters=[{name:'sex',values:[{value:'1',label:'Male'},{value:'2',label:'Female'}]}, {name:'province',values:[{value:'2',label:'Tehran'}]}];
+        explorerFilterSelection={sex:new Set(['1']),province:new Set(['2'])};
+        renderDimensionFilters(); setExplorerSection('filter');`);
+    const group=f.element('dimension-filters').children[0];
+    const actions=group.children[1].children;
+    const inputs=group.children.slice(2).map(label=>label.children[0]);
+    assert.equal(actions[0].textContent,'انتخاب همه');
+    assert.equal(actions[1].textContent,'پاک کردن همه');
+    actions[0].click();
+    assert.deepEqual(inputs.map(input=>input.checked),[true,true]);
+    assert.equal(f.run('kscoreData.length'),2);
+    actions[1].click();
+    assert.deepEqual(inputs.map(input=>input.checked),[false,false]);
+    assert.equal(f.run('kscoreData.length'),0);
+    assert.equal(f.run(`explorerFilterSelection.province.has('2')`),true);
+    assert.equal(f.element('explorer-selection-panel').hidden,false);
+    actions[0].click();
+    assert.equal(f.run('kscoreData.length'),2);
 });

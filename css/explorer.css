@@ -1506,6 +1506,10 @@ body.explorer-body {
 #dimension-filters fieldset { border: 0; border-bottom: 1px solid #e0dac9; padding: 16px 0; margin: 0; }
 #dimension-filters fieldset:last-child { border-bottom: 0; }
 #dimension-filters legend { padding: 0; color: var(--ex-olive); font-size: 1rem; font-weight: 800; }
+#dimension-filters .ex-filter-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 12px; }
+#dimension-filters .ex-filter-actions button { border: 1px solid #dcd5bf; border-radius: 16px; background: transparent; color: var(--ex-olive); padding: 5px 10px; font: inherit; font-size: .875rem; cursor: pointer; }
+#dimension-filters .ex-filter-actions button:hover:not(:disabled) { background: #eeeddf; }
+#dimension-filters .ex-filter-actions button:disabled { opacity: .5; cursor: default; }
 #dimension-filters label { display: flex; align-items: center; gap: 10px; padding: 7px 0; color: #777448; font-size: .95rem; cursor: pointer; }
 #dimension-filters input { flex-shrink: 0; accent-color: var(--ex-olive); width: 17px; height: 17px; margin: 0; }
 .ex-metadata { flex: 1; min-height: 0; overflow: auto; padding: 28px 8px 8px; }
