@@ -12,6 +12,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 from backend import poi_explore as explore
+from backend import poi_budget as budget
 from backend.poi_provider import Reply
 
 
@@ -20,7 +21,7 @@ class ExploreTest(unittest.TestCase):
         self.category = SimpleNamespace(category='mosque', title='مسجد',
             icon_url='https://static.neshanmap.ir/poi/64/mosque.png', is_published=True, sort_order=0)
         self.settings = SimpleNamespace(neshan_explore_authorized=True,
-            neshan_service_api_key=SecretStr('synthetic-key'), neshan_nearby_result_cap=0)
+            neshan_service_api_key=SecretStr('synthetic-key'), neshan_nearby_result_cap=0, neshan_explore_interval_seconds=1.0)
         self.session = Mock()
         self.session.get.return_value = self.category
         self.session.scalars.return_value.all.return_value = [self.category]
@@ -143,16 +144,53 @@ class ExploreTest(unittest.TestCase):
         self.assertIn('GROUP BY poi.poi_places.province_name',str(query))
         self.assertEqual(query.compile().params['category_1'],'mosque')
 
-    def test_shared_budget_only_changes_dispatch_time_and_preserves_collector_state(self):
-        row=SimpleNamespace(next_request_at=None,in_flight=None,paused=True,reason='operator pause')
-        self.session.scalar.return_value=row
+    def test_live_budget_uses_short_metadata_slot_without_collector_cooldown(self):
+        rows=[SimpleNamespace(key=budget.LIVE_NEXT_KEY,value='0'),SimpleNamespace(key=budget.BACKOFF_KEY,value='0')]
+        self.session.scalars.return_value.all.return_value=rows
         explore.reserve_live_request()
-        self.assertGreater(row.next_request_at,datetime.now(timezone.utc))
-        self.assertTrue(row.paused);self.assertEqual(row.reason,'operator pause')
+        remaining=float(rows[0].value)-datetime.now(timezone.utc).timestamp()
+        self.assertGreater(remaining,0)
+        self.assertLessEqual(remaining,1)
         with self.assertRaises(HTTPException) as caught: explore.reserve_live_request()
         self.assertEqual(caught.exception.status_code,429)
-        row.next_request_at=None;row.in_flight=123
-        with self.assertRaises(HTTPException): explore.reserve_live_request()
+        self.assertEqual(caught.exception.headers['Retry-After'],'1')
+        self.session.get.assert_not_called()
+        for call in self.session.execute.call_args_list:
+            self.assertNotIn('poi_control',str(call.args[0]))
+
+    def test_actual_provider_backoff_overrides_fast_live_slot(self):
+        rows=[SimpleNamespace(key=budget.LIVE_NEXT_KEY,value='0'),SimpleNamespace(key=budget.BACKOFF_KEY,value='175')]
+        self.session.scalars.return_value.all.return_value=rows
+        with self.assertRaises(budget.ProviderBusy) as caught:
+            budget.reserve_live_slot(self.session,1,stamp=100)
+        self.assertEqual(caught.exception.seconds,75)
+        self.assertEqual(rows[0].value,'0')
+        self.session.get.return_value=rows[1]
+        self.assertEqual(budget.provider_backoff_until(self.session),175)
+        budget.record_provider_backoff(self.session,120,stamp=100)
+        statement=self.session.execute.call_args.args[0]
+        self.assertIn('greatest',str(statement))
+        self.assertEqual(statement.compile().params['value'],'220')
+
+    def test_init_publishes_fast_config_and_configured_account_interval(self):
+        payload=self.client().get('/api/poi-explore/init').json()
+        self.assertEqual(payload['live']['debounce_ms'],200)
+        self.assertEqual(payload['live']['interval_ms'],1000)
+        self.settings.neshan_explore_interval_seconds=3
+        payload=self.client().get('/api/poi-explore/init').json()
+        self.assertEqual(payload['live']['interval_ms'],3000)
+
+    def test_collector_rate_error_shares_actual_backoff_with_live_search(self):
+        from backend import poi
+        control=SimpleNamespace()
+        request=SimpleNamespace(job_id=1,kind='nearby',target_type='segment',target_id=2)
+        job=SimpleNamespace()
+        target=SimpleNamespace(attempts=1)
+        self.session.get.side_effect=[request,job,target]
+        with patch.object(poi,'control',return_value=control),patch.object(poi.coverage,'plan_for',return_value=None),patch.object(poi,'record_provider_backoff') as shared:
+            poi.apply_reply(self.session,1,Reply(482,retry_after=180))
+            shared.assert_called_once_with(self.session,180)
+        self.assertGreater(control.next_request_at,datetime.now(timezone.utc))
 
     def test_province_anchors_are_inside_the_supplied_boundaries(self):
         import json

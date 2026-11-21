@@ -146,7 +146,7 @@ function locationSearchChanged(previous, next) {
         if (!locationSearchChanged(state.lastPlan, plan)) return;
         clearLive();
         const wait = Math.max(state.config.debounce_ms, state.nextAllowed - Date.now());
-        setStatus(wait > state.config.debounce_ms ? 'پس از مکث کوتاه، جستجو در محدودهٔ جدید انجام می‌شود…' : 'در حال جستجوی مکان‌های نزدیک…');
+        setStatus('در حال جستجوی مکان‌های نزدیک…');
         const generation = state.generation;
         state.timer = setTimeout(() => requestNearby(plan, generation), wait);
     }
@@ -164,7 +164,7 @@ function locationSearchChanged(previous, next) {
             if (response.status === 429) {
                 const seconds = Number(response.headers.get('Retry-After'));
                 state.nextAllowed = Math.max(state.nextAllowed, Date.now() + (Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : 60000));
-                setStatus('جستجو موقتاً محدود است؛ پس از مکث کوتاه دوباره انجام می‌شود.');
+                setStatus(seconds > 2 ? 'جستجو موقتاً محدود است؛ پس از مکث کوتاه دوباره انجام می‌شود.' : 'در حال جستجوی مکان‌های نزدیک…');
                 state.timer = setTimeout(scheduleViewport, Math.max(1000, state.nextAllowed - Date.now()));
                 return;
             }
@@ -176,18 +176,19 @@ function locationSearchChanged(previous, next) {
                 interactive: false}).addTo(state.map);
             let offset = 0;
             const places = payload.places;
+            const icon = L.icon({iconUrl: state.selected.icon_url, iconSize: [30, 30],
+                iconAnchor: [15, 15], popupAnchor: [0, -16], className: 'locations-live-icon'});
             function drawBatch() {
                 state.frame = null;
                 if (generation !== state.generation || document.hidden) return;
-                for (const place of places.slice(offset, offset + 100)) {
-                    L.circleMarker([place.latitude, place.longitude], {renderer: state.renderer, radius: 5,
-                        color: '#fff', weight: 1.5, fillColor: '#596315', fillOpacity: .95})
+                for (const place of places.slice(offset, offset + 50)) {
+                    L.marker([place.latitude, place.longitude], {icon, title: place.name, keyboard: true})
                         .bindPopup(() => {
                             const label = document.createElement('div'); label.className = 'locations-live-popup';
                             label.textContent = place.name; return label;
                         }).addTo(state.live);
                 }
-                offset += 100;
+                offset += 50;
                 if (offset < places.length) state.frame = requestAnimationFrame(drawBatch);
                 else {
                     state.lastPlan = plan;

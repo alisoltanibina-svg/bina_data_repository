@@ -1,5 +1,4 @@
 """Authenticated POI exploration. Nearby output is streamed through memory only."""
-from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 import json
 import math
@@ -10,18 +9,18 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import Field, FiniteFloat
 from sqlalchemy import select, func, text
-from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import OperationalError
 
 from backend import database
 from backend.input_security import InputBody
 from backend.poi_geo import normalize
-from backend.poi_models import PoiExploreCategory, PoiPlace, PoiPlaceCategory, PoiControl
+from backend.poi_models import PoiExploreCategory, PoiPlace, PoiPlaceCategory
 from backend.poi_provider import LAYERS, Neshan, coordinates
+from backend.poi_budget import ProviderBusy, reserve_live_slot, record_provider_backoff
 from backend.settings import get_settings
 
 LIVE_MIN_ZOOM = 13
-LIVE_INTERVAL_SECONDS = 35
+LIVE_INTERVAL_SECONDS = 1
 LIVE_MAX_POINTS = 500
 LIVE_RADII = {13: 2000, 14: 1500, 15: 1000, 16: 700, 17: 500, 18: 500, 19: 500}
 NO_STORE = {'Cache-Control': 'no-store, max-age=0', 'Pragma': 'no-cache',
@@ -101,35 +100,29 @@ def stored_counts(category, provinces):
     return aggregate_provinces(provinces, rows)
 
 
+def live_interval_seconds():
+    return get_settings().neshan_explore_interval_seconds
+
+
 def reserve_live_request():
-    """Share the collector's account pacing; persist only a dispatch timestamp."""
-    now = datetime.now(timezone.utc)
+    """Short interactive pacing, separate from collector scheduling deadlines."""
     try:
         with database.db_session() as session:
             session.execute(text("SET LOCAL lock_timeout = '100ms'"))
-            # This row is already used by the collector for Nearby + Details dispatch.
-            session.execute(insert(PoiControl).values(id=1).on_conflict_do_nothing())
-            control = session.scalar(select(PoiControl).where(PoiControl.id == 1).with_for_update(nowait=True))
-            wait = max(0, math.ceil((control.next_request_at - now).total_seconds())) if control.next_request_at else 0
-            if control.in_flight or wait:
-                raise HTTPException(429, detail='لطفاً کمی بعد جستجو کنید.',
-                    headers={**NO_STORE, 'Retry-After': str(max(wait, LIVE_INTERVAL_SECONDS if control.in_flight else 1))})
-            # Never overwrite paused/reason/worker state or enqueue collection jobs.
-            control.next_request_at = now + timedelta(seconds=LIVE_INTERVAL_SECONDS)
+            reserve_live_slot(session, live_interval_seconds())
+    except ProviderBusy as exc:
+        raise HTTPException(429, detail='در حال به‌روزرسانی مکان‌های نزدیک…',
+            headers={**NO_STORE, 'Retry-After': str(exc.seconds)}) from None
     except OperationalError as exc:
         if getattr(exc.orig, 'sqlstate', None) != '55P03':
             raise
         raise HTTPException(429, detail='سرویس در حال پاسخ‌گویی است.',
-            headers={**NO_STORE, 'Retry-After': '2'}) from None
+            headers={**NO_STORE, 'Retry-After': '1'}) from None
 
 
 def extend_provider_backoff(seconds):
-    if seconds <= LIVE_INTERVAL_SECONDS:
-        return
-    deadline = datetime.now(timezone.utc) + timedelta(seconds=min(seconds, 86400))
     with database.db_session() as session:
-        session.execute(text('UPDATE poi.poi_control SET next_request_at = GREATEST(next_request_at, :deadline) WHERE id=1'),
-                        {'deadline': deadline})
+        record_provider_backoff(session, seconds)
 
 
 def nearby_display_points(body):
@@ -187,7 +180,7 @@ def build_router(require_admin, require_user):
                 .order_by(PoiExploreCategory.sort_order, PoiExploreCategory.title)).all()
             categories = [category_dict(row) for row in rows if row.category in LAYERS]
         return response(dict(categories=categories, live=dict(min_zoom=LIVE_MIN_ZOOM,
-            radius_by_zoom=LIVE_RADII, debounce_ms=600, interval_ms=LIVE_INTERVAL_SECONDS * 1000, max_points=LIVE_MAX_POINTS)))
+            radius_by_zoom=LIVE_RADII, debounce_ms=200, interval_ms=round(live_interval_seconds() * 1000), max_points=LIVE_MAX_POINTS)))
 
     @router.get('/api/poi-explore/counts')
     def counts(request: Request, category: str):

@@ -6,7 +6,7 @@ from functools import lru_cache
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from pydantic import SecretStr, ValidationError
+from pydantic import Field, SecretStr, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     neshan_nearby_result_cap: int = 0
     neshan_collection_authorized: bool = False
     neshan_explore_authorized: bool = False
+    neshan_explore_interval_seconds: float = Field(default=1.0, ge=1.0, le=60.0)
     cors_origins: str = "https://app.rasadbina.ir"
     admin_phone: str = ""
     admin_password: SecretStr = SecretStr("")

@@ -15,6 +15,7 @@ from backend.poi_models import (PoiControl, PoiBoundary, PoiCategory, PoiJob, Po
     PoiPlace, PoiPlaceCategory, PoiDetailTask, PoiRequest, PoiDuplicateReview, PoiSourceDataset, PoiSettlement)
 from backend.poi_geo import BoundaryIndex, grid, load_boundaries, normalize, parse_address
 from backend.poi_provider import nearby_items, details, access_error_message
+from backend.poi_budget import record_provider_backoff
 from backend import poi_coverage_state as coverage
 
 LOCK_KEY = 741923816
@@ -274,6 +275,8 @@ def apply_reply(session, request_id, reply, result_cap=0, detail_hash=None, deta
         c.paused, c.reason = True, f'Request failed (HTTP {reply.status}); inspect history'
     if reply.retry_after:
         delay = max(delay, min(reply.retry_after, 31536000))
+    if reply.status in {429, 481, 482} or reply.retry_after:
+        record_provider_backoff(session, max(60, delay))
     # No pause/resume action can shorten this provider-wide deadline.
     c.next_request_at = stamp + timedelta(seconds=delay)
     return handoff

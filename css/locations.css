@@ -34,6 +34,7 @@ body.locations-body { margin: 0; height: 100dvh; overflow: hidden; background: v
 .locations-summary-marker small { font: .8rem 'PeydaFaNumWeb', Tahoma, sans-serif; white-space: nowrap; margin-top: 3px; }
 .locations-summary-marker.is-unknown img { opacity: .5; }
 .locations-summary-marker.is-unknown strong { color: #84754e; }
+.locations-live-icon { object-fit: contain; border: 1px solid white; border-radius: 50%; background: #fffffff2; padding: 2px; }
 .locations-live-popup { font: 1rem 'PeydaFaNumWeb', Tahoma, sans-serif; text-align: right; color: var(--location-olive); }
 .locations-body .leaflet-control-zoom { margin-top: 78px; }
 .locations-body .leaflet-control-attribution { font-size: .7rem; }

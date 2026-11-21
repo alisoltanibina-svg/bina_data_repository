@@ -1,7 +1,7 @@
 """Run with python -m backend.poi_worker. Never started by FastAPI lifecycle hooks."""
 import argparse
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import logging
 import signal
@@ -15,6 +15,7 @@ from backend.poi import (LOCK_KEY, ACTIVE, control, now, plan_province, next_tar
 from backend import poi_coverage_state as coverage
 from backend.poi_models import PoiControl, PoiJob, PoiSegment, PoiDetailTask, PoiRequest
 from backend.poi_provider import Neshan
+from backend.poi_budget import provider_backoff_until
 from backend.settings import get_settings
 
 log = logging.getLogger('poi_worker')
@@ -101,6 +102,10 @@ class Worker:
                 planning_job_id = job.id
             else:
                 if c.next_request_at and c.next_request_at > now(): return
+                backoff = provider_backoff_until(session)
+                if backoff > now().timestamp():
+                    c.next_request_at = datetime.fromtimestamp(backoff, timezone.utc)
+                    return
                 kind, row, params = target
                 if pending_detail: pending_detail.attempts += 1
                 else: row.attempts += 1
