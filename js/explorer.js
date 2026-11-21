@@ -78,6 +78,7 @@ let activeExplorerModule = null;
 let explorerRawScores = [];
 let explorerFilters = [];
 let explorerFilterSelection = {};
+let explorerFilterInputs = [];
 let explorerTab = 'chart';
 let explorerChartType = 'trend';
 let explorerLoadState = 'idle';
@@ -431,6 +432,7 @@ function resetExplorerSelection() {
     explorerFilters = [];
     explorerLoadState = 'idle';
     document.getElementById('dimension-filters').replaceChildren();
+    explorerFilterInputs = [];
     syncExplorerDropdowns();
     syncExplorerVisibility();
 }
@@ -815,7 +817,46 @@ function setChartMode(mode) {
     if (explorerLoadState === 'ready' && explorerTab !== 'metadata') refreshActiveChart();
 }
 
+function explorerSeriesRows() {
+    // Assign colors using the complete catalog, so filtering cannot renumber colors.
+    const labels = new Map(explorerRawScores.map(row => [row.series_id, row.series_label]));
+    const counts = new Map();
+    const colors = new Map();
+    let colorIndex = 0;
+    for (const [id, label] of labels) {
+        counts.set(label, (counts.get(label) || 0) + 1);
+        colors.set(id, label === 'کل کشور' ? '#1e293b' : provinceColorPalette[colorIndex++ % provinceColorPalette.length]);
+    }
+    return explorerRawScores.map(row => ({...row, geographic_province: row.province_name,
+        province_name: counts.get(row.series_label) > 1 ? `${row.series_label} (${row.series_id})` : row.series_label,
+        series_color: colors.get(row.series_id)}));
+}
+
+function syncExplorerFilterColors(rows = explorerSeriesRows()) {
+    const series = [...new Map(rows.map(row => [row.series_id, row])).values()];
+    explorerFilterInputs.forEach(({input, dimension, value, colorKey}) => {
+        const matching = series.filter(row => row.dim_cat_values[dimension] === value && explorerFilters.every(filter =>
+            filter.name === dimension || row.dim_cat_values[filter.name] === undefined ||
+            explorerFilterSelection[filter.name].has(row.dim_cat_values[filter.name])));
+        const colors = [...new Set(matching.map(row => row.series_color))];
+        input.style.accentColor = colors.length === 1 ? colors[0] : 'var(--ex-olive)';
+        colorKey.replaceChildren();
+        colorKey.hidden = colors.length <= 1;
+        colors.slice(0, 6).forEach(color => {
+            const swatch = document.createElement('i');
+            swatch.style.backgroundColor = color;
+            colorKey.append(swatch);
+        });
+        if (colors.length > 6) {
+            const remaining = document.createElement('small');
+            remaining.textContent = `+${toFa(colors.length - 6)}`;
+            colorKey.append(remaining);
+        }
+    });
+}
+
 function renderDimensionFilters() {
+    explorerFilterInputs = [];
     const root = document.getElementById('dimension-filters');
     root.replaceChildren();
     const titles = {province: 'استان', sex: 'جنسیت', residence: 'محل سکونت'};
@@ -855,25 +896,26 @@ function renderDimensionFilters() {
                 if (input.checked) selected.add(value.value); else selected.delete(value.value);
                 applyDimensionFilters();
             });
-            label.append(input, document.createTextNode(value.label));
+            const colorKey = document.createElement('span');
+            colorKey.className = 'ex-filter-color-key';
+            colorKey.setAttribute('aria-hidden', 'true');
+            explorerFilterInputs.push({input, dimension: filter.name, value: value.value, colorKey});
+            label.append(input, document.createTextNode(value.label), colorKey);
             group.append(label);
         });
         root.append(group);
     });
+    syncExplorerFilterColors();
 }
 
 function applyDimensionFilters(refresh = true) {
-    const rows = explorerRawScores.filter(row => explorerFilters.every(filter =>
+    const allRows = explorerSeriesRows();
+    kscoreData = allRows.filter(row => explorerFilters.every(filter =>
         row.dim_cat_values[filter.name] === undefined || explorerFilterSelection[filter.name].has(row.dim_cat_values[filter.name])));
-    // The existing chart/table renderers use province_name as a series key.
-    // Adapt complete dimension combinations here; retain the geographic key separately.
-    const labels = new Map(rows.map(row => [row.series_id, row.series_label]));
-    const counts = new Map();
-    for (const label of labels.values()) counts.set(label, (counts.get(label) || 0) + 1);
-    kscoreData = rows.map(row => ({...row, geographic_province: row.province_name,
-        province_name: counts.get(row.series_label) > 1 ? `${row.series_label} (${row.series_id})` : row.series_label}));
+    // Chart/table renderers use province_name as the complete series label.
+    provinceColors = Object.fromEntries(allRows.map(row => [row.province_name, row.series_color]));
+    syncExplorerFilterColors(allRows);
     provincesList = [...new Set(kscoreData.map(row => row.province_name))].filter(name => name !== 'کل کشور');
-    provincesList.forEach((name, i) => { provinceColors[name] = provinceColorPalette[i % provinceColorPalette.length]; });
     activeDatasets = [...provincesList];
     currentChartYears = [...new Set(kscoreData.filter(row => row.year != null).map(row => Number(row.year)))].sort((a,b) => a-b);
     latestScoresGlob = kscoreData.filter(row => Number(row.year) === latestYearGlob);

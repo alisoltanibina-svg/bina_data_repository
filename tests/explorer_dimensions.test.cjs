@@ -273,3 +273,50 @@ test('fixed scale retains flat-value padding and ignores missing or invalid valu
     assert.equal(f.run('getIndicatorScaleBounds().min'),undefined);
     assert.equal(f.run('getIndicatorScaleBounds().max'),undefined);
 });
+
+test('checkbox ticks match chart line colors and retain colors after clear and reselect', () => {
+    const f=fixture();
+    f.run(`explorerRawScores=['2','3','29'].flatMap(province=>[1400,1401].map(year=>({year,value:20,
+        series_id:province,series_label:province==='29'?'کل کشور':'Province '+province,
+        province_name:province==='29'?'کل کشور':'Province '+province,dim_cat_values:{province}})));
+        explorerFilters=[{name:'province',values:[{value:'2',label:'Province 2'},{value:'3',label:'Province 3'},{value:'29',label:'کل کشور'}]}];
+        explorerFilterSelection={province:new Set(['2','3','29'])}; renderDimensionFilters(); applyDimensionFilters(false);`);
+    const group=f.element('dimension-filters').children[0];
+    const inputs=group.children.slice(2).map(label=>label.children[0]);
+    const initialColors=inputs.map(input=>input.style.accentColor);
+    assert.notEqual(initialColors[0],initialColors[1]);
+    assert.equal(initialColors[2],'#1e293b');
+    let chartConfig;
+    f.context.Chart=function(canvas,config){chartConfig=config; this.data=config.data; this.destroy=()=>{};};
+    f.element('mainChart').getContext=()=>({});
+    f.run('startSweep=()=>{}; drawChart()');
+    assert.equal(chartConfig.data.datasets.find(ds=>ds.label==='Province 2').borderColor,initialColors[0]);
+    assert.equal(chartConfig.data.datasets.find(ds=>ds.label==='Province 3').borderColor,initialColors[1]);
+    assert.equal(chartConfig.data.datasets.find(ds=>ds.label==='میانگین کل کشور').borderColor,initialColors[2]);
+    inputs[0].checked=false;
+    inputs[0].events.change();
+    assert.equal(f.run(`provinceColors['Province 3']`),initialColors[1]);
+    assert.equal(inputs[1].style.accentColor,initialColors[1]);
+    group.children[1].children[1].click();
+    group.children[1].children[0].click();
+    assert.deepEqual(inputs.map(input=>input.style.accentColor),initialColors);
+});
+test('multi-series filter keys resolve to matching tick colors when other dimensions narrow the selection', () => {
+    const f=fixture();
+    f.run(`explorerRawScores=['2','3'].flatMap(province=>['1','2'].map(sex=>({year:1400,value:20,
+        series_id:province+sex,series_label:province+'/'+sex,province_name:province,dim_cat_values:{province,sex}})));
+        explorerFilters=[{name:'province',values:[{value:'2',label:'Province 2'},{value:'3',label:'Province 3'}]},
+            {name:'sex',values:[{value:'1',label:'Male'},{value:'2',label:'Female'}]}];
+        explorerFilterSelection={province:new Set(['2','3']),sex:new Set(['1','2'])}; renderDimensionFilters(); applyDimensionFilters(false);`);
+    const provinceLabel=f.element('dimension-filters').children[0].children[2];
+    assert.equal(provinceLabel.children[2].hidden,false);
+    assert.equal(provinceLabel.children[2].children.length,2);
+    f.run(`explorerFilterSelection.sex=new Set(['2']); applyDimensionFilters(false)`);
+    assert.equal(provinceLabel.children[2].hidden,true);
+    assert.equal(provinceLabel.children[0].style.accentColor,f.run(`provinceColors['2/2']`));
+    const sexLabel=f.element('dimension-filters').children[1].children[3];
+    assert.equal(sexLabel.children[2].hidden,false);
+    f.run(`explorerFilterSelection.province=new Set(['2']); applyDimensionFilters(false)`);
+    assert.equal(sexLabel.children[2].hidden,true);
+    assert.equal(sexLabel.children[0].style.accentColor,f.run(`provinceColors['2/2']`));
+});
