@@ -34,6 +34,8 @@ from fastapi.staticfiles import StaticFiles
 from starlette.background import BackgroundTask
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from backend.explorer_dimensions import catalog_sql, monitor_module, pack_scores
+
 from backend.database import (
     NATIONAL_NAME,
     check_connection,
@@ -517,34 +519,41 @@ def get_atlas_trend(province: str, topic: str, request: Request):
 
 def _compute_explorer_init() -> dict:
     with db_connection() as conn:
-        colors = fetchall_dicts(
-            conn,
-            "SELECT topic_name, upper_color, lower_color, master_color FROM analytics.topics ORDER BY id",
-        )
-        kdesc_rows = fetchall_dicts(
-            conn,
-            "SELECT topic_name, subtopic_name, indicator_name FROM analytics.kdescription ORDER BY id",
-        )
-        provinces = list_dashboard_provinces(conn)
-
-    hierarchy: dict[str, dict[str, list[str]]] = {}
-    for row in kdesc_rows:
-        t, s, i = row["topic_name"], row["subtopic_name"], row["indicator_name"]
-        if t not in hierarchy:
-            hierarchy[t] = {}
-        if s not in hierarchy[t]:
-            hierarchy[t][s] = []
-        if i not in hierarchy[t][s]:
-            hierarchy[t][s].append(i)
-
-    return {"colors": colors, "hierarchy": hierarchy, "provinces": provinces}
+        colors = fetchall_dicts(conn, "SELECT topic_name, upper_color, lower_color, master_color FROM analytics.topics ORDER BY id")
+        # to_jsonb also accepts imported Module_name casing without interpolating it.
+        modules = fetchall_dicts(conn, "SELECT to_jsonb(m) AS data FROM analytics.modules m")
+        catalogs = []
+        for item in modules:
+            module = {k.lower(): v for k, v in item['data'].items()}
+            module['active'] = monitor_module(module)
+            module['hierarchy'] = {}
+            module['indicator_dimensions'] = {}
+            if module['active']:
+                ref = str(module.get('ref_table') or '').split('.')[-1]
+                columns = [r['column_name'] for r in fetchall_dicts(conn,
+                    "SELECT column_name FROM information_schema.columns WHERE table_schema='analytics' AND table_name=:table",
+                    {'table': ref})]
+                try:
+                    rows = fetchall_dicts(conn, catalog_sql(module, columns))
+                except ValueError as exc:
+                    raise HTTPException(status_code=503, detail="Invalid Explorer module configuration") from exc
+                for row in rows:
+                    t, sub, indicator = row['topic'], row['subtopic'], row['indicator']
+                    if not t or not sub or not indicator:
+                        continue
+                    module['indicator_dimensions'][indicator] = row['filter']
+                    items = module['hierarchy'].setdefault(t, {}).setdefault(sub, [])
+                    if indicator not in items:
+                        items.append(indicator)
+            catalogs.append(module)
+        hierarchy = next((m['hierarchy'] for m in catalogs if m['active']), {})
+    return {'colors': colors, 'hierarchy': hierarchy, 'provinces': [], 'modules': catalogs}
 
 
 @app.get("/api/explorer/init")
 def get_explorer_init(request: Request):
-    """Builds the hierarchy and province list on the server."""
     _require_user(request)
-    return _cached_json("explorer-init", _compute_explorer_init, request, private=True)
+    return _cached_json("explorer-init-v2", _compute_explorer_init, request, private=True)
 
 
 def _compute_indicator_names() -> list[str]:
@@ -558,41 +567,25 @@ def _compute_indicator_names() -> list[str]:
 
 
 def _compute_explorer_indicator(name: str) -> dict:
-    names = get_cache().get("indicator-names", _compute_indicator_names)
-    canon = resolve_catalog_name(name, names) or (name or "").strip()
     with db_connection() as conn:
-        desc_row = fetchone_dict(
-            conn,
-            "SELECT description, source_name, measurement_unit, question FROM analytics.kdescription "
-            "WHERE indicator_name = :name ORDER BY id",
-            {"name": canon},
-        )
-        scores = fetchall_dicts(
-            conn,
-            "SELECT province_name, year, value FROM analytics.kindicator_score "
-            "WHERE indicator_name = :name ORDER BY id",
-            {"name": canon},
-        )
-        latest_year_row = conn.execute(
-            "SELECT MAX(year) AS y FROM analytics.kindicator_score WHERE indicator_name = :name",
-            {"name": canon},
-        ).fetchone()
-        latest_year = latest_year_row[0] if latest_year_row else None
-        latest_scores = []
-        if latest_year is not None:
-            latest_scores = fetchall_dicts(
-                conn,
-                "SELECT province_name, year, value FROM analytics.kindicator_score "
-                "WHERE indicator_name = :name AND year = :year AND province_name != :national "
-                "ORDER BY province_name",
-                {"name": canon, "year": latest_year, "national": NATIONAL_NAME},
-            )
-    return {
-        "description": desc_row,
-        "scores": scores,
-        "latest_year": latest_year,
-        "latest_scores": latest_scores,
-    }
+        desc_row = fetchone_dict(conn,
+            "SELECT description, source_name, measurement_unit, question, dimensions, index_include "
+            "FROM analytics.kdescription WHERE indicator_name=:name ORDER BY id", {'name': name})
+        scores = fetchall_dicts(conn,
+            "SELECT province_name, dim_cat_values, year, value FROM analytics.kindicator_score "
+            "WHERE indicator_name=:name ORDER BY id", {'name': name})
+        lookup = fetchall_dicts(conn, "SELECT dimension_name, dimension_value, dimension_key FROM analytics.dimensions")
+    try:
+        catalog = get_cache().get('explorer-init-v2', _compute_explorer_init)
+        declared = next((m['indicator_dimensions'][name] for m in catalog['modules']
+                         if m['active'] and name in m.get('indicator_dimensions', {})),
+                        (desc_row or {}).get('dimensions'))
+        scores, filters = pack_scores(scores, declared, lookup)
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail="Invalid indicator dimension data") from exc
+    latest = max((r['year'] for r in scores if r['year'] is not None), default=None)
+    return {'description': desc_row, 'scores': scores, 'filters': filters,
+            'latest_year': latest, 'latest_scores': [r for r in scores if r['year'] == latest]}
 
 
 @app.get("/api/explorer/indicator")
@@ -603,7 +596,7 @@ def get_explorer_indicator(name: str, request: Request):
     if not canon:
         raise HTTPException(status_code=404, detail="شاخص یافت نشد")
     return _cached_json(
-        f"explorer-indicator::{_name_key(canon)}",
+        f"explorer-indicator-v2::{_name_key(canon)}",
         lambda: _compute_explorer_indicator(canon),
         request,
         ttl_seconds=3600,

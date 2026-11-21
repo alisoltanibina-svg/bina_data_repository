@@ -63,17 +63,15 @@ class KDescription(Base):
     source_name: Mapped[str | None] = mapped_column(Text)
     measurement_unit: Mapped[str | None] = mapped_column(Text)
     question: Mapped[str | None] = mapped_column(Text)
+    dimensions: Mapped[str | None] = mapped_column(Text)
+    index_include: Mapped[str | None] = mapped_column(Text)
 
 
 class KIndicatorScore(Base):
     __tablename__ = "kindicator_score"
     __table_args__ = (
-        UniqueConstraint(
-            "indicator_name",
-            "year",
-            "province_name",
-            name="uq_kindicator_score",
-        ),
+        Index("uq_kindicator_dimensions", "indicator_name", "year",
+              text("(COALESCE(dim_cat_values::text, province_name))"), unique=True),
         Index("idx_kindicator_province", "province_name"),
         Index(
             "idx_kindicator_topic_sub",
@@ -87,6 +85,7 @@ class KIndicatorScore(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
+    dim_cat_values: Mapped[dict | None] = mapped_column(JSONB)
     province_name: Mapped[str | None] = mapped_column(Text)
     topic_name: Mapped[str | None] = mapped_column(Text)
     subtopic_name: Mapped[str | None] = mapped_column(Text)
@@ -473,3 +472,23 @@ class SupportAttachment(Base):
 
 # Register acquisition tables for Alembic and application/test metadata.
 from backend import poi_models as _poi_models  # noqa: E402,F401
+
+
+class Dimension(Base):
+    __tablename__ = 'dimensions'
+    __table_args__ = {'schema': 'analytics'}
+    dimension_name: Mapped[str] = mapped_column(Text, primary_key=True)
+    dimension_value: Mapped[str] = mapped_column(Text, primary_key=True)
+    dimension_key: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class ExplorerModule(Base):
+    __tablename__ = 'modules'
+    __table_args__ = {'schema': 'analytics'}
+    module_name: Mapped[str] = mapped_column(Text, primary_key=True)
+    ref_table: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    topic: Mapped[str] = mapped_column(Text, nullable=False)
+    subtopic: Mapped[str] = mapped_column(Text, nullable=False)
+    indicator: Mapped[str] = mapped_column(Text, nullable=False)
+    filter: Mapped[str] = mapped_column(Text, nullable=False)

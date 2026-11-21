@@ -2,7 +2,7 @@
 
 TABLE_SCHEMAS = {
     **dict.fromkeys((
-        "topics", "kdescription", "kindicator_score", "trend_score",
+        "topics", "dimensions", "modules", "kdescription", "kindicator_score", "trend_score",
         "province_pop", "clusters", "provinces", "pyramid",
     ), "analytics"),
     **dict.fromkeys((

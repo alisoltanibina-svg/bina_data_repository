@@ -16,7 +16,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import OperationalError
-from backend.db_schema import TABLE_SCHEMAS
+from backend.db_schema import TABLE_SCHEMAS as CURRENT_TABLE_SCHEMAS
+# This helper rehearses migration 0023 only. Later tables do not exist yet.
+TABLE_SCHEMAS = {name: schema for name, schema in CURRENT_TABLE_SCHEMAS.items()
+                 if name not in {"dimensions", "modules"}}
 from backend.settings import get_settings
 
 

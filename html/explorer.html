@@ -42,19 +42,14 @@
     <div class="explorer-workspace">
 
         <div id="view-landing" class="ex-landing">
-            <script>
-                if (new URLSearchParams(window.location.search).has('indicator')) {
-                    document.getElementById('view-landing').style.display = 'none';
-                }
-            </script>
             <div class="ex-stage" id="mosaic-menu"></div>
         </div>
 
         <div id="view-dashboard" class="ex-dash hidden">
             <div class="ex-dash-head">
                 <div class="ex-dash-nav">
-                    <button type="button" id="btn-nav-subtopics" aria-label="بازگشت به حوزه‌ها">
-                        <span class="ex-back-label">بازگشت به حوزه‌ها</span>
+                    <button type="button" id="btn-nav-subtopics" aria-label="بازگشت به ماژول‌ها">
+                        <span class="ex-back-label">بازگشت به ماژول‌ها</span>
                         <svg class="ex-back-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
                     </button>
                     <div class="ex-dd-group" id="ex-dd-group">
@@ -87,29 +82,28 @@
             </div>
 
             <div class="ex-dash-body">
-                <aside class="ex-side" aria-label="فیلتر استان‌ها">
-                    <section class="ex-prov-rail" aria-label="مقایسه استانی">
-                        <div class="ex-prov-search">
-                            <input type="text" id="province-search" placeholder="جستجوی استان" autocomplete="off">
-                        </div>
-                        <div class="ex-prov-actions">
-                            <button type="button" id="btn-select-all-provinces">انتخاب همه</button>
-                            <button type="button" id="btn-clear-all-provinces">پاک کردن همه</button>
-                        </div>
-                        <div class="ex-prov-list custom-scrollbar" id="provinces-list"></div>
-                    </section>
+                <aside class="ex-side" aria-label="انتخاب داده و فیلترها">
+                    <div class="ex-dd ex-dimension-panel" data-dd="filter">
+                        <button type="button" class="ex-dd-toggle" id="dd-filter-btn" aria-expanded="false"><span class="ex-dd-kicker">فیلتر</span></button>
+                        <div class="ex-dd-menu" id="dd-filter-menu" hidden><div id="dimension-filters"></div></div>
+                    </div>
+                    <div class="legacy-province-controls" hidden>
+                        <input id="province-search"><button id="btn-select-all-provinces"></button><button id="btn-clear-all-provinces"></button><div id="provinces-list"></div>
+                    </div>
                 </aside>
                 <section class="ex-chart-room">
                     <div class="chart-toolbar">
                         <h3 id="chart-panel-title">روند تغییرات زمانی شاخص</h3>
-                        <div class="chart-switcher" role="tablist" aria-label="نوع نمودار">
-                            <button type="button" class="chart-mode-btn active" id="btn-chart-trend" data-mode="trend"><svg class="chart-mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 4v16h16"/><path d="m7 14 4-4 4 2 5-7"/></svg><span class="chart-mode-label-full">نمودار روندی</span><span class="chart-mode-label-short">روندی</span></button>
-                            <button type="button" class="chart-mode-btn" id="btn-chart-compare" data-mode="compare"><svg class="chart-mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 20h16"/><rect x="5" y="11" width="3" height="6" rx=".6"/><rect x="10.5" y="5" width="3" height="12" rx=".6"/><rect x="16" y="8" width="3" height="9" rx=".6"/></svg><span class="chart-mode-label-full">نمودار مقایسه‌ای</span><span class="chart-mode-label-short">مقایسه‌ای</span></button>
-                            <button type="button" class="chart-mode-btn" id="btn-chart-table" data-mode="table"><svg class="chart-mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M3 14h18M9 9v11M15 9v11"/></svg><span class="chart-mode-label-full">جدول</span><span class="chart-mode-label-short">جدول</span></button>
-                            <button type="button" class="chart-mode-btn" id="btn-chart-map" data-mode="map"><svg class="chart-mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3Z"/><path d="M9 3v15M15 6v15"/></svg><span class="chart-mode-label-full">پراکندگی جغرافیایی</span><span class="chart-mode-label-short">پراکندگی</span></button>
+                        <div class="chart-switcher" role="tablist" aria-label="نمایش داده‌ها">
+                            <button type="button" class="chart-mode-btn active" role="tab" aria-selected="true" data-explorer-tab="chart">نمودار</button>
+                            <button type="button" class="chart-mode-btn" role="tab" aria-selected="false" data-explorer-tab="table">جدول</button>
+                            <button type="button" class="chart-mode-btn" role="tab" aria-selected="false" data-explorer-tab="map">نقشه</button>
+                            <button type="button" class="chart-mode-btn" role="tab" aria-selected="false" data-explorer-tab="metadata">فراداده</button>
                         </div>
                     </div>
-                    <div id="canvas-reveal-wrapper">
+                    <button type="button" id="btn-toggle-chart-type" class="ex-type-toggle">نمایش نمودار مقایسه‌ای</button>
+                    <div id="explorer-selection-prompt" role="status">لطفاً حوزه و موضوع مورد نظر خود را انتخاب کنید</div>
+                    <div id="canvas-reveal-wrapper" hidden>
                         <div id="trend-chart-wrap" class="chart-pane is-active">
                             <canvas id="mainChart"></canvas>
                         </div>
@@ -125,9 +119,9 @@
                             </div>
                         </div>
                         <div id="table-chart-wrap" class="chart-pane">
-                            <div class="indicator-table-scroll" tabindex="0" aria-label="جدول امتیاز استان‌ها بر اساس سال">
+                            <div class="indicator-table-scroll" tabindex="0" aria-label="جدول مقادیر تفکیک‌ها بر اساس سال">
                                 <table class="indicator-score-table" id="indicator-score-table">
-                                    <caption>جدول امتیاز استان‌ها بر اساس سال</caption>
+                                    <caption>جدول مقادیر تفکیک‌ها بر اساس سال</caption>
                                     <thead></thead>
                                     <tbody></tbody>
                                 </table>
@@ -143,17 +137,13 @@
                         </div>
                     </div>
                     <div class="ex-chart-foot">
-                        <button type="button" class="ex-insight-open" id="btn-open-insight" aria-haspopup="dialog" aria-controls="insight-layer">
-                            <span class="ex-insight-label">توضیحات شاخص</span>
-                            <span class="ex-insight-shine" aria-hidden="true"></span>
-                        </button>
                         <button type="button" class="ex-chart-legend-btn" id="btn-country-legend">
                             <span class="ex-chart-legend-swatch" aria-hidden="true"></span>
                             میانگین کل کشور
                         </button>
                     </div>
                     <div class="ex-insight-layer" id="insight-layer" hidden>
-                        <section class="ex-insight-card" role="dialog" aria-modal="true" aria-labelledby="indicator-title" aria-describedby="insight-text">
+                        <section class="ex-insight-card" aria-labelledby="indicator-title">
                             <div class="ex-insight-heading">
                                 <h2 id="indicator-title">نام شاخص</h2>
                                 <p id="indicator-question" hidden></p>

@@ -73,6 +73,14 @@ function startSweep(chart) {
     sweepReq = requestAnimationFrame(animate);
 }
 
+let explorerModules = [];
+let activeExplorerModule = null;
+let explorerRawScores = [];
+let explorerFilters = [];
+let explorerFilterSelection = {};
+let explorerTab = 'chart';
+let explorerChartType = 'trend';
+let explorerLoadState = 'idle';
 let kscoreData = [];
 let topicsColorData = []; 
 let topicsHierarchy = {};
@@ -135,6 +143,8 @@ async function loadExplorerData() {
         }
         const data = await response.json();
 
+        if (!response.ok) throw new Error(data.detail || "Explorer unavailable");
+        explorerModules = data.modules || [];
         topicsColorData = data.colors;
         topicsHierarchy = data.hierarchy;
         provincesList = data.provinces;
@@ -154,17 +164,22 @@ async function loadExplorerData() {
         const queryOpenTopic = urlParams.get('openTopic');
 
         if (queryIndicator && queryTopic) {
+            const module = explorerModules.find(m => m.active);
+            if (module) enterExplorerModule(module);
             if (querySource === 'search') {
                 const navSubtopicsBtn = document.getElementById('btn-nav-subtopics');
                 if (navSubtopicsBtn) navSubtopicsBtn.style.display = 'none';
             }
             setTimeout(() => loadIndicator(queryIndicator, queryTopic), 50);
         } else if (queryOpenTopic) {
+            const module = explorerModules.find(m => m.active);
+            if (module) enterExplorerModule(module);
             openTopicIndex(queryOpenTopic);
         }
 
     } catch (err) {
         console.error("Error Loading API Data", err);
+        document.getElementById('mosaic-menu').textContent = 'دریافت ماژول‌ها انجام نشد. صفحه را دوباره بارگذاری کنید.';
         showNotice("مشکل در ارتباط با سرور.");
     } finally {
         clearTimeout(timeout);
@@ -341,26 +356,19 @@ function sizeExplorerDropdowns() {
 }
 
 function syncExplorerDropdowns() {
-    const topic = activeTopicGlob || '';
-    const sub = activeSubtopicGlob || findSubtopicForIndicator(topic, activeIndicatorGlob);
-    activeSubtopicGlob = sub;
-    const topicVal = document.getElementById('dd-topic-value');
-    const subVal = document.getElementById('dd-subtopic-value');
-    const indVal = document.getElementById('dd-indicator-value');
-    if (topicVal) topicVal.textContent = topic || '—';
-    if (subVal) subVal.textContent = sub || '—';
-    if (indVal) indVal.textContent = activeIndicatorGlob || '—';
-    fillDropdownMenu(document.getElementById('dd-topic-menu'), explorerTopicsInAtlasOrder(), topic, nextTopic => {
-        openTopicIndex(nextTopic);
-    }, item => SITE.asset(`images/تاپیک ${item}-active.webp`));
-    fillDropdownMenu(document.getElementById('dd-subtopic-menu'), subtopicsOf(topic), sub, nextSub => {
-        const first = indicatorsOf(topic, nextSub)[0];
-        if (first) loadIndicator(first, topic);
+    document.getElementById('dd-topic-value').textContent = activeTopicGlob || 'انتخاب حوزه';
+    document.getElementById('dd-subtopic-value').textContent = activeSubtopicGlob || 'انتخاب موضوع';
+    document.getElementById('dd-indicator-value').textContent = activeIndicatorGlob || 'انتخاب خودکار';
+    fillDropdownMenu(document.getElementById('dd-topic-menu'), explorerTopicsInAtlasOrder(), activeTopicGlob, openTopicIndex);
+    fillDropdownMenu(document.getElementById('dd-subtopic-menu'), subtopicsOf(activeTopicGlob), activeSubtopicGlob, sub => {
+        activeSubtopicGlob = sub;
+        const first = indicatorsOf(activeTopicGlob, sub)[0];
+        if (first) loadIndicator(first, activeTopicGlob);
     });
-    fillDropdownMenu(document.getElementById('dd-indicator-menu'), indicatorsOf(topic, sub), activeIndicatorGlob, nextInd => {
-        loadIndicator(nextInd, topic);
-    });
-    sizeExplorerDropdowns();
+    fillDropdownMenu(document.getElementById('dd-indicator-menu'), indicatorsOf(activeTopicGlob, activeSubtopicGlob), activeIndicatorGlob,
+        name => loadIndicator(name, activeTopicGlob));
+    document.getElementById('dd-subtopic-btn').disabled = !activeTopicGlob;
+    document.getElementById('dd-indicator-btn').disabled = !activeSubtopicGlob;
 }
 
 function placeMobileDropdown(btn, menu) {
@@ -408,15 +416,50 @@ function bindExplorerDropdowns() {
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(sizeExplorerDropdowns);
 }
 
+function resetExplorerSelection() {
+    ++explorerIndicatorRequest;
+    stopExplorerMapPlayback();
+    if (chartInstance) chartInstance.destroy();
+    if (scatterProvinceChart) scatterProvinceChart.destroy();
+    chartInstance = scatterProvinceChart = null;
+    activeIndicatorGlob = activeSubtopicGlob = null;
+    explorerRawScores = kscoreData = [];
+    currentChartYears = [];
+    explorerFilters = [];
+    explorerLoadState = 'idle';
+    document.getElementById('dimension-filters').replaceChildren();
+    syncExplorerDropdowns();
+    syncExplorerVisibility();
+}
+
+function enterExplorerModule(module) {
+    if (!module.active) return;
+    activeExplorerModule = module;
+    topicsHierarchy = module.hierarchy;
+    activeTopicGlob = null;
+    resetExplorerSelection();
+    document.getElementById('view-landing').style.display = 'none';
+    document.getElementById('view-dashboard').classList.remove('hidden');
+    document.getElementById('dd-topic-btn').click();
+}
+
 function openTopicIndex(topic) {
-    if (!topic) return;
-    applyExplorerTheme(topic);
-    const indicator = firstTopicIndicator(topic);
-    if (!indicator) {
-        showNotice('شاخصی برای این موضوع نیست.');
-        return;
-    }
-    loadIndicator(indicator, topic);
+    if (!topic || !topicsHierarchy[topic]) return;
+    activeTopicGlob = topic;
+    resetExplorerSelection();
+    document.getElementById('dd-subtopic-btn').click();
+}
+
+function syncExplorerVisibility() {
+    const ready = !!(activeTopicGlob && activeSubtopicGlob && activeIndicatorGlob && explorerLoadState === 'ready');
+    document.getElementById('explorer-selection-prompt').hidden = ready;
+    document.getElementById('explorer-selection-prompt').textContent = explorerLoadState === 'loading' ? 'در حال بارگذاری داده‌ها…' :
+        explorerLoadState === 'error' ? 'دریافت داده‌ها انجام نشد؛ شاخص را دوباره انتخاب کنید.' :
+        !activeTopicGlob ? 'لطفاً حوزه و موضوع مورد نظر خود را انتخاب کنید' : 'لطفاً موضوع مورد نظر خود را انتخاب کنید';
+    document.getElementById('canvas-reveal-wrapper').hidden = !ready || explorerTab === 'metadata';
+    document.getElementById('insight-layer').hidden = !ready || explorerTab !== 'metadata';
+    document.querySelector('.ex-chart-foot').hidden = !ready || explorerTab !== 'chart';
+    document.getElementById('btn-toggle-chart-type').hidden = explorerTab !== 'chart';
 }
 
 function isLandingVisible() {
@@ -543,53 +586,27 @@ function initStaggeredAnimations(container) {
 
 function renderMosaicMenu() {
     const container = document.getElementById('mosaic-menu');
-    if (!container) return;
-    const gen = ++mosaicRenderGen;
-
-    killMosaicAnimations();
-    const topics = explorerTopicsInAtlasOrder();
-    if (!topics.length) {
-        container.innerHTML = '';
-        return;
-    }
-
-    const layout = mosaicLayout();
-    mosaicLayoutKey = String(layout.cols);
-    setTopicChrome('#a18447');
-
-    const topicCards = topics.map((topic, i) => topicFlipHtml(topic, i, layout.cols)).join('');
-    const rows = Math.max(1, Math.ceil(topics.length / layout.cols));
-
-    container.className = 'ex-stage is-pending';
-    container.innerHTML = `
-        <section class="ex-hero">
-            <h1 class="ex-title">کاوشگر داده</h1>
-            <p class="ex-lead">برای دیدن شاخص‌ها یکی از زیرحوزه‌ها را انتخاب کنید</p>
-        </section>
-        <div class="ex-topics" style="--ex-cols:${layout.cols};--ex-rows:${rows}">${topicCards}</div>
-    `;
-
-    container.querySelectorAll('.ex-room').forEach(card => {
-        const topic = card.dataset.topic;
-        if (!topic) return;
-        card.style.setProperty('--topic-accent', topicAccent(topic));
-        const photo = card.querySelector('.ex-room-photo');
-        if (photo) photo.style.backgroundImage = cssUrl(topicTileSrc(topic));
+    container.className = 'ex-module-grid';
+    container.replaceChildren();
+    explorerModules.forEach(module => {
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'ex-module-card';
+        card.disabled = !module.active;
+        const title = document.createElement('h1');
+        title.textContent = module.module_name;
+        const description = document.createElement('p');
+        description.textContent = module.description || '';
+        card.append(title, description);
+        if (!module.active) {
+            const status = document.createElement('span');
+            status.textContent = 'به‌زودی';
+            card.append(status);
+        }
+        card.addEventListener('click', () => enterExplorerModule(module));
+        container.append(card);
     });
-    bindMosaicInteractions(container);
-
-    if (window.matchMedia('(max-width: 767px)').matches) {
-        container.classList.remove('is-pending');
-        return;
-    }
-
-    Promise.race([
-        waitForMosaicImages(container),
-        new Promise(resolve => setTimeout(resolve, 2500))
-    ]).then(() => {
-        if (gen !== mosaicRenderGen) return;
-        initStaggeredAnimations(container);
-    });
+    if (!explorerModules.length) container.textContent = 'ماژولی برای نمایش ثبت نشده است.';
 }
 
 function renderIndicatorDescription(description) {
@@ -608,6 +625,7 @@ function renderIndicatorDescription(description) {
 
 async function loadIndicator(indicatorName, topicName) {
     const request = ++explorerIndicatorRequest;
+    explorerLoadState = 'loading';
     activeIndicatorGlob = indicatorName;
     if (topicName) activeTopicGlob = topicName;
     if (activeTopicGlob) applyExplorerTheme(activeTopicGlob);
@@ -621,6 +639,7 @@ async function loadIndicator(indicatorName, topicName) {
     document.getElementById('indicator-period').textContent = 'دوره: نامشخص';
     activeSubtopicGlob = findSubtopicForIndicator(activeTopicGlob, indicatorName);
     syncExplorerDropdowns();
+    syncExplorerVisibility();
 
     try {
         const response = await dashboardFetch(`${API_BASE_URL}/api/explorer/indicator?name=${encodeURIComponent(indicatorName)}`, { credentials: 'include' });
@@ -631,10 +650,16 @@ async function loadIndicator(indicatorName, topicName) {
         }
         const data = await response.json();
         if (request !== explorerIndicatorRequest) return;
+        if (!response.ok) throw new Error(data.detail || "Indicator unavailable");
 
         renderIndicatorDescription(data.description);
 
-        kscoreData = data.scores;
+        explorerRawScores = data.scores || [];
+        explorerFilters = data.filters || [];
+        explorerFilterSelection = Object.fromEntries(explorerFilters.map(f => [f.name, new Set(f.values.map(v => v.value))]));
+        explorerLoadState = 'ready';
+        renderDimensionFilters();
+        applyDimensionFilters(false);
         latestYearGlob = data.latest_year != null ? Number(data.latest_year) : null;
         latestScoresGlob = Array.isArray(data.latest_scores) ? data.latest_scores : [];
         
@@ -661,19 +686,24 @@ async function loadIndicator(indicatorName, topicName) {
             scatterProvinceChart = null;
         }
 
-        activeDatasets = [];
+        activeDatasets = [...provincesList];
         hiddenDatasets = {};
         document.querySelectorAll('.province-checkbox').forEach(cb => { cb.checked = false; });
 
         isBulkAction = true;
+        syncExplorerVisibility();
         setChartMode(currentChartMode);
 
     } catch (err) {
+        if (request !== explorerIndicatorRequest) return;
+        explorerLoadState = 'error';
+        syncExplorerVisibility();
         console.error("Error fetching indicator data", err);
     }
 }
 
 function goBackToLanding() {
+    resetExplorerSelection();
     const insightLayer = document.getElementById('insight-layer');
     if (insightLayer) insightLayer.hidden = true;
     document.getElementById('view-dashboard').classList.add('hidden');
@@ -748,52 +778,83 @@ function setProvinceFilterEnabled(enabled) {
 }
 
 function refreshActiveChart() {
+    if (explorerLoadState !== 'ready') return;
     if (currentChartMode === 'compare') drawScatterProvince();
     else if (currentChartMode === 'table') renderIndicatorTable();
     else if (currentChartMode === 'map') renderExplorerMap();
+    else if (currentChartMode === 'metadata') return;
     else drawChart();
 }
 
 function setChartMode(mode) {
-    const nextMode = ['trend', 'compare', 'table', 'map'].includes(mode) ? mode : 'trend';
-    if (nextMode !== 'map') { stopExplorerMapPlayback(); setExplorerLegendHighlight(null); }
-    currentChartMode = nextMode;
-    const trendBtn = document.getElementById('btn-chart-trend');
-    const compareBtn = document.getElementById('btn-chart-compare');
-    const tableBtn = document.getElementById('btn-chart-table');
-    const mapBtn = document.getElementById('btn-chart-map');
-    const trendWrap = document.getElementById('trend-chart-wrap');
-    const compareWrap = document.getElementById('compare-chart-wrap');
-    const tableWrap = document.getElementById('table-chart-wrap');
-    const mapWrap = document.getElementById('map-chart-wrap');
-    const title = document.getElementById('chart-panel-title');
-    if (trendBtn) trendBtn.classList.toggle('active', currentChartMode === 'trend');
-    if (compareBtn) compareBtn.classList.toggle('active', currentChartMode === 'compare');
-    if (tableBtn) tableBtn.classList.toggle('active', currentChartMode === 'table');
-    if (mapBtn) mapBtn.classList.toggle('active', currentChartMode === 'map');
-    if (trendWrap) trendWrap.classList.toggle('is-active', currentChartMode === 'trend');
-    if (compareWrap) compareWrap.classList.toggle('is-active', currentChartMode === 'compare');
-    if (tableWrap) tableWrap.classList.toggle('is-active', currentChartMode === 'table');
-    if (mapWrap) mapWrap.classList.toggle('is-active', currentChartMode === 'map');
-    setProvinceFilterEnabled(currentChartMode === 'trend');
-    if (title) {
-        if (currentChartMode === 'compare') {
-            const year = getComparisonYear();
-            const yearTxt = year != null ? ` — سال ${toFa(year)}` : '';
-            title.textContent = `مقایسه استانی${yearTxt}`;
-        } else if (currentChartMode === 'table') title.textContent = 'جدول امتیاز استان‌ها بر اساس سال';
-        else if (currentChartMode === 'map') title.textContent = 'پراکندگی جغرافیایی امتیاز استان‌ها';
-        else title.textContent = 'روند تغییرات زمانی شاخص';
-    }
-    const countryLegend = document.getElementById('btn-country-legend');
-    if (countryLegend) countryLegend.hidden = currentChartMode !== 'trend';
-    if (activeIndicatorGlob) refreshActiveChart();
-    requestAnimationFrame(() => {
-        try { if (currentChartMode === 'trend' && chartInstance) chartInstance.resize(); } catch (e) {}
-        try { if (currentChartMode === 'compare' && scatterProvinceChart) scatterProvinceChart.resize(); } catch (e) {}
-        if (currentChartMode === 'map') syncExplorerMapViewport(true);
+    if (['trend', 'compare'].includes(mode)) {
+        explorerChartType = mode;
+        explorerTab = 'chart';
+    } else if (['table', 'map', 'metadata'].includes(mode)) explorerTab = mode;
+    currentChartMode = explorerTab === 'chart' ? explorerChartType : explorerTab;
+    stopExplorerMapPlayback();
+    ['trend', 'compare', 'table', 'map'].forEach(name => {
+        document.getElementById(`${name}-chart-wrap`).classList.toggle('is-active', name === currentChartMode);
+    });
+    document.querySelectorAll('[data-explorer-tab]').forEach(button => {
+        const selected = button.dataset.explorerTab === explorerTab;
+        button.classList.toggle('active', selected);
+        button.setAttribute('aria-selected', String(selected));
+    });
+    document.getElementById('btn-toggle-chart-type').textContent = explorerChartType === 'trend' ? 'نمایش نمودار مقایسه‌ای' : 'نمایش نمودار روندی';
+    document.getElementById('chart-panel-title').textContent = activeIndicatorGlob || '';
+    document.getElementById('btn-country-legend').hidden = currentChartMode !== 'trend';
+    syncExplorerVisibility();
+    if (explorerLoadState === 'ready' && explorerTab !== 'metadata') refreshActiveChart();
+}
+
+function renderDimensionFilters() {
+    const root = document.getElementById('dimension-filters');
+    root.replaceChildren();
+    const titles = {province: 'استان', sex: 'جنسیت', residence: 'محل سکونت'};
+    explorerFilters.forEach(filter => {
+        const group = document.createElement('fieldset');
+        const legend = document.createElement('legend');
+        legend.textContent = titles[filter.name] || filter.name;
+        group.append(legend);
+        filter.values.forEach(value => {
+            const label = document.createElement('label');
+            const input = document.createElement('input');
+            input.type = 'checkbox';
+            input.checked = explorerFilterSelection[filter.name].has(value.value);
+            input.addEventListener('change', () => {
+                const selected = explorerFilterSelection[filter.name];
+                if (input.checked) selected.add(value.value); else selected.delete(value.value);
+                applyDimensionFilters();
+            });
+            label.append(input, document.createTextNode(value.label));
+            group.append(label);
+        });
+        root.append(group);
     });
 }
+
+function applyDimensionFilters(refresh = true) {
+    const rows = explorerRawScores.filter(row => explorerFilters.every(filter =>
+        row.dim_cat_values[filter.name] === undefined || explorerFilterSelection[filter.name].has(row.dim_cat_values[filter.name])));
+    // The existing chart/table renderers use province_name as a series key.
+    // Adapt complete dimension combinations here; retain the geographic key separately.
+    const labels = new Map(rows.map(row => [row.series_id, row.series_label]));
+    const counts = new Map();
+    for (const label of labels.values()) counts.set(label, (counts.get(label) || 0) + 1);
+    kscoreData = rows.map(row => ({...row, geographic_province: row.province_name,
+        province_name: counts.get(row.series_label) > 1 ? `${row.series_label} (${row.series_id})` : row.series_label}));
+    provincesList = [...new Set(kscoreData.map(row => row.province_name))].filter(name => name !== 'کل کشور');
+    provincesList.forEach((name, i) => { provinceColors[name] = provinceColorPalette[i % provinceColorPalette.length]; });
+    activeDatasets = [...provincesList];
+    currentChartYears = [...new Set(kscoreData.filter(row => row.year != null).map(row => Number(row.year)))].sort((a,b) => a-b);
+    latestScoresGlob = kscoreData.filter(row => Number(row.year) === latestYearGlob);
+    if (chartInstance) chartInstance.destroy();
+    if (scatterProvinceChart) scatterProvinceChart.destroy();
+    chartInstance = scatterProvinceChart = null;
+    if (refresh) refreshActiveChart();
+}
+
 let scatterPointsCache = [];
 
 function getComparisonYear() {
@@ -912,7 +973,7 @@ function drawScatterProvince() {
                     grid: { display: false },
                     title: {
                         display: true,
-                        text: 'استان',
+                        text: 'تفکیک',
                         font: { family: 'PeydaFaNumWeb', size: 12, weight: 'bold' },
                         color: '#4b5563'
                     }
@@ -942,7 +1003,7 @@ function getChartSeries(provName) {
     let records = kscoreData.filter(d => d.province_name === provName);
     return currentChartYears.map(y => {
         let rec = records.find(r => Number(r.year) === y);
-        return rec ? Number(rec.value) : null;
+        return rec && rec.value !== null && rec.value !== '' && Number.isFinite(Number(rec.value)) ? Number(rec.value) : null;
     });
 }
 function renderIndicatorTable() {
@@ -959,7 +1020,7 @@ function renderIndicatorTable() {
     const provinceHeader = document.createElement('th');
     provinceHeader.scope = 'col';
     provinceHeader.className = 'indicator-table-province';
-    provinceHeader.textContent = 'استان';
+    provinceHeader.textContent = 'تفکیک';
     headerRow.appendChild(provinceHeader);
     currentChartYears.forEach(year => {
         const cell = document.createElement('th');
@@ -972,7 +1033,7 @@ function renderIndicatorTable() {
     const scoresByProvinceYear = new Map();
     kscoreData.forEach(record => {
         const year = Number(record.year);
-        const score = Number(record.value);
+        const score = record.value == null || record.value === '' ? NaN : Number(record.value);
         if (record.province_name === 'کل کشور' || !Number.isFinite(year) || !Number.isFinite(score)) return;
         scoresByProvinceYear.set(`${record.province_name}\u0000${year}`, score);
     });
@@ -1405,6 +1466,21 @@ function toggleExplorerMapPlayback() {
 }
 
 function renderExplorerMap() {
+    const geographic = new Map();
+    let ambiguous = false;
+    for (const row of kscoreData) {
+        if (!row.geographic_province) continue;
+        const key = `${row.geographic_province}:${row.year}`;
+        if (geographic.has(key)) ambiguous = true;
+        geographic.set(key, row);
+    }
+    if (!explorerFilters.some(f => f.name === 'province') || !geographic.size || ambiguous) {
+        setExplorerMapStatus(ambiguous ? 'برای نمایش نقشه، از هر تفکیک غیر استانی فقط یک مقدار انتخاب کنید.' : 'این شاخص دادهٔ استانی برای نمایش روی نقشه ندارد.', true);
+        document.getElementById('explorer-leaflet-map').hidden = true;
+        return;
+    }
+    document.getElementById('explorer-leaflet-map').hidden = false;
+    const mapRows = [...geographic.values()].map(row => ({...row, province_name: row.geographic_province}));
     if (!currentChartYears.length) { setExplorerMapStatus('برای این شاخص، دادهٔ سالانه‌ای موجود نیست.', true); return; }
     if (!explorerMapGeoJson || !explorerLeafletMap) {
         setExplorerMapStatus('در حال بارگذاری نقشه...', true);
@@ -1418,12 +1494,12 @@ function renderExplorerMap() {
     if (!syncExplorerMapViewport()) return;
     explorerMapYearIndex = Math.min(Math.max(explorerMapYearIndex, 0), currentChartYears.length - 1);
     const year = currentChartYears[explorerMapYearIndex], scores = new Map();
-    kscoreData.forEach(record => {
+    mapRows.forEach(record => {
         if (Number(record.year) !== Number(year)) return;
-        const key = normalizeMapProvinceName(record.province_name), score = Number(record.value);
+        const key = normalizeMapProvinceName(record.province_name), score = record.value == null ? NaN : Number(record.value);
         if (key && key !== NATIONAL_PROVINCE_KEY && Number.isFinite(score)) scores.set(key, score);
     });
-    const allValues = kscoreData.filter(record => normalizeMapProvinceName(record.province_name) !== NATIONAL_PROVINCE_KEY).map(record => Number(record.value)).filter(Number.isFinite);
+    const allValues = mapRows.filter(record => record.value != null && normalizeMapProvinceName(record.province_name) !== NATIONAL_PROVINCE_KEY).map(record => Number(record.value)).filter(Number.isFinite);
     const min = allValues.length ? Math.min(...allValues) : 0;
     const max = allValues.length ? Math.max(...allValues) : 1;
     if (explorerMapGeoLayer) explorerMapGeoLayer.remove();
@@ -1459,7 +1535,7 @@ function renderExplorerMap() {
 function drawChart() {
     const ctx = document.getElementById('mainChart').getContext('2d');
     
-    const trendProvs = activeDatasets.slice();
+    const trendProvs = activeDatasets.filter(name => name !== 'کل کشور');
     let desiredLabels = trendProvs.slice();
     let countrySeries = getChartSeries('کل کشور');
     let hasCountry = countrySeries.some(v => v !== null);
@@ -1669,19 +1745,13 @@ function bindExplorerChrome() {
     const insightLayer = document.getElementById('insight-layer');
     const countryLegend = document.getElementById('btn-country-legend');
     if (countryLegend) countryLegend.addEventListener('click', toggleCountryLegend);
-    const openInsight = document.getElementById('btn-open-insight');
-    function setInsightOpen(on) {
-        if (!insightLayer) return;
-        insightLayer.hidden = !on;
-    }
-    if (openInsight) openInsight.addEventListener('click', () => setInsightOpen(insightLayer.hidden));
-    if (insightLayer) {
-        const insightCard = insightLayer.querySelector('.ex-insight-card');
-        document.addEventListener('click', (event) => {
-            if (insightLayer.hidden || (openInsight && openInsight.contains(event.target))) return;
-            if (insightCard && !insightCard.contains(event.target)) setInsightOpen(false);
-        }, true);
-    }
+    document.querySelectorAll('[data-explorer-tab]').forEach(button => button.addEventListener('click', () => {
+        const tab = button.dataset.explorerTab;
+        setChartMode(tab === 'chart' ? explorerChartType : tab);
+    }));
+    document.getElementById('btn-toggle-chart-type').addEventListener('click', () =>
+        setChartMode(explorerChartType === 'trend' ? 'compare' : 'trend'));
+
 }
 
 function startExplorer() {
