@@ -182,3 +182,50 @@ test('filter bulk actions update checkboxes and data without changing other dime
     actions[0].click();
     assert.equal(f.run('kscoreData.length'),2);
 });
+
+test('clearing provinces preserves the national option and its series using the lookup label', () => {
+    for (const nationalLabel of ['کل کشور', 'كل‌ كشور']) {
+        const f=fixture();
+        f.context.nationalLabel=nationalLabel;
+        f.run(`explorerRawScores=['29','2'].flatMap(province=>[1400,1401].map(year=>({year,value:province==='29'?50:10,
+            province_name:province==='29'?'کل کشور':'Tehran',series_id:province,series_label:province==='29'?'کل کشور':'Tehran',dim_cat_values:{province}})));
+            explorerFilters=[{name:'province',values:[{value:'29',label:nationalLabel},{value:'2',label:'Tehran'}]}];
+            explorerFilterSelection={province:new Set(['2'])};
+            renderDimensionFilters(); setExplorerSection('filter');`);
+        const group=f.element('dimension-filters').children[0];
+        group.children[1].children[1].click();
+        const inputs=group.children.slice(2).map(label=>label.children[0]);
+        assert.deepEqual(inputs.map(input=>input.checked),[true,false]);
+        assert.equal(f.run(`explorerFilterSelection.province.has('29')`),true);
+        assert.equal(f.run(`explorerFilterSelection.province.has('2')`),false);
+        assert.equal(f.run('kscoreData.length'),2);
+        assert.equal(f.run(`getChartSeries('کل کشور')[0]`),50);
+        assert.equal(f.run('provincesList.length'),0);
+        assert.equal(f.element('explorer-selection-panel').hidden,false);
+        group.children[1].children[0].click();
+        assert.deepEqual(inputs.map(input=>input.checked),[true,true]);
+        assert.equal(f.run('kscoreData.length'),4);
+    }
+});
+
+test('selection marker moves from Domain to Subject and disappears after both selections', () => {
+    const f=fixture();
+    const guide=f.element('explorer-rail-guide');
+    f.element('view-dashboard').getBoundingClientRect=()=>({top:100});
+    f.element('dd-topic-btn').getBoundingClientRect=()=>({top:180,height:52});
+    f.element('dd-subtopic-btn').getBoundingClientRect=()=>({top:232,height:52});
+    f.run(`syncExplorerVisibility()`);
+    assert.equal(guide.hidden,false);
+    assert.equal(guide.dataset.target,'topic');
+    assert.equal(guide.style.top,'106px');
+    f.run(`activeTopicGlob='Domain'; syncExplorerVisibility(); setExplorerSection('subtopic')`);
+    assert.equal(guide.hidden,false);
+    assert.equal(guide.dataset.target,'subtopic');
+    assert.equal(guide.style.top,'158px');
+    assert.equal(f.element('explorer-selection-panel').hidden,false);
+    f.run(`activeSubtopicGlob='Subject'; syncExplorerVisibility()`);
+    assert.equal(guide.hidden,true);
+    f.run(`activeSubtopicGlob=null; syncExplorerVisibility()`);
+    assert.equal(guide.hidden,false);
+    assert.equal(guide.dataset.target,'subtopic');
+});

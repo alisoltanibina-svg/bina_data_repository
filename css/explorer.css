@@ -1410,9 +1410,10 @@ body.explorer-body {
     gap: 0;
 }
 #view-dashboard.has-selection-panel { padding-right: calc(var(--ex-rail-width) + var(--ex-selection-width) + 34px); }
-.ex-rail-guide { position: absolute; right: calc(var(--ex-rail-width) + 16px); top: 76px; width: 68px; color: var(--ex-gold); pointer-events: none; }
+.ex-rail-guide { position: absolute; right: calc(var(--ex-rail-width) + 16px); top: 98px; width: 68px; transform: translateY(-50%); color: var(--ex-gold); pointer-events: none; z-index: 7; }
 .ex-rail-guide svg { display: block; width: 100%; fill: currentColor; }
-#view-dashboard.has-selection-panel .ex-rail-guide { display: none; }
+.ex-rail-guide[data-target="subtopic"] { top: 150px; }
+#view-dashboard.has-selection-panel .ex-rail-guide { right: calc(var(--ex-rail-width) + var(--ex-selection-width) + 16px); }
 .ex-nav-rail {
     position: absolute;
     inset: 0 0 0 auto;
@@ -1535,6 +1536,7 @@ body.explorer-body {
     #view-dashboard { --ex-rail-width: 52px; --ex-selection-width: min(260px, calc(100vw - 76px)); padding-right: 66px; }
     #view-dashboard.has-selection-panel { padding-right: 66px; }
     .ex-selection-panel { right: 58px; }
+    #view-dashboard.has-selection-panel .ex-rail-guide { right: calc(var(--ex-rail-width) + var(--ex-selection-width) - 14px); width: 16px; }
     .ex-nav-rail { padding-inline: 5px; }
     .ex-rail-item { min-height: 54px; font-size: .875rem; }
     #view-dashboard .chart-switcher { gap: 4px; padding-inline: 6px; }
@@ -1554,6 +1556,10 @@ body.explorer-body {
     #explorer-selection-prompt { padding-inline: 12px; }
 }
 @media (prefers-reduced-motion: no-preference) {
+    .ex-rail-guide svg { animation: ex-guide-point-right 1.6s ease-in-out infinite; }
+    #explorer-selection-prompt::after { animation: ex-guide-point-up 1.6s ease-in-out infinite; }
+    @keyframes ex-guide-point-right { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(6px); } }
+    @keyframes ex-guide-point-up { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
     .ex-selection-panel { animation: ex-panel-appear 160ms ease-out; }
     @keyframes ex-panel-appear { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }
 }

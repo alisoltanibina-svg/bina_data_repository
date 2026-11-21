@@ -270,8 +270,24 @@ function findSubtopicForIndicator(topic, indicator) {
 
 const explorerSectionTitles = {database: 'دیتابیس', topic: 'حوزه', subtopic: 'موضوع', indicator: 'شاخص', filter: 'فیلتر'};
 
+function syncExplorerGuide() {
+    const guide = document.getElementById('explorer-rail-guide');
+    const target = !activeTopicGlob ? 'topic' : !activeSubtopicGlob ? 'subtopic' : null;
+    guide.hidden = !target;
+    guide.dataset.target = target || '';
+    if (!target) return;
+    const button = document.getElementById(`dd-${target}-btn`);
+    const dashboard = document.getElementById('view-dashboard');
+    if (typeof button.getBoundingClientRect === 'function') {
+        const buttonBox = button.getBoundingClientRect();
+        const dashboardBox = dashboard.getBoundingClientRect();
+        if (buttonBox.height > 0) guide.style.top = `${buttonBox.top - dashboardBox.top + buttonBox.height / 2}px`;
+    }
+}
+
 function resizeExplorerViews() {
     requestAnimationFrame(() => {
+        syncExplorerGuide();
         if (chartInstance) chartInstance.resize();
         if (scatterProvinceChart) scatterProvinceChart.resize();
         if (currentChartMode === 'map' && explorerLeafletMap) syncExplorerMapViewport(true);
@@ -449,7 +465,7 @@ function syncExplorerVisibility() {
     document.querySelector('.ex-chart-foot').hidden = !ready || explorerTab !== 'chart';
     document.getElementById('btn-toggle-chart-type').hidden = !ready || explorerTab !== 'chart';
     document.getElementById('chart-panel-title').hidden = !ready;
-    document.getElementById('explorer-rail-guide').hidden = !!activeTopicGlob;
+    syncExplorerGuide();
 }
 
 function isLandingVisible() {
@@ -818,8 +834,11 @@ function renderDimensionFilters() {
             button.setAttribute('aria-label', `${text} — ${titles[filter.name] || filter.name}`);
             button.disabled = !filter.values.length;
             button.addEventListener('click', () => {
-                explorerFilterSelection[filter.name] = new Set(selectAll ? filter.values.map(value => value.value) : []);
-                inputs.forEach(input => { input.checked = selectAll; });
+                const selected = new Set(filter.values.filter(value => selectAll ||
+                    (filter.name === 'province' && normalizeMapProvinceName(value.label) === NATIONAL_PROVINCE_KEY))
+                    .map(value => value.value));
+                explorerFilterSelection[filter.name] = selected;
+                inputs.forEach(({input, value}) => { input.checked = selected.has(value); });
                 applyDimensionFilters();
             });
             actions.append(button);
@@ -830,7 +849,7 @@ function renderDimensionFilters() {
             const input = document.createElement('input');
             input.type = 'checkbox';
             input.checked = explorerFilterSelection[filter.name].has(value.value);
-            inputs.push(input);
+            inputs.push({input, value: value.value});
             input.addEventListener('change', () => {
                 const selected = explorerFilterSelection[filter.name];
                 if (input.checked) selected.add(value.value); else selected.delete(value.value);
@@ -1704,6 +1723,7 @@ function getChartOptions() {
 
 // Ensure charts resize smoothly across screen sizes
 const onExplorerResize = debounce(() => {
+    syncExplorerGuide();
     try { if (chartInstance && typeof chartInstance.resize === 'function') chartInstance.resize(); } catch (e) {}
     try { if (scatterProvinceChart && typeof scatterProvinceChart.resize === 'function') scatterProvinceChart.resize(); } catch (e) {}
     if (currentChartMode === 'map' && explorerLeafletMap) renderExplorerMap();
