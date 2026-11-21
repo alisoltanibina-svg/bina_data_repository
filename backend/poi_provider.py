@@ -53,19 +53,19 @@ class Neshan:
         self.key_fingerprint = hashlib.sha256(api_key.encode('utf-8')).hexdigest()[:12]
         self.opener = build_opener(NoRedirect())
 
-    def request(self, kind, params):
+    def request(self, kind, params, *, timeout=20, max_bytes=8 * 1024 * 1024):
         path = 'nearby' if kind == 'nearby' else 'point'
         req = Request('https://api.neshan.org/v1/' + path + '?' + urlencode(params),
                       headers={'Api-Key': self.api_key, 'Accept': 'application/json'})
         try:
             try:
-                response = self.opener.open(req, timeout=20)
+                response = self.opener.open(req, timeout=timeout)
             except HTTPError as error:
                 response = error
             with response:
-                raw = response.read(8 * 1024 * 1024 + 1)
+                raw = response.read(max_bytes + 1)
                 body = None
-                if len(raw) <= 8 * 1024 * 1024:
+                if len(raw) <= max_bytes:
                     try: body = json.loads(raw, parse_constant=lambda value: (_ for _ in ()).throw(ValueError(value)))
                     except (ValueError, UnicodeError): pass
                 return Reply(response.code, body, retry_after(response.headers.get('Retry-After')),

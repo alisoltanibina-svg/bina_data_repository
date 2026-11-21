@@ -164,9 +164,13 @@ async function loadExplorerData() {
         const queryTopic = urlParams.get('topic');
         const querySource = urlParams.get('source');
         const queryOpenTopic = urlParams.get('openTopic');
+        if (urlParams.get('module') === 'locations') {
+            const locations = explorerModules.find(module => module.kind === 'locations' && module.active);
+            if (locations) { enterExplorerModule(locations); return; }
+        }
 
         if (queryIndicator && queryTopic) {
-            const module = explorerModules.find(m => m.active);
+            const module = explorerModules.find(m => m.active && m.kind !== 'locations');
             if (module) enterExplorerModule(module);
             if (querySource === 'search') {
                 const navSubtopicsBtn = document.getElementById('btn-nav-subtopics');
@@ -174,7 +178,7 @@ async function loadExplorerData() {
             }
             setTimeout(() => loadIndicator(queryIndicator, queryTopic), 50);
         } else if (queryOpenTopic) {
-            const module = explorerModules.find(m => m.active);
+            const module = explorerModules.find(m => m.active && m.kind !== 'locations');
             if (module) enterExplorerModule(module);
             openTopicIndex(queryOpenTopic);
         }
@@ -439,6 +443,7 @@ function resetExplorerSelection() {
 
 function enterExplorerModule(module) {
     if (!module.active) return;
+    if (module.kind === 'locations') { window.location.assign(SITE.page('locations.html')); return; }
     activeExplorerModule = module;
     topicsHierarchy = module.hierarchy;
     activeTopicGlob = null;

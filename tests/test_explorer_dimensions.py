@@ -1,5 +1,5 @@
 import unittest
-from backend.explorer_dimensions import dimension_names, dimension_values, pack_scores, catalog_sql, monitor_module, resolve_module_mapping
+from backend.explorer_dimensions import dimension_names, dimension_values, pack_scores, catalog_sql, monitor_module, resolve_module_mapping, location_module
 
 
 class ExplorerDimensionsTest(unittest.TestCase):
@@ -103,7 +103,7 @@ class ExplorerStartupTest(unittest.TestCase):
                 if key not in self.values: self.values[key] = factory()
                 return self.values[key]
         cache = Cache()
-        ns = dict(HTTPException=HTTPException, catalog_sql=catalog_sql, monitor_module=monitor_module, resolve_module_mapping=resolve_module_mapping,
+        ns = dict(HTTPException=HTTPException, catalog_sql=catalog_sql, monitor_module=monitor_module, resolve_module_mapping=resolve_module_mapping, location_module=location_module,
                   pack_scores=pack_scores, db_connection=lambda: nullcontext(object()),
                   get_cache=lambda: cache, _json_bytes=lambda value: json.dumps(value).encode(),
                   Request=object, log=Mock(), _require_user=lambda request: None)
@@ -178,7 +178,7 @@ class ExplorerStartupTest(unittest.TestCase):
         result = json.loads(response)
         self.assertEqual(len(result['modules']), 4)
         self.assertEqual(result['hierarchy'], {'Domain': {'Subject': ['Example']}})
-        self.assertEqual([m['active'] for m in result['modules']], [True, False, False, False])
+        self.assertEqual([m['active'] for m in result['modules']], [True, False, True, False])
         self.assertEqual(source['ref_table'], 'Kdescription')
         self.assertEqual(ns['fetchall_dicts'].call_count, 4)
 

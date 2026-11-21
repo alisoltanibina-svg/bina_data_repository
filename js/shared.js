@@ -355,7 +355,7 @@ function writeBannerProfile(profile) {
 }
 
 const AUTH_NEXT_KEY = 'bina-auth-next';
-const AUTH_NEXT_PAGES = { explorer: true, bubble: true, tickets: true };
+const AUTH_NEXT_PAGES = { explorer: true, bubble: true, tickets: true, locations: true };
 
 function setAuthNext(spec) {
     try {
@@ -415,6 +415,7 @@ function placeMobilePageNav() {
 function hrefForAuthNext(next) {
     if (!next) return '';
     if (next.page === 'tickets') return SITE.page('tickets.html');
+    if (next.page === 'locations') return SITE.page('locations.html');
     if (next.page === 'explorer') return SITE.page('explorer.html') + (next.search || '');
     if (next.page === 'bubble') return SITE.page('explorer.html');
     return '';

@@ -19,7 +19,7 @@ from sqlalchemy.exc import OperationalError
 from backend.db_schema import TABLE_SCHEMAS as CURRENT_TABLE_SCHEMAS
 # This helper rehearses migration 0023 only. Later tables do not exist yet.
 TABLE_SCHEMAS = {name: schema for name, schema in CURRENT_TABLE_SCHEMAS.items()
-                 if name not in {"dimensions", "modules"}}
+                 if name not in {"dimensions", "modules", "poi_explorecat"}}
 from backend.settings import get_settings
 
 

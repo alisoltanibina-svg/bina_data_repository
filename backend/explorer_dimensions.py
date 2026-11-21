@@ -45,6 +45,13 @@ def monitor_module(row):
     return name in {'monitorindicators', 'نماگرهایدیدهبان', 'شاخصهایدیدهبان'}
 
 
+def location_module(row):
+    name = str(row.get('module_name') or '').replace('‌', '').replace(' ', '').lower()
+    reference = str(row.get('ref_table') or '').strip().lower()
+    return name in {'locationinformation', 'اطلاعاتمکانی', 'اطلاعاتمکان'} or reference in {
+        'poi', 'poi_explorecat', 'poi.poi_explorecat', 'poi_places', 'poi.poi_places'}
+
+
 def resolve_module_mapping(module):
     """Resolve optional mappings in memory; never write defaults to the database."""
     resolved = dict(module)

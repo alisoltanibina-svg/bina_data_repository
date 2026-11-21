@@ -41,6 +41,10 @@ benchmark_100_users_report_full.json
 benchmark_100_users.py
 benchmark_200_users_report.json
 benchmark_200_users_report.md
+EXPLORER_DIMENSIONS.md
+LOCATION_INFORMATION.md
+MAINTENANCE.md
+SCHEMA_CUTOVER.md
 
 backend/_storage_audit*.json
 backend/_api_hashes.json
@@ -90,3 +94,6 @@ assets/images/avatars/*
 !/tests/explorer_dimensions.test.cjs
 
 !/tests/atlas_map_updates.test.cjs
+
+!/tests/test_poi_explore.py
+!/tests/locations.test.cjs

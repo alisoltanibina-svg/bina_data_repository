@@ -34,7 +34,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.background import BackgroundTask
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from backend.explorer_dimensions import catalog_sql, monitor_module, pack_scores, resolve_module_mapping
+from backend.explorer_dimensions import catalog_sql, monitor_module, pack_scores, resolve_module_mapping, location_module
 
 from backend.database import (
     NATIONAL_NAME,
@@ -532,10 +532,11 @@ def _compute_explorer_init() -> dict:
         catalogs = []
         for item in modules:
             module = resolve_module_mapping({k.lower(): v for k, v in item['data'].items()})
-            module['active'] = monitor_module(module)
+            module['kind'] = 'locations' if location_module(module) else 'monitor' if monitor_module(module) else None
+            module['active'] = module['kind'] is not None
             module['hierarchy'] = {}
             module['indicator_dimensions'] = {}
-            if module['active']:
+            if module['kind'] == 'monitor':
                 ref = module['ref_table'].split('.')[-1]
                 columns = [r['column_name'] for r in fetchall_dicts(conn,
                     "SELECT column_name FROM information_schema.columns WHERE table_schema='analytics' AND table_name=:table",
@@ -554,7 +555,7 @@ def _compute_explorer_init() -> dict:
                     if indicator not in items:
                         items.append(indicator)
             catalogs.append(module)
-        hierarchy = next((m['hierarchy'] for m in catalogs if m['active']), {})
+        hierarchy = next((m['hierarchy'] for m in catalogs if m['kind'] == 'monitor'), {})
     return {'colors': colors, 'hierarchy': hierarchy, 'provinces': [], 'modules': catalogs}
 
 
@@ -1264,6 +1265,9 @@ app.include_router(build_support_router(_require_admin, _raise_membership, _requ
 
 from backend.poi_routes import build_router as build_poi_router
 app.include_router(build_poi_router(_require_admin, _require_user))
+
+from backend.poi_explore import build_router as build_poi_explore_router
+app.include_router(build_poi_explore_router(_require_admin, _require_user))
 
 
 app.mount(

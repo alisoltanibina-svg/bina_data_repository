@@ -110,6 +110,7 @@
     };
 
     function gatedAppPage() {
+        if (document.body.classList.contains('locations-body')) return 'locations';
         const page = currentPageName();
         if (page === 'explorer') return 'explorer';
         if (page === 'bubble') return 'bubble';

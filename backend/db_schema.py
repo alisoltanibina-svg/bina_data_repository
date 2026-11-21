@@ -15,7 +15,7 @@ TABLE_SCHEMAS = {
         "support_attachments",
     ), "support"),
     **dict.fromkeys((
-        "poi_control", "poi_boundaries", "poi_categories", "poi_jobs",
+        "poi_control", "poi_boundaries", "poi_categories", "poi_explorecat", "poi_jobs",
         "poi_segments", "poi_places", "poi_place_categories", "poi_detail_tasks",
         "poi_requests", "poi_duplicate_reviews", "poi_source_datasets",
         "poi_settlements", "poi_coverage_plans", "poi_coverage_tiles",

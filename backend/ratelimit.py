@@ -40,6 +40,7 @@ JSON_MEDIA = "application/json"
 _EXPENSIVE_PATHS = frozenset(
     {
         "/api/curtain/race",
+        "/api/poi-explore/nearby",
         "/api/admin/avatars/export",
         "/api/explorer/indicator",
         "/api/atlas/topic-trends",

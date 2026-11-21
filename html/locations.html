@@ -1,0 +1,47 @@
+﻿<!DOCTYPE html>
+<html lang="fa" dir="rtl" class="treat-v1 auth-pending">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>اطلاعات مکانی — دیده‌بان فرهنگ</title>
+    <link rel="icon" href="../assets/images/Logo_tab.webp" type="image/webp">
+    <link rel="stylesheet" href="../assets/fonts/peyda.css">
+    <link rel="stylesheet" href="../css/global.css">
+    <link rel="stylesheet" href="../css/treat-v1.css">
+    <link rel="stylesheet" href="../css/locations.css">
+    <link rel="stylesheet" href="https://static.neshan.org/sdk/leaflet/v1.9.4/neshan-sdk/v1.0.8/index.css">
+    <script src="https://static.neshan.org/sdk/leaflet/v1.9.4/neshan-sdk/v1.0.8/index.js" defer></script>
+    <script src="../js/config.js"></script>
+    <script src="../js/shared.js"></script>
+    <script src="../js/locations.js" defer></script>
+    <script src="../js/auth.js" defer></script>
+</head>
+<body class="locations-body">
+    <div id="top-banner" data-page="explorer"></div>
+    <script src="../js/banner.js"></script>
+    <main class="locations-workspace">
+        <aside class="locations-sidebar" aria-labelledby="locations-title">
+            <a class="locations-back" href="explorer.html">ماژول‌های کاوشگر</a>
+            <p class="locations-eyebrow">کاوشگر</p>
+            <h1 id="locations-title">اطلاعات مکانی</h1>
+            <p class="locations-intro">نوع مکان را انتخاب کنید؛ برای دیدن مکان‌های نزدیک، نقشه را بزرگ‌نمایی کنید.</p>
+            <label class="locations-search-label" for="location-category-search">جستجوی نوع مکان</label>
+            <input id="location-category-search" type="search" placeholder="مثلاً مسجد یا کتابخانه" autocomplete="off">
+            <div id="location-categories" class="locations-categories" aria-label="انواع مکان"></div>
+            <div class="locations-key">
+                <span id="locations-mode">آمار استانی</span>
+                <p id="locations-explanation">اندازهٔ نمادها متناسب با تعداد مکان‌های ثبت‌شده است. نبود داده با «نامشخص» نمایش داده می‌شود.</p>
+            </div>
+        </aside>
+        <section class="locations-map-room" aria-label="نقشهٔ اطلاعات مکانی">
+            <div id="locations-map" aria-label="نقشهٔ نشان"></div>
+            <div class="locations-map-toolbar">
+                <span id="locations-current-category">نوع مکان را انتخاب کنید</span>
+                <div><button type="button" id="locations-home">نمای ایران</button><button type="button" id="locations-geolocate">موقعیت من</button></div>
+            </div>
+            <p id="locations-status" class="locations-status" role="status" aria-live="polite">در حال آماده‌سازی نقشه…</p>
+            <div id="locations-error" class="locations-error" role="alert" hidden><span id="locations-error-text"></span><button type="button" id="locations-retry">تلاش دوباره</button></div>
+        </section>
+    </main>
+</body>
+</html>

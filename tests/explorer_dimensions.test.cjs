@@ -320,3 +320,13 @@ test('multi-series filter keys resolve to matching tick colors when other dimens
     assert.equal(sexLabel.children[2].hidden,true);
     assert.equal(sexLabel.children[0].style.accentColor,f.run(`provinceColors['2/2']`));
 });
+
+test('Location Information module opens its map without resetting Monitor selections', () => {
+    const f=fixture();
+    let destination;
+    f.context.SITE={page:path=>path};
+    f.context.window.location={assign(path){destination=path;}};
+    f.run(`activeTopicGlob='Existing Domain'; enterExplorerModule({active:true,kind:'locations',module_name:'اطلاعات مکانی'})`);
+    assert.equal(destination,'locations.html');
+    assert.equal(f.run('activeTopicGlob'),'Existing Domain');
+});

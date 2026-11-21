@@ -1,8 +1,8 @@
 # Explorer modules and dimensions
 
-The Explorer landing catalog now comes from `analytics.modules`. Only a module named
-`نماگرهای دیده بان`, `شاخص‌های دیده‌بان`, or `Monitor Indicators` is enabled. Other module
-names/descriptions remain visible as disabled cards. The Monitor module is backed by
+The Explorer landing catalog now comes from `analytics.modules`. Monitor Indicators and Location Information are enabled modules. Location Information
+uses a separate map page; see LOCATION_INFORMATION.md for its permission setting and
+category publication. Other module names/descriptions remain visible as disabled cards. The Monitor module is backed by
 `kindicator_score` and indicator metadata in `kdescription`; other module score adapters
 are intentionally deferred until those modules are activated.
 

@@ -46,6 +46,16 @@ class PoiCategory(Base):
     slug = C(S(100), primary_key=True)
     title = C(T, nullable=False)
 
+class PoiExploreCategory(Base):
+    __tablename__ = 'poi_explorecat'
+    __table_args__ = {"schema": "poi"}
+    category = C(S(100), FK('poi.poi_categories.slug'), primary_key=True)
+    title = C(T, nullable=False)
+    icon_url = C(T, nullable=False)
+    is_published = C(Boolean, nullable=False, default=False, server_default='false')
+    sort_order = C(I, nullable=False, default=0, server_default='0')
+
+
 class PoiJob(Base):
     __tablename__ = 'poi_jobs'
     __table_args__ = (CK("mode IN ('initial', 'refresh')", name='ck_poi_job_mode'),
@@ -123,7 +133,7 @@ class PoiPlace(Base):
 
 class PoiPlaceCategory(Base):
     __tablename__ = 'poi_place_categories'
-    __table_args__ = {"schema": "poi"}
+    __table_args__ = (Index("idx_poi_place_category_category", "category", "place_id"), {"schema": "poi"})
     place_id = C(UUID(as_uuid=True), FK('poi.poi_places.id'), primary_key=True)
     category = C(S(100), FK('poi.poi_categories.slug'), primary_key=True)
 
