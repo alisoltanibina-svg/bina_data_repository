@@ -1676,8 +1676,8 @@ function toggleCountryLegend() {
 function getIndicatorScaleBounds() {
     let min = Infinity;
     let max = -Infinity;
-    // Use the whole indicator, independently of selected or hidden province series.
-    for (const record of kscoreData) {
+    // Keep both chart scales fixed across filters, hidden series, and selected years.
+    for (const record of explorerRawScores) {
         const raw = record.value;
         if (typeof raw !== 'number' && typeof raw !== 'string') continue;
         if (typeof raw === 'string' && !raw.trim()) continue;

@@ -229,3 +229,47 @@ test('selection marker moves from Domain to Subject and disappears after both se
     assert.equal(guide.hidden,false);
     assert.equal(guide.dataset.target,'subtopic');
 });
+
+test('indicator-wide scale remains fixed across filters, hidden series, and selected years', () => {
+    const f=fixture();
+    f.run(`explorerRawScores=[
+        {year:1399,value:-20,province_name:'A',series_id:'A',series_label:'A',dim_cat_values:{province:'1'}},
+        {year:1400,value:10,province_name:'A',series_id:'A',series_label:'A',dim_cat_values:{province:'1'}},
+        {year:1400,value:90,province_name:'B',series_id:'B',series_label:'B',dim_cat_values:{province:'2'}},
+        {year:1401,value:120,province_name:'کل کشور',series_id:'National',series_label:'کل کشور',dim_cat_values:{province:'29'}}];
+        explorerFilters=[{name:'province'}]; explorerFilterSelection={province:new Set(['1','2','29'])};
+        applyDimensionFilters(false);`);
+    const bounds=()=>JSON.parse(f.run('JSON.stringify(getIndicatorScaleBounds())'));
+    assert.deepEqual(bounds(),{min:-20,max:120});
+    f.run(`explorerFilterSelection.province=new Set(['1']); applyDimensionFilters(false); hiddenDatasets={'A':true}; explorerCompareYearIndex=1;`);
+    assert.equal(f.run('kscoreData.length'),2);
+    assert.deepEqual(bounds(),{min:-20,max:120});
+    f.run(`explorerFilterSelection.province.clear(); applyDimensionFilters(false)`);
+    assert.equal(f.run('kscoreData.length'),0);
+    assert.deepEqual(bounds(),{min:-20,max:120});
+});
+test('trend and comparison chart options use the same complete indicator bounds', () => {
+    const f=fixture();
+    f.run(`explorerRawScores=[{value:-10},{value:100}]; kscoreData=[{province_name:'A',year:1400,value:25}];
+        provincesList=['A']; currentChartYears=[1400]; window.matchMedia=()=>({matches:false});`);
+    f.element('scatterProvinceChart').getContext=()=>({});
+    let comparisonConfig;
+    f.context.Chart=function(canvas,config){comparisonConfig=config;};
+    f.run('drawScatterProvince()');
+    assert.equal(comparisonConfig.options.scales.y.min,-10);
+    assert.equal(comparisonConfig.options.scales.y.max,100);
+    assert.equal(f.run('getChartOptions().scales.y.min'),-10);
+    assert.equal(f.run('getChartOptions().scales.y.max'),100);
+});
+test('fixed scale retains flat-value padding and ignores missing or invalid values', () => {
+    const f=fixture();
+    f.run(`explorerRawScores=[{value:null},{value:''},{value:'invalid'},{value:100},{value:'100'}]`);
+    assert.equal(f.run('getIndicatorScaleBounds().min'),95);
+    assert.equal(f.run('getIndicatorScaleBounds().max'),105);
+    f.run(`explorerRawScores=[{value:0}]`);
+    assert.equal(f.run('getIndicatorScaleBounds().min'),-1);
+    assert.equal(f.run('getIndicatorScaleBounds().max'),1);
+    f.run(`explorerRawScores=[]`);
+    assert.equal(f.run('getIndicatorScaleBounds().min'),undefined);
+    assert.equal(f.run('getIndicatorScaleBounds().max'),undefined);
+});
