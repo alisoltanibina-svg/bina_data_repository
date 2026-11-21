@@ -46,59 +46,42 @@
         </div>
 
         <div id="view-dashboard" class="ex-dash hidden">
-            <div class="ex-dash-head">
-                <div class="ex-dash-nav">
-                    <button type="button" id="btn-nav-subtopics" aria-label="بازگشت به ماژول‌ها">
-                        <span class="ex-back-label">بازگشت به ماژول‌ها</span>
-                        <svg class="ex-back-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
-                    </button>
-                    <div class="ex-dd-group" id="ex-dd-group">
-                        <div class="ex-dd" data-dd="topic">
-                            <button type="button" class="ex-dd-toggle" id="dd-topic-btn" aria-expanded="false">
-                                <span class="ex-dd-kicker">حوزه</span>
-                                <span class="ex-dd-value" id="dd-topic-value">—</span>
-                                <svg class="ex-dd-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-                            </button>
-                            <div class="ex-dd-menu" id="dd-topic-menu" hidden></div>
-                        </div>
-                        <div class="ex-dd" data-dd="subtopic">
-                            <button type="button" class="ex-dd-toggle" id="dd-subtopic-btn" aria-expanded="false">
-                                <span class="ex-dd-kicker">موضوع</span>
-                                <span class="ex-dd-value" id="dd-subtopic-value">—</span>
-                                <svg class="ex-dd-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-                            </button>
-                            <div class="ex-dd-menu" id="dd-subtopic-menu" hidden></div>
-                        </div>
-                        <div class="ex-dd" data-dd="indicator">
-                            <button type="button" class="ex-dd-toggle" id="dd-indicator-btn" aria-expanded="false">
-                                <span class="ex-dd-kicker">شاخص</span>
-                                <span class="ex-dd-value" id="dd-indicator-value">—</span>
-                                <svg class="ex-dd-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-                            </button>
-                            <div class="ex-dd-menu" id="dd-indicator-menu" hidden></div>
-                        </div>
-                    </div>
+            <div id="explorer-rail-guide" class="ex-rail-guide" aria-hidden="true"><svg viewBox="0 0 68 38" focusable="false"><path d="m42 3 18 16-18 16H30l18-16L30 3Z"/><path d="m27 3 18 16-18 16H15l18-16L15 3Z" opacity=".5"/><path d="m12 3 18 16-18 16H0l18-16L0 3Z" opacity=".2"/></svg></div>
+            <nav class="ex-nav-rail" aria-label="انتخاب داده‌ها">
+                <button type="button" class="ex-rail-item ex-rail-database" id="dd-database-btn" data-explorer-section="database" aria-controls="explorer-selection-panel" aria-expanded="false"><span>دیتا<br>بیس</span></button>
+                <button type="button" class="ex-rail-item" id="dd-topic-btn" data-explorer-section="topic" aria-controls="explorer-selection-panel" aria-expanded="false">حوزه<span class="ex-sr-only" id="dd-topic-value"></span></button>
+                <button type="button" class="ex-rail-item" id="dd-subtopic-btn" data-explorer-section="subtopic" aria-controls="explorer-selection-panel" aria-expanded="false">موضوع<span class="ex-sr-only" id="dd-subtopic-value"></span></button>
+                <button type="button" class="ex-rail-item" id="dd-indicator-btn" data-explorer-section="indicator" aria-controls="explorer-selection-panel" aria-expanded="false">شاخص<span class="ex-sr-only" id="dd-indicator-value"></span></button>
+                <button type="button" class="ex-rail-item" id="dd-filter-btn" data-explorer-section="filter" aria-controls="explorer-selection-panel" aria-expanded="false">فیلتر</button>
+            </nav>
+            <aside id="explorer-selection-panel" class="ex-selection-panel" aria-labelledby="explorer-selection-title" hidden>
+                <div class="ex-selection-heading">
+                    <div><h2 id="explorer-selection-title" tabindex="-1">حوزه</h2><p id="explorer-selection-context"></p></div>
+                    <button type="button" id="btn-close-selection-panel" class="ex-panel-close" aria-label="بستن پنل انتخاب">×</button>
                 </div>
+                <div class="ex-selection-content custom-scrollbar">
+                    <div id="dd-database-menu" class="ex-selection-options" hidden>
+                        <div id="explorer-module-options"></div>
+                        <button type="button" id="btn-nav-subtopics" class="ex-module-return">بازگشت به ماژول‌ها</button>
+                    </div>
+                    <div id="dd-topic-menu" class="ex-selection-options" hidden></div>
+                    <div id="dd-subtopic-menu" class="ex-selection-options" hidden></div>
+                    <div id="dd-indicator-menu" class="ex-selection-options" hidden></div>
+                    <div id="dd-filter-menu" class="ex-selection-options" hidden><div id="dimension-filters"></div></div>
+                </div>
+            </aside>
+            <div class="legacy-province-controls" hidden>
+                <input id="province-search"><button id="btn-select-all-provinces"></button><button id="btn-clear-all-provinces"></button><div id="provinces-list"></div>
             </div>
-
             <div class="ex-dash-body">
-                <aside class="ex-side" aria-label="انتخاب داده و فیلترها">
-                    <div class="ex-dd ex-dimension-panel" data-dd="filter">
-                        <button type="button" class="ex-dd-toggle" id="dd-filter-btn" aria-expanded="false"><span class="ex-dd-kicker">فیلتر</span></button>
-                        <div class="ex-dd-menu" id="dd-filter-menu" hidden><div id="dimension-filters"></div></div>
-                    </div>
-                    <div class="legacy-province-controls" hidden>
-                        <input id="province-search"><button id="btn-select-all-provinces"></button><button id="btn-clear-all-provinces"></button><div id="provinces-list"></div>
-                    </div>
-                </aside>
                 <section class="ex-chart-room">
                     <div class="chart-toolbar">
                         <h3 id="chart-panel-title">روند تغییرات زمانی شاخص</h3>
                         <div class="chart-switcher" role="tablist" aria-label="نمایش داده‌ها">
-                            <button type="button" class="chart-mode-btn active" role="tab" aria-selected="true" data-explorer-tab="chart">نمودار</button>
                             <button type="button" class="chart-mode-btn" role="tab" aria-selected="false" data-explorer-tab="table">جدول</button>
+                            <button type="button" class="chart-mode-btn active" role="tab" aria-selected="true" data-explorer-tab="chart">نمودار</button>
                             <button type="button" class="chart-mode-btn" role="tab" aria-selected="false" data-explorer-tab="map">نقشه</button>
-                            <button type="button" class="chart-mode-btn" role="tab" aria-selected="false" data-explorer-tab="metadata">فراداده</button>
+                            <button type="button" class="chart-mode-btn" role="tab" aria-selected="false" data-explorer-tab="metadata">فرا داده</button>
                         </div>
                     </div>
                     <button type="button" id="btn-toggle-chart-type" class="ex-type-toggle">نمایش نمودار مقایسه‌ای</button>
@@ -142,18 +125,19 @@
                             میانگین کل کشور
                         </button>
                     </div>
-                    <div class="ex-insight-layer" id="insight-layer" hidden>
-                        <section class="ex-insight-card" aria-labelledby="indicator-title">
-                            <div class="ex-insight-heading">
+                    <div class="ex-metadata" id="insight-layer" role="region" aria-labelledby="indicator-title" hidden>
+                        <section class="ex-metadata-sheet">
+                            <p class="ex-metadata-eyebrow">فرا دادهٔ شاخص</p>
+                            <div class="ex-metadata-heading">
                                 <h2 id="indicator-title">نام شاخص</h2>
                                 <p id="indicator-question" hidden></p>
                             </div>
-                            <p id="insight-text">در حال بارگذاری اطلاعات...</p>
-                            <div class="ex-meta">
-                                <span id="indicator-unit">واحد اندازه‌گیری: نامشخص</span>
-                                <span id="indicator-source">منبع: نامشخص</span>
-                                <span id="indicator-period">دوره: نامشخص</span>
-                            </div>
+                            <dl class="ex-metadata-facts">
+                                <div><dt>واحد اندازه‌گیری</dt><dd id="indicator-unit">نامشخص</dd></div>
+                                <div><dt>منبع</dt><dd id="indicator-source">نامشخص</dd></div>
+                                <div><dt>دورهٔ زمانی</dt><dd id="indicator-period">نامشخص</dd></div>
+                            </dl>
+                            <div class="ex-metadata-description"><h3>دربارهٔ شاخص</h3><p id="insight-text">در حال بارگذاری اطلاعات...</p></div>
                         </section>
                     </div>
                 </section>

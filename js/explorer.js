@@ -81,6 +81,7 @@ let explorerFilterSelection = {};
 let explorerTab = 'chart';
 let explorerChartType = 'trend';
 let explorerLoadState = 'idle';
+let explorerOpenSection = null;
 let kscoreData = [];
 let topicsColorData = []; 
 let topicsHierarchy = {};
@@ -267,91 +268,101 @@ function findSubtopicForIndicator(topic, indicator) {
     return subtopicsOf(topic)[0] || '';
 }
 
-function closeExplorerDropdowns() {
-    document.querySelectorAll('.ex-dd').forEach(dd => {
-        dd.classList.remove('is-open');
-        const btn = dd.querySelector('.ex-dd-toggle');
-        const menu = dd.querySelector('.ex-dd-menu');
-        if (btn) btn.setAttribute('aria-expanded', 'false');
-        if (menu) menu.hidden = true;
+const explorerSectionTitles = {database: 'دیتابیس', topic: 'حوزه', subtopic: 'موضوع', indicator: 'شاخص', filter: 'فیلتر'};
+
+function resizeExplorerViews() {
+    requestAnimationFrame(() => {
+        if (chartInstance) chartInstance.resize();
+        if (scatterProvinceChart) scatterProvinceChart.resize();
+        if (currentChartMode === 'map' && explorerLeafletMap) syncExplorerMapViewport(true);
     });
 }
 
-function fillDropdownMenu(menu, items, current, onPick, iconForItem = null) {
+function closeExplorerDropdowns(restoreFocus = false) {
+    const previous = explorerOpenSection;
+    explorerOpenSection = null;
+    document.getElementById('explorer-selection-panel').hidden = true;
+    document.getElementById('view-dashboard').classList.remove('has-selection-panel');
+    document.querySelectorAll('[data-explorer-section]').forEach(button => {
+        button.classList.remove('is-active');
+        button.setAttribute('aria-expanded', 'false');
+    });
+    Object.keys(explorerSectionTitles).forEach(section => {
+        document.getElementById(`dd-${section}-menu`).hidden = true;
+    });
+    if (restoreFocus && previous) document.getElementById(`dd-${previous}-btn`).focus();
+    resizeExplorerViews();
+}
+
+function updateExplorerPanelHeading() {
+    if (!explorerOpenSection) return;
+    document.getElementById('explorer-selection-title').textContent = explorerSectionTitles[explorerOpenSection];
+    const context = {database: activeExplorerModule && activeExplorerModule.module_name,
+        topic: activeExplorerModule && activeExplorerModule.module_name,
+        subtopic: activeTopicGlob, indicator: activeSubtopicGlob, filter: activeIndicatorGlob};
+    document.getElementById('explorer-selection-context').textContent = context[explorerOpenSection] || '';
+}
+
+function setExplorerSection(section) {
+    if (!Object.hasOwn(explorerSectionTitles, section)) return;
+    const button = document.getElementById(`dd-${section}-btn`);
+    if (button.disabled) return;
+    const alreadyOpen = explorerOpenSection === section;
+    closeExplorerDropdowns();
+    if (alreadyOpen) return;
+    explorerOpenSection = section;
+    document.getElementById('explorer-selection-panel').hidden = false;
+    document.getElementById('view-dashboard').classList.add('has-selection-panel');
+    button.classList.add('is-active');
+    button.setAttribute('aria-expanded', 'true');
+    document.getElementById(`dd-${section}-menu`).hidden = false;
+    updateExplorerPanelHeading();
+    document.getElementById('explorer-selection-title').focus({preventScroll: true});
+    resizeExplorerViews();
+}
+
+function renderExplorerModuleOptions() {
+    const root = document.getElementById('explorer-module-options');
+    root.replaceChildren();
+    explorerModules.forEach(module => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.disabled = !module.active;
+        button.className = 'ex-module-option';
+        const current = activeExplorerModule && activeExplorerModule.module_name === module.module_name;
+        button.classList.toggle('is-current', !!current);
+        button.setAttribute('aria-pressed', String(!!current));
+        const label = document.createElement('span');
+        label.textContent = module.module_name;
+        const description = document.createElement('small');
+        description.textContent = module.active ? (module.description || '') : 'به‌زودی';
+        button.append(label, description);
+        button.addEventListener('click', () => enterExplorerModule(module));
+        root.append(button);
+    });
+}
+
+function fillDropdownMenu(menu, items, current, onPick, emptyMessage = 'گزینه‌ای برای نمایش وجود ندارد.') {
     if (!menu) return;
     menu.replaceChildren();
+    if (!items.length) {
+        const hint = document.createElement('p');
+        hint.className = 'ex-selection-empty';
+        hint.textContent = emptyMessage;
+        menu.appendChild(hint);
+        return;
+    }
     items.forEach(item => {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.textContent = item;
-        if (item === current) btn.className = 'is-current';
-        if (iconForItem) {
-            const icon = document.createElement('img');
-            icon.className = 'ex-dd-topic-icon';
-            icon.src = iconForItem(item);
-            icon.alt = '';
-            icon.width = 24;
-            icon.height = 24;
-            icon.decoding = 'async';
-            const label = document.createElement('span');
-            label.className = 'ex-dd-topic-label';
-            label.textContent = item;
-            btn.classList.add('ex-dd-topic-item');
-            btn.replaceChildren(icon, label);
-        }
+        btn.classList.toggle('is-current', item === current);
+        btn.setAttribute('aria-pressed', String(item === current));
         btn.addEventListener('click', () => {
-            closeExplorerDropdowns();
+            closeExplorerDropdowns(true);
             onPick(item);
         });
         menu.appendChild(btn);
-    });
-}
-
-function explorerDropdownWidthOptions(kind) {
-    const topics = Object.keys(topicsHierarchy);
-    if (kind === 'topic') return topics;
-    const subtopics = Object.values(topicsHierarchy).flatMap(subs => Object.keys(subs || {}));
-    if (kind === 'subtopic') return [...new Set(subtopics)];
-    if (kind === 'indicator') {
-        return [...new Set(Object.values(topicsHierarchy).flatMap(subs =>
-            Object.values(subs || {}).flatMap(items => Array.isArray(items) ? items : [])
-        ))];
-    }
-    return [];
-}
-
-function sizeExplorerDropdowns() {
-    document.querySelectorAll('.ex-dd').forEach(dropdown => {
-        const toggle = dropdown.querySelector('.ex-dd-toggle');
-        const menu = dropdown.querySelector('.ex-dd-menu');
-        if (!toggle || !menu) return;
-        const measure = toggle.cloneNode(true);
-        measure.removeAttribute('id');
-        measure.querySelectorAll('[id]').forEach(element => element.removeAttribute('id'));
-        measure.setAttribute('aria-hidden', 'true');
-        measure.tabIndex = -1;
-        Object.assign(measure.style, {
-            position: 'fixed', visibility: 'hidden', pointerEvents: 'none',
-            width: 'max-content', maxWidth: 'none', minWidth: '0', fontWeight: '700'
-        });
-        const label = measure.querySelector('.ex-dd-value');
-        if (!label) return;
-        label.style.flex = '0 0 auto';
-        label.textContent = '';
-        dropdown.appendChild(measure);
-        try {
-            let width = measure.getBoundingClientRect().width;
-            // Measure the full catalog, not the options filtered by the current selection.
-            const catalog = explorerDropdownWidthOptions(dropdown.dataset.dd);
-            const options = catalog.length ? catalog : [...menu.querySelectorAll('button')].map(option => option.textContent);
-            options.forEach(text => {
-                label.textContent = text;
-                width = Math.max(width, measure.getBoundingClientRect().width);
-            });
-            if (width > 0) dropdown.style.setProperty('--ex-dd-width', Math.ceil(width) + 'px');
-        } finally {
-            measure.remove();
-        }
     });
 }
 
@@ -364,59 +375,35 @@ function syncExplorerDropdowns() {
         activeSubtopicGlob = sub;
         const first = indicatorsOf(activeTopicGlob, sub)[0];
         if (first) loadIndicator(first, activeTopicGlob);
-    });
+    }, activeTopicGlob ? 'موضوعی برای این حوزه ثبت نشده است.' : 'ابتدا حوزهٔ مورد نظر خود را انتخاب کنید.');
     fillDropdownMenu(document.getElementById('dd-indicator-menu'), indicatorsOf(activeTopicGlob, activeSubtopicGlob), activeIndicatorGlob,
-        name => loadIndicator(name, activeTopicGlob));
-    document.getElementById('dd-subtopic-btn').disabled = !activeTopicGlob;
-    document.getElementById('dd-indicator-btn').disabled = !activeSubtopicGlob;
-}
-
-function placeMobileDropdown(btn, menu) {
-    if (!window.matchMedia('(max-width: 767px)').matches) {
-        menu.style.position = '';
-        menu.style.top = '';
-        menu.style.left = '';
-        menu.style.right = '';
-        menu.style.width = '';
-        menu.style.maxWidth = '';
-        menu.style.zIndex = '';
-        return;
+        name => loadIndicator(name, activeTopicGlob), activeSubtopicGlob ? 'شاخصی برای این موضوع ثبت نشده است.' : 'ابتدا حوزه و موضوع مورد نظر خود را انتخاب کنید.');
+    if (explorerLoadState !== 'ready' || !explorerFilters.length) {
+        const filters = document.getElementById('dimension-filters');
+        filters.replaceChildren();
+        const hint = document.createElement('p');
+        hint.className = 'ex-selection-empty';
+        hint.textContent = explorerLoadState === 'ready' ? 'برای این شاخص فیلتری ثبت نشده است.' : 'پس از انتخاب حوزه و موضوع، فیلترهای شاخص در این بخش نمایش داده می‌شوند.';
+        filters.appendChild(hint);
     }
-    const head = document.querySelector('#view-dashboard .ex-dash-head') || btn;
-    const box = head.getBoundingClientRect();
-    menu.style.position = 'fixed';
-    menu.style.top = Math.round(box.bottom + 6) + 'px';
-    menu.style.left = '10px';
-    menu.style.right = '10px';
-    menu.style.width = 'auto';
-    menu.style.maxWidth = 'none';
-    menu.style.zIndex = '4000';
+    updateExplorerPanelHeading();
 }
 
 function bindExplorerDropdowns() {
-    document.querySelectorAll('.ex-dd').forEach(dd => {
-        const btn = dd.querySelector('.ex-dd-toggle');
-        const menu = dd.querySelector('.ex-dd-menu');
-        if (!btn || !menu) return;
-        btn.addEventListener('click', event => {
-            event.stopPropagation();
-            const open = dd.classList.contains('is-open');
-            closeExplorerDropdowns();
-            if (!open) {
-                dd.classList.add('is-open');
-                btn.setAttribute('aria-expanded', 'true');
-                menu.hidden = false;
-                placeMobileDropdown(btn, menu);
-            }
-        });
-        menu.addEventListener('click', event => event.stopPropagation());
+    document.querySelectorAll('[data-explorer-section]').forEach(button => {
+        button.addEventListener('click', () => setExplorerSection(button.dataset.explorerSection));
     });
-    document.addEventListener('click', closeExplorerDropdowns);
-    window.addEventListener('resize', debounce(sizeExplorerDropdowns, 150));
-    if (document.fonts && document.fonts.ready) document.fonts.ready.then(sizeExplorerDropdowns);
+    document.getElementById('btn-close-selection-panel').addEventListener('click', () => closeExplorerDropdowns(true));
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && explorerOpenSection) {
+            event.preventDefault();
+            closeExplorerDropdowns(true);
+        }
+    });
 }
 
 function resetExplorerSelection() {
+    closeExplorerDropdowns();
     ++explorerIndicatorRequest;
     stopExplorerMapPlayback();
     if (chartInstance) chartInstance.destroy();
@@ -440,14 +427,15 @@ function enterExplorerModule(module) {
     resetExplorerSelection();
     document.getElementById('view-landing').style.display = 'none';
     document.getElementById('view-dashboard').classList.remove('hidden');
-    document.getElementById('dd-topic-btn').click();
+    renderExplorerModuleOptions();
+    document.getElementById('dd-topic-btn').focus({preventScroll: true});
 }
 
 function openTopicIndex(topic) {
     if (!topic || !topicsHierarchy[topic]) return;
     activeTopicGlob = topic;
     resetExplorerSelection();
-    document.getElementById('dd-subtopic-btn').click();
+    setExplorerSection('subtopic');
 }
 
 function syncExplorerVisibility() {
@@ -459,7 +447,9 @@ function syncExplorerVisibility() {
     document.getElementById('canvas-reveal-wrapper').hidden = !ready || explorerTab === 'metadata';
     document.getElementById('insight-layer').hidden = !ready || explorerTab !== 'metadata';
     document.querySelector('.ex-chart-foot').hidden = !ready || explorerTab !== 'chart';
-    document.getElementById('btn-toggle-chart-type').hidden = explorerTab !== 'chart';
+    document.getElementById('btn-toggle-chart-type').hidden = !ready || explorerTab !== 'chart';
+    document.getElementById('chart-panel-title').hidden = !ready;
+    document.getElementById('explorer-rail-guide').hidden = !!activeTopicGlob;
 }
 
 function isLandingVisible() {
@@ -618,8 +608,8 @@ function renderIndicatorDescription(description) {
     const questionEl = document.getElementById('indicator-question');
     questionEl.textContent = question;
     questionEl.hidden = !question;
-    document.getElementById('indicator-unit').textContent = `واحد اندازه‌گیری: ${unit || 'نامشخص'}`;
-    document.getElementById('indicator-source').textContent = `منبع: ${source}`;
+    document.getElementById('indicator-unit').textContent = unit || 'نامشخص';
+    document.getElementById('indicator-source').textContent = source;
     document.getElementById('insight-text').textContent = narrative;
 }
 
@@ -636,7 +626,7 @@ async function loadIndicator(indicatorName, topicName) {
     document.getElementById('indicator-title').innerText = indicatorName;
     renderIndicatorDescription(null);
     document.getElementById('insight-text').textContent = 'در حال بارگذاری اطلاعات...';
-    document.getElementById('indicator-period').textContent = 'دوره: نامشخص';
+    document.getElementById('indicator-period').textContent = 'نامشخص';
     activeSubtopicGlob = findSubtopicForIndicator(activeTopicGlob, indicatorName);
     syncExplorerDropdowns();
     syncExplorerVisibility();
@@ -659,6 +649,7 @@ async function loadIndicator(indicatorName, topicName) {
         explorerFilterSelection = Object.fromEntries(explorerFilters.map(f => [f.name, new Set(f.values.map(v => v.value))]));
         explorerLoadState = 'ready';
         renderDimensionFilters();
+        syncExplorerDropdowns();
         applyDimensionFilters(false);
         latestYearGlob = data.latest_year != null ? Number(data.latest_year) : null;
         latestScoresGlob = Array.isArray(data.latest_scores) ? data.latest_scores : [];
@@ -672,9 +663,9 @@ async function loadIndicator(indicatorName, topicName) {
         if (latestYearGlob == null && uniqueYears.length) latestYearGlob = uniqueYears[uniqueYears.length - 1];
 
         if(uniqueYears.length > 0) {
-            document.getElementById('indicator-period').textContent = `دوره: ${toFa(uniqueYears[0])} — ${toFa(uniqueYears[uniqueYears.length-1])}`;
+            document.getElementById('indicator-period').textContent = `${toFa(uniqueYears[0])} — ${toFa(uniqueYears[uniqueYears.length-1])}`;
         } else {
-            document.getElementById('indicator-period').textContent = 'دوره: نامشخص';
+            document.getElementById('indicator-period').textContent = 'نامشخص';
         }
 
         if (chartInstance) {
@@ -1695,7 +1686,6 @@ function getChartOptions() {
 
 // Ensure charts resize smoothly across screen sizes
 const onExplorerResize = debounce(() => {
-    closeExplorerDropdowns();
     try { if (chartInstance && typeof chartInstance.resize === 'function') chartInstance.resize(); } catch (e) {}
     try { if (scatterProvinceChart && typeof scatterProvinceChart.resize === 'function') scatterProvinceChart.resize(); } catch (e) {}
     if (currentChartMode === 'map' && explorerLeafletMap) renderExplorerMap();
@@ -1742,7 +1732,6 @@ function bindExplorerChrome() {
     if (selectAll) selectAll.addEventListener('click', selectAllProvinces);
     const clearAll = document.getElementById('btn-clear-all-provinces');
     if (clearAll) clearAll.addEventListener('click', clearAllProvinces);
-    const insightLayer = document.getElementById('insight-layer');
     const countryLegend = document.getElementById('btn-country-legend');
     if (countryLegend) countryLegend.addEventListener('click', toggleCountryLegend);
     document.querySelectorAll('[data-explorer-tab]').forEach(button => button.addEventListener('click', () => {
