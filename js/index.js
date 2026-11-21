@@ -1097,26 +1097,48 @@ async function initMap() {
     }
 }
 
+// Leaflet layers are recreated with the geometry; weak keys do not retain old maps.
+const atlasLayerStyles = new WeakMap();
+const atlasLayerTooltips = new WeakMap();
+
+function atlasProvinceStyle(provName) {
+    const score = getProvinceScore(provName, currentIndex);
+    let fillColor = getHeatmapColor(score);
+    let fillOpacity = 0.85, color = '#ffffff', weight = 1.5;
+    if (hoveredStageIndex !== null) {
+        if (atlasLegendStageForScore(score) === hoveredStageIndex) {
+            fillOpacity = 0.95; color = '#000'; weight = 2.5;
+        } else {
+            fillOpacity = 0.15; color = '#ccc'; weight = 1;
+        }
+    }
+    if (provName === selectedProvince) {
+        fillColor = '#e11d48';
+        if (hoveredStageIndex === null) fillOpacity = 0.9;
+    }
+    return {color, weight, fillColor, fillOpacity};
+}
+
+function applyAtlasProvinceStyle(layer, provName, hovered = false) {
+    const style = atlasProvinceStyle(provName);
+    if (hovered) style.fillOpacity = 0.95;
+    const previous = atlasLayerStyles.get(layer);
+    if (previous && Object.keys(style).every(key => previous[key] === style[key])) return;
+    layer.setStyle(style);
+    atlasLayerStyles.set(layer, style);
+}
+
 function updateMapStyles() {
     if (!geojsonLayer) return;
-
-    geojsonLayer.eachLayer(function (layer) {
-        const provName = layer.feature.properties.ProvincNam || "استان ناشناخته";
-        let score = getProvinceScore(provName, currentIndex);
-        
-        layer.setTooltipContent(`<strong>${provName}</strong><br/><span style="color:#0078d7; font-weight:bold;">امتیاز: ${score}</span>`);
-
-        let fColor = getHeatmapColor(score);
-        let fOpac = 0.85, bColor = "#ffffff", bWeight = 1.5;
-
-        if (hoveredStageIndex !== null) {
-            if (atlasLegendStageForScore(score) === hoveredStageIndex) { fOpac = 0.95; bColor = "#000"; bWeight = 2.5; }
-            else { fOpac = 0.15; bColor = "#ccc"; bWeight = 1; }
+    geojsonLayer.eachLayer(layer => {
+        const provName = layer.feature.properties.ProvincNam || 'استان ناشناخته';
+        const score = getProvinceScore(provName, currentIndex);
+        const tooltip = `<strong>${provName}</strong><br/><span style="color:#0078d7; font-weight:bold;">امتیاز: ${score}</span>`;
+        if (atlasLayerTooltips.get(layer) !== tooltip) {
+            layer.setTooltipContent(tooltip);
+            atlasLayerTooltips.set(layer, tooltip);
         }
-
-        if (provName === selectedProvince) { fColor = "#e11d48"; if (hoveredStageIndex === null) fOpac = 0.9; }
-
-        layer.setStyle({ color: bColor, weight: bWeight, fillColor: fColor, fillOpacity: fOpac });
+        applyAtlasProvinceStyle(layer, provName);
     });
 }
 
@@ -1129,9 +1151,10 @@ function renderMapData(geojsonData) {
             layer.bindTooltip("", { sticky: true, className: 'custom-tooltip' });
             
             layer.on('mouseover', (e) => {
-                e.target.setStyle({ fillOpacity: 0.95 }).bringToFront();
+                applyAtlasProvinceStyle(e.target, provName, true);
+                e.target.bringToFront();
             });
-            layer.on('mouseout', () => { updateMapStyles(); });
+            layer.on('mouseout', () => { applyAtlasProvinceStyle(layer, provName); });
             layer.on('click', (e) => {
                 L.DomEvent.stopPropagation(e);
                 const pathEl = (e.target && typeof e.target.getElement === 'function' && e.target.getElement())

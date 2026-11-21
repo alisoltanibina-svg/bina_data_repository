@@ -88,3 +88,5 @@ assets/images/avatars/*
 
 !/tests/test_explorer_dimensions.py
 !/tests/explorer_dimensions.test.cjs
+
+!/tests/atlas_map_updates.test.cjs
