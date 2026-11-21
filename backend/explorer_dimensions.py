@@ -45,18 +45,41 @@ def monitor_module(row):
     return name in {'monitorindicators', 'نماگرهایدیدهبان', 'شاخصهایدیدهبان'}
 
 
+def resolve_module_mapping(module):
+    """Resolve optional mappings in memory; never write defaults to the database."""
+    resolved = dict(module)
+    for role in ('ref_table', 'topic', 'subtopic', 'indicator', 'filter'):
+        resolved[role] = str(module.get(role) or '').strip()
+    if monitor_module(resolved):
+        resolved['ref_table'] = resolved['ref_table'] or 'kdescription'
+        # These defaults describe only the existing Monitor metadata table.
+        if resolved['ref_table'] in ('kdescription', 'analytics.kdescription'):
+            defaults = {'topic': 'topic_name', 'subtopic': 'subtopic_name',
+                        'indicator': 'indicator_name', 'filter': 'dimensions'}
+            for role, column in defaults.items():
+                resolved[role] = resolved[role] or column
+    return resolved
+
+
 def catalog_sql(module, columns):
-    """Only analytics relations and actual column names may enter SQL identifiers."""
-    ref = str(module.get('ref_table') or '')
+    """Empty mappings are optional; explicit SQL identifiers remain validated."""
+    module = resolve_module_mapping(module)
+    ref = module['ref_table']
+    roles = ('topic', 'subtopic', 'indicator', 'filter')
+    if not ref:
+        return 'SELECT ' + ', '.join(f'NULL AS "{role}"' for role in roles) + ' WHERE FALSE'
     parts = ref.split('.')
     if len(parts) == 1:
         parts.insert(0, 'analytics')
     if len(parts) != 2 or parts[0] != 'analytics' or not all(re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', p) for p in parts):
         raise ValueError('Module ref_table must reference an analytics table')
     fields = []
-    for role in ('topic', 'subtopic', 'indicator', 'filter'):
-        column = module.get(role)
-        if not column or column not in columns:
+    for role in roles:
+        column = module[role]
+        if not column:
+            fields.append(f'NULL AS "{role}"')
+            continue
+        if column not in columns:
             raise ValueError(f'Invalid module column: {role}')
         escaped = column.replace('"', '""')
         fields.append(f'"{escaped}" AS "{role}"')

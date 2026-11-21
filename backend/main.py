@@ -34,7 +34,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.background import BackgroundTask
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from backend.explorer_dimensions import catalog_sql, monitor_module, pack_scores
+from backend.explorer_dimensions import catalog_sql, monitor_module, pack_scores, resolve_module_mapping
 
 from backend.database import (
     NATIONAL_NAME,
@@ -321,7 +321,14 @@ def _warm_cache() -> None:
     cache.get("indicator-names", _compute_indicator_names)
     cache.get("subtopic-names", _compute_subtopic_names)
     cache.get("init-atlas", lambda: _json_bytes(_compute_atlas()))
-    cache.get("explorer-init", lambda: _json_bytes(_compute_explorer_init()))
+    # A catalog mapping error must not take authentication and other modules offline.
+    # Store Python catalog objects separately from serialized API response bytes.
+    try:
+        cache.get("explorer-catalog-v2", _compute_explorer_init)
+    except HTTPException as exc:
+        if exc.status_code != 503:
+            raise
+        log.warning("Explorer catalog warm-up skipped: %s", exc.detail)
     cache.get("race-indicators", _compute_race_indicator_names)
 
 
@@ -524,19 +531,20 @@ def _compute_explorer_init() -> dict:
         modules = fetchall_dicts(conn, "SELECT to_jsonb(m) AS data FROM analytics.modules m")
         catalogs = []
         for item in modules:
-            module = {k.lower(): v for k, v in item['data'].items()}
+            module = resolve_module_mapping({k.lower(): v for k, v in item['data'].items()})
             module['active'] = monitor_module(module)
             module['hierarchy'] = {}
             module['indicator_dimensions'] = {}
             if module['active']:
-                ref = str(module.get('ref_table') or '').split('.')[-1]
+                ref = module['ref_table'].split('.')[-1]
                 columns = [r['column_name'] for r in fetchall_dicts(conn,
                     "SELECT column_name FROM information_schema.columns WHERE table_schema='analytics' AND table_name=:table",
                     {'table': ref})]
                 try:
                     rows = fetchall_dicts(conn, catalog_sql(module, columns))
                 except ValueError as exc:
-                    raise HTTPException(status_code=503, detail="Invalid Explorer module configuration") from exc
+                    detail = f"Invalid Explorer module configuration ({module.get('module_name')}): {exc}"
+                    raise HTTPException(status_code=503, detail=detail) from exc
                 for row in rows:
                     t, sub, indicator = row['topic'], row['subtopic'], row['indicator']
                     if not t or not sub or not indicator:
@@ -576,7 +584,7 @@ def _compute_explorer_indicator(name: str) -> dict:
             "WHERE indicator_name=:name ORDER BY id", {'name': name})
         lookup = fetchall_dicts(conn, "SELECT dimension_name, dimension_value, dimension_key FROM analytics.dimensions")
     try:
-        catalog = get_cache().get('explorer-init-v2', _compute_explorer_init)
+        catalog = get_cache().get('explorer-catalog-v2', _compute_explorer_init)
         declared = next((m['indicator_dimensions'][name] for m in catalog['modules']
                          if m['active'] and name in m.get('indicator_dimensions', {})),
                         (desc_row or {}).get('dimensions'))

@@ -1,4 +1,4 @@
-﻿# Explorer modules and dimensions
+# Explorer modules and dimensions
 
 The Explorer landing catalog now comes from `analytics.modules`. Only a module named
 `نماگرهای دیده بان`, `شاخص‌های دیده‌بان`, or `Monitor Indicators` is enabled. Other module
@@ -11,6 +11,13 @@ Each module maps `topic`, `subtopic`, `indicator`, and `filter` to column names 
 against actual table columns, and catalogs use DISTINCT. The mapped `filter` column
 contains the dimension names for each indicator. Normally these are `kdescription` /
 `topic_name`, `subtopic_name`, `indicator_name`, `dimensions`.
+
+Module mappings may be NULL, empty, or whitespace-only. The backend supplies the above
+standard defaults for Monitor Indicators when its reference is empty or `kdescription`.
+For other reference tables, blank field mappings produce NULL catalog fields; rows without
+a Domain, Subject, or Indicator do not create navigable entries. A module with no reference
+and no Monitor defaults has an empty catalog. These defaults are resolved in memory and
+never written back to the database. Explicit nonempty mappings remain validated.
 
 Scores accept a JSON object or imported text such as `{province: 2, sex:1}`.
 Dimension declarations accept PostgreSQL arrays, JSON arrays, or `{province, sex}` text.
