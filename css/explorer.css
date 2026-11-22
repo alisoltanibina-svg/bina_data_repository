@@ -1584,6 +1584,11 @@ body.explorer-body {
 }
 .ex-monitor-layout .ex-top-selectors .ex-rail-item {
     min-height: 42px; max-width: 250px; gap: 6px; padding: 8px 16px;
+    background: #515811; color: #fff; border-radius: var(--ex-pill);
+}
+.ex-monitor-layout .ex-top-selectors .ex-rail-item:hover:not(:disabled),
+.ex-monitor-layout .ex-top-selectors .ex-rail-item.is-active {
+    background: #515811; color: #fff; border-radius: var(--ex-pill);
 }
 .ex-monitor-layout .ex-rail-item::after { display: none; }
 .ex-monitor-layout .ex-selector-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
@@ -1610,6 +1615,14 @@ body.explorer-body {
 .ex-monitor-layout .ex-metadata-sidebar { grid-area: metadata; overflow-y: auto; overscroll-behavior: contain; }
 .ex-monitor-layout .ex-metadata { overflow: visible; }
 .ex-monitor-layout .ex-metadata-facts { grid-template-columns: 1fr; }
+.ex-monitor-layout .ex-metadata-eyebrow { font-size: .75rem; }
+.ex-monitor-layout .ex-metadata-heading h2 { font-size: 1.15rem; }
+.ex-monitor-layout .ex-metadata-heading #indicator-question { font-size: .83rem; }
+.ex-monitor-layout .ex-metadata-facts dt { font-size: .75rem; }
+.ex-monitor-layout .ex-metadata-facts dd { font-size: .85rem; }
+.ex-monitor-layout .ex-metadata-description h3 { font-size: .9rem; }
+.ex-monitor-layout .ex-metadata-description #insight-text { font-size: .85rem; }
+.ex-monitor-layout #explorer-metadata-placeholder { font-size: .85rem; }
 #view-dashboard.ex-monitor-layout .ex-chart-room {
     grid-area: chart; padding: 16px 14px 12px; background: white;
     border-radius: 20px; box-shadow: var(--ex-panel-shadow);
@@ -1617,7 +1630,19 @@ body.explorer-body {
 #view-dashboard.ex-monitor-layout .chart-toolbar { align-items: flex-start; gap: 10px; }
 #view-dashboard.ex-monitor-layout .chart-switcher {
     flex: 0 0 auto; width: fit-content; max-width: 100%; justify-content: flex-start; overflow-x: auto;
+    align-self: flex-end; margin-inline-start: auto; gap: 2px;
+    min-height: 34px; padding: 3px; border: 1px solid #ebe9e1;
+    background: #faf9f6; box-shadow: 0 1px 3px #00000008;
 }
+#view-dashboard.ex-monitor-layout .chart-mode-btn {
+    flex: 0 0 auto; min-width: 0; min-height: 26px; padding: 5px 12px;
+    background: transparent; color: #777448; box-shadow: none;
+    font-size: .72rem; font-weight: 600; line-height: 1.4; gap: 5px;
+}
+#view-dashboard.ex-monitor-layout .chart-mode-icon { width: 14px; height: 14px; }
+#view-dashboard.ex-monitor-layout .chart-mode-btn:hover:not(.active) { background: #eeeddf; }
+#view-dashboard.ex-monitor-layout .chart-mode-btn.active { background: #515811; color: white; }
+#view-dashboard.ex-monitor-layout .chart-mode-btn:focus-visible { outline: 2px solid #515811; outline-offset: -2px; }
 #view-dashboard.ex-monitor-layout #canvas-reveal-wrapper { min-height: 200px; }
 #view-dashboard.ex-monitor-layout .ex-rail-guide {
     right: auto; width: 36px; z-index: 21;
