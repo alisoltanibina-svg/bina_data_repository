@@ -49,14 +49,18 @@ let sweepReq = null;
 let sweepStartTime = null;
 
 function startSweep(chart) {
-    if (sweepReq) cancelAnimationFrame(sweepReq);
+    if (sweepReq !== null) cancelAnimationFrame(sweepReq);
+    sweepReq = null;
     sweepStartTime = null;
     
     let datasetsToSweep = chart.data.datasets.filter(ds => ds.sweepProgress !== undefined && ds.sweepProgress < 1);
     if(datasetsToSweep.length === 0) return;
+    const startingProgress = new Map(datasetsToSweep.map(ds => [ds, ds.sweepProgress]));
     
     function animate(timestamp) {
-        if (!sweepStartTime) sweepStartTime = timestamp;
+        sweepReq = null;
+        if (chart !== chartInstance) return;
+        if (sweepStartTime === null) sweepStartTime = timestamp;
         let progress = (timestamp - sweepStartTime) / 1500; 
         
         if (progress >= 1) {
@@ -66,7 +70,10 @@ function startSweep(chart) {
         }
         
         let curvedProgress = 1 - Math.pow(1 - progress, 3); 
-        datasetsToSweep.forEach(ds => ds.sweepProgress = curvedProgress);
+        datasetsToSweep.forEach(ds => {
+            const initial = startingProgress.get(ds);
+            ds.sweepProgress = initial + (1 - initial) * curvedProgress;
+        });
         chart.draw();
         sweepReq = requestAnimationFrame(animate);
     }
@@ -959,9 +966,6 @@ function applyDimensionFilters(refresh = true) {
     activeDatasets = [...provincesList];
     currentChartYears = [...new Set(kscoreData.filter(row => row.year != null).map(row => Number(row.year)))].sort((a,b) => a-b);
     latestScoresGlob = kscoreData.filter(row => Number(row.year) === latestYearGlob);
-    if (chartInstance) chartInstance.destroy();
-    if (scatterProvinceChart) scatterProvinceChart.destroy();
-    chartInstance = scatterProvinceChart = null;
     if (refresh) refreshActiveChart();
 }
 
@@ -1109,9 +1113,9 @@ function drawScatterProvince() {
     });
 }
 
-function getChartSeries(provName) {
+function getChartSeries(provName, years = currentChartYears) {
     let records = kscoreData.filter(d => d.province_name === provName);
-    return currentChartYears.map(y => {
+    return years.map(y => {
         let rec = records.find(r => Number(r.year) === y);
         return rec && rec.value !== null && rec.value !== '' && Number.isFinite(Number(rec.value)) ? Number(rec.value) : null;
     });
@@ -1644,10 +1648,14 @@ function renderExplorerMap() {
 }
 function drawChart() {
     const ctx = document.getElementById('mainChart').getContext('2d');
+    // Filtering a series must not move the surviving lines along the time axis.
+    const indicatorYears = [...new Set(explorerRawScores.filter(row => row.year != null && Number.isFinite(Number(row.year)))
+        .map(row => Number(row.year)))].sort((a,b) => a-b);
+    const trendYears = indicatorYears.length ? indicatorYears : currentChartYears;
     
     const trendProvs = activeDatasets.filter(name => name !== 'کل کشور');
     let desiredLabels = trendProvs.slice();
-    let countrySeries = getChartSeries('کل کشور');
+    let countrySeries = getChartSeries('کل کشور', trendYears);
     let hasCountry = countrySeries.some(v => v !== null);
     
     if(hasCountry) {
@@ -1670,7 +1678,7 @@ function drawChart() {
         
         trendProvs.forEach((prov) => {
             datasets.push({
-                label: prov, data: getChartSeries(prov),
+                label: prov, data: getChartSeries(prov, trendYears),
                 borderColor: provinceColors[prov], borderWidth: 2.5, borderJoinStyle: 'round', borderCapStyle: 'round',
                 tension: 0.4, fill: false, pointBackgroundColor: 'white', pointBorderColor: provinceColors[prov], pointBorderWidth: 2, order: 2,
                 animation: false,
@@ -1680,7 +1688,7 @@ function drawChart() {
 
         chartInstance = new Chart(ctx, {
             type: 'line',
-            data: { labels: currentChartYears.map(toFa), datasets: datasets },
+            data: { labels: trendYears.map(toFa), datasets: datasets },
             options: getChartOptions() 
         });
 
@@ -1695,7 +1703,7 @@ function drawChart() {
         }
         
         existingDatasets.forEach(ds => {
-            if (isBulkAction) ds.sweepProgress = 0;
+            ds.data = ds.label === 'میانگین کل کشور' ? countrySeries : getChartSeries(ds.label, trendYears);
         });
         
         let existingLabels = existingDatasets.map(d => d.label);
@@ -1715,7 +1723,7 @@ function drawChart() {
         trendProvs.forEach((prov) => {
             if (!existingLabels.includes(prov)) {
                 existingDatasets.push({
-                    label: prov, data: getChartSeries(prov),
+                    label: prov, data: getChartSeries(prov, trendYears),
                     borderColor: provinceColors[prov], borderWidth: 2.5, borderJoinStyle: 'round', borderCapStyle: 'round',
                     tension: 0.4, fill: false, pointBackgroundColor: 'white', pointBorderColor: provinceColors[prov], pointBorderWidth: 2, order: 2,
                     animation: false,
@@ -1724,7 +1732,7 @@ function drawChart() {
             }
         });
 
-        chartInstance.data.labels = currentChartYears.map(toFa);
+        chartInstance.data.labels = trendYears.map(toFa);
         Object.assign(chartInstance.options.scales.y, getIndicatorScaleBounds());
         chartInstance.update('none'); 
 
