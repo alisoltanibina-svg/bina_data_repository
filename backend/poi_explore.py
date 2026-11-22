@@ -34,7 +34,7 @@ class NearbyBody(InputBody):
     latitude: FiniteFloat = Field(ge=24, le=41)
     longitude: FiniteFloat = Field(ge=43, le=64)
     zoom: int = Field(ge=LIVE_MIN_ZOOM, le=19, strict=True)
-    radius_m: int | None = Field(default=None, ge=500, le=100000, strict=True)
+    radius_m: int | None = Field(default=None, ge=10, le=100000, strict=True)
 
 
 class PublishBody(InputBody):
@@ -128,7 +128,14 @@ def extend_provider_backoff(seconds):
         record_provider_backoff(session, seconds)
 
 
-def nearby_display_points(body):
+def within_search_radius(latitude, longitude, center, radius):
+    lat1, lon1 = map(math.radians, center)
+    lat2, lon2 = math.radians(latitude), math.radians(longitude)
+    a = math.sin((lat2 - lat1) / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin((lon2 - lon1) / 2) ** 2
+    return 6371000 * 2 * math.asin(min(1, math.sqrt(a))) <= radius
+
+
+def nearby_display_points(body, *, center=None, radius=None):
     """Strip hashes and all unused provider fields; validate before display."""
     if not isinstance(body, dict) or not isinstance(body.get('layerPoints'), dict):
         raise ValueError('Invalid Nearby response')
@@ -142,6 +149,8 @@ def nearby_display_points(body):
         try:
             latitude, longitude = coordinates(item.get('location'))
         except (ValueError, TypeError, OverflowError):
+            continue
+        if center is not None and not within_search_radius(latitude, longitude, center, radius):
             continue
         name = item['name'].strip()[:250]
         key = (latitude, longitude, name)
@@ -206,7 +215,7 @@ def build_router(require_admin, require_user):
         if not key:
             raise HTTPException(503, detail='سرویس مکان‌های نزدیک تنظیم نشده است.', headers=NO_STORE)
         reserve_live_request()
-        # Explicit viewport samples may be smaller than the wide-view default.
+        # The request, response filter, and displayed circle share this exact radius.
         radius = body.radius_m if body.radius_m is not None else LIVE_RADII[body.zoom]
         reply = Neshan(key).request('nearby', dict(location=f'{body.latitude},{body.longitude}',
             layer=body.category, searchRadius=radius), timeout=5, max_bytes=1024 * 1024)
@@ -217,7 +226,8 @@ def build_router(require_admin, require_user):
         if reply.status != 200:
             raise HTTPException(503, detail='سرویس مکان‌های نزدیک در دسترس نیست.', headers=NO_STORE)
         try:
-            places, source_count = nearby_display_points(reply.body)
+            places, source_count = nearby_display_points(reply.body,
+                center=(body.latitude, body.longitude), radius=radius)
         except ValueError:
             raise HTTPException(502, detail='پاسخ سرویس مکان‌های نزدیک معتبر نبود.', headers=NO_STORE) from None
         # No database/cache/log call can receive reply.body, names, coordinates, or hashes.

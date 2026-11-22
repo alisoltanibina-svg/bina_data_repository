@@ -10,64 +10,33 @@ function locationNearbyPlan(category, center, zoom, config, bounds) {
     let radius = Number(config.radius_by_zoom[Math.min(19, zoom)]);
     if (bounds) {
         const origin = {latitude: center.lat, longitude: center.lng};
-        const corners = [bounds.getNorthEast(), bounds.getSouthWest(), bounds.getNorthWest(), bounds.getSouthEast()];
-        const visibleRadius = Math.max(...corners.map(point => locationDistance(origin,
-            {latitude: point.lat, longitude: point.lng})));
-        radius = Math.min(100000, Math.max(radius, Math.ceil(visibleRadius * 1.2 / 100) * 100));
+        const ne = bounds.getNorthEast(), sw = bounds.getSouthWest();
+        const edgeDistances = [
+            {latitude: ne.lat, longitude: center.lng}, {latitude: sw.lat, longitude: center.lng},
+            {latitude: center.lat, longitude: ne.lng}, {latitude: center.lat, longitude: sw.lng}
+        ].map(point => locationDistance(origin, point));
+        const shortestEdge = Math.min(...edgeDistances);
+        if (Number.isFinite(shortestEdge) && shortestEdge > 0) {
+            // Fit inside the viewport, rather than covering its diagonal. Do not
+            // impose a zoom-table floor that keeps an oversized circle on screen.
+            radius = Math.min(100000, Math.max(10, Math.floor(shortestEdge * .85)));
+        }
     }
     return {category, latitude: center.lat, longitude: center.lng, zoom: Math.min(19, zoom), radius};
 }
 
 function locationDetailLevel(zoom) {
     zoom = Math.floor(zoom);
-    if (zoom <= 10) return {grid: 2, cellSize: 160, perCell: 1};
-    if (zoom <= 12) return {grid: 2, cellSize: 140, perCell: 2};
-    if (zoom <= 14) return {grid: 3, cellSize: 100, perCell: 2};
-    return {grid: zoom <= 15 ? 3 : 1, cellSize: 0, perCell: Infinity};
+    if (zoom <= 10) return {cellSize: 160, perCell: 1};
+    if (zoom <= 12) return {cellSize: 140, perCell: 2};
+    if (zoom <= 14) return {cellSize: 100, perCell: 2};
+    return {cellSize: 0, perCell: Infinity};
 }
 
-// Overview searches collect representatives; detail searches refine the local view.
-function locationSearchPlans(plan, bounds) {
-    const grid = locationDetailLevel(plan.zoom).grid;
-    if (grid === 1) return [plan];
-    if (bounds) {
-        const ne = bounds.getNorthEast(), sw = bounds.getSouthWest();
-        const north = Math.min(41, ne.lat), south = Math.max(24, sw.lat);
-        const east = Math.min(64, ne.lng), west = Math.max(43, sw.lng);
-        const diagonal = locationDistance({latitude: south, longitude: west}, {latitude: north, longitude: east});
-        if (north > south && east > west && diagonal > 1000) {
-            const radius = Math.min(100000, Math.max(500, Math.ceil(diagonal / (grid * 2) * 1.2)));
-            const plans = [{...plan, radius}];
-            for (let row = 0; row < grid; ++row) {
-                for (let column = 0; column < grid; ++column) {
-                    plans.push({...plan, radius, latitude: south + (row + .5) * (north - south) / grid,
-                        longitude: west + (column + .5) * (east - west) / grid});
-                }
-            }
-            return locationBoundedPlans(plans, plan).sort((a, b) => locationDistance(a, plan) - locationDistance(b, plan));
-        }
-    }
-    // Fallback for unavailable/degenerate bounds.
-    if (plan.zoom > 12) return [plan];
-    const radius = Math.max(500, Math.ceil(plan.radius / 2));
-    const latitudeStep = plan.radius * .5 / 111195;
-    const longitudeStep = latitudeStep / Math.cos(plan.latitude * Math.PI / 180);
-    const plans = [[0, 0], [0, 1], [1, 0], [0, -1], [-1, 0]]
-        .map(([x, y]) => ({...plan, radius,
-            latitude: plan.latitude + y * latitudeStep, longitude: plan.longitude + x * longitudeStep}))
-        .filter(point => point.latitude >= 24 && point.latitude <= 41 && point.longitude >= 43 && point.longitude <= 64);
-    return locationBoundedPlans(plans, plan);
-}
-
-function locationBoundedPlans(plans, region) {
-    const seen = new Set();
-    return plans.map(plan => ({...plan, radius: Math.min(plan.radius,
-        Math.floor(region.radius - locationDistance(plan, region)))}))
-        .filter(plan => {
-            const key = `${plan.latitude.toFixed(7)},${plan.longitude.toFixed(7)},${plan.radius}`;
-            if (plan.radius < 500 || seen.has(key)) return false;
-            seen.add(key); return true;
-        });
+// One provider request per settled map view. Density is controlled by rendering,
+// not by sweeping many search centers over the visible area.
+function locationSearchPlans(plan) {
+    return [plan];
 }
 
 // World-pixel cells stay anchored during pans. Representatives are real places
@@ -270,7 +239,7 @@ function locationSearchChanged(previous, next) {
         if (!state.map.hasLayer(state.live)) state.live.addTo(state.map);
         pruneMemory(plan);
         state.region = plan; syncVisiblePoints();
-        state.queue = locationSearchPlans(plan, state.map.getBounds()).filter(candidate =>
+        state.queue = locationSearchPlans(plan).filter(candidate =>
             !state.searches.some(search => !locationSearchChanged(search.plan, candidate)));
         if (state.circle) state.circle.remove();
         state.circle = L.circle([plan.latitude, plan.longitude], {radius: plan.radius,
