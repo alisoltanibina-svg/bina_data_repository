@@ -45,14 +45,15 @@
             <div class="ex-stage" id="mosaic-menu"></div>
         </div>
 
-        <div id="view-dashboard" class="ex-dash hidden">
+        <div id="view-dashboard" class="ex-dash ex-monitor-layout hidden">
             <div id="explorer-rail-guide" class="ex-rail-guide" aria-hidden="true"><svg viewBox="0 0 68 38" focusable="false"><path d="m42 3 18 16-18 16H30l18-16L30 3Z"/><path d="m27 3 18 16-18 16H15l18-16L15 3Z" opacity=".5"/><path d="m12 3 18 16-18 16H0l18-16L0 3Z" opacity=".2"/></svg></div>
-            <nav class="ex-nav-rail" aria-label="انتخاب داده‌ها">
-                <button type="button" class="ex-rail-item ex-rail-database" id="dd-database-btn" data-explorer-section="database" aria-controls="explorer-selection-panel" aria-expanded="false"><span>دیتا<br>بیس</span></button>
-                <button type="button" class="ex-rail-item" id="dd-topic-btn" data-explorer-section="topic" aria-controls="explorer-selection-panel" aria-expanded="false">حوزه<span class="ex-sr-only" id="dd-topic-value"></span></button>
-                <button type="button" class="ex-rail-item" id="dd-subtopic-btn" data-explorer-section="subtopic" aria-controls="explorer-selection-panel" aria-expanded="false">موضوع<span class="ex-sr-only" id="dd-subtopic-value"></span></button>
-                <button type="button" class="ex-rail-item" id="dd-indicator-btn" data-explorer-section="indicator" aria-controls="explorer-selection-panel" aria-expanded="false">شاخص<span class="ex-sr-only" id="dd-indicator-value"></span></button>
-                <button type="button" class="ex-rail-item" id="dd-filter-btn" data-explorer-section="filter" aria-controls="explorer-selection-panel" aria-expanded="false">فیلتر</button>
+            <nav class="ex-nav-rail ex-dash-head" aria-label="انتخاب داده‌ها">
+                <button type="button" id="btn-nav-subtopics" class="ex-module-return"><span>بازگشت به ماژول‌ها</span><svg class="ex-back-arrow" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="m10 5 7 7-7 7M17 12H3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                <div class="ex-top-selectors">
+                    <button type="button" class="ex-rail-item" id="dd-topic-btn" data-explorer-section="topic" aria-controls="explorer-selection-panel" aria-expanded="false">حوزه<span class="ex-selector-value" id="dd-topic-value"></span></button>
+                    <button type="button" class="ex-rail-item" id="dd-subtopic-btn" data-explorer-section="subtopic" aria-controls="explorer-selection-panel" aria-expanded="false">موضوع<span class="ex-selector-value" id="dd-subtopic-value"></span></button>
+                    <button type="button" class="ex-rail-item" id="dd-indicator-btn" data-explorer-section="indicator" aria-controls="explorer-selection-panel" aria-expanded="false">شاخص<span class="ex-selector-value" id="dd-indicator-value"></span></button>
+                </div>
             </nav>
             <aside id="explorer-selection-panel" class="ex-selection-panel" aria-labelledby="explorer-selection-title" hidden>
                 <div class="ex-selection-heading">
@@ -62,29 +63,51 @@
                 <div class="ex-selection-content custom-scrollbar">
                     <div id="dd-database-menu" class="ex-selection-options" hidden>
                         <div id="explorer-module-options"></div>
-                        <button type="button" id="btn-nav-subtopics" class="ex-module-return">بازگشت به ماژول‌ها</button>
                     </div>
                     <div id="dd-topic-menu" class="ex-selection-options" hidden></div>
                     <div id="dd-subtopic-menu" class="ex-selection-options" hidden></div>
                     <div id="dd-indicator-menu" class="ex-selection-options" hidden></div>
-                    <div id="dd-filter-menu" class="ex-selection-options" hidden><div id="dimension-filters"></div></div>
                 </div>
             </aside>
             <div class="legacy-province-controls" hidden>
+                <button type="button" class="ex-rail-item ex-rail-database" id="dd-database-btn" data-explorer-section="database" aria-controls="explorer-selection-panel" aria-expanded="false"><span>دیتا<br>بیس</span></button>
+                <button type="button" class="ex-rail-item" id="dd-filter-btn" data-explorer-section="filter" aria-controls="explorer-selection-panel" aria-expanded="false">فیلتر</button>
                 <input id="province-search"><button id="btn-select-all-provinces"></button><button id="btn-clear-all-provinces"></button><div id="provinces-list"></div>
             </div>
             <div class="ex-dash-body">
+                <aside class="ex-metadata-sidebar custom-scrollbar" aria-label="فرادادهٔ شاخص">
+                    <p id="explorer-metadata-placeholder" class="ex-selection-empty">پس از انتخاب شاخص، فرادادهٔ آن در این بخش نمایش داده می‌شود.</p>
+                    <div class="ex-metadata" id="insight-layer" role="region" aria-labelledby="indicator-title" hidden>
+                        <section class="ex-metadata-sheet">
+                            <p class="ex-metadata-eyebrow">فرا دادهٔ شاخص</p>
+                            <div class="ex-metadata-heading">
+                                <h2 id="indicator-title">نام شاخص</h2>
+                                <p id="indicator-question" hidden></p>
+                            </div>
+                            <dl class="ex-metadata-facts">
+                                <div><dt>واحد اندازه‌گیری</dt><dd id="indicator-unit">نامشخص</dd></div>
+                                <div><dt>منبع</dt><dd id="indicator-source">نامشخص</dd></div>
+                                <div><dt>دورهٔ زمانی</dt><dd id="indicator-period">نامشخص</dd></div>
+                            </dl>
+                            <div class="ex-metadata-description"><h3>دربارهٔ شاخص</h3><p id="insight-text">در حال بارگذاری اطلاعات...</p></div>
+                        </section>
+                    </div>
+                </aside>
+                <aside class="ex-filter-sidebar" aria-labelledby="explorer-filters-title">
+                    <h2 id="explorer-filters-title" tabindex="-1">فیلترها</h2>
+<div id="dd-filter-menu" class="ex-selection-options"><div id="dimension-filters"></div></div>
+                </aside>
                 <section class="ex-chart-room">
                     <div class="chart-toolbar">
                         <h3 id="chart-panel-title">روند تغییرات زمانی شاخص</h3>
                         <div class="chart-switcher" role="tablist" aria-label="نمایش داده‌ها">
+                            <button type="button" class="chart-mode-btn active" role="tab" aria-selected="true" data-explorer-tab="trend">نمودار روندی</button>
+                            <button type="button" class="chart-mode-btn" role="tab" aria-selected="false" data-explorer-tab="compare">نمودار مقایسه‌ای</button>
                             <button type="button" class="chart-mode-btn" role="tab" aria-selected="false" data-explorer-tab="table">جدول</button>
-                            <button type="button" class="chart-mode-btn active" role="tab" aria-selected="true" data-explorer-tab="chart">نمودار</button>
                             <button type="button" class="chart-mode-btn" role="tab" aria-selected="false" data-explorer-tab="map">نقشه</button>
-                            <button type="button" class="chart-mode-btn" role="tab" aria-selected="false" data-explorer-tab="metadata">فرا داده</button>
                         </div>
                     </div>
-                    <button type="button" id="btn-toggle-chart-type" class="ex-type-toggle">نمایش نمودار مقایسه‌ای</button>
+                    <button type="button" id="btn-toggle-chart-type" class="ex-type-toggle" hidden>نمایش نمودار مقایسه‌ای</button>
                     <div id="explorer-selection-prompt" role="status">لطفاً حوزه و موضوع مورد نظر خود را انتخاب کنید</div>
                     <div id="canvas-reveal-wrapper" hidden>
                         <div id="trend-chart-wrap" class="chart-pane is-active">
@@ -125,21 +148,7 @@
                             میانگین کل کشور
                         </button>
                     </div>
-                    <div class="ex-metadata" id="insight-layer" role="region" aria-labelledby="indicator-title" hidden>
-                        <section class="ex-metadata-sheet">
-                            <p class="ex-metadata-eyebrow">فرا دادهٔ شاخص</p>
-                            <div class="ex-metadata-heading">
-                                <h2 id="indicator-title">نام شاخص</h2>
-                                <p id="indicator-question" hidden></p>
-                            </div>
-                            <dl class="ex-metadata-facts">
-                                <div><dt>واحد اندازه‌گیری</dt><dd id="indicator-unit">نامشخص</dd></div>
-                                <div><dt>منبع</dt><dd id="indicator-source">نامشخص</dd></div>
-                                <div><dt>دورهٔ زمانی</dt><dd id="indicator-period">نامشخص</dd></div>
-                            </dl>
-                            <div class="ex-metadata-description"><h3>دربارهٔ شاخص</h3><p id="insight-text">در حال بارگذاری اطلاعات...</p></div>
-                        </section>
-                    </div>
+
                 </section>
             </div>
         </div>

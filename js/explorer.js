@@ -286,6 +286,11 @@ function syncExplorerGuide() {
     if (typeof button.getBoundingClientRect === 'function') {
         const buttonBox = button.getBoundingClientRect();
         const dashboardBox = dashboard.getBoundingClientRect();
+        if (dashboard.classList.contains('ex-monitor-layout')) {
+            guide.style.left = `${buttonBox.left - dashboardBox.left + buttonBox.width / 2 - 18}px`;
+            guide.style.top = `${buttonBox.bottom - dashboardBox.top + 24}px`;
+            return;
+        }
         if (buttonBox.height > 0) guide.style.top = `${buttonBox.top - dashboardBox.top + buttonBox.height / 2}px`;
     }
 }
@@ -309,7 +314,8 @@ function closeExplorerDropdowns(restoreFocus = false) {
         button.setAttribute('aria-expanded', 'false');
     });
     Object.keys(explorerSectionTitles).forEach(section => {
-        document.getElementById(`dd-${section}-menu`).hidden = true;
+        document.getElementById(`dd-${section}-menu`).hidden = section !== 'filter' ||
+            !document.getElementById('view-dashboard').classList.contains('ex-monitor-layout');
     });
     if (restoreFocus && previous) document.getElementById(`dd-${previous}-btn`).focus();
     resizeExplorerViews();
@@ -328,6 +334,11 @@ function setExplorerSection(section) {
     if (!Object.hasOwn(explorerSectionTitles, section)) return;
     const button = document.getElementById(`dd-${section}-btn`);
     if (button.disabled) return;
+    if (section === 'filter' && document.getElementById('view-dashboard').classList.contains('ex-monitor-layout')) {
+        closeExplorerDropdowns();
+        document.getElementById('explorer-filters-title').focus({preventScroll: true});
+        return;
+    }
     const alreadyOpen = explorerOpenSection === section;
     closeExplorerDropdowns();
     if (alreadyOpen) return;
@@ -337,6 +348,14 @@ function setExplorerSection(section) {
     button.classList.add('is-active');
     button.setAttribute('aria-expanded', 'true');
     document.getElementById(`dd-${section}-menu`).hidden = false;
+    const dashboard = document.getElementById('view-dashboard');
+    if (dashboard.classList.contains('ex-monitor-layout') && typeof button.getBoundingClientRect === 'function') {
+        const box = button.getBoundingClientRect(), desk = dashboard.getBoundingClientRect();
+        const panel = document.getElementById('explorer-selection-panel');
+        const width = Math.min(360, Math.max(0, desk.width - 24));
+        panel.style.left = `${Math.max(12, Math.min(box.left - desk.left, desk.width - width - 12))}px`;
+        panel.style.top = `${box.bottom - desk.top + 8}px`;
+    }
     updateExplorerPanelHeading();
     document.getElementById('explorer-selection-title').focus({preventScroll: true});
     resizeExplorerViews();
@@ -467,10 +486,13 @@ function syncExplorerVisibility() {
     document.getElementById('explorer-selection-prompt').textContent = explorerLoadState === 'loading' ? 'در حال بارگذاری داده‌ها…' :
         explorerLoadState === 'error' ? 'دریافت داده‌ها انجام نشد؛ شاخص را دوباره انتخاب کنید.' :
         !activeTopicGlob ? 'لطفاً حوزه و موضوع مورد نظر خود را انتخاب کنید' : 'لطفاً موضوع مورد نظر خود را انتخاب کنید';
-    document.getElementById('canvas-reveal-wrapper').hidden = !ready || explorerTab === 'metadata';
-    document.getElementById('insight-layer').hidden = !ready || explorerTab !== 'metadata';
+    const monitorLayout = document.getElementById('view-dashboard').classList.contains('ex-monitor-layout');
+    document.getElementById('canvas-reveal-wrapper').hidden = !ready || (!monitorLayout && explorerTab === 'metadata');
+    document.getElementById('insight-layer').hidden = !ready || (!monitorLayout && explorerTab !== 'metadata');
+    const metadataPlaceholder = document.getElementById('explorer-metadata-placeholder');
+    if (metadataPlaceholder) metadataPlaceholder.hidden = ready;
     document.querySelector('.ex-chart-foot').hidden = !ready || explorerTab !== 'chart';
-    document.getElementById('btn-toggle-chart-type').hidden = !ready || explorerTab !== 'chart';
+    document.getElementById('btn-toggle-chart-type').hidden = monitorLayout || !ready || explorerTab !== 'chart';
     document.getElementById('chart-panel-title').hidden = !ready;
     syncExplorerGuide();
 }
@@ -811,7 +833,8 @@ function setChartMode(mode) {
         document.getElementById(`${name}-chart-wrap`).classList.toggle('is-active', name === currentChartMode);
     });
     document.querySelectorAll('[data-explorer-tab]').forEach(button => {
-        const selected = button.dataset.explorerTab === explorerTab;
+        const selected = ['trend', 'compare'].includes(button.dataset.explorerTab)
+            ? button.dataset.explorerTab === currentChartMode : button.dataset.explorerTab === explorerTab;
         button.classList.toggle('active', selected);
         button.setAttribute('aria-selected', String(selected));
     });
