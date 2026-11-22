@@ -22,7 +22,7 @@ body.locations-body { margin: 0; height: 100dvh; overflow: hidden; background: v
 #locations-map { position: absolute; inset: 0; z-index: 0; background: #eeeddf; }
 .locations-map-toolbar { position: absolute; z-index: 500; top: 12px; right: 12px; left: 64px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; pointer-events: none; }
 #locations-current-category { border-radius: 24px; padding: 10px 18px; background: white; box-shadow: 0 2px 7px #0001; font-size: 1rem; }
-.locations-map-toolbar > div { display: flex; gap: 6px; pointer-events: auto; }
+.locations-map-toolbar > div { display: flex; flex-wrap: wrap; gap: 6px; max-width: 100%; pointer-events: auto; }
 .locations-map-toolbar button, .locations-error button { border: 1px solid #ded8c7; border-radius: 24px; padding: 8px 14px; background: white; color: var(--location-olive); font: inherit; font-size: .9rem; cursor: pointer; }
 .locations-map-toolbar button:disabled { opacity: .6; cursor: wait; }
 .locations-status { position: absolute; z-index: 500; bottom: 20px; left: 15px; right: 15px; width: fit-content; max-width: calc(100% - 30px); margin: 0 auto; background: #fffffff2; color: #69684c; padding: 10px 18px; border-radius: 20px; font-size: .95rem; line-height: 1.7; box-shadow: 0 2px 8px #0001; pointer-events: none; }
@@ -36,6 +36,11 @@ body.locations-body { margin: 0; height: 100dvh; overflow: hidden; background: v
 .locations-summary-marker.is-unknown strong { color: #84754e; }
 .locations-live-icon { object-fit: contain; border: 1px solid white; border-radius: 50%; background: #fffffff2; padding: 2px; }
 .locations-live-popup { font: 1rem 'PeydaFaNumWeb', Tahoma, sans-serif; text-align: right; color: var(--location-olive); }
+.locations-cluster-marker { background: transparent; border: 0; }
+.locations-cluster { width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; position: relative; border: 2px solid white; border-radius: 50%; background: #596315e8; box-shadow: 0 1px 4px #0002; }
+.locations-cluster img { width: 29px; height: 29px; object-fit: contain; }
+.locations-cluster strong { position: absolute; bottom: -6px; right: -4px; min-width: 24px; padding: 1px 5px; background: white; border: 1px solid #ded8c7; border-radius: 14px; color: var(--location-olive); font: 800 .8rem 'PeydaFaNumWeb', Tahoma, sans-serif; text-align: center; }
+#locations-coverage[aria-pressed="true"] { background: var(--location-olive); color: white; }
 /* Reserve the left control column independently of toolbar height or wrapping. */
 .locations-body #locations-map .leaflet-control-zoom { margin-top: 12px; }
 .locations-body .leaflet-control-attribution { font-size: .7rem; }

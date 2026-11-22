@@ -1,5 +1,6 @@
 """Authenticated POI exploration. Nearby output is streamed through memory only."""
 from functools import lru_cache
+import hashlib
 import json
 import math
 import re
@@ -153,11 +154,16 @@ def nearby_display_points(body, *, center=None, radius=None):
         if center is not None and not within_search_radius(latitude, longitude, center, radius):
             continue
         name = item['name'].strip()[:250]
-        key = (latitude, longitude, name)
+        provider_id = item.get('poiHash')
+        identity = hashlib.sha256(provider_id.encode('utf-8')).hexdigest() if isinstance(provider_id, str) and 0 < len(provider_id) <= 2048 else None
+        key = ('id', identity) if identity else (latitude, longitude, name)
         if not name or key in seen:
             continue
         seen.add(key)
-        places.append(dict(name=name, latitude=latitude, longitude=longitude))
+        place = dict(name=name, latitude=latitude, longitude=longitude)
+        if identity:
+            place['id'] = identity
+        places.append(place)
         if len(places) == LIVE_MAX_POINTS:
             break
     return places, len(items)
@@ -191,8 +197,13 @@ def build_router(require_admin, require_user):
             rows = session.scalars(select(PoiExploreCategory).where(PoiExploreCategory.is_published.is_(True))
                 .order_by(PoiExploreCategory.sort_order, PoiExploreCategory.title)).all()
             categories = [category_dict(row) for row in rows if row.category in LAYERS]
+        settings = get_settings()
         return response(dict(categories=categories, live=dict(min_zoom=LIVE_MIN_ZOOM,
-            radius_by_zoom=LIVE_RADII, debounce_ms=200, interval_ms=round(live_interval_seconds() * 1000), max_points=LIVE_MAX_POINTS)))
+            radius_by_zoom=LIVE_RADII, debounce_ms=200, interval_ms=round(live_interval_seconds() * 1000), max_points=LIVE_MAX_POINTS,
+            discovery=dict(requests_per_view=settings.neshan_explore_requests_per_view,
+                session_request_limit=settings.neshan_explore_session_request_limit,
+                memory_places=settings.neshan_explore_memory_places,
+                cell_ttl_ms=settings.neshan_explore_cell_ttl_seconds * 1000))))
 
     @router.get('/api/poi-explore/counts')
     def counts(request: Request, category: str):

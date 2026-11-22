@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     neshan_collection_authorized: bool = False
     neshan_explore_authorized: bool = False
     neshan_explore_interval_seconds: float = Field(default=1.0, ge=1.0, le=60.0)
+    neshan_explore_requests_per_view: int = Field(default=2, ge=1, le=3)
+    neshan_explore_session_request_limit: int = Field(default=120, ge=1, le=1000)
+    neshan_explore_memory_places: int = Field(default=5000, ge=500, le=20000)
+    neshan_explore_cell_ttl_seconds: int = Field(default=900, ge=60, le=3600)
     cors_origins: str = "https://app.rasadbina.ir"
     admin_phone: str = ""
     admin_password: SecretStr = SecretStr("")

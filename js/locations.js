@@ -25,60 +25,14 @@ function locationNearbyPlan(category, center, zoom, config, bounds) {
     return {category, latitude: center.lat, longitude: center.lng, zoom: Math.min(19, zoom), radius};
 }
 
-function locationDetailLevel(zoom) {
-    zoom = Math.floor(zoom);
-    if (zoom <= 10) return {cellSize: 160, perCell: 1};
-    if (zoom <= 12) return {cellSize: 140, perCell: 2};
-    if (zoom <= 14) return {cellSize: 100, perCell: 2};
-    return {cellSize: 0, perCell: Infinity};
-}
-
-// One provider request per settled map view. Density is controlled by rendering,
-// not by sweeping many search centers over the visible area.
-function locationSearchPlans(plan) {
-    return [plan];
-}
-
-// World-pixel cells stay anchored during pans. Representatives are real places
-// at their original coordinates; hidden places remain available for closer zooms.
-function locationRepresentativeKeys(points, region, zoom, project) {
-    const detail = locationDetailLevel(zoom), cells = new Map(), selected = new Set();
-    if (!region) return selected;
-    for (const [key, point] of points) {
-        if (locationDistance(point.place, region) > region.radius) continue;
-        if (!detail.cellSize) { selected.add(key); continue; }
-        const pixel = project(point.place, zoom);
-        const x = Math.floor(pixel.x / detail.cellSize), y = Math.floor(pixel.y / detail.cellSize);
-        const cellKey = `${x},${y}`;
-        const score = (pixel.x - (x + .5) * detail.cellSize) ** 2
-            + (pixel.y - (y + .5) * detail.cellSize) ** 2;
-        const entries = cells.get(cellKey) || [];
-        entries.push({key, score});
-        entries.sort((a, b) => a.score - b.score || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
-        if (entries.length > detail.perCell) entries.pop();
-        cells.set(cellKey, entries);
-    }
-    for (const entries of cells.values()) for (const entry of entries) selected.add(entry.key);
-    return selected;
-}
-
-function locationDistance(previous, next) {
-    const toRad = value => value * Math.PI / 180;
-    const dLat = toRad(next.latitude - previous.latitude), dLon = toRad(next.longitude - previous.longitude);
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(previous.latitude)) * Math.cos(toRad(next.latitude)) * Math.sin(dLon / 2) ** 2;
-    const distance = 6371000 * 2 * Math.asin(Math.min(1, Math.sqrt(a)));
-    return distance;
-}
-
-function locationSearchChanged(previous, next) {
-    return !previous || previous.category !== next.category || previous.radius !== next.radius
-        || locationDistance(previous, next) > next.radius * .35;
-}
+function locationDistance(a, b) { return LocationDiscovery.distance(a, b); }
 
 (function () {
     const state = {map: null, categories: [], selected: null, summary: null, counts: null,
-        live: null, circle: null, config: null, timer: null, frame: null, controller: null, countController: null,
-        generation: 0, categoryGeneration: 0, nextAllowed: 0, lastPlan: null, region: null, points: new Map(), searches: [], queue: [], progress: null, initialized: false};
+        live: null, circle: null, config: null, store: null, timer: null, frame: null,
+        rendered: new Map(), countsCache: new Map(), renderGeneration: 0, categoryGeneration: 0,
+        countController: null, inflight: null, nextAllowed: 0, queue: [], moving: false,
+        region: null, viewKey: '', viewCredits: 0, visibleCount: 0, showCoverage: false, initialized: false};
     const number = new Intl.NumberFormat('fa-IR');
     const element = id => document.getElementById(id);
     const api = path => `${window.API_BASE_URL || ''}${path}`;
@@ -89,55 +43,96 @@ function locationSearchChanged(previous, next) {
     }
     function clearError() { element('locations-error').hidden = true; }
     function cancelLive() {
-        ++state.generation;
-        state.queue = []; state.progress = null;
-        clearTimeout(state.timer);
-        state.timer = null;
+        clearTimeout(state.timer); state.timer = null; state.queue = [];
+        ++state.renderGeneration;
         if (state.frame != null) cancelAnimationFrame(state.frame);
         state.frame = null;
-        if (state.controller) state.controller.abort();
-        state.controller = null;
+        // A dispatched request may already cost quota. Keep its valid result for
+        // its original cell instead of throwing it away on every map movement.
     }
     function clearLive() {
         if (state.live) state.live.clearLayers();
+        state.rendered.clear(); state.visibleCount = 0;
         if (state.circle) { state.circle.remove(); state.circle = null; }
-        state.lastPlan = null; state.region = null;
-        state.points.clear(); state.searches = [];
     }
-    // Short-lived page memory only: no browser storage or persistent provider cache.
-    const memoryAge = 15 * 60000, memoryLimit = 2000, searchLimit = 72;
-    function pruneMemory(plan) {
-        const cutoff = Date.now() - memoryAge;
-        const retentionRadius = Math.max(50000, plan.radius * 3);
-        for (const [key, point] of state.points) {
-            if (point.seen < cutoff || locationDistance(point.place, plan) > retentionRadius) {
-                state.live.removeLayer(point.marker); state.points.delete(key);
-                state.searches = [];
-            }
-        }
-        state.searches = state.searches.filter(search => search.time >= cutoff
-            && locationDistance(search.plan, plan) <= retentionRadius);
+    function viewBounds(padding = 0) {
+        const ne = state.map.getBounds().getNorthEast(), sw = state.map.getBounds().getSouthWest();
+        const height = ne.lat - sw.lat, width = ne.lng - sw.lng;
+        return {south: sw.lat - height * padding, north: ne.lat + height * padding,
+            west: sw.lng - width * padding, east: ne.lng + width * padding};
     }
-    function trimMemory() {
-        while (state.points.size > memoryLimit) {
-            const key = state.points.keys().next().value;
-            state.live.removeLayer(state.points.get(key).marker); state.points.delete(key);
-            state.searches = [];
-        }
+    function protectedPoint(point) {
+        return state.selected && point.category === state.selected.category
+            && LocationDiscovery.inside(point.place, viewBounds(.12));
     }
-    function syncVisiblePoints() {
-        const selected = locationRepresentativeKeys(state.points, state.region, state.map.getZoom(),
-            (place, zoom) => state.map.project([place.latitude, place.longitude], zoom));
-        for (const [key, point] of state.points) {
-            const visible = selected.has(key);
-            if (visible && !point.visible) point.marker.addTo(state.live);
-            if (!visible && point.visible) state.live.removeLayer(point.marker);
-            point.visible = !!visible;
-        }
+    function updateCircle() {
+        if (state.circle) { state.circle.remove(); state.circle = null; }
+        if (!state.showCoverage || !state.region || state.map.getZoom() < state.config.min_zoom) return;
+        state.circle = L.circle([state.region.latitude, state.region.longitude], {radius: state.region.radius,
+            renderer: state.renderer, color: '#596315', weight: 1.5, dashArray: '5 5', fillOpacity: .02,
+            interactive: false}).addTo(state.map);
     }
     function memoryStatus() {
-        const loading = state.queue.length ? ' · در حال جستجو…' : '';
-        setStatus(`${number.format([...state.points.values()].filter(point => point.visible).length)} مکان${loading}`);
+        if (state.map && state.map.getZoom() < state.config.min_zoom) { setStatus('آمار استانی'); return; }
+        const loading = state.queue.length || (state.inflight && state.selected
+            && state.inflight.cell.category === state.selected.category);
+        setStatus(`${number.format(state.visibleCount)} مکان${loading ? ' · در حال جستجو…' : ''}`);
+    }
+    function placeMarker(place) {
+        const icon = L.icon({iconUrl: state.selected.icon_url, iconSize: [30, 30],
+            iconAnchor: [15, 15], popupAnchor: [0, -16], className: 'locations-live-icon'});
+        return L.marker([place.latitude, place.longitude], {icon, title: place.name, keyboard: true})
+            .bindPopup(() => {
+                const label = document.createElement('div'); label.className = 'locations-live-popup';
+                label.textContent = place.name; return label;
+            });
+    }
+    function groupMarker(group) {
+        if (group.items.length === 1) return placeMarker(group.items[0].place);
+        const node = document.createElement('div'); node.className = 'locations-cluster';
+        const icon = document.createElement('img'); icon.src = state.selected.icon_url; icon.alt = '';
+        const count = document.createElement('strong'); count.textContent = number.format(group.items.length);
+        node.append(icon, count);
+        return L.marker([group.latitude, group.longitude], {icon: L.divIcon({html: node,
+            className: 'locations-cluster-marker', iconSize: [48, 48], iconAnchor: [24, 24]}),
+            title: `${count.textContent} مکان یافت‌شده`, keyboard: true})
+            .on('click', () => {
+                const latitudes = group.items.map(item => item.place.latitude), longitudes = group.items.map(item => item.place.longitude);
+                const south = Math.min(...latitudes), north = Math.max(...latitudes), west = Math.min(...longitudes), east = Math.max(...longitudes);
+                if (south === north && west === east) state.map.setView([south, west], Math.min(19, state.map.getZoom() + 2));
+                else state.map.fitBounds([[south, west], [north, east]], {padding: [40, 40], maxZoom: Math.min(19, state.map.getZoom() + 3)});
+            });
+    }
+    function syncVisiblePoints() {
+        if (!state.selected || !state.store) return;
+        state.store.prune(protectedPoint);
+        const groups = LocationDiscovery.groups(state.store.records(state.selected.category), viewBounds(.08), state.map.getZoom());
+        const desired = new Map(groups.map(group => [group.key, group]));
+        state.visibleCount = groups.reduce((sum, group) => sum + group.items.length, 0);
+        const pending = groups.filter(group => state.rendered.get(group.key)?.signature !== group.signature);
+        const generation = ++state.renderGeneration;
+        if (state.frame != null) cancelAnimationFrame(state.frame);
+        let offset = 0;
+        function drawBatch() {
+            state.frame = null;
+            if (generation !== state.renderGeneration || document.hidden) return;
+            for (const group of pending.slice(offset, offset + 50)) {
+                const old = state.rendered.get(group.key);
+                const marker = groupMarker(group).addTo(state.live);
+                if (old) state.live.removeLayer(old.marker);
+                state.rendered.set(group.key, {marker, signature: group.signature});
+            }
+            offset += 50;
+            if (offset < pending.length) state.frame = requestAnimationFrame(drawBatch);
+            else {
+                for (const [key, entry] of state.rendered) if (!desired.has(key)) {
+                    state.live.removeLayer(entry.marker); state.rendered.delete(key);
+                }
+            }
+        }
+        // Keep current markers until the replacement scene has been drawn.
+        state.frame = requestAnimationFrame(drawBatch);
+        memoryStatus();
     }
     async function readResponse(response) {
         if (response.status === 401 || response.status === 403) {
@@ -194,7 +189,7 @@ function locationSearchChanged(previous, next) {
         }
     }
     async function selectCategory(category) {
-        if (state.selected && state.selected.category === category.category && state.counts) { scheduleViewport(); return; }
+        if (state.selected?.category === category.category && state.counts) { scheduleViewport(); return; }
         const generation = ++state.categoryGeneration;
         cancelLive(); clearLive(); clearError();
         if (state.countController) state.countController.abort();
@@ -202,126 +197,104 @@ function locationSearchChanged(previous, next) {
         state.selected = category; state.counts = null;
         state.summary.clearLayers(); renderCategories();
         element('locations-current-category').textContent = category.title;
-        setStatus('در حال بارگذاری…');
+        const cached = state.countsCache.get(category.category);
+        if (cached && Date.now() - cached.time < 60000) {
+            state.counts = cached.payload; renderSummary(cached.payload); scheduleViewport(); return;
+        }
+        // Nearby discovery and retained markers do not depend on local count loading.
+        scheduleViewport();
         try {
             const response = await fetch(api(`/api/poi-explore/counts?category=${encodeURIComponent(category.category)}`),
                 {credentials: 'include', cache: 'no-store', signal: state.countController.signal});
             const payload = await readResponse(response);
+            state.countsCache.set(category.category, {payload, time: Date.now()});
             if (generation !== state.categoryGeneration) return;
-            state.counts = payload;
-            renderSummary(payload);
-            scheduleViewport();
+            state.counts = payload; renderSummary(payload); scheduleViewport();
         } catch (error) {
             if (error.name === 'AbortError' || generation !== state.categoryGeneration) return;
             showError(error.message);
-            setStatus('آمار استانی دریافت نشد.');
         }
     }
     function scheduleViewport() {
-        cancelLive();
-        if (!state.map || !state.selected || !state.counts || document.hidden) return;
-        const zoom = state.map.getZoom();
-        const detailed = zoom >= state.config.min_zoom;
-        element('locations-mode').textContent = detailed ? (zoom < 15 ? 'نمای کلی' : 'مکان‌های نزدیک') : 'آمار استانی';
-        element('locations-explanation').textContent = detailed
-            ? (zoom < 15 ? 'برای نمایش مکان‌های بیشتر، بزرگ‌نمایی کنید.' : 'مکان‌های نزدیک در محدودهٔ انتخاب‌شده نمایش داده می‌شوند.') :
-            'اندازهٔ نمادها متناسب با تعداد مکان‌های ثبت‌شده است. نبود داده با «نامشخص» نمایش داده می‌شود.';
+        cancelLive(); state.moving = false;
+        if (!state.map || !state.selected || document.hidden) return;
+        const zoom = state.map.getZoom(), detailed = zoom >= state.config.min_zoom;
+        element('locations-mode').textContent = detailed ? (zoom < 17 ? 'نمای کلی' : 'مکان‌های نزدیک') : 'آمار استانی';
+        element('locations-explanation').textContent = detailed ? 'عدد هر گروه، تعداد مکان‌های یافت‌شده است. برای جزئیات، روی آن بزنید.' : 'آمار مکان‌های ثبت‌شده؛ نبود داده با «نامشخص» نمایش داده می‌شود.';
         if (!detailed) {
             if (state.map.hasLayer(state.live)) state.map.removeLayer(state.live);
-            if (state.circle) { state.circle.remove(); state.circle = null; }
             if (!state.map.hasLayer(state.summary)) state.summary.addTo(state.map);
-            setStatus('آمار استانی');
-            return;
+            updateCircle(); setStatus('آمار استانی'); return;
         }
         if (state.map.hasLayer(state.summary)) state.map.removeLayer(state.summary);
-        const plan = locationNearbyPlan(state.selected.category, state.map.getCenter(), zoom, state.config, state.map.getBounds());
-        if (!plan) { clearLive(); setStatus('محدودهٔ ایران را انتخاب کنید.'); return; }
         if (!state.map.hasLayer(state.live)) state.live.addTo(state.map);
-        pruneMemory(plan);
-        state.region = plan; syncVisiblePoints();
-        state.queue = locationSearchPlans(plan).filter(candidate =>
-            !state.searches.some(search => !locationSearchChanged(search.plan, candidate)));
-        if (state.circle) state.circle.remove();
-        state.circle = L.circle([plan.latitude, plan.longitude], {radius: plan.radius,
-            renderer: state.renderer, color: '#596315', weight: 1.5, dashArray: '5 5', fillColor: '#596315', fillOpacity: .04,
-            interactive: false}).addTo(state.map);
-        if (!state.queue.length) { clearError(); memoryStatus(); return; }
-        state.progress = {done: 0, total: state.queue.length};
-        setStatus('در حال جستجو…');
-        requestNext(state.generation);
+        state.region = locationNearbyPlan(state.selected.category, state.map.getCenter(), zoom, state.config, state.map.getBounds());
+        syncVisiblePoints(); updateCircle();
+        if (!state.region) { setStatus('محدودهٔ ایران را انتخاب کنید.'); return; }
+        const focused = LocationDiscovery.candidates(state.region, state.store.config.requests_per_view);
+        const viewKey = focused.map(cell => cell.key).join('|') + '/' + Math.floor(Date.now() / state.store.config.cell_ttl_ms);
+        if (viewKey !== state.viewKey) {
+            state.viewKey = viewKey; state.viewCredits = state.store.config.requests_per_view;
+        }
+        state.queue = state.store.plan(state.region).slice(0, state.viewCredits);
+        if (!state.queue.length) { memoryStatus(); return; }
+        requestNext();
     }
-    function requestNext(generation) {
-        if (generation !== state.generation || document.hidden || !state.queue.length) return;
-        const wait = Math.max(state.config.debounce_ms, state.nextAllowed - Date.now());
+    function requestNext() {
+        clearTimeout(state.timer); state.timer = null;
+        if (state.inflight || document.hidden || state.moving || !state.selected || !state.viewCredits) return;
+        state.queue = state.queue.filter(cell => cell.category === state.selected.category
+            && (state.store.eligible(cell) || ['failed', 'unavailable'].includes(state.store.cells.get(cell.key)?.status)));
+        if (!state.queue.length) { memoryStatus(); return; }
+        const cell = state.queue[0], record = state.store.cells.get(cell.key);
+        const wait = Math.max(state.config.debounce_ms, state.nextAllowed - Date.now(), (record?.retryAt || 0) - Date.now());
         state.timer = setTimeout(() => {
-            if (generation !== state.generation || document.hidden) return;
-            requestNearby(state.queue.shift(), generation);
+            state.timer = null;
+            if (document.hidden || state.moving || state.inflight) return;
+            const next = state.queue.shift();
+            if (next && state.store.begin(next)) { --state.viewCredits; requestNearby(next); }
         }, wait);
+        memoryStatus();
     }
-    async function requestNearby(plan, generation) {
-        if (generation !== state.generation || document.hidden) return;
-        const controller = new AbortController();
-        state.controller = controller;
+    async function requestNearby(cell) {
+        const controller = new AbortController(), token = {controller, cell};
+        state.inflight = token;
         const timeout = setTimeout(() => controller.abort(), 8000);
         state.nextAllowed = Date.now() + state.config.interval_ms;
-        const {radius, ...body} = plan;
-        body.radius_m = radius;
+        let status = 0;
         try {
-            const response = await fetch(api('/api/poi-explore/nearby'), {method: 'POST', credentials: 'include',
-                cache: 'no-store', signal: controller.signal, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
-            if (generation !== state.generation) return;
-            if (response.status === 429) {
+            const response = await fetch(api('/api/poi-explore/nearby'), {method: 'POST', credentials: 'include', cache: 'no-store',
+                signal: controller.signal, headers: {'Content-Type': 'application/json'}, body: JSON.stringify({
+                    category: cell.category, latitude: cell.latitude, longitude: cell.longitude, zoom: cell.zoom, radius_m: cell.radius})});
+            if (state.inflight !== token) return;
+            status = response.status;
+            if (status === 429) {
                 const seconds = Number(response.headers.get('Retry-After'));
-                state.nextAllowed = Math.max(state.nextAllowed, Date.now() + (Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : 60000));
-                setStatus(seconds > 2 ? 'کمی صبر کنید…' : 'در حال جستجو…');
-                state.timer = setTimeout(scheduleViewport, Math.max(1000, state.nextAllowed - Date.now()));
-                return;
+                const delay = Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : 60000;
+                state.nextAllowed = Math.max(state.nextAllowed, Date.now() + delay);
+                state.store.fail(cell, 'unavailable', delay);
+                if (state.viewCredits && state.selected?.category === cell.category) state.queue.unshift(cell);
+                setStatus('کمی صبر کنید…'); return;
             }
             const payload = await readResponse(response);
-            if (generation !== state.generation) return;
-            clearError();
-            let offset = 0;
-            const places = payload.places;
-            const icon = L.icon({iconUrl: state.selected.icon_url, iconSize: [30, 30],
-                iconAnchor: [15, 15], popupAnchor: [0, -16], className: 'locations-live-icon'});
-            function drawBatch() {
-                state.frame = null;
-                if (generation !== state.generation || document.hidden) return;
-                for (const place of places.slice(offset, offset + 50)) {
-                    if (!state.region || locationDistance(place, state.region) > state.region.radius) continue;
-                    const key = JSON.stringify([place.latitude, place.longitude, place.name]);
-                    const existing = state.points.get(key);
-                    if (existing) {
-                        existing.seen = Date.now();
-                        state.points.delete(key); state.points.set(key, existing);
-                        continue;
-                    }
-                    const marker = L.marker([place.latitude, place.longitude], {icon, title: place.name, keyboard: true})
-                        .bindPopup(() => {
-                            const label = document.createElement('div'); label.className = 'locations-live-popup';
-                            label.textContent = place.name; return label;
-                        });
-                    state.points.set(key, {place, marker, seen: Date.now(), visible: false});
-                }
-                trimMemory();
-                syncVisiblePoints();
-                offset += 50;
-                if (offset < places.length) state.frame = requestAnimationFrame(drawBatch);
-                else {
-                    state.lastPlan = plan;
-                    state.searches.push({plan, time: Date.now()});
-                    state.searches = state.searches.slice(-searchLimit);
-                    if (state.progress) ++state.progress.done;
-                    memoryStatus();
-                    requestNext(generation);
-                }
+            if (state.inflight !== token) return;
+            state.store.finish(cell, payload, protectedPoint);
+            if (!document.hidden && !state.moving && state.map.getZoom() >= state.config.min_zoom && state.selected?.category === cell.category) {
+                clearError(); syncVisiblePoints();
             }
-            state.frame = requestAnimationFrame(drawBatch);
         } catch (error) {
-            if (generation !== state.generation) return;
-            showError(error.name === 'AbortError' ? 'زمان پاسخ‌گویی سرویس طولانی شد. دوباره تلاش کنید.' : error.message);
-            setStatus('جستجو انجام نشد.');
-        } finally { clearTimeout(timeout); }
+            if (state.inflight !== token) return;
+            const delay = 1500 + Math.floor(Math.random() * 500);
+            state.store.fail(cell, 'failed', delay);
+            if ((!status || status >= 500) && !cell.retried && state.viewCredits && state.selected?.category === cell.category) {
+                state.queue.push({...cell, retried: true});
+            } else if (!document.hidden && state.selected?.category === cell.category) {
+                showError('جستجو انجام نشد. دوباره تلاش کنید.');
+            }
+        } finally {
+            clearTimeout(timeout);
+            if (state.inflight === token) { state.inflight = null; requestNext(); }
+        }
     }
     async function initialize() {
         if (state.initialized) return;
@@ -333,13 +306,14 @@ function locationSearchChanged(previous, next) {
             const [mapConfig, init] = await Promise.all([readResponse(configResponse), readResponse(initResponse)]);
             if (typeof L === 'undefined') throw new Error('بارگذاری نقشهٔ نشان انجام نشد.');
             state.config = init.live; state.categories = init.categories;
+            state.store = new LocationDiscovery.Store(init.live.discovery);
             state.map = new L.Map('locations-map', {key: mapConfig.key, maptype: mapConfig.maptype,
                 minZoom: 4, maxZoom: 19, zoomControl: true, preferCanvas: true}).setView([32, 53.5], 5);
             state.map.attributionControl.setPrefix(false);
             state.renderer = L.canvas({padding: .2, tolerance: 8});
             state.summary = L.layerGroup().addTo(state.map);
             state.live = L.layerGroup().addTo(state.map);
-            state.map.on('movestart', cancelLive);
+            state.map.on('movestart', () => { state.moving = true; cancelLive(); });
             state.map.on('moveend', scheduleViewport);
             state.map.on('zoomend', scheduleViewport);
             state.map.on('resize', scheduleViewport);
@@ -350,9 +324,15 @@ function locationSearchChanged(previous, next) {
     }
     function start() {
         element('location-category-search').addEventListener('input', renderCategories);
+        element('locations-coverage').addEventListener('click', () => {
+            state.showCoverage = !state.showCoverage;
+            element('locations-coverage').setAttribute('aria-pressed', String(state.showCoverage));
+            updateCircle();
+        });
         element('locations-home').addEventListener('click', () => state.map && state.map.setView([32, 53.5], 5));
         element('locations-retry').addEventListener('click', () => {
             clearError();
+            state.viewKey = '';
             if (!state.map) initialize();
             else if (state.selected && !state.counts) selectCategory(state.selected);
             else scheduleViewport();
@@ -366,11 +346,16 @@ function locationSearchChanged(previous, next) {
             }, () => showError('دسترسی به موقعیت فراهم نشد؛ نقشه را به محل مورد نظر ببرید.'), {timeout: 7000, maximumAge: 0});
         });
         document.addEventListener('visibilitychange', () => {
-            if (document.hidden) { cancelLive(); clearLive(); }
-            else scheduleViewport();
+            if (document.hidden) cancelLive();
+            else { state.viewKey = ''; scheduleViewport(); }
         });
-        window.addEventListener('pagehide', () => { cancelLive(); clearLive(); });
-        window.addEventListener('pageshow', () => { if (state.map) scheduleViewport(); });
+        window.addEventListener('pagehide', () => {
+            cancelLive();
+            if (state.inflight) {
+                state.inflight.controller.abort(); state.store.abandon(state.inflight.cell); state.inflight = null;
+            }
+        });
+        window.addEventListener('pageshow', () => { if (state.map) { state.viewKey = ''; scheduleViewport(); } });
         if (typeof window.binaWhenAuthReady === 'function') window.binaWhenAuthReady(ok => { if (ok) initialize(); });
         else initialize();
     }
