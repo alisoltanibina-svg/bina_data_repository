@@ -1600,7 +1600,7 @@ body.explorer-body {
 }
 #view-dashboard.ex-monitor-layout .ex-dash-body {
     display: grid; direction: ltr;
-    grid-template-columns: clamp(200px, 18vw, 276px) minmax(0, 1fr) clamp(205px, 16vw, 256px);
+    grid-template-columns: clamp(200px, 18vw, 276px) minmax(0, 1fr) clamp(235px, 19vw, 300px);
     grid-template-areas: 'filters chart metadata'; gap: 14px; min-height: 0;
 }
 .ex-monitor-layout .ex-dash-body > * { direction: rtl; min-width: 0; }
@@ -1621,7 +1621,9 @@ body.explorer-body {
 .ex-monitor-layout .ex-metadata-facts dt { font-size: .75rem; }
 .ex-monitor-layout .ex-metadata-facts dd { font-size: .85rem; }
 .ex-monitor-layout .ex-metadata-description h3 { font-size: .9rem; }
-.ex-monitor-layout .ex-metadata-description #insight-text { font-size: .85rem; }
+.ex-monitor-layout .ex-metadata-description #insight-text {
+    font-size: .85rem; direction: rtl; text-align: justify; text-align-last: right;
+}
 .ex-monitor-layout #explorer-metadata-placeholder { font-size: .85rem; }
 #view-dashboard.ex-monitor-layout .ex-chart-room {
     grid-area: chart; padding: 16px 14px 12px; background: white;
@@ -1643,13 +1645,15 @@ body.explorer-body {
 #view-dashboard.ex-monitor-layout .chart-mode-btn:hover:not(.active) { background: #eeeddf; }
 #view-dashboard.ex-monitor-layout .chart-mode-btn.active { background: #515811; color: white; }
 #view-dashboard.ex-monitor-layout .chart-mode-btn:focus-visible { outline: 2px solid #515811; outline-offset: -2px; }
-#view-dashboard.ex-monitor-layout #canvas-reveal-wrapper { min-height: 200px; }
+#view-dashboard.ex-monitor-layout #canvas-reveal-wrapper {
+    min-height: 200px; width: calc(100% - 48px); margin: 20px 24px 28px;
+}
 #view-dashboard.ex-monitor-layout .ex-rail-guide {
     right: auto; width: 36px; z-index: 21;
 }
 .ex-monitor-layout .ex-rail-guide svg { rotate: -90deg; animation-name: ex-guide-point-up; }
 @media (max-width: 1100px) and (min-width: 901px) {
-    #view-dashboard.ex-monitor-layout .ex-dash-body { grid-template-columns: 190px minmax(0, 1fr) 205px; gap: 10px; }
+    #view-dashboard.ex-monitor-layout .ex-dash-body { grid-template-columns: 190px minmax(0, 1fr) 235px; gap: 10px; }
     .ex-monitor-layout .ex-top-selectors { gap: 6px; }
     .ex-monitor-layout .ex-top-selectors .ex-rail-item { max-width: 200px; padding-inline: 10px; }
 }
@@ -1672,4 +1676,7 @@ body.explorer-body {
     .ex-monitor-layout .ex-top-selectors .ex-rail-item { padding-inline: 6px; }
     #view-dashboard.ex-monitor-layout .ex-dash-body { grid-template-columns: 1fr; grid-template-areas: 'chart' 'filters' 'metadata'; }
     #view-dashboard.ex-monitor-layout .ex-chart-room { padding-inline: 8px; }
+    #view-dashboard.ex-monitor-layout #canvas-reveal-wrapper {
+        width: calc(100% - 16px); margin: 12px 8px 16px;
+    }
 }
