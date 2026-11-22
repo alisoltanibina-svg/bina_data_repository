@@ -18,8 +18,29 @@ function locationNearbyPlan(category, center, zoom, config, bounds) {
     return {category, latitude: center.lat, longitude: center.lng, zoom: Math.min(19, zoom), radius};
 }
 
-// A wide circle is not an exhaustive list. Sample its neighborhoods separately.
-function locationSearchPlans(plan) {
+// Search visible neighborhoods at finer detail even when the user stays zoomed out.
+function locationSearchPlans(plan, bounds) {
+    if (bounds) {
+        const ne = bounds.getNorthEast(), sw = bounds.getSouthWest();
+        const north = Math.min(41, ne.lat), south = Math.max(24, sw.lat);
+        const east = Math.min(64, ne.lng), west = Math.max(43, sw.lng);
+        const diagonal = locationDistance({latitude: south, longitude: west}, {latitude: north, longitude: east});
+        if (north > south && east > west && diagonal > 1000) {
+            // 4x4 cells emulate visiting the view two zoom levels closer, without
+            // requiring the user to zoom. Center results arrive first, then cells.
+            const radius = Math.min(100000, Math.max(500, Math.ceil(diagonal / 8 * 1.2)));
+            const plans = [{...plan, radius}];
+            for (let row = 0; row < 4; ++row) {
+                for (let column = 0; column < 4; ++column) {
+                    plans.push({...plan, radius, latitude: south + (row + .5) * (north - south) / 4,
+                        longitude: west + (column + .5) * (east - west) / 4});
+                }
+            }
+            return plans.sort((a, b) => locationDistance(a, plan) - locationDistance(b, plan));
+        }
+    }
+    // Fallback for unavailable/degenerate bounds. Real views use the grid above
+    // at every zoom; there is no city-zoom cutoff.
     if (plan.zoom > 12) return [plan];
     const radius = Math.max(500, Math.ceil(plan.radius / 2));
     const latitudeStep = plan.radius * .5 / 111195;
@@ -94,9 +115,8 @@ function locationSearchChanged(previous, next) {
         }
     }
     function memoryStatus() {
-        const progress = state.progress && state.queue.length
-            ? `؛ در حال بررسی محدوده (${number.format(state.progress.done)}/${number.format(state.progress.total)})` : '';
-        setStatus(`${number.format(state.points.size)} مکان در محدوده‌های اخیر${progress}`);
+        const loading = state.queue.length ? ' · در حال جستجو…' : '';
+        setStatus(`${number.format(state.points.size)} مکان${loading}`);
     }
     async function readResponse(response) {
         if (response.status === 401 || response.status === 403) {
@@ -161,7 +181,7 @@ function locationSearchChanged(previous, next) {
         state.selected = category; state.counts = null;
         state.summary.clearLayers(); renderCategories();
         element('locations-current-category').textContent = category.title;
-        setStatus('در حال خواندن آمار استانی…');
+        setStatus('در حال بارگذاری…');
         try {
             const response = await fetch(api(`/api/poi-explore/counts?category=${encodeURIComponent(category.category)}`),
                 {credentials: 'include', cache: 'no-store', signal: state.countController.signal});
@@ -188,16 +208,15 @@ function locationSearchChanged(previous, next) {
             if (state.map.hasLayer(state.live)) state.map.removeLayer(state.live);
             if (state.circle) { state.circle.remove(); state.circle = null; }
             if (!state.map.hasLayer(state.summary)) state.summary.addTo(state.map);
-            const missing = state.counts.provinces.filter(province => province.count == null).length;
-            setStatus(`آمار ثبت‌شدهٔ استانی${missing ? `؛ ${number.format(missing)} استان با وضعیت نامشخص` : ''}${state.counts.unassigned_count ? `؛ ${number.format(state.counts.unassigned_count)} مکان بدون استان مشخص` : ''}`);
+            setStatus('آمار استانی');
             return;
         }
         if (state.map.hasLayer(state.summary)) state.map.removeLayer(state.summary);
         const plan = locationNearbyPlan(state.selected.category, state.map.getCenter(), zoom, state.config, state.map.getBounds());
-        if (!plan) { clearLive(); setStatus('برای جستجوی مکان‌های نزدیک، نقشه را داخل محدودهٔ ایران جابه‌جا کنید.'); return; }
+        if (!plan) { clearLive(); setStatus('محدودهٔ ایران را انتخاب کنید.'); return; }
         if (!state.map.hasLayer(state.live)) state.live.addTo(state.map);
         pruneMemory(plan);
-        state.queue = locationSearchPlans(plan).filter(candidate =>
+        state.queue = locationSearchPlans(plan, state.map.getBounds()).filter(candidate =>
             !state.searches.some(search => !locationSearchChanged(search.plan, candidate)));
         if (state.circle) state.circle.remove();
         state.circle = L.circle([plan.latitude, plan.longitude], {radius: plan.radius,
@@ -205,7 +224,7 @@ function locationSearchChanged(previous, next) {
             interactive: false}).addTo(state.map);
         if (!state.queue.length) { clearError(); memoryStatus(); return; }
         state.progress = {done: 0, total: state.queue.length};
-        setStatus('در حال جستجوی مکان‌های نزدیک…');
+        setStatus('در حال جستجو…');
         requestNext(state.generation);
     }
     function requestNext(generation) {
@@ -231,7 +250,7 @@ function locationSearchChanged(previous, next) {
             if (response.status === 429) {
                 const seconds = Number(response.headers.get('Retry-After'));
                 state.nextAllowed = Math.max(state.nextAllowed, Date.now() + (Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : 60000));
-                setStatus(seconds > 2 ? 'جستجو موقتاً محدود است؛ پس از مکث کوتاه دوباره انجام می‌شود.' : 'در حال جستجوی مکان‌های نزدیک…');
+                setStatus(seconds > 2 ? 'کمی صبر کنید…' : 'در حال جستجو…');
                 state.timer = setTimeout(scheduleViewport, Math.max(1000, state.nextAllowed - Date.now()));
                 return;
             }
@@ -276,7 +295,7 @@ function locationSearchChanged(previous, next) {
         } catch (error) {
             if (generation !== state.generation) return;
             showError(error.name === 'AbortError' ? 'زمان پاسخ‌گویی سرویس طولانی شد. دوباره تلاش کنید.' : error.message);
-            setStatus('مکان‌های نزدیک دریافت نشدند.');
+            setStatus('جستجو انجام نشد.');
         } finally { clearTimeout(timeout); }
     }
     async function initialize() {
@@ -300,7 +319,7 @@ function locationSearchChanged(previous, next) {
             state.map.on('zoomend', scheduleViewport);
             state.map.on('resize', scheduleViewport);
             renderCategories();
-            setStatus(state.categories.length ? 'نوع مکان را از فهرست انتخاب کنید.' : 'هنوز نوع مکانی برای نمایش منتشر نشده است.');
+            setStatus(state.categories.length ? 'نوع مکان را انتخاب کنید.' : 'نوع مکانی موجود نیست.');
             clearError();
         } catch (error) { state.initialized = false; showError(error.message); setStatus('راه‌اندازی اطلاعات مکانی انجام نشد.'); }
     }
