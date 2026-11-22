@@ -112,6 +112,17 @@ class ExploreTest(unittest.TestCase):
         radii = list(explore.LIVE_RADII.values())
         self.assertEqual(radii, sorted(radii, reverse=True))
 
+    def test_viewport_radius_is_forwarded_and_bounded(self):
+        with patch.object(explore, 'reserve_live_request'), patch.object(explore, 'Neshan') as provider:
+            provider.return_value.request.return_value = Reply(200, {'layerPoints': {'nearestPoints': []}})
+            data = dict(category='mosque', latitude=35, longitude=51, zoom=15, radius_m=28000)
+            response = self.client().post('/api/poi-explore/nearby', json=data)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()['radius_m'], 28000)
+            self.assertEqual(provider.return_value.request.call_args.args[1]['searchRadius'], 28000)
+            for radius in (100001, 0, '28000'):
+                self.assertEqual(self.client().post('/api/poi-explore/nearby', json={**data, 'radius_m': radius}).status_code, 422)
+
     def test_documented_travel_distance_does_not_exclude_nearby_points(self):
         # PDF page 5: route distance may exceed the straight-line search radius.
         points, count=explore.nearby_display_points({'layerPoints':{'nearestPoints':[

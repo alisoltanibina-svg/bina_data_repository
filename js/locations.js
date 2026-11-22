@@ -3,12 +3,19 @@ function locationMarkerSize(count, maximum) {
     return count == null ? 28 : Math.round(24 + 40 * Math.sqrt(Math.max(0, count) / Math.max(1, maximum)));
 }
 
-function locationNearbyPlan(category, center, zoom, config) {
+function locationNearbyPlan(category, center, zoom, config, bounds) {
     zoom = Math.floor(zoom);
     if (!category || !Number.isFinite(zoom) || zoom < config.min_zoom || !Number.isFinite(center.lat) || !Number.isFinite(center.lng)
         || center.lat < 24 || center.lat > 41 || center.lng < 43 || center.lng > 64) return null;
-    return {category, latitude: center.lat, longitude: center.lng, zoom: Math.min(19, zoom),
-        radius: Number(config.radius_by_zoom[Math.min(19, zoom)])};
+    let radius = Number(config.radius_by_zoom[Math.min(19, zoom)]);
+    if (bounds) {
+        const origin = {latitude: center.lat, longitude: center.lng};
+        const corners = [bounds.getNorthEast(), bounds.getSouthWest(), bounds.getNorthWest(), bounds.getSouthEast()];
+        const visibleRadius = Math.max(...corners.map(point => locationDistance(origin,
+            {latitude: point.lat, longitude: point.lng})));
+        radius = Math.min(100000, Math.max(radius, Math.ceil(visibleRadius * 1.2 / 100) * 100));
+    }
+    return {category, latitude: center.lat, longitude: center.lng, zoom: Math.min(19, zoom), radius};
 }
 
 function locationDistance(previous, next) {
@@ -53,13 +60,14 @@ function locationSearchChanged(previous, next) {
         state.points.clear(); state.searches = [];
     }
     // Short-lived page memory only: no browser storage or persistent provider cache.
-    const memoryAge = 120000, memoryLimit = 1000, searchLimit = 8;
+    const memoryAge = 15 * 60000, memoryLimit = 2000, searchLimit = 24;
     function pruneMemory(plan) {
         const cutoff = Date.now() - memoryAge;
-        const retentionRadius = Math.max(5000, plan.radius * 2);
+        const retentionRadius = Math.max(50000, plan.radius * 3);
         for (const [key, point] of state.points) {
             if (point.seen < cutoff || locationDistance(point.place, plan) > retentionRadius) {
                 state.live.removeLayer(point.marker); state.points.delete(key);
+                state.searches = [];
             }
         }
         state.searches = state.searches.filter(search => search.time >= cutoff
@@ -69,6 +77,7 @@ function locationSearchChanged(previous, next) {
         while (state.points.size > memoryLimit) {
             const key = state.points.keys().next().value;
             state.live.removeLayer(state.points.get(key).marker); state.points.delete(key);
+            state.searches = [];
         }
     }
     function memoryStatus() {
@@ -169,7 +178,7 @@ function locationSearchChanged(previous, next) {
             return;
         }
         if (state.map.hasLayer(state.summary)) state.map.removeLayer(state.summary);
-        const plan = locationNearbyPlan(state.selected.category, state.map.getCenter(), zoom, state.config);
+        const plan = locationNearbyPlan(state.selected.category, state.map.getCenter(), zoom, state.config, state.map.getBounds());
         if (!plan) { clearLive(); setStatus('برای جستجوی مکان‌های نزدیک، نقشه را داخل محدودهٔ ایران جابه‌جا کنید.'); return; }
         if (!state.map.hasLayer(state.live)) state.live.addTo(state.map);
         pruneMemory(plan);
@@ -189,6 +198,7 @@ function locationSearchChanged(previous, next) {
         const timeout = setTimeout(() => controller.abort(), 8000);
         state.nextAllowed = Date.now() + state.config.interval_ms;
         const {radius, ...body} = plan;
+        body.radius_m = radius;
         try {
             const response = await fetch(api('/api/poi-explore/nearby'), {method: 'POST', credentials: 'include',
                 cache: 'no-store', signal: controller.signal, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
@@ -265,6 +275,7 @@ function locationSearchChanged(previous, next) {
             state.map.on('movestart', cancelLive);
             state.map.on('moveend', scheduleViewport);
             state.map.on('zoomend', scheduleViewport);
+            state.map.on('resize', scheduleViewport);
             renderCategories();
             setStatus(state.categories.length ? 'نوع مکان را از فهرست انتخاب کنید.' : 'هنوز نوع مکانی برای نمایش منتشر نشده است.');
             clearError();

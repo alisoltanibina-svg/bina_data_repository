@@ -20,6 +20,8 @@ function fixture() {
         this.on=(event,fn)=>{this.handlers[event]=fn;return this;};
         this.hasLayer=layer=>this.layers.has(layer);this.removeLayer=layer=>this.layers.delete(layer);
         this.getZoom=()=>this.zoom;this.getCenter=()=>this.center;
+        this.getBounds=()=>({getNorthEast:()=>this.center,getSouthWest:()=>this.center,
+            getNorthWest:()=>this.center,getSouthEast:()=>this.center});
     }
     const point=(center,options)=>({center,options,addTo(group){group.items.push(this);markers.push(this);return this;},bindPopup(){return this;},on(){return this;}});
     const categories=[{category:'mosque',title:'مسجد',icon_url:'https://static.neshanmap.ir/poi/64/mosque.png'}];
@@ -189,7 +191,7 @@ test('small movements reuse results; new searches preserve markers and merge dup
 test('expired and distant points are evicted and expired searches are repeated',async()=>{
     const f=await selectedFixture();await loadPlaces(f,[place('A')]);
     const map=f.map(), layer=[...map.layers].find(layer=>layer.items.some(item=>item.options.title==='A'));
-    f.advance(120001);map.handlers.moveend();
+    f.advance(15*60000+1);map.handlers.moveend();
     assert.equal(layer.items.length,0);assert.equal(f.timers.size,1);
     await loadPlaces(f,[place('B')]);
     map.center={lat:36,lng:51};map.handlers.moveend();
@@ -199,11 +201,11 @@ test('marker memory has a fixed cap',async()=>{
     const f=await selectedFixture();
     await loadPlaces(f,Array.from({length:500},(_,i)=>place(String(i))));
     const layer=[...f.map().layers].find(layer=>layer.items.length===500);
-    for(let batch=1;batch<=2;batch++) {
+    for(let batch=1;batch<=4;batch++) {
         f.map().center={lat:35+batch*.01,lng:51};f.map().handlers.moveend();
         await loadPlaces(f,Array.from({length:500},(_,i)=>place(String(batch*500+i))));
     }
-    assert.equal(layer.items.length,1000);
+    assert.equal(layer.items.length,2000);
     assert.equal(layer.items.some(item=>item.options.title==='0'),false);
 });
 test('returning from summary zoom restores markers without requesting the same area',async()=>{
@@ -212,4 +214,22 @@ test('returning from summary zoom restores markers without requesting the same a
     map.zoom=5;map.handlers.moveend();assert.equal(map.layers.has(layer),false);
     map.zoom=15;map.handlers.moveend();assert.equal(map.layers.has(layer),true);
     assert.equal(layer.items.length,1);assert.equal(f.timers.size,0);
+});
+
+test('search radius covers the visible corners with a margin and stays bounded',()=>{
+    const f=fixture();
+    f.run(`bounds={getNorthEast:()=>({lat:35.1,lng:51.2}),getSouthWest:()=>({lat:34.9,lng:50.8}),
+        getNorthWest:()=>({lat:35.1,lng:50.8}),getSouthEast:()=>({lat:34.9,lng:51.2})}`);
+    const plan=f.run(`locationNearbyPlan('mosque',{lat:35,lng:51},15,{min_zoom:8,radius_by_zoom:{15:1000}},bounds)`);
+    assert.ok(plan.radius>25000);assert.ok(plan.radius<30000);
+    f.run(`bounds.getNorthEast=()=>({lat:40,lng:60})`);
+    assert.equal(f.run(`locationNearbyPlan('mosque',{lat:35,lng:51},15,{min_zoom:8,radius_by_zoom:{15:1000}},bounds).radius`),100000);
+});
+test('city markers survive a short trip outside the city and more than two minutes',async()=>{
+    const f=await selectedFixture();await loadPlaces(f,[place('City mosque')]);
+    const layer=[...f.map().layers].find(layer=>layer.items.some(item=>item.options.title==='City mosque'));
+    f.advance(5*60000);f.map().center={lat:35.2,lng:51};f.map().handlers.moveend();
+    assert.equal(layer.items.length,1);
+    await loadPlaces(f,[place('Outskirts mosque',35.2)]);
+    assert.equal(layer.items.length,2);
 });

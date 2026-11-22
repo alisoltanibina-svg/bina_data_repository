@@ -34,6 +34,7 @@ class NearbyBody(InputBody):
     latitude: FiniteFloat = Field(ge=24, le=41)
     longitude: FiniteFloat = Field(ge=43, le=64)
     zoom: int = Field(ge=LIVE_MIN_ZOOM, le=19, strict=True)
+    radius_m: int | None = Field(default=None, ge=500, le=100000, strict=True)
 
 
 class PublishBody(InputBody):
@@ -205,7 +206,7 @@ def build_router(require_admin, require_user):
         if not key:
             raise HTTPException(503, detail='سرویس مکان‌های نزدیک تنظیم نشده است.', headers=NO_STORE)
         reserve_live_request()
-        radius = LIVE_RADII[body.zoom]
+        radius = max(LIVE_RADII[body.zoom], body.radius_m or 0)
         reply = Neshan(key).request('nearby', dict(location=f'{body.latitude},{body.longitude}',
             layer=body.category, searchRadius=radius), timeout=5, max_bytes=1024 * 1024)
         if reply.status in (429, 481, 482):
