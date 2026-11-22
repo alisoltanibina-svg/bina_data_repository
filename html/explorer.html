@@ -50,9 +50,9 @@
             <nav class="ex-nav-rail ex-dash-head" aria-label="انتخاب داده‌ها">
                 <button type="button" id="btn-nav-subtopics" class="ex-module-return"><span>بازگشت به ماژول‌ها</span><svg class="ex-back-arrow" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="m10 5 7 7-7 7M17 12H3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
                 <div class="ex-top-selectors">
-                    <button type="button" class="ex-rail-item" id="dd-topic-btn" data-explorer-section="topic" aria-controls="explorer-selection-panel" aria-expanded="false">حوزه<span class="ex-selector-value" id="dd-topic-value"></span></button>
-                    <button type="button" class="ex-rail-item" id="dd-subtopic-btn" data-explorer-section="subtopic" aria-controls="explorer-selection-panel" aria-expanded="false">موضوع<span class="ex-selector-value" id="dd-subtopic-value"></span></button>
-                    <button type="button" class="ex-rail-item" id="dd-indicator-btn" data-explorer-section="indicator" aria-controls="explorer-selection-panel" aria-expanded="false">شاخص<span class="ex-selector-value" id="dd-indicator-value"></span></button>
+                    <button type="button" class="ex-rail-item" id="dd-topic-btn" data-explorer-section="topic" aria-controls="explorer-selection-panel" aria-expanded="false">حوزه<span class="ex-selector-value" id="dd-topic-value"></span><svg class="ex-selector-chevron" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                    <button type="button" class="ex-rail-item" id="dd-subtopic-btn" data-explorer-section="subtopic" aria-controls="explorer-selection-panel" aria-expanded="false">موضوع<span class="ex-selector-value" id="dd-subtopic-value"></span><svg class="ex-selector-chevron" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                    <button type="button" class="ex-rail-item" id="dd-indicator-btn" data-explorer-section="indicator" aria-controls="explorer-selection-panel" aria-expanded="false">شاخص<span class="ex-selector-value" id="dd-indicator-value"></span><svg class="ex-selector-chevron" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
                 </div>
             </nav>
             <aside id="explorer-selection-panel" class="ex-selection-panel" aria-labelledby="explorer-selection-title" hidden>
@@ -108,7 +108,7 @@
                         </div>
                     </div>
                     <button type="button" id="btn-toggle-chart-type" class="ex-type-toggle" hidden>نمایش نمودار مقایسه‌ای</button>
-                    <div id="explorer-selection-prompt" role="status">لطفاً حوزه و موضوع مورد نظر خود را انتخاب کنید</div>
+                    <div id="explorer-selection-prompt" role="status">در حال بارگذاری داده‌ها…</div>
                     <div id="canvas-reveal-wrapper" hidden>
                         <div id="trend-chart-wrap" class="chart-pane is-active">
                             <canvas id="mainChart"></canvas>

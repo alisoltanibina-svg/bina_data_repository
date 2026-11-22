@@ -178,7 +178,7 @@ async function loadExplorerData() {
 
         if (queryIndicator && queryTopic) {
             const module = explorerModules.find(m => m.active && m.kind !== 'locations');
-            if (module) enterExplorerModule(module);
+            if (module) enterExplorerModule(module, {autoSelect: false});
             if (querySource === 'search') {
                 const navSubtopicsBtn = document.getElementById('btn-nav-subtopics');
                 if (navSubtopicsBtn) navSubtopicsBtn.style.display = 'none';
@@ -186,7 +186,7 @@ async function loadExplorerData() {
             setTimeout(() => loadIndicator(queryIndicator, queryTopic), 50);
         } else if (queryOpenTopic) {
             const module = explorerModules.find(m => m.active && m.kind !== 'locations');
-            if (module) enterExplorerModule(module);
+            if (module) enterExplorerModule(module, {autoSelect: false});
             openTopicIndex(queryOpenTopic);
         }
 
@@ -284,7 +284,7 @@ const explorerSectionTitles = {database: 'دیتابیس', topic: 'حوزه', su
 
 function syncExplorerGuide() {
     const guide = document.getElementById('explorer-rail-guide');
-    const target = !activeTopicGlob ? 'topic' : !activeSubtopicGlob ? 'subtopic' : null;
+    const target = explorerLoadState === 'empty' ? null : !activeTopicGlob ? 'topic' : !activeSubtopicGlob ? 'subtopic' : null;
     guide.hidden = !target;
     guide.dataset.target = target || '';
     if (!target) return;
@@ -442,7 +442,8 @@ function syncExplorerDropdowns() {
         filters.replaceChildren();
         const hint = document.createElement('p');
         hint.className = 'ex-selection-empty';
-        hint.textContent = explorerLoadState === 'ready' ? 'برای این شاخص فیلتری ثبت نشده است.' : 'پس از انتخاب حوزه و موضوع، فیلترهای شاخص در این بخش نمایش داده می‌شوند.';
+        hint.textContent = explorerLoadState === 'ready' ? 'برای این شاخص فیلتری ثبت نشده است.' :
+            explorerLoadState === 'loading' ? 'در حال بارگذاری فیلترها…' : 'فیلتری برای نمایش وجود ندارد.';
         filters.appendChild(hint);
     }
     updateExplorerPanelHeading();
@@ -479,7 +480,23 @@ function resetExplorerSelection() {
     syncExplorerVisibility();
 }
 
-function enterExplorerModule(module) {
+function selectDefaultExplorerIndicator(topics) {
+    for (const topic of topics) {
+        for (const subtopic of subtopicsOf(topic)) {
+            const first = indicatorsOf(topic, subtopic)[0];
+            if (!first) continue;
+            activeTopicGlob = topic;
+            activeSubtopicGlob = subtopic;
+            loadIndicator(first, topic);
+            return true;
+        }
+    }
+    explorerLoadState = 'empty';
+    syncExplorerDropdowns(); syncExplorerVisibility();
+    return false;
+}
+
+function enterExplorerModule(module, {autoSelect = true} = {}) {
     if (!module.active) return;
     if (module.kind === 'locations') { window.location.assign(SITE.page('locations.html')); return; }
     activeExplorerModule = module;
@@ -489,6 +506,7 @@ function enterExplorerModule(module) {
     document.getElementById('view-landing').style.display = 'none';
     document.getElementById('view-dashboard').classList.remove('hidden');
     renderExplorerModuleOptions();
+    if (autoSelect) selectDefaultExplorerIndicator(explorerTopicsInAtlasOrder());
     document.getElementById('dd-topic-btn').focus({preventScroll: true});
 }
 
@@ -496,7 +514,7 @@ function openTopicIndex(topic) {
     if (!topic || !topicsHierarchy[topic]) return;
     activeTopicGlob = topic;
     resetExplorerSelection();
-    setExplorerSection('subtopic');
+    selectDefaultExplorerIndicator([topic]);
 }
 
 function syncExplorerVisibility() {
@@ -504,12 +522,16 @@ function syncExplorerVisibility() {
     document.getElementById('explorer-selection-prompt').hidden = ready;
     document.getElementById('explorer-selection-prompt').textContent = explorerLoadState === 'loading' ? 'در حال بارگذاری داده‌ها…' :
         explorerLoadState === 'error' ? 'دریافت داده‌ها انجام نشد؛ شاخص را دوباره انتخاب کنید.' :
+        explorerLoadState === 'empty' ? 'برای این بخش شاخصی ثبت نشده است.' :
         !activeTopicGlob ? 'لطفاً حوزه و موضوع مورد نظر خود را انتخاب کنید' : 'لطفاً موضوع مورد نظر خود را انتخاب کنید';
     const monitorLayout = document.getElementById('view-dashboard').classList.contains('ex-monitor-layout');
     document.getElementById('canvas-reveal-wrapper').hidden = !ready || (!monitorLayout && explorerTab === 'metadata');
     document.getElementById('insight-layer').hidden = !ready || (!monitorLayout && explorerTab !== 'metadata');
     const metadataPlaceholder = document.getElementById('explorer-metadata-placeholder');
-    if (metadataPlaceholder) metadataPlaceholder.hidden = ready;
+    if (metadataPlaceholder) {
+        metadataPlaceholder.hidden = ready;
+        metadataPlaceholder.textContent = explorerLoadState === 'loading' ? 'در حال بارگذاری فراداده…' : 'فراداده‌ای برای نمایش وجود ندارد.';
+    }
     document.querySelector('.ex-chart-foot').hidden = !ready || explorerTab !== 'chart';
     document.getElementById('btn-toggle-chart-type').hidden = monitorLayout || !ready || explorerTab !== 'chart';
     document.getElementById('chart-panel-title').hidden = !ready;
@@ -691,7 +713,9 @@ async function loadIndicator(indicatorName, topicName) {
     renderIndicatorDescription(null);
     document.getElementById('insight-text').textContent = 'در حال بارگذاری اطلاعات...';
     document.getElementById('indicator-period').textContent = 'نامشخص';
-    activeSubtopicGlob = findSubtopicForIndicator(activeTopicGlob, indicatorName);
+    if (!indicatorsOf(activeTopicGlob, activeSubtopicGlob).includes(indicatorName)) {
+        activeSubtopicGlob = findSubtopicForIndicator(activeTopicGlob, indicatorName);
+    }
     syncExplorerDropdowns();
     syncExplorerVisibility();
 
