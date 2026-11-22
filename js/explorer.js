@@ -382,7 +382,7 @@ function renderExplorerModuleOptions() {
     });
 }
 
-function fillDropdownMenu(menu, items, current, onPick, emptyMessage = 'گزینه‌ای برای نمایش وجود ندارد.') {
+function fillDropdownMenu(menu, items, current, onPick, emptyMessage = 'گزینه‌ای برای نمایش وجود ندارد.', iconForItem = null) {
     if (!menu) return;
     menu.replaceChildren();
     if (!items.length) {
@@ -398,6 +398,17 @@ function fillDropdownMenu(menu, items, current, onPick, emptyMessage = 'گزین
         btn.textContent = item;
         btn.classList.toggle('is-current', item === current);
         btn.setAttribute('aria-pressed', String(item === current));
+        if (iconForItem) {
+            const icon = document.createElement('img');
+            icon.className = 'ex-dd-topic-icon';
+            icon.src = iconForItem(item);
+            icon.alt = ''; icon.width = 24; icon.height = 24; icon.decoding = 'async';
+            icon.addEventListener('error', () => { icon.hidden = true; });
+            const label = document.createElement('span');
+            label.className = 'ex-dd-topic-label'; label.textContent = item;
+            btn.classList.add('ex-dd-topic-item');
+            btn.replaceChildren(icon, label);
+        }
         btn.addEventListener('click', () => {
             closeExplorerDropdowns(true);
             onPick(item);
@@ -410,7 +421,8 @@ function syncExplorerDropdowns() {
     document.getElementById('dd-topic-value').textContent = activeTopicGlob || 'انتخاب حوزه';
     document.getElementById('dd-subtopic-value').textContent = activeSubtopicGlob || 'انتخاب موضوع';
     document.getElementById('dd-indicator-value').textContent = activeIndicatorGlob || 'انتخاب خودکار';
-    fillDropdownMenu(document.getElementById('dd-topic-menu'), explorerTopicsInAtlasOrder(), activeTopicGlob, openTopicIndex);
+    fillDropdownMenu(document.getElementById('dd-topic-menu'), explorerTopicsInAtlasOrder(), activeTopicGlob, openTopicIndex,
+        undefined, item => encodeURI(SITE.asset(`images/تاپیک ${item}-active.webp`)));
     fillDropdownMenu(document.getElementById('dd-subtopic-menu'), subtopicsOf(activeTopicGlob), activeSubtopicGlob, sub => {
         activeSubtopicGlob = sub;
         const first = indicatorsOf(activeTopicGlob, sub)[0];
