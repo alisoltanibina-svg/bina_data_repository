@@ -11,19 +11,23 @@ function locationNearbyPlan(category, center, zoom, config) {
         radius: Number(config.radius_by_zoom[Math.min(19, zoom)])};
 }
 
-function locationSearchChanged(previous, next) {
-    if (!previous || previous.category !== next.category || previous.radius !== next.radius) return true;
+function locationDistance(previous, next) {
     const toRad = value => value * Math.PI / 180;
     const dLat = toRad(next.latitude - previous.latitude), dLon = toRad(next.longitude - previous.longitude);
     const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(previous.latitude)) * Math.cos(toRad(next.latitude)) * Math.sin(dLon / 2) ** 2;
     const distance = 6371000 * 2 * Math.asin(Math.min(1, Math.sqrt(a)));
-    return distance > next.radius * .35;
+    return distance;
+}
+
+function locationSearchChanged(previous, next) {
+    return !previous || previous.category !== next.category || previous.radius !== next.radius
+        || locationDistance(previous, next) > next.radius * .35;
 }
 
 (function () {
     const state = {map: null, categories: [], selected: null, summary: null, counts: null,
         live: null, circle: null, config: null, timer: null, frame: null, controller: null, countController: null,
-        generation: 0, categoryGeneration: 0, nextAllowed: 0, lastPlan: null, initialized: false};
+        generation: 0, categoryGeneration: 0, nextAllowed: 0, lastPlan: null, points: new Map(), searches: [], initialized: false};
     const number = new Intl.NumberFormat('fa-IR');
     const element = id => document.getElementById(id);
     const api = path => `${window.API_BASE_URL || ''}${path}`;
@@ -46,6 +50,29 @@ function locationSearchChanged(previous, next) {
         if (state.live) state.live.clearLayers();
         if (state.circle) { state.circle.remove(); state.circle = null; }
         state.lastPlan = null;
+        state.points.clear(); state.searches = [];
+    }
+    // Short-lived page memory only: no browser storage or persistent provider cache.
+    const memoryAge = 120000, memoryLimit = 1000, searchLimit = 8;
+    function pruneMemory(plan) {
+        const cutoff = Date.now() - memoryAge;
+        const retentionRadius = Math.max(5000, plan.radius * 2);
+        for (const [key, point] of state.points) {
+            if (point.seen < cutoff || locationDistance(point.place, plan) > retentionRadius) {
+                state.live.removeLayer(point.marker); state.points.delete(key);
+            }
+        }
+        state.searches = state.searches.filter(search => search.time >= cutoff
+            && locationDistance(search.plan, plan) <= retentionRadius);
+    }
+    function trimMemory() {
+        while (state.points.size > memoryLimit) {
+            const key = state.points.keys().next().value;
+            state.live.removeLayer(state.points.get(key).marker); state.points.delete(key);
+        }
+    }
+    function memoryStatus() {
+        setStatus(`${number.format(state.points.size)} مکان در محدوده‌های اخیر؛ نتایج ممکن است کامل نباشند.`);
     }
     async function readResponse(response) {
         if (response.status === 401 || response.status === 403) {
@@ -134,7 +161,8 @@ function locationSearchChanged(previous, next) {
         element('locations-explanation').textContent = detailed ? 'نتایج زنده در محدودهٔ دایره نمایش داده می‌شوند و ممکن است شامل همهٔ مکان‌ها نباشند.' :
             'اندازهٔ نمادها متناسب با تعداد مکان‌های ثبت‌شده است. نبود داده با «نامشخص» نمایش داده می‌شود.';
         if (!detailed) {
-            clearLive();
+            if (state.map.hasLayer(state.live)) state.map.removeLayer(state.live);
+            if (state.circle) { state.circle.remove(); state.circle = null; }
             if (!state.map.hasLayer(state.summary)) state.summary.addTo(state.map);
             const missing = state.counts.provinces.filter(province => province.count == null).length;
             setStatus(`آمار ثبت‌شدهٔ استانی${missing ? `؛ ${number.format(missing)} استان با وضعیت نامشخص` : ''}${state.counts.unassigned_count ? `؛ ${number.format(state.counts.unassigned_count)} مکان بدون استان مشخص` : ''}`);
@@ -143,8 +171,12 @@ function locationSearchChanged(previous, next) {
         if (state.map.hasLayer(state.summary)) state.map.removeLayer(state.summary);
         const plan = locationNearbyPlan(state.selected.category, state.map.getCenter(), zoom, state.config);
         if (!plan) { clearLive(); setStatus('برای جستجوی مکان‌های نزدیک، نقشه را داخل محدودهٔ ایران جابه‌جا کنید.'); return; }
-        if (!locationSearchChanged(state.lastPlan, plan)) return;
-        clearLive();
+        if (!state.map.hasLayer(state.live)) state.live.addTo(state.map);
+        pruneMemory(plan);
+        if (state.searches.some(search => !locationSearchChanged(search.plan, plan))) {
+            if (state.circle) { state.circle.remove(); state.circle = null; }
+            clearError(); memoryStatus(); return;
+        }
         const wait = Math.max(state.config.debounce_ms, state.nextAllowed - Date.now());
         setStatus('در حال جستجوی مکان‌های نزدیک…');
         const generation = state.generation;
@@ -171,6 +203,7 @@ function locationSearchChanged(previous, next) {
             const payload = await readResponse(response);
             if (generation !== state.generation) return;
             clearError();
+            if (state.circle) state.circle.remove();
             state.circle = L.circle([payload.center.latitude, payload.center.longitude], {radius: payload.radius_m,
                 renderer: state.renderer, color: '#596315', weight: 1.5, dashArray: '5 5', fillColor: '#596315', fillOpacity: .04,
                 interactive: false}).addTo(state.map);
@@ -182,17 +215,28 @@ function locationSearchChanged(previous, next) {
                 state.frame = null;
                 if (generation !== state.generation || document.hidden) return;
                 for (const place of places.slice(offset, offset + 50)) {
-                    L.marker([place.latitude, place.longitude], {icon, title: place.name, keyboard: true})
+                    const key = JSON.stringify([place.latitude, place.longitude, place.name]);
+                    const existing = state.points.get(key);
+                    if (existing) {
+                        existing.seen = Date.now();
+                        state.points.delete(key); state.points.set(key, existing);
+                        continue;
+                    }
+                    const marker = L.marker([place.latitude, place.longitude], {icon, title: place.name, keyboard: true})
                         .bindPopup(() => {
                             const label = document.createElement('div'); label.className = 'locations-live-popup';
                             label.textContent = place.name; return label;
                         }).addTo(state.live);
+                    state.points.set(key, {place, marker, seen: Date.now()});
                 }
+                trimMemory();
                 offset += 50;
                 if (offset < places.length) state.frame = requestAnimationFrame(drawBatch);
                 else {
                     state.lastPlan = plan;
-                    setStatus(places.length ? `${number.format(places.length)} مکان نزدیک در شعاع ${number.format(payload.radius_m)} متر${payload.possibly_truncated ? '؛ نتایج ممکن است کامل نباشند' : ''}` : 'در این محدوده مکانی برگردانده نشد؛ می‌توانید نقشه را جابه‌جا کنید.');
+                    state.searches.push({plan, time: Date.now()});
+                    state.searches = state.searches.slice(-searchLimit);
+                    memoryStatus();
                 }
             }
             state.frame = requestAnimationFrame(drawBatch);

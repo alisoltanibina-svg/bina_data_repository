@@ -19,10 +19,12 @@ from backend.poi_provider import LAYERS, Neshan, coordinates
 from backend.poi_budget import ProviderBusy, reserve_live_slot, record_provider_backoff
 from backend.settings import get_settings
 
-LIVE_MIN_ZOOM = 13
+LIVE_MIN_ZOOM = 8
 LIVE_INTERVAL_SECONDS = 1
 LIVE_MAX_POINTS = 500
-LIVE_RADII = {13: 2000, 14: 1500, 15: 1000, 16: 700, 17: 500, 18: 500, 19: 500}
+# Regional searches begin at 100 km; closer views progressively narrow the circle.
+LIVE_RADII = {8: 100000, 9: 50000, 10: 25000, 11: 12000, 12: 5000,
+              13: 2000, 14: 1500, 15: 1000, 16: 700, 17: 500, 18: 500, 19: 500}
 NO_STORE = {'Cache-Control': 'no-store, max-age=0', 'Pragma': 'no-cache',
             'Expires': '0', 'X-Accel-Buffering': 'no'}
 

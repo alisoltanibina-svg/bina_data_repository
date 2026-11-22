@@ -44,7 +44,7 @@ class ExploreTest(unittest.TestCase):
         response = self.client().get('/api/poi-explore/init')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['categories'][0]['category'], 'mosque')
-        self.assertEqual(response.json()['live']['min_zoom'], 13)
+        self.assertEqual(response.json()['live']['min_zoom'], 8)
         self.assertIn('no-store', response.headers['cache-control'])
         sql = str(self.session.scalars.call_args.args[0])
         self.assertIn('is_published IS true', sql)
@@ -78,7 +78,7 @@ class ExploreTest(unittest.TestCase):
 
     def test_invalid_zoom_and_coordinates_are_rejected_before_provider(self):
         with patch.object(explore, 'Neshan') as provider:
-            for change in ({'zoom':12},{'zoom':'13'},{'latitude':80},{'longitude':20}):
+            for change in ({'zoom':7},{'zoom':'13'},{'latitude':80},{'longitude':20}):
                 data = dict(category='mosque', latitude=35, longitude=51, zoom=13); data.update(change)
                 self.assertEqual(self.client().post('/api/poi-explore/nearby', json=data).status_code, 422)
             provider.assert_not_called()
@@ -99,6 +99,18 @@ class ExploreTest(unittest.TestCase):
             cache.assert_not_called(); self.session.execute.assert_not_called(); self.session.add.assert_not_called()
             self.assertEqual(provider.return_value.request.call_args.kwargs, {'timeout':5,'max_bytes':1048576})
             self.assertEqual(provider.return_value.request.call_args.args, ('nearby', {'location':'35.5,51.5', 'layer':'mosque', 'searchRadius':1000}))
+
+    def test_regional_view_searches_a_100_km_radius(self):
+        with patch.object(explore, 'reserve_live_request'), patch.object(explore, 'Neshan') as provider:
+            provider.return_value.request.return_value = Reply(200, {'layerPoints': {'nearestPoints': []}})
+            response = self.client().post('/api/poi-explore/nearby', json=dict(
+                category='mosque', latitude=35, longitude=51, zoom=8))
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()['radius_m'], 100000)
+            self.assertEqual(provider.return_value.request.call_args.args[1]['searchRadius'], 100000)
+        self.assertEqual(set(explore.LIVE_RADII), set(range(8, 20)))
+        radii = list(explore.LIVE_RADII.values())
+        self.assertEqual(radii, sorted(radii, reverse=True))
 
     def test_documented_travel_distance_does_not_exclude_nearby_points(self):
         # PDF page 5: route distance may exceed the straight-line search radius.
