@@ -18,37 +18,79 @@ function locationNearbyPlan(category, center, zoom, config, bounds) {
     return {category, latitude: center.lat, longitude: center.lng, zoom: Math.min(19, zoom), radius};
 }
 
-// Search visible neighborhoods at finer detail even when the user stays zoomed out.
+function locationDetailLevel(zoom) {
+    zoom = Math.floor(zoom);
+    if (zoom <= 10) return {grid: 2, cellSize: 160, perCell: 1};
+    if (zoom <= 12) return {grid: 2, cellSize: 140, perCell: 2};
+    if (zoom <= 14) return {grid: 3, cellSize: 100, perCell: 2};
+    return {grid: zoom <= 15 ? 3 : 1, cellSize: 0, perCell: Infinity};
+}
+
+// Overview searches collect representatives; detail searches refine the local view.
 function locationSearchPlans(plan, bounds) {
+    const grid = locationDetailLevel(plan.zoom).grid;
+    if (grid === 1) return [plan];
     if (bounds) {
         const ne = bounds.getNorthEast(), sw = bounds.getSouthWest();
         const north = Math.min(41, ne.lat), south = Math.max(24, sw.lat);
         const east = Math.min(64, ne.lng), west = Math.max(43, sw.lng);
         const diagonal = locationDistance({latitude: south, longitude: west}, {latitude: north, longitude: east});
         if (north > south && east > west && diagonal > 1000) {
-            // 4x4 cells emulate visiting the view two zoom levels closer, without
-            // requiring the user to zoom. Center results arrive first, then cells.
-            const radius = Math.min(100000, Math.max(500, Math.ceil(diagonal / 8 * 1.2)));
+            const radius = Math.min(100000, Math.max(500, Math.ceil(diagonal / (grid * 2) * 1.2)));
             const plans = [{...plan, radius}];
-            for (let row = 0; row < 4; ++row) {
-                for (let column = 0; column < 4; ++column) {
-                    plans.push({...plan, radius, latitude: south + (row + .5) * (north - south) / 4,
-                        longitude: west + (column + .5) * (east - west) / 4});
+            for (let row = 0; row < grid; ++row) {
+                for (let column = 0; column < grid; ++column) {
+                    plans.push({...plan, radius, latitude: south + (row + .5) * (north - south) / grid,
+                        longitude: west + (column + .5) * (east - west) / grid});
                 }
             }
-            return plans.sort((a, b) => locationDistance(a, plan) - locationDistance(b, plan));
+            return locationBoundedPlans(plans, plan).sort((a, b) => locationDistance(a, plan) - locationDistance(b, plan));
         }
     }
-    // Fallback for unavailable/degenerate bounds. Real views use the grid above
-    // at every zoom; there is no city-zoom cutoff.
+    // Fallback for unavailable/degenerate bounds.
     if (plan.zoom > 12) return [plan];
     const radius = Math.max(500, Math.ceil(plan.radius / 2));
     const latitudeStep = plan.radius * .5 / 111195;
     const longitudeStep = latitudeStep / Math.cos(plan.latitude * Math.PI / 180);
-    return [[0, 0], [0, 1], [1, 0], [0, -1], [-1, 0], [1, 1], [1, -1], [-1, -1], [-1, 1]]
+    const plans = [[0, 0], [0, 1], [1, 0], [0, -1], [-1, 0]]
         .map(([x, y]) => ({...plan, radius,
             latitude: plan.latitude + y * latitudeStep, longitude: plan.longitude + x * longitudeStep}))
         .filter(point => point.latitude >= 24 && point.latitude <= 41 && point.longitude >= 43 && point.longitude <= 64);
+    return locationBoundedPlans(plans, plan);
+}
+
+function locationBoundedPlans(plans, region) {
+    const seen = new Set();
+    return plans.map(plan => ({...plan, radius: Math.min(plan.radius,
+        Math.floor(region.radius - locationDistance(plan, region)))}))
+        .filter(plan => {
+            const key = `${plan.latitude.toFixed(7)},${plan.longitude.toFixed(7)},${plan.radius}`;
+            if (plan.radius < 500 || seen.has(key)) return false;
+            seen.add(key); return true;
+        });
+}
+
+// World-pixel cells stay anchored during pans. Representatives are real places
+// at their original coordinates; hidden places remain available for closer zooms.
+function locationRepresentativeKeys(points, region, zoom, project) {
+    const detail = locationDetailLevel(zoom), cells = new Map(), selected = new Set();
+    if (!region) return selected;
+    for (const [key, point] of points) {
+        if (locationDistance(point.place, region) > region.radius) continue;
+        if (!detail.cellSize) { selected.add(key); continue; }
+        const pixel = project(point.place, zoom);
+        const x = Math.floor(pixel.x / detail.cellSize), y = Math.floor(pixel.y / detail.cellSize);
+        const cellKey = `${x},${y}`;
+        const score = (pixel.x - (x + .5) * detail.cellSize) ** 2
+            + (pixel.y - (y + .5) * detail.cellSize) ** 2;
+        const entries = cells.get(cellKey) || [];
+        entries.push({key, score});
+        entries.sort((a, b) => a.score - b.score || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+        if (entries.length > detail.perCell) entries.pop();
+        cells.set(cellKey, entries);
+    }
+    for (const entries of cells.values()) for (const entry of entries) selected.add(entry.key);
+    return selected;
 }
 
 function locationDistance(previous, next) {
@@ -67,7 +109,7 @@ function locationSearchChanged(previous, next) {
 (function () {
     const state = {map: null, categories: [], selected: null, summary: null, counts: null,
         live: null, circle: null, config: null, timer: null, frame: null, controller: null, countController: null,
-        generation: 0, categoryGeneration: 0, nextAllowed: 0, lastPlan: null, points: new Map(), searches: [], queue: [], progress: null, initialized: false};
+        generation: 0, categoryGeneration: 0, nextAllowed: 0, lastPlan: null, region: null, points: new Map(), searches: [], queue: [], progress: null, initialized: false};
     const number = new Intl.NumberFormat('fa-IR');
     const element = id => document.getElementById(id);
     const api = path => `${window.API_BASE_URL || ''}${path}`;
@@ -90,7 +132,7 @@ function locationSearchChanged(previous, next) {
     function clearLive() {
         if (state.live) state.live.clearLayers();
         if (state.circle) { state.circle.remove(); state.circle = null; }
-        state.lastPlan = null;
+        state.lastPlan = null; state.region = null;
         state.points.clear(); state.searches = [];
     }
     // Short-lived page memory only: no browser storage or persistent provider cache.
@@ -114,9 +156,19 @@ function locationSearchChanged(previous, next) {
             state.searches = [];
         }
     }
+    function syncVisiblePoints() {
+        const selected = locationRepresentativeKeys(state.points, state.region, state.map.getZoom(),
+            (place, zoom) => state.map.project([place.latitude, place.longitude], zoom));
+        for (const [key, point] of state.points) {
+            const visible = selected.has(key);
+            if (visible && !point.visible) point.marker.addTo(state.live);
+            if (!visible && point.visible) state.live.removeLayer(point.marker);
+            point.visible = !!visible;
+        }
+    }
     function memoryStatus() {
         const loading = state.queue.length ? ' · در حال جستجو…' : '';
-        setStatus(`${number.format(state.points.size)} مکان${loading}`);
+        setStatus(`${number.format([...state.points.values()].filter(point => point.visible).length)} مکان${loading}`);
     }
     async function readResponse(response) {
         if (response.status === 401 || response.status === 403) {
@@ -201,8 +253,9 @@ function locationSearchChanged(previous, next) {
         if (!state.map || !state.selected || !state.counts || document.hidden) return;
         const zoom = state.map.getZoom();
         const detailed = zoom >= state.config.min_zoom;
-        element('locations-mode').textContent = detailed ? 'مکان‌های نزدیک' : 'آمار استانی';
-        element('locations-explanation').textContent = detailed ? 'نتایج زنده در محدودهٔ دایره نمایش داده می‌شوند و ممکن است شامل همهٔ مکان‌ها نباشند.' :
+        element('locations-mode').textContent = detailed ? (zoom < 15 ? 'نمای کلی' : 'مکان‌های نزدیک') : 'آمار استانی';
+        element('locations-explanation').textContent = detailed
+            ? (zoom < 15 ? 'برای نمایش مکان‌های بیشتر، بزرگ‌نمایی کنید.' : 'مکان‌های نزدیک در محدودهٔ انتخاب‌شده نمایش داده می‌شوند.') :
             'اندازهٔ نمادها متناسب با تعداد مکان‌های ثبت‌شده است. نبود داده با «نامشخص» نمایش داده می‌شود.';
         if (!detailed) {
             if (state.map.hasLayer(state.live)) state.map.removeLayer(state.live);
@@ -216,6 +269,7 @@ function locationSearchChanged(previous, next) {
         if (!plan) { clearLive(); setStatus('محدودهٔ ایران را انتخاب کنید.'); return; }
         if (!state.map.hasLayer(state.live)) state.live.addTo(state.map);
         pruneMemory(plan);
+        state.region = plan; syncVisiblePoints();
         state.queue = locationSearchPlans(plan, state.map.getBounds()).filter(candidate =>
             !state.searches.some(search => !locationSearchChanged(search.plan, candidate)));
         if (state.circle) state.circle.remove();
@@ -265,6 +319,7 @@ function locationSearchChanged(previous, next) {
                 state.frame = null;
                 if (generation !== state.generation || document.hidden) return;
                 for (const place of places.slice(offset, offset + 50)) {
+                    if (!state.region || locationDistance(place, state.region) > state.region.radius) continue;
                     const key = JSON.stringify([place.latitude, place.longitude, place.name]);
                     const existing = state.points.get(key);
                     if (existing) {
@@ -276,10 +331,11 @@ function locationSearchChanged(previous, next) {
                         .bindPopup(() => {
                             const label = document.createElement('div'); label.className = 'locations-live-popup';
                             label.textContent = place.name; return label;
-                        }).addTo(state.live);
-                    state.points.set(key, {place, marker, seen: Date.now()});
+                        });
+                    state.points.set(key, {place, marker, seen: Date.now(), visible: false});
                 }
                 trimMemory();
+                syncVisiblePoints();
                 offset += 50;
                 if (offset < places.length) state.frame = requestAnimationFrame(drawBatch);
                 else {
