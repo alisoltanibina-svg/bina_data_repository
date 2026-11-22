@@ -18,6 +18,18 @@ function locationNearbyPlan(category, center, zoom, config, bounds) {
     return {category, latitude: center.lat, longitude: center.lng, zoom: Math.min(19, zoom), radius};
 }
 
+// A wide circle is not an exhaustive list. Sample its neighborhoods separately.
+function locationSearchPlans(plan) {
+    if (plan.zoom > 12) return [plan];
+    const radius = Math.max(500, Math.ceil(plan.radius / 2));
+    const latitudeStep = plan.radius * .5 / 111195;
+    const longitudeStep = latitudeStep / Math.cos(plan.latitude * Math.PI / 180);
+    return [[0, 0], [0, 1], [1, 0], [0, -1], [-1, 0], [1, 1], [1, -1], [-1, -1], [-1, 1]]
+        .map(([x, y]) => ({...plan, radius,
+            latitude: plan.latitude + y * latitudeStep, longitude: plan.longitude + x * longitudeStep}))
+        .filter(point => point.latitude >= 24 && point.latitude <= 41 && point.longitude >= 43 && point.longitude <= 64);
+}
+
 function locationDistance(previous, next) {
     const toRad = value => value * Math.PI / 180;
     const dLat = toRad(next.latitude - previous.latitude), dLon = toRad(next.longitude - previous.longitude);
@@ -34,7 +46,7 @@ function locationSearchChanged(previous, next) {
 (function () {
     const state = {map: null, categories: [], selected: null, summary: null, counts: null,
         live: null, circle: null, config: null, timer: null, frame: null, controller: null, countController: null,
-        generation: 0, categoryGeneration: 0, nextAllowed: 0, lastPlan: null, points: new Map(), searches: [], initialized: false};
+        generation: 0, categoryGeneration: 0, nextAllowed: 0, lastPlan: null, points: new Map(), searches: [], queue: [], progress: null, initialized: false};
     const number = new Intl.NumberFormat('fa-IR');
     const element = id => document.getElementById(id);
     const api = path => `${window.API_BASE_URL || ''}${path}`;
@@ -46,6 +58,7 @@ function locationSearchChanged(previous, next) {
     function clearError() { element('locations-error').hidden = true; }
     function cancelLive() {
         ++state.generation;
+        state.queue = []; state.progress = null;
         clearTimeout(state.timer);
         state.timer = null;
         if (state.frame != null) cancelAnimationFrame(state.frame);
@@ -60,7 +73,7 @@ function locationSearchChanged(previous, next) {
         state.points.clear(); state.searches = [];
     }
     // Short-lived page memory only: no browser storage or persistent provider cache.
-    const memoryAge = 15 * 60000, memoryLimit = 2000, searchLimit = 24;
+    const memoryAge = 15 * 60000, memoryLimit = 2000, searchLimit = 72;
     function pruneMemory(plan) {
         const cutoff = Date.now() - memoryAge;
         const retentionRadius = Math.max(50000, plan.radius * 3);
@@ -81,7 +94,9 @@ function locationSearchChanged(previous, next) {
         }
     }
     function memoryStatus() {
-        setStatus(`${number.format(state.points.size)} مکان در محدوده‌های اخیر؛ نتایج ممکن است کامل نباشند.`);
+        const progress = state.progress && state.queue.length
+            ? `؛ در حال بررسی محدوده (${number.format(state.progress.done)}/${number.format(state.progress.total)})` : '';
+        setStatus(`${number.format(state.points.size)} مکان در محدوده‌های اخیر${progress}`);
     }
     async function readResponse(response) {
         if (response.status === 401 || response.status === 403) {
@@ -182,14 +197,24 @@ function locationSearchChanged(previous, next) {
         if (!plan) { clearLive(); setStatus('برای جستجوی مکان‌های نزدیک، نقشه را داخل محدودهٔ ایران جابه‌جا کنید.'); return; }
         if (!state.map.hasLayer(state.live)) state.live.addTo(state.map);
         pruneMemory(plan);
-        if (state.searches.some(search => !locationSearchChanged(search.plan, plan))) {
-            if (state.circle) { state.circle.remove(); state.circle = null; }
-            clearError(); memoryStatus(); return;
-        }
-        const wait = Math.max(state.config.debounce_ms, state.nextAllowed - Date.now());
+        state.queue = locationSearchPlans(plan).filter(candidate =>
+            !state.searches.some(search => !locationSearchChanged(search.plan, candidate)));
+        if (state.circle) state.circle.remove();
+        state.circle = L.circle([plan.latitude, plan.longitude], {radius: plan.radius,
+            renderer: state.renderer, color: '#596315', weight: 1.5, dashArray: '5 5', fillColor: '#596315', fillOpacity: .04,
+            interactive: false}).addTo(state.map);
+        if (!state.queue.length) { clearError(); memoryStatus(); return; }
+        state.progress = {done: 0, total: state.queue.length};
         setStatus('در حال جستجوی مکان‌های نزدیک…');
-        const generation = state.generation;
-        state.timer = setTimeout(() => requestNearby(plan, generation), wait);
+        requestNext(state.generation);
+    }
+    function requestNext(generation) {
+        if (generation !== state.generation || document.hidden || !state.queue.length) return;
+        const wait = Math.max(state.config.debounce_ms, state.nextAllowed - Date.now());
+        state.timer = setTimeout(() => {
+            if (generation !== state.generation || document.hidden) return;
+            requestNearby(state.queue.shift(), generation);
+        }, wait);
     }
     async function requestNearby(plan, generation) {
         if (generation !== state.generation || document.hidden) return;
@@ -213,10 +238,6 @@ function locationSearchChanged(previous, next) {
             const payload = await readResponse(response);
             if (generation !== state.generation) return;
             clearError();
-            if (state.circle) state.circle.remove();
-            state.circle = L.circle([payload.center.latitude, payload.center.longitude], {radius: payload.radius_m,
-                renderer: state.renderer, color: '#596315', weight: 1.5, dashArray: '5 5', fillColor: '#596315', fillOpacity: .04,
-                interactive: false}).addTo(state.map);
             let offset = 0;
             const places = payload.places;
             const icon = L.icon({iconUrl: state.selected.icon_url, iconSize: [30, 30],
@@ -246,7 +267,9 @@ function locationSearchChanged(previous, next) {
                     state.lastPlan = plan;
                     state.searches.push({plan, time: Date.now()});
                     state.searches = state.searches.slice(-searchLimit);
+                    if (state.progress) ++state.progress.done;
                     memoryStatus();
+                    requestNext(generation);
                 }
             }
             state.frame = requestAnimationFrame(drawBatch);

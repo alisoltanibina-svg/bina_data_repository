@@ -206,7 +206,8 @@ def build_router(require_admin, require_user):
         if not key:
             raise HTTPException(503, detail='سرویس مکان‌های نزدیک تنظیم نشده است.', headers=NO_STORE)
         reserve_live_request()
-        radius = max(LIVE_RADII[body.zoom], body.radius_m or 0)
+        # Explicit viewport samples may be smaller than the wide-view default.
+        radius = body.radius_m if body.radius_m is not None else LIVE_RADII[body.zoom]
         reply = Neshan(key).request('nearby', dict(location=f'{body.latitude},{body.longitude}',
             layer=body.category, searchRadius=radius), timeout=5, max_bytes=1024 * 1024)
         if reply.status in (429, 481, 482):

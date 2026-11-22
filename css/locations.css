@@ -20,7 +20,7 @@ body.locations-body { margin: 0; height: 100dvh; overflow: hidden; background: v
 .locations-key p { color: #777448; font-size: .875rem; line-height: 1.9; margin: 7px 0 0; }
 .locations-map-room { position: relative; flex: 1; min-width: 0; overflow: hidden; border-radius: 24px; background: #eeeddf; }
 #locations-map { position: absolute; inset: 0; z-index: 0; background: #eeeddf; }
-.locations-map-toolbar { position: absolute; z-index: 500; top: 12px; right: 12px; left: 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px; pointer-events: none; }
+.locations-map-toolbar { position: absolute; z-index: 500; top: 12px; right: 12px; left: 64px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; pointer-events: none; }
 #locations-current-category { border-radius: 24px; padding: 10px 18px; background: white; box-shadow: 0 2px 7px #0001; font-size: 1rem; }
 .locations-map-toolbar > div { display: flex; gap: 6px; pointer-events: auto; }
 .locations-map-toolbar button, .locations-error button { border: 1px solid #ded8c7; border-radius: 24px; padding: 8px 14px; background: white; color: var(--location-olive); font: inherit; font-size: .9rem; cursor: pointer; }
@@ -36,7 +36,8 @@ body.locations-body { margin: 0; height: 100dvh; overflow: hidden; background: v
 .locations-summary-marker.is-unknown strong { color: #84754e; }
 .locations-live-icon { object-fit: contain; border: 1px solid white; border-radius: 50%; background: #fffffff2; padding: 2px; }
 .locations-live-popup { font: 1rem 'PeydaFaNumWeb', Tahoma, sans-serif; text-align: right; color: var(--location-olive); }
-.locations-body .leaflet-control-zoom { margin-top: 78px; }
+/* Reserve the left control column independently of toolbar height or wrapping. */
+.locations-body #locations-map .leaflet-control-zoom { margin-top: 12px; }
 .locations-body .leaflet-control-attribution { font-size: .7rem; }
 .locations-body [hidden] { display: none !important; }
 .locations-body button:focus-visible, .locations-body a:focus-visible, .locations-body input:focus-visible { outline: 2px solid var(--location-gold); outline-offset: 2px; }
@@ -51,7 +52,7 @@ body.locations-body { margin: 0; height: 100dvh; overflow: hidden; background: v
     .locations-category { width: auto; flex-shrink: 0; margin: 0; padding: 7px 10px; font-size: .9rem; white-space: nowrap; }
     .locations-category img { width: 23px; height: 23px; }
     .locations-map-room { border-radius: 20px; }
-    .locations-map-toolbar { align-items: flex-start; top: 8px; right: 8px; left: 8px; }
+    .locations-map-toolbar { align-items: flex-start; top: 8px; right: 8px; left: 64px; }
     #locations-current-category { padding: 8px 10px; font-size: .875rem; }
     .locations-map-toolbar button { padding: 8px 10px; font-size: .875rem; }
     .locations-status { font-size: .875rem; bottom: 22px; padding: 7px 12px; }
