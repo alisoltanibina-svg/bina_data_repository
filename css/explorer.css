@@ -1484,7 +1484,8 @@ body.explorer-body {
 .ex-selection-heading h2 { margin: 0; color: var(--ex-olive); font-size: 1.1rem; font-weight: 800; }
 .ex-selection-heading p { margin: 6px 0 0; font-size: .9rem; color: var(--ex-gold); line-height: 1.7; overflow-wrap: anywhere; }
 .ex-selection-heading p:empty { display: none; }
-.ex-panel-close { flex-shrink: 0; width: 32px; height: 32px; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--ex-paper); color: var(--ex-olive); font: inherit; font-size: 1.5rem; cursor: pointer; }
+.ex-panel-close { flex-shrink: 0; width: 32px; height: 32px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--ex-paper); color: var(--ex-olive); cursor: pointer; }
+.ex-panel-close svg { display: block; width: 16px; height: 16px; pointer-events: none; }
 .ex-selection-content { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .ex-selection-options { min-height: 100%; padding: 4px; background: var(--ex-paper); border-radius: 0 0 8px 8px; }
 .ex-selection-empty { margin: 0; padding: 18px 12px; color: var(--ex-gold); font-size: .95rem; line-height: 1.9; }
