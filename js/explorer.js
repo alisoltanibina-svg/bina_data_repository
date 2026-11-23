@@ -32,7 +32,7 @@ function registerExplorerChartPlugin() {
             const { top, left, width, height } = chart.chartArea;
             ctx.save();
             ctx.beginPath();
-            ctx.rect(left, top - 20, width * ds.sweepProgress, height + 40);
+            ctx.rect(left - 12, top - 20, width * ds.sweepProgress + 12, height + 40);
             ctx.clip();
         }
     },
@@ -1776,7 +1776,7 @@ function drawChart() {
         });
 
         chartInstance.data.labels = trendYears.map(toFa);
-        Object.assign(chartInstance.options.scales.y, getIndicatorScaleBounds());
+        Object.assign(chartInstance.options.scales.y, getIndicatorScaleBounds(0.04));
         chartInstance.update('none'); 
 
         startSweep(chartInstance);
@@ -1806,7 +1806,7 @@ function toggleCountryLegend() {
     syncCountryLegend();
 }
 
-function getIndicatorScaleBounds() {
+function getIndicatorScaleBounds(paddingRatio = 0) {
     let min = Infinity;
     let max = -Infinity;
     // Keep both chart scales fixed across filters, hidden series, and selected years.
@@ -1824,7 +1824,8 @@ function getIndicatorScaleBounds() {
         const padding = Math.max(Math.abs(min) * 0.05, 1);
         return { min: min - padding, max: max + padding };
     }
-    return { min, max };
+    const padding = (max - min) * paddingRatio;
+    return { min: min - padding, max: max + padding };
 }
 
 function getChartOptions() {
@@ -1833,6 +1834,8 @@ function getChartOptions() {
         maintainAspectRatio: false,
         resizeDelay: 0, 
         animation: false, 
+        layout: { padding: 12 },
+        datasets: { line: { clip: 12 } },
         interaction: { mode: 'nearest', intersect: true, axis: 'xy' },
         plugins: {
             datalabels: { display: false },
@@ -1849,7 +1852,7 @@ function getChartOptions() {
         },
         scales: {
             x: { ticks: { font: { family: 'PeydaFaNumWeb' }, color: '#64748b' }, grid: { display: false } },
-            y: { ...getIndicatorScaleBounds(), ticks: { includeBounds: false, callback: formatExplorerNumber, font: { family: 'PeydaFaNumWeb' }, color: '#64748b' }, grid: { color: '#e2e8f0', drawBorder: false }, border: { dash: [4, 4] } }
+            y: { ...getIndicatorScaleBounds(0.04), ticks: { includeBounds: false, callback: formatExplorerNumber, font: { family: 'PeydaFaNumWeb' }, color: '#64748b' }, grid: { color: '#e2e8f0', drawBorder: false }, border: { dash: [4, 4] } }
         }
     };
 }
