@@ -41,7 +41,7 @@ function locationDistance(a, b) { return LocationDiscovery.distance(a, b); }
         live: null, circle: null, config: null, store: null, timer: null, frame: null,
         rendered: new Map(), countsCache: new Map(), renderGeneration: 0, categoryGeneration: 0,
         countController: null, inflight: null, nextAllowed: 0, queue: [], moving: false,
-        region: null, viewKey: '', viewCredits: 0, visibleCount: 0, initialized: false};
+        region: null, viewKey: '', viewCredits: 0, visibleCount: 0, manualCount: 0, initialized: false, editing: false, editor: null};
     const number = new Intl.NumberFormat('fa-IR');
     const element = id => document.getElementById(id);
     const api = path => `${window.API_BASE_URL || ''}${path}`;
@@ -82,10 +82,11 @@ function locationDistance(a, b) { return LocationDiscovery.distance(a, b); }
             interactive: false}).addTo(state.map);
     }
     function memoryStatus() {
+        if (state.editing) { setStatus('حالت ثبت و ویرایش'); return; }
         if (state.map && state.map.getZoom() < state.config.min_zoom) { setStatus('آمار استانی'); return; }
         const loading = state.queue.length || (state.inflight && state.selected
             && state.inflight.cell.category === state.selected.category);
-        setStatus(`${number.format(state.visibleCount)} مکان${loading ? ' · در حال جستجو…' : ''}`);
+        setStatus(`${number.format(state.visibleCount + state.manualCount)} مکان${loading ? ' · در حال جستجو…' : ''}`);
     }
     function placeMarker(place) {
         const icon = L.icon({iconUrl: state.selected.icon_url, iconSize: [30, 30],
@@ -197,23 +198,24 @@ function locationDistance(a, b) { return LocationDiscovery.distance(a, b); }
                 .addTo(state.summary);
         }
     }
-    async function selectCategory(category) {
-        if (state.selected?.category === category.category && state.counts) { scheduleViewport(); return; }
+    async function selectCategory(category, fresh = false) {
+        if (!fresh && state.selected?.category === category.category && state.counts) { scheduleViewport(); return; }
         const generation = ++state.categoryGeneration;
         cancelLive(); clearLive(); clearError();
         if (state.countController) state.countController.abort();
         state.countController = new AbortController();
         state.selected = category; state.counts = null;
+        if (state.editor) state.editor.schedule(category);
         state.summary.clearLayers(); renderCategories();
         element('locations-current-category').textContent = category.title;
         const cached = state.countsCache.get(category.category);
-        if (cached && Date.now() - cached.time < 60000) {
+        if (!fresh && cached && Date.now() - cached.time < 60000) {
             state.counts = cached.payload; renderSummary(cached.payload); scheduleViewport(); return;
         }
         // Nearby discovery and retained markers do not depend on local count loading.
         scheduleViewport();
         try {
-            const response = await fetch(api(`/api/poi-explore/counts?category=${encodeURIComponent(category.category)}`),
+            const response = await fetch(api(`/api/poi-explore/counts?category=${encodeURIComponent(category.category)}${fresh ? '&fresh=true' : ''}`),
                 {credentials: 'include', cache: 'no-store', signal: state.countController.signal});
             const payload = await readResponse(response);
             state.countsCache.set(category.category, {payload, time: Date.now()});
@@ -227,6 +229,8 @@ function locationDistance(a, b) { return LocationDiscovery.distance(a, b); }
     function scheduleViewport() {
         cancelLive(); state.moving = false;
         if (!state.map || !state.selected || document.hidden) return;
+        if (state.editor) state.editor.schedule(state.selected);
+        if (state.editing) return;
         const zoom = state.map.getZoom(), detailed = zoom >= state.config.min_zoom;
         element('locations-mode').textContent = detailed ? (zoom < 17 ? 'نمای کلی' : 'مکان‌های نزدیک') : 'آمار استانی';
         element('locations-explanation').textContent = detailed ? 'عدد هر گروه، تعداد مکان‌های یافت‌شده است. برای جزئیات، روی آن بزنید.' : 'آمار مکان‌های ثبت‌شده؛ نبود داده با «نامشخص» نمایش داده می‌شود.';
@@ -251,7 +255,7 @@ function locationDistance(a, b) { return LocationDiscovery.distance(a, b); }
     }
     function requestNext() {
         clearTimeout(state.timer); state.timer = null;
-        if (state.inflight || document.hidden || state.moving || !state.selected || !state.viewCredits) return;
+        if (state.editing || state.inflight || document.hidden || state.moving || !state.selected || !state.viewCredits) return;
         state.queue = state.queue.filter(cell => cell.category === state.selected.category
             && (state.store.eligible(cell) || ['failed', 'unavailable'].includes(state.store.cells.get(cell.key)?.status)));
         if (!state.queue.length) { memoryStatus(); return; }
@@ -259,7 +263,7 @@ function locationDistance(a, b) { return LocationDiscovery.distance(a, b); }
         const wait = Math.max(state.config.debounce_ms, state.nextAllowed - Date.now(), (record?.retryAt || 0) - Date.now());
         state.timer = setTimeout(() => {
             state.timer = null;
-            if (document.hidden || state.moving || state.inflight) return;
+            if (state.editing || document.hidden || state.moving || state.inflight) return;
             const next = state.queue.shift();
             if (next && state.store.begin(next)) { --state.viewCredits; requestNearby(next); }
         }, wait);
@@ -323,6 +327,26 @@ function locationDistance(a, b) { return LocationDiscovery.distance(a, b); }
             state.renderer = L.canvas({padding: .2, tolerance: 8});
             state.summary = L.layerGroup().addTo(state.map);
             state.live = L.layerGroup().addTo(state.map);
+            if (typeof LocationEditor === 'function') state.editor = LocationEditor({
+                map: state.map, categories: state.categories, canEdit: init.permissions?.can_edit === true,
+                onCount(count) { state.manualCount = count; memoryStatus(); },
+                onModeChange(editing) {
+                    state.editing = editing;
+                    cancelLive();
+                    if (editing) {
+                        if (state.circle) { state.circle.remove(); state.circle = null; }
+                        if (state.map.hasLayer(state.live)) state.map.removeLayer(state.live);
+                        if (state.map.hasLayer(state.summary)) state.map.removeLayer(state.summary);
+                        setStatus('حالت ثبت و ویرایش');
+                        if (!state.selected && state.categories.length) selectCategory(state.categories[0]);
+                    } else scheduleViewport();
+                },
+                async onSaved(place) {
+                    state.countsCache.clear();
+                    const category = state.categories.find(item => item.category === place.category);
+                    if (category) await selectCategory(category, true);
+                }
+            });
             state.map.on('movestart', () => { state.moving = true; cancelLive(); });
             state.map.on('moveend', scheduleViewport);
             state.map.on('zoomend', scheduleViewport);

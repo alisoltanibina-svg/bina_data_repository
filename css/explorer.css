@@ -1402,11 +1402,11 @@ body.explorer-body {
 .ex-module-card { flex: 0 1 calc(50% - 32px); min-height: 260px; padding: 30px 40px; border: 0; border-radius: 16px; background: var(--ex-paper); color: var(--ex-olive); text-align: right; font: inherit; box-shadow: var(--ex-panel-shadow); cursor: pointer; transition: transform .2s ease, box-shadow .2s ease, background-color .2s ease; }
 .ex-module-card:focus-visible { outline: 3px solid var(--ex-gold); outline-offset: 4px; background: #fffdf7; box-shadow: 0 8px 20px rgba(44, 47, 25, .2), inset 0 0 0 1px var(--ex-gold); }
 @media (hover: hover) {
-    .ex-module-card:hover:not(:disabled) { transform: translateY(-4px); background: #fffdf7; box-shadow: 0 8px 20px rgba(44, 47, 25, .2), inset 0 0 0 1px var(--ex-gold); }
+    .ex-module-card:hover { transform: translateY(-4px); background: #fffdf7; box-shadow: 0 8px 20px rgba(44, 47, 25, .2), inset 0 0 0 1px var(--ex-gold); }
 }
 @media (prefers-reduced-motion: reduce) {
     .ex-module-card { transition: none; }
-    .ex-module-card:hover:not(:disabled) { transform: none; }
+    .ex-module-card:hover { transform: none; }
 }
 .ex-module-card h1 { width: fit-content; margin: 0 auto 24px; padding-bottom: 12px; border-bottom: 2px solid currentColor; font-size: 2rem; text-align: center; }
 .ex-module-card p { font-size: 1rem; line-height: 1.9; }

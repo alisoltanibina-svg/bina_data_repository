@@ -7,6 +7,35 @@ body.locations-body { margin: 0; height: 100dvh; overflow: hidden; background: v
 .locations-back:hover { color: var(--location-olive); }
 .locations-eyebrow { color: var(--location-gold); margin: 24px 0 4px; font-size: .875rem; }
 .locations-sidebar h1 { font-size: 1.6rem; margin: 0; }
+.locations-mode-switch { display: flex; gap: 3px; padding: 4px; margin-top: 16px; background: var(--location-paper); border: 1px solid #ebe9e1; border-radius: 24px; flex-shrink: 0; }
+.locations-mode-switch button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 5px; border: 0; border-radius: 20px; background: transparent; color: #777448; font: inherit; font-size: .8rem; white-space: nowrap; cursor: pointer; }
+.locations-mode-switch button[aria-pressed="true"] { background: #515811; color: white; }
+.locations-mode-switch svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.locations-editor { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 2px 4px; border-top: 1px solid #ded8c7; }
+.locations-editor-heading, .locations-editor-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.locations-editor h2 { margin: 0; font-size: 1rem; }
+.locations-editor h3 { font-size: .8rem; margin: 0; }
+.locations-editor-hint, #locations-manual-status { font-size: .78rem; line-height: 1.8; color: #777448; }
+.locations-editor button { font: inherit; font-size: .78rem; border: 1px solid #ded8c7; border-radius: 12px; padding: 7px 10px; background: var(--location-paper); color: #515811; cursor: pointer; }
+.locations-editor button:disabled { opacity: .6; cursor: wait; }
+.locations-editor form > label, .locations-coordinate-fields label { display: block; margin: 10px 0 5px; font-size: .8rem; }
+.locations-editor input, .locations-editor select { display: block; width: 100%; min-width: 0; margin-top: 5px; padding: 9px 10px; border: 1px solid #ded8c7; border-radius: 12px; background: #fcfbf8; color: #414b0a; font: inherit; font-size: .85rem; }
+.locations-coordinate-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.locations-editor .locations-pick-point { width: 100%; margin-top: 10px; border-style: dashed; }
+.locations-editor .locations-pick-point[aria-pressed="true"] { border-color: #515811; background: #eeeddf; }
+.locations-editor-feedback { font-size: .8rem; line-height: 1.7; min-height: 1.7em; }
+.locations-editor-feedback.is-error { color: #a1382b; }
+.locations-editor-actions { display: flex; gap: 8px; margin-bottom: 20px; }
+.locations-editor #locations-save-place { flex: 1; background: #515811; color: white; border-color: #515811; }
+.locations-editor-list-heading { padding-top: 15px; border-top: 1px solid #ded8c7; }
+.locations-manual-list { display: grid; gap: 6px; }
+.locations-manual-list button { text-align: right; background: white; }
+.locations-body.is-editing .locations-sidebar { width: 330px; border-top: 3px solid var(--location-gold); }
+.locations-body.is-editing .locations-intro, .locations-body.is-editing .locations-key { display: none; }
+.locations-body.is-editing .locations-categories { flex: 0 0 auto; max-height: 120px; }
+.locations-body.is-editing .locations-eyebrow { margin-top: 12px; }
+.locations-body.is-picking #locations-map { cursor: crosshair; }
+.locations-manual-icon { border: 2px solid #aa965f; }
 .locations-intro { color: #777448; font-size: .95rem; line-height: 1.9; margin: 12px 0 20px; }
 .locations-search-label { font-size: .9rem; margin-bottom: 7px; }
 #location-category-search { width: 100%; padding: 10px 12px; border: 1px solid #ded8c7; border-radius: 14px; background: var(--location-paper); color: var(--location-olive); font: inherit; font-size: 1rem; }
@@ -46,6 +75,9 @@ body.locations-body { margin: 0; height: 100dvh; overflow: hidden; background: v
 .locations-body [hidden] { display: none !important; }
 .locations-body button:focus-visible, .locations-body a:focus-visible, .locations-body input:focus-visible { outline: 2px solid var(--location-gold); outline-offset: 2px; }
 @media (max-width: 767px) {
+    .locations-body.is-editing .locations-sidebar { width: 100%; max-height: 52dvh; }
+    .locations-body.is-editing .locations-categories { max-height: none; }
+    .locations-mode-switch { margin-top: 8px; }
     .locations-workspace { flex-direction: column; margin: 86px 8px 8px; gap: 8px; height: calc(100dvh - 94px); }
     .locations-sidebar { width: 100%; padding: 12px 14px; flex-shrink: 0; max-height: 230px; border-radius: 20px; }
     .locations-eyebrow, .locations-intro, .locations-search-label, .locations-key { display: none; }

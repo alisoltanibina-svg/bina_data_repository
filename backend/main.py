@@ -1268,6 +1268,8 @@ app.include_router(build_poi_router(_require_admin, _require_user))
 
 from backend.poi_explore import build_router as build_poi_explore_router
 app.include_router(build_poi_explore_router(_require_admin, _require_user))
+from backend.poi_manual import build_router as build_poi_manual_router
+app.include_router(build_poi_manual_router(_require_admin, _require_user))
 
 
 app.mount(

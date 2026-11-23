@@ -14,6 +14,7 @@
     <script src="../js/config.js"></script>
     <script src="../js/shared.js"></script>
     <script src="../js/location-discovery.js" defer></script>
+    <script src="../js/locations-editor.js" defer></script>
     <script src="../js/locations.js" defer></script>
     <script src="../js/auth.js" defer></script>
 </head>
@@ -25,10 +26,34 @@
             <a class="locations-back" href="explorer.html">ماژول‌های کاوشگر</a>
             <p class="locations-eyebrow">کاوشگر</p>
             <h1 id="locations-title">اطلاعات مکانی</h1>
+            <div id="locations-mode-switch" class="locations-mode-switch" role="group" aria-label="حالت اطلاعات مکانی" hidden>
+                <button type="button" id="locations-view-mode" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>مشاهده</button>
+                <button type="button" id="locations-edit-mode" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 4 5 5M4 20l5-1L21 7a2 2 0 0 0-5-5L4 14Z"/></svg>ثبت و ویرایش</button>
+            </div>
             <p class="locations-intro">نوع مکان را انتخاب کنید؛ برای دیدن مکان‌های نزدیک، نقشه را بزرگ‌نمایی کنید.</p>
             <label class="locations-search-label" for="location-category-search">جستجوی نوع مکان</label>
             <input id="location-category-search" type="search" placeholder="مثلاً مسجد یا کتابخانه" autocomplete="off">
             <div id="location-categories" class="locations-categories" aria-label="انواع مکان"></div>
+            <section id="locations-editor" class="locations-editor" aria-labelledby="locations-editor-title" hidden>
+                <div class="locations-editor-heading"><h2 id="locations-editor-title">ثبت مکان</h2><button type="button" id="locations-new-place">مکان جدید +</button></div>
+                <p class="locations-editor-hint">نام و نوع مکان را وارد کنید و نقطهٔ آن را روی نقشه مشخص کنید.</p>
+                <form id="locations-place-form">
+                    <label for="locations-place-name">نام مکان</label>
+                    <input id="locations-place-name" required maxlength="250" autocomplete="off">
+                    <label for="locations-place-category">نوع مکان</label>
+                    <select id="locations-place-category" required></select>
+                    <div class="locations-coordinate-fields">
+                        <label for="locations-place-latitude">عرض جغرافیایی<input id="locations-place-latitude" type="number" required min="24" max="41" step="any" dir="ltr"></label>
+                        <label for="locations-place-longitude">طول جغرافیایی<input id="locations-place-longitude" type="number" required min="43" max="64" step="any" dir="ltr"></label>
+                    </div>
+                    <button type="button" id="locations-pick-point" class="locations-pick-point" aria-pressed="false">انتخاب نقطه روی نقشه</button>
+                    <p id="locations-editor-feedback" class="locations-editor-feedback" role="status" aria-live="polite"></p>
+                    <div class="locations-editor-actions"><button type="submit" id="locations-save-place">ذخیره مکان</button><button type="button" id="locations-cancel-place">انصراف</button></div>
+                </form>
+                <div class="locations-editor-list-heading"><h3>مکان‌های ثبت‌شده در این محدوده</h3><button type="button" id="locations-refresh-places" aria-label="تازه‌سازی مکان‌های ثبت‌شده">تازه‌سازی</button></div>
+                <p id="locations-manual-status" role="status"></p>
+                <div id="locations-manual-list" class="locations-manual-list"></div>
+            </section>
             <div class="locations-key">
                 <span id="locations-mode">آمار استانی</span>
                 <p id="locations-explanation">اندازهٔ نمادها متناسب با تعداد مکان‌های ثبت‌شده است. نبود داده با «نامشخص» نمایش داده می‌شود.</p>
