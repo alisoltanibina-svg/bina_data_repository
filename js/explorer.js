@@ -1028,10 +1028,6 @@ function updateComparisonTimeline() {
         timeline.setAttribute('aria-valuetext', label.textContent);
         label.style.left = (last ? explorerCompareYearIndex / last * 100 : 0) + '%';
     }
-    const title = document.getElementById('chart-panel-title');
-    if (title && currentChartMode === 'compare') {
-        title.textContent = 'مقایسه استانی' + (year != null ? ` — سال ${toFa(year)}` : '');
-    }
 }
 
 function getComparisonPoints() {
@@ -1065,6 +1061,11 @@ function drawScatterProvince() {
     const data = points.map((p, i) => ({ x: i, y: p.value, province: p.name, r: bubbleR }));
     const colors = points.map(p => provinceColors[p.name] || '#3b82f6');
     const scaleBounds = getIndicatorScaleBounds();
+    if (Number.isFinite(scaleBounds.min) && Number.isFinite(scaleBounds.max)) {
+        const padding = (scaleBounds.max - scaleBounds.min) * 0.08;
+        scaleBounds.min -= padding;
+        scaleBounds.max += padding;
+    }
 
     if (scatterProvinceChart) {
         scatterProvinceChart.data.datasets[0].data = data;
@@ -1091,6 +1092,7 @@ function drawScatterProvince() {
             responsive: true,
             maintainAspectRatio: false,
             resizeDelay: 0,
+            layout: { padding: bubbleR + 2 },
             plugins: {
                 legend: { display: false },
                 datalabels: {
