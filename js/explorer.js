@@ -1068,6 +1068,25 @@ function updateComparisonTimeline() {
         timeline.setAttribute('aria-valuetext', label.textContent);
         label.style.left = (last ? explorerCompareYearIndex / last * 100 : 0) + '%';
     }
+    const years = document.getElementById('explorer-compare-years');
+    const scale = document.getElementById('explorer-compare-year-scale');
+    if (years && scale) {
+        scale.style.minWidth = `${Math.max(0, currentChartYears.length - 1) * 44}px`;
+        years.replaceChildren();
+        currentChartYears.forEach((availableYear, index) => {
+            const tick = document.createElement('button');
+            tick.type = 'button';
+            tick.textContent = toFa(availableYear);
+            tick.style.left = (currentChartYears.length > 1 ? index / (currentChartYears.length - 1) * 100 : 0) + '%';
+            tick.setAttribute('aria-label', `سال ${toFa(availableYear)}`);
+            tick.setAttribute('aria-current', String(index === explorerCompareYearIndex));
+            tick.addEventListener('click', () => {
+                explorerCompareYearIndex = index;
+                if (currentChartMode === 'compare') drawScatterProvince();
+            });
+            years.append(tick);
+        });
+    }
 }
 
 function getComparisonPoints() {

@@ -558,6 +558,13 @@ body.explorer-body {
 #compare-chart-wrap.is-active { display: flex; flex-direction: column; }
 .explorer-compare-canvas { position: relative; flex: 1 1 auto; min-height: 0; }
 .explorer-compare-controls { flex: 0 0 auto; padding: 22px 12px 10px; }
+.explorer-compare-year-heading { margin-bottom: 8px; color: var(--ex-olive, #515811); font-size: .8rem; font-weight: 600; }
+.explorer-compare-years-scroll { overflow-x: auto; padding: 20px 18px 4px; direction: ltr; }
+.explorer-compare-years { position: relative; height: 30px; margin: 0 8px; direction: ltr; }
+.explorer-compare-years button { position: absolute; top: 4px; transform: translateX(-50%); padding: 4px 3px; border: 0; border-radius: 5px; background: transparent; color: #777448; font: inherit; font-size: .7rem; line-height: 1.3; white-space: nowrap; cursor: pointer; }
+.explorer-compare-years button::before { content: ''; position: absolute; top: -4px; left: 50%; height: 5px; border-left: 1px solid #c7c9b1; }
+.explorer-compare-years button[aria-current="true"] { color: #515811; font-weight: 800; background: #eeeddf; }
+.explorer-compare-years button:focus-visible { outline: 2px solid #515811; outline-offset: 2px; }
 
 #table-chart-wrap { overflow: hidden; }
 

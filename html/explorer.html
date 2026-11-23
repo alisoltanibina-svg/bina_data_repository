@@ -116,12 +116,18 @@
                         <div id="compare-chart-wrap" class="chart-pane">
                             <div class="explorer-compare-canvas"><canvas id="scatterProvinceChart"></canvas></div>
                             <div class="explorer-compare-controls">
+                                <div class="explorer-compare-year-heading">سال مقایسه</div>
+                                <div class="explorer-compare-years-scroll">
+                                <div id="explorer-compare-year-scale">
                                 <label class="explorer-map-timeline" for="explorer-compare-timeline">
                                     <span class="explorer-map-timeline-track">
                                         <input id="explorer-compare-timeline" type="range" min="0" max="0" step="1" value="0" aria-label="انتخاب سال مقایسه استان‌ها">
                                         <span id="explorer-compare-timeline-value">—</span>
                                     </span>
                                 </label>
+                                <div id="explorer-compare-years" class="explorer-compare-years" aria-label="سال‌های موجود"></div>
+                                </div>
+                                </div>
                             </div>
                         </div>
                         <div id="table-chart-wrap" class="chart-pane">
