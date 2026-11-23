@@ -676,7 +676,21 @@ function renderMosaicMenu() {
         card.append(title, description);
         if (!module.active) {
             const status = document.createElement('span');
-            status.textContent = 'به‌زودی';
+            status.className = 'ex-module-status';
+            const lock = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            lock.setAttribute('viewBox', '0 0 24 24');
+            lock.setAttribute('width', '18');
+            lock.setAttribute('height', '18');
+            lock.setAttribute('aria-hidden', 'true');
+            lock.setAttribute('fill', 'none');
+            lock.setAttribute('stroke', 'currentColor');
+            lock.setAttribute('stroke-width', '1.8');
+            lock.setAttribute('stroke-linecap', 'round');
+            lock.setAttribute('stroke-linejoin', 'round');
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('d', 'M7 10V7a5 5 0 0 1 10 0v3M6 10h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2Zm6 5v2');
+            lock.append(path);
+            status.append(lock, document.createTextNode('به‌زودی'));
             card.append(status);
         }
         card.addEventListener('click', () => enterExplorerModule(module));
@@ -1172,11 +1186,14 @@ function renderIndicatorTable() {
     kscoreData.forEach(record => {
         const year = Number(record.year);
         const score = record.value == null || record.value === '' ? NaN : Number(record.value);
-        if (record.province_name === 'کل کشور' || !Number.isFinite(year) || !Number.isFinite(score)) return;
+        if (!Number.isFinite(year) || !Number.isFinite(score)) return;
         scoresByProvinceYear.set(`${record.province_name}\u0000${year}`, score);
     });
 
-    provincesList.forEach(provinceName => {
+    const tableSeries = [...new Set(kscoreData.map(record => record.province_name))];
+    const countryIndex = tableSeries.indexOf('کل کشور');
+    if (countryIndex > 0) tableSeries.unshift(...tableSeries.splice(countryIndex, 1));
+    tableSeries.forEach(provinceName => {
         const row = document.createElement('tr');
         const provinceCell = document.createElement('th');
         provinceCell.scope = 'row';
