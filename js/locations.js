@@ -41,7 +41,7 @@ function locationDistance(a, b) { return LocationDiscovery.distance(a, b); }
         live: null, circle: null, config: null, store: null, timer: null, frame: null,
         rendered: new Map(), countsCache: new Map(), renderGeneration: 0, categoryGeneration: 0,
         countController: null, inflight: null, nextAllowed: 0, queue: [], moving: false,
-        region: null, viewKey: '', viewCredits: 0, visibleCount: 0, showCoverage: false, initialized: false};
+        region: null, viewKey: '', viewCredits: 0, visibleCount: 0, initialized: false};
     const number = new Intl.NumberFormat('fa-IR');
     const element = id => document.getElementById(id);
     const api = path => `${window.API_BASE_URL || ''}${path}`;
@@ -76,7 +76,7 @@ function locationDistance(a, b) { return LocationDiscovery.distance(a, b); }
     }
     function updateCircle() {
         if (state.circle) { state.circle.remove(); state.circle = null; }
-        if (!state.showCoverage || !state.region || state.map.getZoom() < state.config.min_zoom) return;
+        if (!state.region || state.map.getZoom() < state.config.min_zoom) return;
         state.circle = L.circle([state.region.latitude, state.region.longitude], {radius: state.region.radius,
             renderer: state.renderer, color: '#596315', weight: 1.5, dashArray: '5 5', fillOpacity: .02,
             interactive: false}).addTo(state.map);
@@ -334,11 +334,6 @@ function locationDistance(a, b) { return LocationDiscovery.distance(a, b); }
     }
     function start() {
         element('location-category-search').addEventListener('input', renderCategories);
-        element('locations-coverage').addEventListener('click', () => {
-            state.showCoverage = !state.showCoverage;
-            element('locations-coverage').setAttribute('aria-pressed', String(state.showCoverage));
-            updateCircle();
-        });
         element('locations-home').addEventListener('click', () => state.map && state.map.setView([32, 53.5], 5));
         element('locations-retry').addEventListener('click', () => {
             clearError();

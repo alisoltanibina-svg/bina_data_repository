@@ -40,7 +40,6 @@ body.locations-body { margin: 0; height: 100dvh; overflow: hidden; background: v
 .locations-cluster { width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; position: relative; border: 2px solid white; border-radius: 50%; background: #596315e8; box-shadow: 0 1px 4px #0002; }
 .locations-cluster img { width: 29px; height: 29px; object-fit: contain; }
 .locations-cluster strong { position: absolute; bottom: -6px; right: -4px; min-width: 24px; padding: 1px 5px; background: white; border: 1px solid #ded8c7; border-radius: 14px; color: var(--location-olive); font: 800 .8rem 'PeydaFaNumWeb', Tahoma, sans-serif; text-align: center; }
-#locations-coverage[aria-pressed="true"] { background: var(--location-olive); color: white; }
 /* Reserve the left control column independently of toolbar height or wrapping. */
 .locations-body #locations-map .leaflet-control-zoom { margin-top: 12px; }
 .locations-body .leaflet-control-attribution { font-size: .7rem; }
