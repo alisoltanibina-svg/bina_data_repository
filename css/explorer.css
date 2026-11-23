@@ -565,6 +565,8 @@ body.explorer-body {
 .explorer-compare-years button::before { content: ''; position: absolute; top: -4px; left: 50%; height: 5px; border-left: 1px solid #c7c9b1; }
 .explorer-compare-years button[aria-current="true"] { color: #515811; font-weight: 800; background: #eeeddf; }
 .explorer-compare-years button:focus-visible { outline: 2px solid #515811; outline-offset: 2px; }
+.explorer-map-year-control { grid-column: 2; grid-row: 1; min-width: 0; }
+.explorer-map-year-control .explorer-compare-year-heading { direction: rtl; text-align: right; }
 
 #table-chart-wrap { overflow: hidden; }
 

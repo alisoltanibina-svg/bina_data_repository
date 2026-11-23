@@ -1068,8 +1068,15 @@ function updateComparisonTimeline() {
         timeline.setAttribute('aria-valuetext', label.textContent);
         label.style.left = (last ? explorerCompareYearIndex / last * 100 : 0) + '%';
     }
-    const years = document.getElementById('explorer-compare-years');
-    const scale = document.getElementById('explorer-compare-year-scale');
+    renderExplorerYearTicks('compare', explorerCompareYearIndex, index => {
+        explorerCompareYearIndex = index;
+        if (currentChartMode === 'compare') drawScatterProvince();
+    });
+}
+
+function renderExplorerYearTicks(view, selectedIndex, onSelect) {
+    const years = document.getElementById(`explorer-${view}-years`);
+    const scale = document.getElementById(`explorer-${view}-year-scale`);
     if (years && scale) {
         scale.style.minWidth = `${Math.max(0, currentChartYears.length - 1) * 44}px`;
         years.replaceChildren();
@@ -1079,11 +1086,8 @@ function updateComparisonTimeline() {
             tick.textContent = toFa(availableYear);
             tick.style.left = (currentChartYears.length > 1 ? index / (currentChartYears.length - 1) * 100 : 0) + '%';
             tick.setAttribute('aria-label', `سال ${toFa(availableYear)}`);
-            tick.setAttribute('aria-current', String(index === explorerCompareYearIndex));
-            tick.addEventListener('click', () => {
-                explorerCompareYearIndex = index;
-                if (currentChartMode === 'compare') drawScatterProvince();
-            });
+            tick.setAttribute('aria-current', String(index === selectedIndex));
+            tick.addEventListener('click', () => onSelect(index));
             years.append(tick);
         });
     }
@@ -1655,7 +1659,13 @@ function updateExplorerMapTimeline() {
     timeline.value = String(activeIndex);
     timeline.disabled = !hasYears;
     value.textContent = hasYears ? toFa(currentChartYears[activeIndex]) : '—';
+    timeline.setAttribute('aria-valuetext', value.textContent);
     value.style.left = String(maxIndex ? (activeIndex / maxIndex) * 100 : 0) + '%';
+    renderExplorerYearTicks('map', activeIndex, index => {
+        stopExplorerMapPlayback();
+        explorerMapYearIndex = index;
+        if (currentChartMode === 'map') renderExplorerMap();
+    });
 }
 
 function updateExplorerMapPlaybackControl() {
