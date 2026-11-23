@@ -2,7 +2,7 @@
 * { box-sizing: border-box; }
 body.locations-body { margin: 0; height: 100dvh; overflow: hidden; background: var(--location-paper); color: var(--location-olive); font-family: 'PeydaFaNumWeb', Tahoma, sans-serif; }
 .locations-workspace { display: flex; gap: 14px; height: calc(100dvh - 110px); margin: 96px 14px 14px; min-height: 0; }
-.locations-sidebar { width: 276px; flex-shrink: 0; padding: 22px 18px; background: white; border-radius: 24px; display: flex; flex-direction: column; min-height: 0; box-shadow: 0 3px 7px #2c2f1920; }
+.locations-sidebar { width: 330px; flex-shrink: 0; padding: 22px 18px; background: white; border-radius: 24px; display: flex; flex-direction: column; min-height: 0; box-shadow: 0 3px 7px #2c2f1920; }
 .locations-back { color: var(--location-gold); font-size: .9rem; text-decoration: none; }
 .locations-back:hover { color: var(--location-olive); }
 .locations-eyebrow { color: var(--location-gold); margin: 24px 0 4px; font-size: .875rem; }
@@ -30,7 +30,7 @@ body.locations-body { margin: 0; height: 100dvh; overflow: hidden; background: v
 .locations-editor-list-heading { padding-top: 15px; border-top: 1px solid #ded8c7; }
 .locations-manual-list { display: grid; gap: 6px; }
 .locations-manual-list button { text-align: right; background: white; }
-.locations-body.is-editing .locations-sidebar { width: 330px; border-top: 3px solid var(--location-gold); }
+.locations-body.is-editing .locations-sidebar { border-top: 3px solid var(--location-gold); }
 .locations-body.is-editing .locations-intro, .locations-body.is-editing .locations-key { display: none; }
 .locations-body.is-editing .locations-categories { flex: 0 0 auto; max-height: 120px; }
 .locations-body.is-editing .locations-eyebrow { margin-top: 12px; }
@@ -75,7 +75,7 @@ body.locations-body { margin: 0; height: 100dvh; overflow: hidden; background: v
 .locations-body [hidden] { display: none !important; }
 .locations-body button:focus-visible, .locations-body a:focus-visible, .locations-body input:focus-visible { outline: 2px solid var(--location-gold); outline-offset: 2px; }
 @media (max-width: 767px) {
-    .locations-body.is-editing .locations-sidebar { width: 100%; max-height: 52dvh; }
+    .locations-body.is-editing .locations-sidebar { max-height: 52dvh; }
     .locations-body.is-editing .locations-categories { max-height: none; }
     .locations-mode-switch { margin-top: 8px; }
     .locations-workspace { flex-direction: column; margin: 86px 8px 8px; gap: 8px; height: calc(100dvh - 94px); }
