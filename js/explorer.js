@@ -23,6 +23,8 @@ function formatExplorerNumber(value) {
 function registerExplorerChartPlugin() {
     if (typeof Chart === 'undefined' || registerExplorerChartPlugin._done) return;
     registerExplorerChartPlugin._done = true;
+    Chart.Interaction.modes.explorerLine = explorerLineHover;
+    Chart.Tooltip.positioners.explorerLine = (_items, position) => position;
     Chart.register({
     id: 'lineSweepPlugin',
     beforeDatasetDraw(chart, args) {
@@ -43,6 +45,35 @@ function registerExplorerChartPlugin() {
         }
     }
     });
+}
+
+function explorerLineHover(chart, event) {
+    const {x, y} = event;
+    const area = chart.chartArea;
+    if (x < area.left || x > area.right || y < area.top || y > area.bottom) return [];
+    let closest = null;
+    let distance = 10;
+    for (const meta of chart.getSortedVisibleDatasetMetas()) {
+        const dataset = chart.data.datasets[meta.index];
+        if (dataset.sweepProgress != null && dataset.sweepProgress < 1 &&
+            x > area.left + area.width * dataset.sweepProgress) continue;
+        const interpolated = meta.dataset.interpolate({x}, 'x');
+        for (const point of (Array.isArray(interpolated) ? interpolated : [interpolated])) {
+            if (!point || !Number.isFinite(point.y) || Math.abs(point.y - y) > distance) continue;
+            let index = -1;
+            let nearestX = Infinity;
+            meta.data.forEach((element, i) => {
+                if (!element.skip && Math.abs(element.x - x) < nearestX) {
+                    nearestX = Math.abs(element.x - x);
+                    index = i;
+                }
+            });
+            if (index < 0) continue;
+            distance = Math.abs(point.y - y);
+            closest = {element: meta.data[index], datasetIndex: meta.index, index};
+        }
+    }
+    return closest ? [closest] : [];
 }
 
 let sweepReq = null;
@@ -748,7 +779,7 @@ async function loadIndicator(indicatorName, topicName) {
 
         explorerRawScores = data.scores || [];
         explorerFilters = data.filters || [];
-        explorerFilterSelection = Object.fromEntries(explorerFilters.map(f => [f.name, new Set(f.values.map(v => v.value))]));
+        preserveExplorerFilterSelections(explorerFilters);
         explorerLoadState = 'ready';
         renderDimensionFilters();
         syncExplorerDropdowns();
@@ -936,6 +967,15 @@ function syncExplorerFilterColors(rows = explorerSeriesRows()) {
             const remaining = document.createElement('small');
             remaining.textContent = `+${toFa(colors.length - 6)}`;
             colorKey.append(remaining);
+        }
+    });
+}
+
+function preserveExplorerFilterSelections(filters) {
+    // Keep unavailable dimensions/values in memory so switching back restores them.
+    filters.forEach(filter => {
+        if (!Object.prototype.hasOwnProperty.call(explorerFilterSelection, filter.name)) {
+            explorerFilterSelection[filter.name] = new Set(filter.values.map(value => value.value));
         }
     });
 }
@@ -1836,11 +1876,12 @@ function getChartOptions() {
         animation: false, 
         layout: { padding: 12 },
         datasets: { line: { clip: 12 } },
-        interaction: { mode: 'nearest', intersect: true, axis: 'xy' },
+        interaction: { mode: 'explorerLine', intersect: false, axis: 'xy' },
         plugins: {
             datalabels: { display: false },
             legend: { display: false },
             tooltip: {
+                position: 'explorerLine',
                 titleFont: { family: 'PeydaFaNumWeb', size: 14 }, bodyFont: { family: 'PeydaFaNumWeb', size: 13, weight: 'bold' }, rtl: true,
                 backgroundColor: 'rgba(255, 255, 255, 0.95)', titleColor: '#1f2937', bodyColor: '#1f2937',
                 borderColor: '#e5e7eb', borderWidth: 1, padding: 12, boxPadding: 6,
