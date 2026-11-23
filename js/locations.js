@@ -3,6 +3,15 @@ function locationMarkerSize(count, maximum) {
     return count == null ? 28 : Math.round(24 + 40 * Math.sqrt(Math.max(0, count) / Math.max(1, maximum)));
 }
 
+function locationCategoryIcon(category) {
+    // The Nearby layer is formal_school, but Neshan publishes its icon as school.
+    if (category.category === 'formal_school' && (!category.icon_url ||
+        /^https:\/\/static\.neshanmap\.ir\/poi\/(32|64|128)\/formal_school\.png$/.test(category.icon_url))) {
+        return 'https://static.neshanmap.ir/poi/64/school.png';
+    }
+    return category.icon_url;
+}
+
 function locationNearbyPlan(category, center, zoom, config, bounds) {
     zoom = Math.floor(zoom);
     if (!category || !Number.isFinite(zoom) || zoom < config.min_zoom || !Number.isFinite(center.lat) || !Number.isFinite(center.lng)
@@ -305,7 +314,8 @@ function locationDistance(a, b) { return LocationDiscovery.distance(a, b); }
                 fetch(api('/api/poi-explore/init'), {credentials: 'include', cache: 'no-store'})]);
             const [mapConfig, init] = await Promise.all([readResponse(configResponse), readResponse(initResponse)]);
             if (typeof L === 'undefined') throw new Error('بارگذاری نقشهٔ نشان انجام نشد.');
-            state.config = init.live; state.categories = init.categories;
+            state.config = init.live;
+            state.categories = init.categories.map(category => ({...category, icon_url: locationCategoryIcon(category)}));
             state.store = new LocationDiscovery.Store(init.live.discovery);
             state.map = new L.Map('locations-map', {key: mapConfig.key, maptype: mapConfig.maptype,
                 minZoom: 4, maxZoom: 19, zoomControl: true, preferCanvas: true}).setView([32, 53.5], 5);
