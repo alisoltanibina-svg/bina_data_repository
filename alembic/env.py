@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine, pool
 
 from backend.models import Base
+from backend import poi_editorial_models as _poi_editorial_models  # editing-owned metadata
 from backend.db_schema import APPLICATION_SCHEMAS
 from backend.settings import ENV_FILE, get_settings
 

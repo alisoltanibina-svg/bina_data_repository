@@ -9,13 +9,14 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import Field, FiniteFloat
-from sqlalchemy import select, func, text
+from sqlalchemy import select, func, text, case, or_, and_
 from sqlalchemy.exc import OperationalError
 
 from backend import database
 from backend.input_security import InputBody
 from backend.poi_geo import normalize
 from backend.poi_models import PoiExploreCategory, PoiPlace, PoiPlaceCategory
+from backend.poi_editorial_models import PoiEditorial
 from backend.poi_provider import LAYERS, Neshan, coordinates
 from backend.poi_budget import ProviderBusy, reserve_live_slot, record_provider_backoff
 from backend.settings import get_settings
@@ -97,10 +98,17 @@ def aggregate_provinces(provinces, rows):
 
 def stored_counts(category, provinces):
     with database.db_session() as session:
-        rows = session.execute(select(PoiPlace.province_name, func.count()).join(
-            PoiPlaceCategory, PoiPlaceCategory.place_id == PoiPlace.id).where(
-                PoiPlaceCategory.category == category, PoiPlace.provider.in_(['neshan', 'manual']), PoiPlace.resolved_at.is_not(None)
-            ).group_by(PoiPlace.province_name)).all()
+        published=PoiEditorial.published_version>0
+        changed_coordinates=or_(PoiEditorial.published['overrides']['latitude'].as_float().is_not(None),
+            PoiEditorial.published['overrides']['longitude'].as_float().is_not(None))
+        province=case((and_(published,changed_coordinates),PoiEditorial.province_name),else_=PoiPlace.province_name)
+        category_value=func.coalesce(PoiEditorial.published['overrides']['category'].as_string(),
+            PoiPlace.raw_details['layer']['slug'].as_string(),PoiPlaceCategory.category)
+        rows = session.execute(select(province, func.count(func.distinct(PoiPlace.id))).join(
+            PoiPlaceCategory, PoiPlaceCategory.place_id == PoiPlace.id).outerjoin(PoiEditorial,PoiEditorial.place_id==PoiPlace.id).where(
+                or_(and_(published,category_value==category),and_(or_(PoiEditorial.published_version.is_(None),PoiEditorial.published_version==0),PoiPlaceCategory.category==category)),
+                PoiPlace.provider.in_(['neshan','manual']),PoiPlace.resolved_at.is_not(None)
+            ).group_by(province)).all()
     return aggregate_provinces(provinces, rows)
 
 
@@ -197,8 +205,10 @@ def build_router(require_admin, require_user):
             rows = session.scalars(select(PoiExploreCategory).where(PoiExploreCategory.is_published.is_(True))
                 .order_by(PoiExploreCategory.sort_order, PoiExploreCategory.title)).all()
             categories = [category_dict(row) for row in rows if row.category in LAYERS]
+            from backend.poi_editorial import permissions
+            access=permissions(session,actor) if actor.get('id') else dict(can_edit=False,can_review=False,can_manage=False)
         settings = get_settings()
-        return response(dict(categories=categories, permissions=dict(can_edit=bool(actor.get('is_admin'))), live=dict(min_zoom=LIVE_MIN_ZOOM,
+        return response(dict(categories=categories, permissions=access, live=dict(min_zoom=LIVE_MIN_ZOOM,
             radius_by_zoom=LIVE_RADII, debounce_ms=200, interval_ms=round(live_interval_seconds() * 1000), max_points=LIVE_MAX_POINTS,
             discovery=dict(requests_per_view=settings.neshan_explore_requests_per_view,
                 session_request_limit=settings.neshan_explore_session_request_limit,
@@ -207,9 +217,12 @@ def build_router(require_admin, require_user):
 
     @router.get('/api/poi-explore/counts')
     def counts(request: Request, category: str, fresh: bool = False):
-        require_user(request)
+        actor=require_user(request) or {}
         if fresh:
-            require_admin(request)
+            from backend.poi_editorial import permissions
+            with database.db_session() as session:
+                if not permissions(session,actor)['can_edit']:
+                    raise HTTPException(403,detail='دسترسی تازه‌سازی ندارید.')
         require_display_authorization()
         selected = published_category(category)
         path = Path(__file__).resolve().parents[1] / 'data' / 'iran.geojson'

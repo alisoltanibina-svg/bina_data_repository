@@ -36,6 +36,29 @@ body.locations-body { margin: 0; height: 100dvh; overflow: hidden; background: v
 .locations-body.is-editing .locations-eyebrow { margin-top: 12px; }
 .locations-body.is-picking #locations-map { cursor: crosshair; }
 .locations-manual-icon { border: 2px solid #aa965f; }
+.locations-database-icon { border: 2px solid #596315; }
+.locations-detail { flex: 1 1 auto; min-height: 100px; overflow-y: auto; border-top: 1px solid #ded8c7; padding: 14px 2px; }
+.locations-detail h2 { font-size: 1rem; margin: 0; }
+.locations-detail dl, .locations-review-card dl { margin: 12px 0; font-size: .8rem; }
+.locations-detail dt, .locations-review-card dt { color: #8b805e; margin-top: 12px; }
+.locations-detail dd, .locations-review-card dd { margin: 4px 0 0; white-space: pre-line; overflow-wrap: anywhere; line-height: 1.8; }
+.locations-detail a { color: #515811; text-decoration: underline; }
+.locations-detail button { border: 1px solid #ded8c7; border-radius: 14px; padding: 7px 12px; background: #f8f5ef; color: #515811; font: inherit; font-size: .8rem; cursor: pointer; }
+.locations-detail button:disabled { opacity: .5; cursor: default; }
+.locations-editor textarea { width: 100%; min-width: 0; resize: vertical; margin-top: 5px; padding: 9px 10px; border: 1px solid #ded8c7; border-radius: 12px; background: #fcfbf8; color: #414b0a; font: inherit; font-size: .85rem; }
+.locations-editor details { margin: 12px 0; padding: 10px; border: 1px solid #e7e1d3; border-radius: 12px; }
+.locations-editor summary { cursor: pointer; font-size: .82rem; font-weight: 600; }
+.locations-editor input[type="checkbox"] { display: inline-block; width: auto; margin-inline-end: 8px; accent-color: #515811; }
+.locations-editor select[multiple] { min-height: 100px; }
+.locations-review-card, .locations-revision-row { padding: 10px; margin: 8px 0; border-radius: 12px; background: var(--location-paper); font-size: .78rem; line-height: 1.8; }
+.locations-review-card h3 { margin: 0 0 6px; }
+.locations-eligibility ul { padding-inline-start: 15px; font-size: .75rem; line-height: 1.8; max-height: 160px; overflow-y: auto; }
+.locations-hours-day { margin: 10px 0; font-size: .8rem; }
+.locations-hours-range, .locations-social-row { display: flex; align-items: center; gap: 5px; }
+.locations-hours-range input, .locations-social-row input { flex: 1; min-width: 0; }
+.locations-social-row { flex-wrap: wrap; margin-top: 8px; }
+.locations-overlay-note { position: absolute; bottom: 70px; inset-inline: 20px; width: fit-content; margin: 0 auto; padding: 6px 12px; border-radius: 14px; background: #fffffff2; color: #777448; font-size: .75rem; z-index: 500; }
+.locations-body.is-editing .locations-detail { flex: 0 0 auto; max-height: 220px; }
 .locations-intro { color: #777448; font-size: .95rem; line-height: 1.9; margin: 12px 0 20px; }
 .locations-search-label { font-size: .9rem; margin-bottom: 7px; }
 #location-category-search { width: 100%; padding: 10px 12px; border: 1px solid #ded8c7; border-radius: 14px; background: var(--location-paper); color: var(--location-olive); font: inherit; font-size: 1rem; }
@@ -44,6 +67,7 @@ body.locations-body { margin: 0; height: 100dvh; overflow: hidden; background: v
 .locations-category img { height: 28px; width: 28px; object-fit: contain; }
 .locations-category:hover { background: var(--location-paper); }
 .locations-category.is-active { background: var(--location-olive); color: white; }
+.locations-category:disabled { opacity: .45; cursor: default; }
 .locations-key { border-top: 1px solid #ded8c7; padding-top: 15px; margin-top: 6px; }
 .locations-key > span { font-weight: 800; }
 .locations-key p { color: #777448; font-size: .875rem; line-height: 1.9; margin: 7px 0 0; }
@@ -65,6 +89,7 @@ body.locations-body { margin: 0; height: 100dvh; overflow: hidden; background: v
 .locations-summary-marker.is-unknown strong { color: #84754e; }
 .locations-live-icon { object-fit: contain; border: 1px solid white; border-radius: 50%; background: #fffffff2; padding: 2px; }
 .locations-live-popup { font: 1rem 'PeydaFaNumWeb', Tahoma, sans-serif; text-align: right; color: var(--location-olive); }
+.locations-live-popup p { font-size: .78rem; margin: 7px 0 0; color: #777448; line-height: 1.7; }
 .locations-cluster-marker { background: transparent; border: 0; }
 .locations-cluster { width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; position: relative; border: 2px solid white; border-radius: 50%; background: #596315e8; box-shadow: 0 1px 4px #0002; }
 .locations-cluster img { width: 29px; height: 29px; object-fit: contain; }

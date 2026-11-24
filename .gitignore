@@ -41,6 +41,7 @@ EXPLORER_DIMENSIONS.md
 LOCATION_INFORMATION.md
 MAINTENANCE.md
 SCHEMA_CUTOVER.md
+POI_EDITORIAL.md
 
 backend/_storage_audit*.json
 backend/_api_hashes.json
