@@ -107,3 +107,25 @@ class PoiContributionAward(Base):
     revoked = C(Boolean, nullable=False, default=False, server_default='false')
     created_at = C(DateTime(timezone=True), nullable=False, server_default=func.now())
 
+class PoiPlacePhoto(Base):
+    __tablename__='poi_place_photos'
+    __table_args__={'schema':'poi'}
+    id=uid()
+    path=C(S(255),nullable=False,unique=True)
+    uploader_id=C(I,FK('accounts.users.id',ondelete='SET NULL'))
+    place_id=C(UUID(as_uuid=True))  # Logical reference; no collector dependency.
+    revision_id=C(UUID(as_uuid=True),FK('poi.poi_edit_revisions.id'))
+    created_at=C(DateTime(timezone=True),nullable=False,server_default=func.now(),index=True)
+
+class PoiSmsNotification(Base):
+    __tablename__='poi_sms_notifications'
+    __table_args__=(UQ('revision_id','event',name='uq_poi_sms_event'),{'schema':'poi'})
+    id=uid()
+    revision_id=C(UUID(as_uuid=True),FK('poi.poi_edit_revisions.id'),nullable=False)
+    user_id=C(I,FK('accounts.users.id',ondelete='SET NULL'))
+    event=C(S(12),nullable=False)
+    attempts=C(I,nullable=False,default=0,server_default='0')
+    available_at=C(DateTime(timezone=True),nullable=False,server_default=func.now(),index=True)
+    sent_at=timestamp()
+    created_at=C(DateTime(timezone=True),nullable=False,server_default=func.now())
+

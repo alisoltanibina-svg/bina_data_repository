@@ -193,6 +193,14 @@ def _send_kavenegar_sms(phone: str, text: str) -> None:
         raise MembershipError("otp", "ارسال پیامک ممکن نشد.")
 
 
+def deliver_plain_sms(phone: str, text: str) -> bool:
+    """Synchronous delivery for transactional outboxes; failures remain retryable."""
+    phone=normalize_phone(phone)
+    if not is_mobile_phone(phone) or not text or not _kavenegar_configured():return False
+    _send_kavenegar_sms(phone,text)
+    return True
+
+
 def send_plain_sms(phone: str, text: str) -> None:
     phone = normalize_phone(phone)
     if not is_mobile_phone(phone) or not text or not _kavenegar_configured():

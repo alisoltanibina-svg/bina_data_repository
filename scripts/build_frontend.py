@@ -267,7 +267,7 @@ def minify_javascript(text: str) -> str:
     return "".join(result).strip() + "\n"
 
 def _is_mutable_upload(relative: Path) -> bool:
-    return relative.as_posix().startswith("assets/images/avatars/")
+    return relative.as_posix().startswith(("assets/images/avatars/","assets/images/places/"))
 
 
 def public_files(source_root: Path) -> list[Path]:

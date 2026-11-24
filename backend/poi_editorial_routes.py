@@ -3,17 +3,20 @@ from datetime import datetime,timezone
 from uuid import UUID,uuid4
 import math
 import re
+import json
 from typing import Literal
-from fastapi import APIRouter,HTTPException,Query,Request
+from fastapi import APIRouter,HTTPException,Query,Request,UploadFile,File,Form,BackgroundTasks
+from fastapi.responses import FileResponse
 from pydantic import Field,FiniteFloat
 from sqlalchemy import select,func,or_,and_
 from sqlalchemy.dialects.postgresql import insert
 from backend import database,poi_editorial as edit
 from backend import poi_venue_schema as venue_schema
+from backend import place_photos,place_notifications
 from backend.models import User
 from backend.poi_models import PoiPlace,PoiPlaceCategory
 from backend.poi_editorial_models import (PoiEditorial,PoiEditRevision,
-    PoiEditorGrant,PoiFieldDefinition,PoiContributionAward,PoiSourceRevision,PoiSourceIdentity)
+    PoiEditorGrant,PoiFieldDefinition,PoiContributionAward,PoiSourceRevision,PoiSourceIdentity,PoiPlacePhoto)
 from backend.poi_manual import assign_province
 from backend.poi_geo import normalize
 from backend.poi_explore import response,published_category,within_search_radius
@@ -27,6 +30,8 @@ class Submission(InputBody):
     values: edit.VenueValues
     attributes: dict = Field(default_factory=dict)
     reason: str = Field(min_length=3,max_length=1000)
+    photo_id: UUID | None = None
+    remove_photo: bool = False
 
 
 class Restore(InputBody):
@@ -130,7 +135,8 @@ def detail(session,row,actor,allow_pending=False):
     output=dict(id=str(row.id),values=values,tag=editorial.tag if editorial and editorial.published_version else None,
         published=bool(editorial and editorial.published_version),identity=edit.source_identity(row),province=edit.effective_province(row,editorial),
         attributes=edit.attribute_values(row,editorial,catalogue,values['category']),can_edit=False,
-        contributors=edit.attributions(session,[editorial]).get(row.id) if editorial and editorial.published_version else None)
+        contributors=edit.attributions(session,[editorial]).get(row.id) if editorial and editorial.published_version else None,
+        photo_url=place_photos.url((payload or {}).get('photo_path')))
     if scoped(permission,row,editorial):
         coverage=edit.eligibility(session);allowed=True
         try:
@@ -150,7 +156,7 @@ def detail(session,row,actor,allow_pending=False):
             proposed=edit.effective(baseline,pending.payload)
             province=assign_province(proposed['latitude'],proposed['longitude'])['province_name']
             output.update(values=proposed,attributes={**venue_schema.source_administration(row,province),**pending.payload.get('attributes',{})},
-                pending_revision=str(pending.id),pending_actor=dict(user_id=pending.actor_id,name=pending.actor_name))
+                pending_revision=str(pending.id),pending_actor=dict(user_id=pending.actor_id,name=pending.actor_name),photo_url=place_photos.url(pending.payload.get('photo_path')))
     if not row.resolved_at and row.provider!='manual':output['locked_reason']='جزئیات این مکان هنوز در پایگاه داده کامل نشده است.'
     return output
 
@@ -158,7 +164,7 @@ def detail(session,row,actor,allow_pending=False):
 def revision_dict(row):
     return dict(id=str(row.id),place_id=str(row.place_id),version=row.version,actor_id=row.actor_id,reviewer_id=row.reviewer_id,
         actor_name=row.actor_name,reviewer_name=row.reviewer_name,action=row.action,status=row.status,reason=row.reason,review_note=row.review_note,created_at=iso(row.created_at),
-        before=row.source_snapshot.get('previous',row.source_snapshot['values']),after=edit.effective(row.source_snapshot['values'],row.payload),attributes=row.payload.get('attributes',{}))
+        before=row.source_snapshot.get('previous',row.source_snapshot['values']),after=edit.effective(row.source_snapshot['values'],row.payload),attributes=row.payload.get('attributes',{}),photo_url=place_photos.url(row.payload.get('photo_path')))
 
 
 def grant_dict(row):
@@ -166,7 +172,51 @@ def grant_dict(row):
 
 
 def build_router(require_admin,require_user):
-    router=APIRouter()
+    router=APIRouter(lifespan=place_notifications.lifespan)
+
+    @router.post('/api/poi-explore/photos')
+    def upload_photo(request:Request,file:UploadFile=File(...),crop:str=Form(...,max_length=500),latitude:FiniteFloat=Form(ge=24,le=41),longitude:FiniteFloat=Form(ge=43,le=64)):
+        actor=require_user(request);data=file.file.read(place_photos.MAX_BYTES+1);stored=None
+        try:
+            try:crop_values=json.loads(crop)
+            except (ValueError,TypeError):raise HTTPException(422,detail='محدودهٔ برش معتبر نیست.') from None
+            with database.db_session() as session:
+                permission=edit.permissions(session,actor);assignment=assign_province(latitude,longitude)
+                venue_schema.require_editable_category(session,'mosque');edit.require_region(permission,edit.eligibility(session),assignment['province_name'],'mosque')
+                stored=place_photos.stage(session,actor,data,file.filename,crop_values)
+                result=dict(id=str(stored.id),url=place_photos.url(stored.path))
+            return response(result,201)
+        except Exception:
+            if stored:place_photos.managed_file(stored.path).unlink(missing_ok=True)
+            raise
+        finally:file.file.close()
+
+    @router.delete('/api/poi-explore/photos/{identity}')
+    def discard_photo(identity:UUID,request:Request):
+        actor=require_user(request)
+        with database.db_session() as session:
+            session.scalar(select(User.id).where(User.id==actor['id']).with_for_update())
+            photo=session.scalar(select(PoiPlacePhoto).where(PoiPlacePhoto.id==identity).with_for_update())
+            if not photo or photo.uploader_id!=actor['id'] or photo.revision_id:raise HTTPException(404,detail='عکس یافت نشد.')
+            path=photo.path;session.delete(photo)
+        place_photos.managed_file(path).unlink(missing_ok=True)
+        return response(dict(deleted=True))
+
+    @router.get('/api/poi-explore/photos/{identity}')
+    def photo_file(identity:UUID,request:Request):
+        actor=require_user(request)
+        with database.db_session() as session:
+            photo=session.get(PoiPlacePhoto,identity)
+            if not photo:raise HTTPException(404,detail='عکس یافت نشد.')
+            editorial=session.get(PoiEditorial,photo.place_id) if photo.place_id else None
+            published=bool(editorial and editorial.published_version and (editorial.published or {}).get('photo_path')==photo.path)
+            permission=edit.permissions(session,actor)
+            allowed=photo.uploader_id==actor['id'] or published
+            if not allowed and permission['can_review'] and photo.place_id:
+                row=session.get(PoiPlace,photo.place_id);allowed=bool(row and scoped(permission,row,editorial))
+            path=place_photos.managed_file(photo.path)
+            if not allowed or not path or not path.is_file():raise HTTPException(404,detail='عکس یافت نشد.')
+        return FileResponse(path,media_type='image/webp',headers={'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'})
 
     @router.get('/api/poi-explore/editor/config')
     def configuration(request:Request):
@@ -311,24 +361,36 @@ def build_router(require_admin,require_user):
             attributes=venue_schema.attribute_overrides(attributes,venue_schema.source_administration(row,assignment['province_name']))
             values={**edit.effective(baseline,current),**body.values.model_dump(exclude_unset=True)}
             payload=edit.make_payload(baseline,values,attributes)
-            if place_id and payload==dict(overrides=current.get('overrides',{}),attributes=current.get('attributes',{})):
+            revision_id=uuid4()
+            attached_photo=None
+            if body.photo_id and body.remove_photo:raise HTTPException(422,detail='حذف و افزودن عکس هم‌زمان مجاز نیست.')
+            if body.photo_id:
+                attached_photo=place_photos.claim(session,body.photo_id,actor,row.id)
+                payload['photo_path']=attached_photo.path
+            elif not body.remove_photo and current.get('photo_path'):payload['photo_path']=current['photo_path']
+            if place_id and payload==dict(overrides=current.get('overrides',{}),attributes=current.get('attributes',{}),**({'photo_path':current['photo_path']} if current.get('photo_path') else {})):
                 raise HTTPException(409,detail='تغییری برای ثبت وجود ندارد.')
             if editorial.version:
                 latest=session.scalar(select(PoiEditRevision).where(PoiEditRevision.place_id==row.id).order_by(PoiEditRevision.version.desc()).limit(1))
                 if latest and latest.status=='pending' and latest.base_published_version==editorial.published_version and latest.payload==payload:
                     raise HTTPException(409,detail='همین تغییر قبلاً برای بررسی ارسال شده است.')
             editorial.version+=1;editorial.updated_by=actor['id'];editorial.updated_at=datetime.now(timezone.utc)
-            revision=PoiEditRevision(id=uuid4(),place_id=row.id,submission_id=body.submission_id,version=editorial.version,
+            revision=PoiEditRevision(id=revision_id,place_id=row.id,submission_id=body.submission_id,version=editorial.version,
                 base_published_version=editorial.published_version,actor_id=actor['id'],actor_name=actor_name(actor),action='added' if row.provider=='manual' and not editorial.published_version else 'edited',
-                status='pending',payload=payload,source_snapshot=dict(values=baseline,previous=edit.effective(baseline,current),raw_details=row.raw_details or {}),reason=body.reason.strip())
+                status='pending',payload=payload,source_snapshot=dict(values=baseline,previous=edit.effective(baseline,current),photo_path=current.get('photo_path'),raw_details=row.raw_details or {}),reason=body.reason.strip())
             session.add(revision)
+            session.flush()
+            if attached_photo and not attached_photo.revision_id:attached_photo.place_id=row.id;attached_photo.revision_id=revision.id
+            place_notifications.enqueue(session,revision,'submitted')
             return dict(id=str(row.id),revision_id=str(revision.id),version=editorial.version,status='pending')
 
     @router.post('/api/poi-explore/manual-places')
-    def create(body:Submission,request:Request):return response(submit(body,require_user(request)),201)
+    def create(body:Submission,request:Request,background_tasks:BackgroundTasks):
+        result=submit(body,require_user(request));background_tasks.add_task(place_notifications.dispatch_pending);return response(result,201)
 
     @router.patch('/api/poi-explore/manual-places/{place_id}')
-    def change(place_id:UUID,body:Submission,request:Request):return response(submit(body,require_user(request),place_id))
+    def change(place_id:UUID,body:Submission,request:Request,background_tasks:BackgroundTasks):
+        result=submit(body,require_user(request),place_id);background_tasks.add_task(place_notifications.dispatch_pending);return response(result)
 
     @router.get('/api/poi-explore/venues/{place_id}/history')
     def history(place_id:UUID,request:Request,page:int=Query(default=0,ge=0,le=10000)):
@@ -349,7 +411,7 @@ def build_router(require_admin,require_user):
             return response(dict(revisions=[revision_dict(r) for r in rows[:50]],source_history=source_history,has_more=len(rows)>50 or len(snapshots)>20))
 
     @router.post('/api/poi-explore/venues/{place_id}/restore')
-    def restore(place_id:UUID,body:Restore,request:Request):
+    def restore(place_id:UUID,body:Restore,request:Request,background_tasks:BackgroundTasks):
         actor=require_user(request)
         with database.db_session() as session:
             row=session.get(PoiPlace,place_id);revision=session.get(PoiEditRevision,body.revision_id)
@@ -360,8 +422,10 @@ def build_router(require_admin,require_user):
             for key in ('workHours','socialNetworks'):
                 if key not in revision.payload.get('overrides',{}):values.pop(key,None)
             submission=Submission(submission_id=body.submission_id,version=body.version,source_version=edit.fingerprint(baseline),
-                values=values,attributes=revision.payload.get('attributes',{}),reason=body.reason)
-        return response(submit(submission,actor,place_id))
+                values=values,attributes=revision.payload.get('attributes',{}),reason=body.reason,
+                photo_id=UUID(revision.payload['photo_path'][len(place_photos.PREFIX):-5]) if place_photos.managed_file(revision.payload.get('photo_path')) else None,
+                remove_photo=not revision.payload.get('photo_path'))
+        result=submit(submission,actor,place_id);background_tasks.add_task(place_notifications.dispatch_pending);return response(result)
 
     @router.get('/api/poi-explore/editor/revisions')
     def pending(request:Request):
@@ -374,7 +438,7 @@ def build_router(require_admin,require_user):
             return response(dict(revisions=[{**revision_dict(r),'name':p.name} for r,p in rows if scoped(permission,p,session.get(PoiEditorial,p.id))]))
 
     @router.post('/api/poi-explore/editor/revisions/{revision_id}/review')
-    def review(revision_id:UUID,body:Review,request:Request):
+    def review(revision_id:UUID,body:Review,request:Request,background_tasks:BackgroundTasks):
         actor=require_user(request)
         with database.db_session() as session:
             revision=session.get(PoiEditRevision,revision_id)
@@ -405,7 +469,10 @@ def build_router(require_admin,require_user):
                     session.execute(insert(PoiContributionAward).values(id=uuid4(),user_id=revision.actor_id,place_id=row.id,revision_id=revision.id,
                         action=revision.action,points=10 if revision.action=='added' else 3,revoked=False).on_conflict_do_nothing(constraint='uq_poi_contribution_once'))
             revision.status='approved' if body.approve else 'rejected';revision.reviewer_id=actor['id'];revision.reviewer_name=actor_name(actor);revision.review_note=body.note;revision.reviewed_at=datetime.now(timezone.utc)
-            return response(dict(status=revision.status))
+            if body.approve:place_notifications.enqueue(session,revision,'approved')
+            result=dict(status=revision.status)
+        background_tasks.add_task(place_notifications.dispatch_pending)
+        return response(result)
 
     @router.get('/api/account/contributions')
     def contributions(request:Request,page:int=Query(default=0,ge=0,le=10000)):

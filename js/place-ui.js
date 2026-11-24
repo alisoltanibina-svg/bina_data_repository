@@ -24,5 +24,6 @@ const PlaceUI = (() => {
             config.coverage.provinces.some(row=>normalize(row.province)===normalize(province)&&row.eligible));
     }
     function definitions(config){return config.fields.filter(f=>f.active&&f.categories.includes('mosque')&&fields.includes(f.key)).sort((a,b)=>fields.indexOf(a.key)-fields.indexOf(b.key));}
-    return {api,node,page,normalize,safeLink,text,fact,provinceAllowed,definitions,fields};
+    function photoUrl(value){return typeof value==='string'&&/^\/api\/poi-explore\/photos\/[a-f0-9-]{32,36}$/.test(value)?`${window.API_BASE_URL||''}${value}`:null;}
+    return {api,node,page,normalize,safeLink,text,fact,provinceAllowed,definitions,fields,photoUrl};
 })();

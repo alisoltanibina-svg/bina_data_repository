@@ -37,4 +37,12 @@
 .place-review-actions { display:flex; gap:12px; flex-wrap:wrap; }
 .place-review-reject { border:1px solid #ded8c7; border-radius:999px; background:#fff; color:#97483a; padding:10px 20px; font:inherit; font-size:.85rem; cursor:pointer; }
 .place-review-head { display:flex; align-items:center; justify-content:space-between; gap:18px; }
+.place-photo-help { font-size:.8rem; color:#85784f; }
+.place-photo-select input { border:0; padding:8px 0; background:transparent; }
+.place-photo-preview { display:block; width:min(100%,360px); aspect-ratio:4/3; height:auto; object-fit:cover; margin:16px 0; border-radius:18px; }
+.place-crop-dialog { width:min(650px,calc(100% - 28px)); max-height:calc(100dvh - 40px); overflow:auto; border:1px solid #ded8c7; padding:24px; border-radius:24px; color:#515811; font:inherit; }
+.place-crop-dialog::backdrop { background:#22251166; }
+.place-crop-dialog h2 { margin:0; font-size:1.1rem; }.place-crop-dialog p { color:#85784f; font-size:.8rem; }
+#place-photo-canvas { display:block; width:100%; height:auto; aspect-ratio:4/3; border-radius:12px; touch-action:none; cursor:move; }
+#place-photo-zoom { display:block; width:100%; accent-color:#515811; margin:12px 0 20px; }
 @media(max-width:767px) { .place-page { padding:90px 16px 28px; }.place-form,.place-review-card,.place-success { padding:20px 16px; }.place-form-grid { grid-template-columns:1fr; }.place-review-card dl { grid-template-columns:1fr; gap:2px; }.place-review-card dd { margin-bottom:10px; }.place-page-heading h1 { font-size:1.35rem; } }

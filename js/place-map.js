@@ -10,7 +10,7 @@ function LocationEditor({map,categories,canEdit,onModeChange,getScene,onOverlayC
         for(const category of categories){const button=node('button',category.title,'place-type-choice');button.type='button';
             button.disabled=category.category!=='mosque'||!data.editable_categories.includes(category.category);
             const icon=node('img');icon.src=category.icon_url;icon.alt='';button.prepend(icon);
-            if(button.disabled)button.append(node('span','به‌زودی'));button.addEventListener('click',()=>{
+            button.addEventListener('click',()=>{
                 el('locations-type-step').hidden=true;el('locations-province-step').hidden=false;el('locations-add-title').textContent='استان را انتخاب کنید';
                 el('locations-add-province').focus();});el('locations-add-types').append(button);}
         for(const row of data.coverage.provinces){const option=node('option',row.province+(provinceAllowed(data,row.province)?'':' — غیرفعال'));option.value=row.province;el('locations-add-province').append(option);}
@@ -24,13 +24,15 @@ function LocationEditor({map,categories,canEdit,onModeChange,getScene,onOverlayC
         profileIdentity=place.id||null;profileLocalId=place.localId||null;el('locations-detail-loading').hidden=true;
         el('locations-detail-title').textContent=place.name||'اطلاعات مکان';el('locations-detail-body').replaceChildren();
         el('locations-detail-lock').textContent='';el('locations-detail-status').textContent='';el('locations-detail-edit').hidden=true;
-        const image=el('locations-profile-icon');image.src=(categories.find(c=>c.category===place.category)||selected||categories[0])?.icon_url||'';
+        const image=el('locations-profile-icon');image.alt='';image.classList.remove('is-place-photo');image.onerror=null;image.src=(categories.find(c=>c.category===place.category)||selected||categories[0])?.icon_url||'';
         if(!profile.open)profile.showModal();
         if(origin&&!window.matchMedia('(prefers-reduced-motion: reduce)').matches&&image.animate){const target=image.getBoundingClientRect();
             const x=origin.left+origin.width/2-target.left-target.width/2,y=origin.top+origin.height/2-target.top-target.height/2;
             image.animate([{transform:`translate(${x}px,${y}px) scale(${origin.width/target.width})`,opacity:.4},{transform:'translate(0,0) scale(1)',opacity:1}],{duration:420,easing:'cubic-bezier(.22,.7,.2,1)'});}
     }
     function showDetails(data){
+        const image=el('locations-profile-icon'),photoUrl=PlaceUI.photoUrl(data.photo_url);
+        if(photoUrl){const fallback=image.src;image.classList.add('is-place-photo');image.alt='عکس '+data.values.name;image.src=photoUrl;image.onerror=()=>{image.onerror=null;image.alt='';image.classList.remove('is-place-photo');image.src=fallback;};}
         const values=data.values,root=el('locations-detail-body');profileIdentity=data.identity||profileIdentity;profileLocalId=data.id;root.replaceChildren();el('locations-detail-title').textContent=values.name;
         fact(root,'نشانی',values.address);fact(root,'شماره تماس',values.phoneNumber);fact(root,'وبسایت یا صفحهٔ اجتماعی',values.website,true);
         fact(root,'استان',data.province||data.attributes?.province);

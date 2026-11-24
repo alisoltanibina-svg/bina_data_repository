@@ -5,6 +5,7 @@ onReady(async()=>{
         try{const data=await api('/api/poi-explore/editor/revisions');const root=el('place-reviews-list');root.replaceChildren();
             for(const revision of data.revisions){const card=node('article',null,'place-review-card'),header=node('header');
                 header.append(node('h2',revision.after.name),node('p',revision.action==='added'?'افزودن مکان':'ویرایش مکان'));card.append(header,node('p',revision.actor_name||'کاربر '+revision.actor_id));
+                const photo=PlaceUI.photoUrl(revision.photo_url);if(photo){const image=node('img',null,'place-photo-preview');image.src=photo;image.alt='عکس پیشنهادی '+revision.after.name;card.append(image);}
                 const dl=node('dl');for(const [key,label] of Object.entries(labels)){
                     if(revision.action==='added'||JSON.stringify(revision.before[key])!==JSON.stringify(revision.after[key]))fact(dl,label,revision.action==='added'?revision.after[key]:text(revision.before[key])+' ← '+text(revision.after[key]));}
                 for(const [key,value] of Object.entries(revision.attributes||{})){const field=config.fields.find(f=>f.key===key);if(field?.active)fact(dl,field.label,value);}

@@ -2,6 +2,7 @@ onReady(async()=>{
     const {api,node,page,normalize,provinceAllowed}=PlaceUI,el=id=>document.getElementById(id),form=el('place-registration-form');
     const venue=new URLSearchParams(window.location.search).get('venue');let config,record=null,point=null,submission,dirty=false,saving=false;
     const inputs=new Map();const message=(text,error=false)=>{el('place-form-status').textContent=text;el('place-form-status').classList.toggle('is-error',error);};
+    const photo=PlacePhotoPicker({onChange:()=>{dirty=true;submission=crypto.randomUUID();}});
     function readPoint(){try{const data=JSON.parse(sessionStorage.getItem('place-registration')||'null');
         if(!data||data.category!=='mosque'||!Number.isFinite(data.latitude)||!Number.isFinite(data.longitude)||
             !Number.isFinite(data.created_at)||Date.now()-data.created_at>86400000||data.venue_id!==(venue||null))return null;return data;
@@ -22,6 +23,7 @@ onReady(async()=>{
             point=point||{category:'mosque',province:record.attributes.province||record.province,latitude:record.values.latitude,longitude:record.values.longitude};
             el('place-form-title').textContent='ویرایش '+record.values.name;el('place-form-steps').hidden=true;
             el('place-name').value=record.values.name;el('place-address').value=record.values.address||'';el('place-phone').value=record.values.phoneNumber||'';el('place-website').value=record.values.website||'';
+            photo.setExisting(record.photo_url);
         }
         if(!point)throw new Error('ابتدا نوع مکان، استان و موقعیت را از روی نقشه انتخاب کنید.');
         if(!provinceAllowed(config,point.province))throw new Error('ثبت مکان در این استان در دسترس نیست.');
@@ -42,8 +44,8 @@ onReady(async()=>{
                 address:el('place-address').value.trim()||null,phoneNumber:el('place-phone').value.trim()||null,website:el('place-website').value.trim()||null},
             attributes,reason:venue?'به‌روزرسانی اطلاعات مسجد از فرم ثبت':'ثبت مسجد از فرم اطلاعات مکانی'};
         saving=true;el('place-submit').disabled=true;const controls=[...form.querySelectorAll('input,select,textarea')];controls.forEach(input=>input.disabled=true);message('در حال ارسال…');
-        try{await api('/api/poi-explore/manual-places'+(venue?'/'+encodeURIComponent(venue):''),{method:venue?'PATCH':'POST',body:JSON.stringify(body)});
-            dirty=false;sessionStorage.removeItem('place-registration');form.hidden=true;el('place-success').hidden=false;el('place-form-steps').hidden=true;message('');el('place-success-title').focus();
+        try{Object.assign(body,await photo.upload(point));await api('/api/poi-explore/manual-places'+(venue?'/'+encodeURIComponent(venue):''),{method:venue?'PATCH':'POST',body:JSON.stringify(body)});
+            photo.committed();dirty=false;sessionStorage.removeItem('place-registration');form.hidden=true;el('place-success').hidden=false;el('place-form-steps').hidden=true;message('');el('place-success-title').focus();
         }catch(error){message(error.message,true);}finally{saving=false;controls.forEach(input=>input.disabled=false);el('place-submit').disabled=false;}
     });
 });

@@ -66,7 +66,8 @@ class InputSecurityMiddleware:
             return await reject(415, "input-format", "قالب درخواست پشتیبانی نمی‌شود.")
         raw_upload = path.rstrip("/") == "/api/account/ticket-attachments" and scope["method"] == "POST"
         avatar = bool(re.fullmatch(r"/api/(?:auth/profile|admin/users/\d+)/avatar", path)) and scope["method"] == "POST"
-        maximum = 3 * 1024 * 1024 if raw_upload else 6 * 1024 * 1024 if avatar else 64 * 1024
+        place_photo = path.rstrip('/') == '/api/poi-explore/photos' and scope['method'] == 'POST'
+        maximum = 3 * 1024 * 1024 if raw_upload else 6 * 1024 * 1024 if avatar or place_photo else 64 * 1024
         try:
             length = int(headers.get(b"content-length", "0"))
             if length < 0: raise ValueError()
@@ -79,7 +80,7 @@ class InputSecurityMiddleware:
             if kind != "application/octet-stream" or headers.get(b"x-csrf-protection") != "1":
                 return await reject(415, "input-format", "قالب بارگذاری معتبر نیست. صفحه را تازه‌سازی کنید.")
             return await self.app(scope, receive, send)
-        if kind and kind != "application/json" and not (avatar and kind == "multipart/form-data"):
+        if kind and kind != "application/json" and not ((avatar or place_photo) and kind == "multipart/form-data"):
             return await reject(415, "input-format", "قالب درخواست معتبر نیست.")
         chunks = []
         total = 0

@@ -118,6 +118,7 @@ body.locations-body { margin: 0; height: 100dvh; overflow: hidden; background: v
 .place-profile { margin:125px auto auto; }
 .place-profile-pin { text-align:center; padding:0 28px 18px; border-bottom:1px solid #eee8dc; }
 .place-profile-pin img { display:block; width:56px; height:56px; margin:0 auto 12px; object-fit:contain; }
+.place-profile-pin img.is-place-photo { width:min(100%,360px); height:auto; aspect-ratio:4/3; object-fit:cover; border-radius:18px; }
 .place-profile-pin h2 { margin:0; }
 .place-profile-pin p { margin:6px 0 0; }
 .place-facts { display:grid; grid-template-columns:1fr 2fr; gap:12px 24px; margin:22px 0; font-size:.85rem; }

@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="../assets/fonts/peyda.css"><link rel="stylesheet" href="../css/global.css">
     <link rel="stylesheet" href="../css/treat-v1.css"><link rel="stylesheet" href="../css/place-workspace.css">
     <script src="../js/config.js"></script><script src="../js/shared.js"></script>
-    <script src="../js/place-ui.js" defer></script><script src="../js/place-register.js" defer></script><script src="../js/auth.js" defer></script>
+    <script src="../js/place-ui.js" defer></script><script src="../js/place-photo.js" defer></script><script src="../js/place-register.js" defer></script><script src="../js/auth.js" defer></script>
 </head>
 <body class="place-page-body">
     <div id="top-banner" data-page="explorer"></div><script src="../js/banner.js"></script>
@@ -23,10 +23,23 @@
                 <label class="place-field-wide">نشانی<textarea id="place-address" maxlength="2000" rows="3"></textarea></label>
                 <label class="place-field-wide">وبسایت یا صفحهٔ اجتماعی<input id="place-website" maxlength="800" dir="ltr" placeholder="example.com"></label>
             </div></div>
+            <div class="place-form-section"><h2>عکس مکان</h2>
+                <p class="place-photo-help">یک عکس PNG، JPEG یا WebP، حداکثر ۵ مگابایت</p>
+                <label class="place-photo-select">انتخاب عکس<input id="place-photo-file" type="file" accept="image/png,image/jpeg,image/webp"></label>
+                <img id="place-photo-preview" class="place-photo-preview" alt="پیش‌نمایش عکس مکان" hidden>
+                <button type="button" id="place-photo-remove" class="place-review-reject" hidden>حذف عکس</button>
+                <p id="place-photo-status" class="place-review-error" role="status"></p>
+            </div>
             <div class="place-form-section"><h2>فعالیت و امکانات</h2><div id="place-attribute-fields" class="place-form-grid"></div></div>
             <div class="place-form-footer"><p>اطلاعات شما پس از تأیید مدیر منتشر می‌شود.</p><div><button type="submit" id="place-submit" class="place-primary">ارسال برای بررسی</button><a id="place-change-position" href="locations.html">تغییر موقعیت روی نقشه</a></div></div>
         </form>
         <section id="place-success" class="place-success" hidden aria-labelledby="place-success-title"><h2 id="place-success-title" tabindex="-1">پیشنهاد شما ثبت شد</h2><p>پس از بررسی مدیر، نتیجه در مشارکت‌های شما نمایش داده می‌شود.</p><a class="place-primary" href="contributions.html">مشارکت‌های من</a><a class="place-back" href="locations.html">بازگشت به نقشه</a></section>
     </main>
+    <dialog id="place-photo-crop" class="place-crop-dialog" aria-labelledby="place-photo-crop-title">
+        <h2 id="place-photo-crop-title">برش عکس مکان</h2><p>عکس را جابه‌جا کنید؛ این کادر همان نسبت عکس در پروفایل مکان است.</p>
+        <canvas id="place-photo-canvas" width="800" height="600" tabindex="0" aria-label="محدودهٔ برش عکس؛ با کشیدن یا کلیدهای جهت جابه‌جا کنید"></canvas>
+        <label for="place-photo-zoom">بزرگ‌نمایی</label><input id="place-photo-zoom" type="range" min="1" max="4" step=".01" value="1">
+        <div class="place-review-actions"><button type="button" id="place-photo-apply" class="place-primary">تأیید برش</button><button type="button" id="place-photo-cancel" class="place-review-reject">انصراف</button></div>
+    </dialog>
 </body>
 </html>

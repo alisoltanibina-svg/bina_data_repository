@@ -78,3 +78,5 @@ Thumbs.db
 
 assets/images/avatars/*
 !assets/images/avatars/.gitkeep
+assets/images/places/*
+!assets/images/places/.gitkeep

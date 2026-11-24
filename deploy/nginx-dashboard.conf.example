@@ -48,6 +48,11 @@ location ^~ /assets/images/avatars/ {
     include /etc/nginx/snippets/dashboard-security-headers.conf;
 }
 
+# Place photographs include pending submissions; serve through the API only.
+location ^~ /assets/images/places/ {
+    return 404;
+}
+
 location ~* \.(?:css|js|json|webp|png|jpe?g|gif|svg|ico|woff2?|ttf|geojson)$ {
     try_files $uri =404;
     add_header Cache-Control $dashboard_static_cache always;

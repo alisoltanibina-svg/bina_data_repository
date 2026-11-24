@@ -181,6 +181,8 @@ def _static_is_public(path: str) -> bool:
         return True
 
     lower = relative.lower()
+    if lower == 'assets/images/places' or lower.startswith('assets/images/places/'):
+        return False  # Place photos are served by the permission-checked API.
     name = Path(lower).name
     suffix = Path(lower).suffix
 
