@@ -246,24 +246,26 @@ def build_router(require_admin,require_user):
 
     @router.get('/api/poi-explore/editor/places')
     def editable_places(request:Request,category:str,south:float=Query(ge=24,le=41),north:float=Query(ge=24,le=41),
-                        west:float=Query(ge=43,le=64),east:float=Query(ge=43,le=64)):
+                        west:float=Query(ge=43,le=64),east:float=Query(ge=43,le=64),province:str|None=Query(default=None,max_length=120)):
         actor=require_user(request)
         if south>north or west>east:raise HTTPException(422,detail='محدوده معتبر نیست.')
         with database.db_session() as session:
             permission=edit.permissions(session,actor)
             if not permission['can_edit']:raise HTTPException(403,detail='دسترسی ویرایش ندارید.')
             venue_schema.require_editable_category(session,category)
+            if province:edit.require_region(permission,edit.eligibility(session),province,category)
             lat=edit.coordinate_expression('latitude');lon=edit.coordinate_expression('longitude')
             rows=session.execute(select(PoiPlace,PoiEditorial).outerjoin(PoiEditorial,PoiEditorial.place_id==PoiPlace.id)
                 .join(PoiPlaceCategory,PoiPlaceCategory.place_id==PoiPlace.id).where(
                     edit.category_expression()==category,
+                    or_(PoiPlace.province_name==province,PoiEditorial.province_name==province) if province else True,
                     lat.between(south,north),lon.between(west,east),or_(PoiPlace.resolved_at.is_not(None),
                         and_(PoiPlace.provider=='manual',PoiEditorial.created_by==actor['id'])))
                 .distinct().order_by(PoiPlace.name,PoiPlace.id).limit(201)).all()
             return response(dict(places=[dict(id=str(r.id),name=edit.effective(edit.source_values(r,category),e.published if e else None)['name'],
                 latitude=edit.effective(edit.source_values(r,category),e.published if e else None)['latitude'],longitude=edit.effective(edit.source_values(r,category),e.published if e else None)['longitude'],
                 identity=edit.source_identity(r),province=r.province_name,source=r.provider,tag=e.tag if e and e.published_version else None)
-                for r,e in rows[:200] if scoped(permission,r,e)],has_more=len(rows)>200))
+                for r,e in rows[:200] if scoped(permission,r,e) and (not province or normalize(edit.effective_province(r,e))==normalize(province))],has_more=len(rows)>200))
 
     def submit(body,actor,place_id=None):
         if not body.reason.strip():raise HTTPException(422,detail='دلیل تغییر را بنویسید.')
@@ -302,10 +304,12 @@ def build_router(require_admin,require_user):
             if editorial.version!=body.version:raise HTTPException(409,detail='نسخهٔ جدیدتری ثبت شده است؛ اطلاعات مکان را دوباره باز کنید.')
             if editorial.province_name:edit.require_region(permission,coverage,edit.effective_province(row,editorial),edit.effective(baseline,editorial.published)['category'])
             current=editorial.published or {}
-            supplied=venue_schema.prepare_administration(body.attributes,assignment['province_name'])
+            # Keep previously recorded, now retired fields out of the form without
+            # deleting their values when an editor changes the current fields.
+            supplied={**current.get('attributes',{}),**venue_schema.prepare_administration(body.attributes,assignment['province_name'])}
             attributes=edit.validate_attributes(edit.definitions(session),body.values.category,supplied,current.get('attributes'))
             attributes=venue_schema.attribute_overrides(attributes,venue_schema.source_administration(row,assignment['province_name']))
-            values={**baseline,**body.values.model_dump(exclude_unset=True)}
+            values={**edit.effective(baseline,current),**body.values.model_dump(exclude_unset=True)}
             payload=edit.make_payload(baseline,values,attributes)
             if place_id and payload==dict(overrides=current.get('overrides',{}),attributes=current.get('attributes',{})):
                 raise HTTPException(409,detail='تغییری برای ثبت وجود ندارد.')
@@ -391,7 +395,8 @@ def build_router(require_admin,require_user):
                 edit.require_region(permission,coverage,row.province_name,baseline['category'])
                 edit.require_region(permission,coverage,assignment['province_name'],values['category']);published_category(values['category'])
                 if row.provider=='manual':prevent_duplicate_addition(session,values,assignment['province_name'],row.id)
-                verified=venue_schema.prepare_administration({**venue_schema.source_administration(row,assignment['province_name']),**revision.payload.get('attributes',{})},assignment['province_name'])
+                verified=venue_schema.prepare_administration({**venue_schema.source_administration(row,assignment['province_name']),**revision.payload.get('attributes',{})},assignment['province_name'],
+                    validate_county=any(field.active and field.key=='county' for field in edit.definitions(session)))
                 edit.validate_attributes(edit.definitions(session),values['category'],verified,revision.payload.get('attributes',{}))
                 editorial.published=revision.payload;editorial.published_version=revision.version;editorial.name=values['name'];editorial.category=values['category']
                 editorial.latitude=values['latitude'];editorial.longitude=values['longitude'];editorial.province_name=assignment['province_name'];editorial.published_by=actor['id']

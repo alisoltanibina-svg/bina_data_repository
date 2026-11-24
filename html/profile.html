@@ -25,7 +25,6 @@
     <script src="../js/shared.js"></script>
     <script src="../js/profile-viewport.js" defer></script>
     <script src="../js/profile.js?v=otp-proof-1" defer></script>
-    <script src="../js/profile-contributions.js" defer></script>
     <script src="../js/auth.js" defer></script>
 </head>
 <body class="register-body profile-body">
@@ -40,6 +39,7 @@
             </a>
             <p class="register-kicker">حساب کاربری</p>
             <h1>ویرایش پروفایل</h1>
+            <a class="profile-contributions-link" href="contributions.html">مشارکت‌های من <span aria-hidden="true">←</span></a>
 
             <form id="profile-form" novalidate>
                 <div class="profile-photo">
@@ -102,18 +102,6 @@
                 <button type="submit" class="register-submit" id="profile-submit">ثبت تغییرات</button>
                 <a class="register-submit register-link" id="profile-admin-link" hidden>پنل مدیریت</a>
             </form>
-            <section id="profile-contributions" class="profile-contributions" aria-labelledby="profile-contributions-title">
-                <h2 id="profile-contributions-title">مشارکت‌های من</h2>
-                <div class="profile-contribution-stats">
-                    <div><strong id="profile-contribution-points">—</strong><span>امتیاز</span></div>
-                    <div><strong id="profile-contribution-approved">—</strong><span>تأییدشده</span></div>
-                    <div><strong id="profile-contribution-pending">—</strong><span>در انتظار بررسی</span></div>
-                </div>
-                <p class="profile-contribution-policy">افزودن تأییدشده: ۱۰ امتیاز؛ ویرایش تأییدشده: ۳ امتیاز. هر اقدام برای هر مکان فقط یک‌بار امتیاز دارد.</p>
-                <p id="profile-contribution-status" role="status" aria-live="polite">در حال دریافت مشارکت‌ها…</p>
-                <div id="profile-contribution-list"></div>
-                <div class="profile-contribution-pagination"><button type="button" id="profile-contributions-previous" disabled>قبلی</button><button type="button" id="profile-contributions-next" disabled>بعدی</button><button type="button" id="profile-contributions-refresh">تازه‌سازی</button></div>
-            </section>
         </section>
 
         <section class="register-card" id="profile-password-intro" hidden>

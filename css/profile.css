@@ -3,6 +3,10 @@ File: profile.css
 Purpose: Photo picker on the signed-in profile page.
 */
 
+.profile-contributions-link { display:inline-flex; align-items:center; gap:12px; align-self:center; padding:7px 18px; margin:0 0 16px; border:1px solid #ded8c7; border-radius:999px; background:#f8f5ef; color:#515811; font-size:.85rem; text-decoration:none; }
+.profile-contributions-link:hover { background:#eeecdf; }
+.profile-contributions-link:focus-visible { outline:2px solid #a18447; outline-offset:3px; }
+
 .profile-photo {
     display: flex;
     flex-direction: column;
@@ -10,26 +14,6 @@ Purpose: Photo picker on the signed-in profile page.
     gap: 10px;
     margin: 4px 0 6px;
 }
-
-.profile-contributions { margin-top: 28px; padding-top: 22px; border-top: 1px solid #ded8c7; text-align: right; color: #515811; }
-.profile-contributions h2 { font-size: 1.15rem; margin: 0 0 14px; }
-.profile-contribution-stats { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
-.profile-contribution-stats > div { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 12px 4px; border-radius: 14px; background: #f8f5ef; }
-.profile-contribution-stats strong { font-size: 1.4rem; }
-.profile-contribution-stats span { font-size: .7rem; }
-.profile-contribution-policy, #profile-contribution-status { color: #85784f; font-size: .77rem; line-height: 1.9; }
-.profile-contribution-entry { padding: 12px 0; border-bottom: 1px solid #e7e1d3; }
-.profile-contribution-entry h3 { display: inline; font-size: .9rem; margin-inline-end: 8px; overflow-wrap: anywhere; }
-.profile-contribution-entry h3 a { color: inherit; text-decoration: none; }
-.profile-contribution-entry h3 a:hover { text-decoration: underline; }
-.profile-contribution-edit { display: inline-block; margin-top: 8px; padding: 5px 10px; border: 1px solid #ded8c7; border-radius: 12px; color: #515811; background: #f8f5ef; font-size: .78rem; text-decoration: none; }
-.profile-contribution-entry p { font-size: .78rem; line-height: 1.8; color: #777448; margin: 7px 0 0; }
-.profile-contribution-status { display: inline-block; padding: 3px 8px; border-radius: 12px; background: #eeeddf; font-size: .7rem; }
-.profile-contribution-status.is-approved { color: #3d632c; background: #eef4e8; }
-.profile-contribution-status.is-rejected { color: #97483a; background: #f9eeea; }
-.profile-contribution-pagination { display: flex; gap: 8px; margin-top: 14px; }
-.profile-contribution-pagination button { border: 1px solid #ded8c7; border-radius: 14px; padding: 7px 12px; background: #f8f5ef; color: #515811; font: inherit; font-size: .8rem; cursor: pointer; }
-.profile-contribution-pagination button:disabled { opacity: .45; cursor: default; }
 
 .profile-photo-btn {
     width: 118px;

@@ -14,7 +14,8 @@
     <script src="../js/config.js"></script>
     <script src="../js/shared.js"></script>
     <script src="../js/location-discovery.js" defer></script>
-    <script src="../js/locations-editorial.js" defer></script>
+    <script src="../js/place-ui.js" defer></script>
+    <script src="../js/place-map.js" defer></script>
     <script src="../js/locations.js" defer></script>
     <script src="../js/auth.js" defer></script>
 </head>
@@ -26,69 +27,11 @@
             <a class="locations-back" href="explorer.html">ماژول‌های کاوشگر</a>
             <p class="locations-eyebrow">کاوشگر</p>
             <h1 id="locations-title">اطلاعات مکانی</h1>
-            <div id="locations-mode-switch" class="locations-mode-switch" role="group" aria-label="حالت اطلاعات مکانی" hidden>
-                <button type="button" id="locations-view-mode" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>مشاهده</button>
-                <button type="button" id="locations-edit-mode" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 4 5 5M4 20l5-1L21 7a2 2 0 0 0-5-5L4 14Z"/></svg>ثبت و ویرایش</button>
-            </div>
             <p class="locations-intro">نوع مکان را انتخاب کنید؛ برای دیدن مکان‌های نزدیک، نقشه را بزرگ‌نمایی کنید.</p>
             <label class="locations-search-label" for="location-category-search">جستجوی نوع مکان</label>
             <input id="location-category-search" type="search" placeholder="مثلاً مسجد یا کتابخانه" autocomplete="off">
             <div id="location-categories" class="locations-categories" aria-label="انواع مکان"></div>
-            <section id="locations-detail" class="locations-detail" aria-labelledby="locations-detail-title" hidden>
-                <div class="locations-editor-heading"><h2 id="locations-detail-title">اطلاعات مکان</h2><button type="button" id="locations-detail-close" aria-label="بستن اطلاعات مکان">بستن</button></div>
-                <p id="locations-detail-status" class="locations-editor-hint"></p>
-                <dl id="locations-detail-body"></dl><p id="locations-detail-lock" class="locations-editor-hint"></p>
-                <button type="button" id="locations-detail-edit" hidden>ویرایش اطلاعات</button>
-            </section>
-            <section id="locations-editor" class="locations-editor" aria-labelledby="locations-editor-title" hidden>
-                <div class="locations-editor-heading"><h2 id="locations-editor-title">ثبت مکان</h2><button type="button" id="locations-new-place">مکان جدید +</button></div>
-                <p class="locations-editor-hint">پیشنهادهای شما پس از بررسی منتشر می‌شوند.</p>
-                <p id="locations-province-note" class="locations-editor-hint"></p>
-                <details class="locations-eligibility"><summary>وضعیت استان‌ها</summary><ul id="locations-eligible-provinces"></ul></details>
-                <form id="locations-place-form">
-                    <label for="locations-place-name">نام مکان</label>
-                    <input id="locations-place-name" required maxlength="250" autocomplete="off">
-                    <label for="locations-place-category">نوع مکان</label>
-                    <select id="locations-place-category" required></select>
-                    <div class="locations-coordinate-fields">
-                        <label for="locations-place-latitude">عرض جغرافیایی<input id="locations-place-latitude" type="number" required min="24" max="41" step="any" dir="ltr"></label>
-                        <label for="locations-place-longitude">طول جغرافیایی<input id="locations-place-longitude" type="number" required min="43" max="64" step="any" dir="ltr"></label>
-                    </div>
-                    <button type="button" id="locations-pick-point" class="locations-pick-point" aria-pressed="false">انتخاب نقطه روی نقشه</button>
-                    <label for="locations-place-address">نشانی</label><textarea id="locations-place-address" maxlength="2000" rows="3"></textarea>
-                    <label for="locations-place-phoneNumber">شماره تماس</label><input id="locations-place-phoneNumber" maxlength="150" dir="ltr">
-                    <label for="locations-place-website">وبسایت یا صفحهٔ اجتماعی</label><input id="locations-place-website" maxlength="800" dir="ltr">
-                    <details><summary>ساعات فعالیت</summary><div id="locations-hours-fields"></div></details>
-                    <details><summary>شبکه‌های اجتماعی</summary><div id="locations-social-fields"></div><button type="button" id="locations-add-social">افزودن شبکه +</button></details>
-                    <div id="locations-extra-fields"></div>
-                    <button type="button" id="locations-use-source" hidden>استفاده از مقادیر منبع</button>
-                    <label for="locations-change-reason">دلیل ثبت یا تغییر</label><textarea id="locations-change-reason" required minlength="3" maxlength="1000" rows="2"></textarea>
-                    <p id="locations-target-eligibility" class="locations-editor-hint" role="status"></p>
-                    <p id="locations-editor-feedback" class="locations-editor-feedback" role="status" aria-live="polite"></p>
-                    <div class="locations-editor-actions"><button type="submit" id="locations-save-place">ارسال برای بررسی</button><button type="button" id="locations-cancel-place">انصراف</button></div>
-                </form>
-                <details><summary>سابقهٔ تغییرات</summary><div id="locations-history"></div></details>
-                <div class="locations-editor-list-heading"><h3>مکان‌های پایگاه داده در این محدوده</h3><button type="button" id="locations-refresh-places" aria-label="تازه‌سازی مکان‌های ثبت‌شده">تازه‌سازی</button></div>
-                <p id="locations-manual-status" role="status"></p>
-                <div id="locations-manual-list" class="locations-manual-list"></div>
-                <details id="locations-review-wrap" hidden><summary>بررسی پیشنهادها</summary><button type="button" id="locations-refresh-reviews">دریافت پیشنهادها</button><div id="locations-review-list"></div></details>
-                <details id="locations-admin-tools" hidden><summary>مدیریت تیم و ویژگی‌ها</summary>
-                    <details><summary>دسترسی تیم</summary><button type="button" id="locations-load-team">دریافت کاربران</button><div id="locations-team-list"></div></details>
-                    <details><summary>ویژگی‌های انواع مکان</summary><button type="button" id="locations-load-fields">ویژگی‌های موجود</button><div id="locations-defined-fields"></div>
-                        <form id="locations-field-form">
-                            <label>شناسهٔ ثابت ویژگی<input id="locations-field-key" required pattern="[a-z][a-z0-9_]{0,59}" maxlength="60" placeholder="imam_name" dir="ltr"></label>
-                            <label>عنوان<input id="locations-field-label" required maxlength="100" placeholder="نام امام جماعت"></label>
-                            <label>نوع مقدار<select id="locations-field-kind"><option value="text">متن</option><option value="number">عدد</option><option value="boolean">بله یا خیر</option><option value="choice">انتخاب از فهرست</option><option value="date">تاریخ میلادی</option></select></label>
-                            <label>انواع مکان<select id="locations-field-categories" multiple required></select></label>
-                            <label>گزینه‌ها؛ هر گزینه در یک سطر<textarea id="locations-field-choices" rows="3"></textarea></label>
-                            <label><input type="checkbox" id="locations-field-required">الزامی</label>
-                            <label><input type="checkbox" id="locations-field-public">نمایش به کاربران مشاهده‌کننده</label>
-                            <label><input type="checkbox" id="locations-field-active" checked>فعال</label>
-                            <button type="submit">ذخیرهٔ ویژگی</button>
-                        </form>
-                    </details>
-                </details>
-            </section>
+            <button type="button" id="locations-add" class="place-primary" hidden>افزودن مکان +</button>
             <div class="locations-key">
                 <span id="locations-mode">آمار استانی</span>
                 <p id="locations-explanation">اندازهٔ نمادها متناسب با تعداد مکان‌های ثبت‌شده است. نبود داده با «نامشخص» نمایش داده می‌شود.</p>
@@ -102,8 +45,32 @@
             </div>
             <p id="locations-status" class="locations-status" role="status" aria-live="polite">در حال آماده‌سازی نقشه…</p>
             <p id="locations-overlay-note" class="locations-overlay-note" hidden>برای دیدن مکان‌های بیشتر، نقشه را بزرگ‌نمایی کنید.</p>
+            <section id="locations-point-step" class="place-point-step" hidden aria-labelledby="locations-point-title">
+                <h2 id="locations-point-title">انتخاب موقعیت</h2>
+                <p id="locations-point-hint" role="status">محل مسجد را روی نقشه انتخاب کنید.</p>
+                <div><button type="button" id="locations-point-next" class="place-primary" disabled>ادامه و تکمیل اطلاعات</button><button type="button" id="locations-point-cancel">انصراف</button></div>
+            </section>
             <div id="locations-error" class="locations-error" role="alert" hidden><span id="locations-error-text"></span><button type="button" id="locations-retry">تلاش دوباره</button></div>
         </section>
     </main>
+    <dialog id="locations-profile" class="place-dialog place-profile" aria-labelledby="locations-detail-title">
+        <button type="button" id="locations-detail-close" class="place-dialog-close" aria-label="بستن اطلاعات مکان">×</button>
+        <header class="place-profile-pin"><img id="locations-profile-icon" alt=""><h2 id="locations-detail-title">اطلاعات مکان</h2><p id="locations-detail-status"></p></header>
+        <p id="locations-detail-loading" role="status" hidden>در حال دریافت اطلاعات…</p>
+        <dl id="locations-detail-body" class="place-facts"></dl>
+        <p id="locations-detail-lock" role="status"></p>
+        <a id="locations-detail-edit" class="place-primary" hidden>ویرایش اطلاعات</a>
+    </dialog>
+    <dialog id="locations-add-dialog" class="place-dialog" aria-labelledby="locations-add-title">
+        <button type="button" id="locations-add-close" class="place-dialog-close" aria-label="بستن">×</button>
+        <p class="locations-eyebrow">افزودن مکان</p><h2 id="locations-add-title">نوع مکان را انتخاب کنید</h2>
+        <section id="locations-type-step"><div id="locations-add-types" class="place-type-options"></div></section>
+        <section id="locations-province-step" hidden>
+            <label for="locations-add-province">استان</label><select id="locations-add-province"><option value="">استان را انتخاب کنید</option></select>
+            <p id="locations-add-eligibility" role="status"></p>
+            <div class="place-dialog-actions"><button type="button" id="locations-add-next" class="place-primary" disabled>انتخاب موقعیت روی نقشه</button><button type="button" id="locations-add-back">مرحله قبل</button></div>
+        </section>
+        <p id="locations-add-error" role="alert"></p>
+    </dialog>
 </body>
 </html>

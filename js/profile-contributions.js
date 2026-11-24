@@ -9,7 +9,7 @@ onReady(() => {
         el('profile-contributions-previous').disabled=true;el('profile-contributions-next').disabled=true;
         try{
             const response=await fetch(`${window.API_BASE_URL||''}/api/account/contributions?page=${page}`,{credentials:'include',cache:'no-store'});
-            if(response.status===401){el('profile-contributions').hidden=true;return;}
+            if(response.status===401){el('profile-contributions').hidden=true;const signin=el('contributions-signin');if(signin)signin.hidden=false;return;}
             const data=await response.json();if(!response.ok)throw new Error('دریافت مشارکت‌ها انجام نشد.');
             el('profile-contribution-points').textContent=number.format(data.points);
             el('profile-contribution-approved').textContent=number.format(data.summary.approved||0);
@@ -23,7 +23,7 @@ onReady(() => {
                 const meta=document.createElement('p');meta.textContent=(item.action==='added'?'افزودن مکان':'ویرایش مکان')+' · '+
                     (item.created_at?new Date(item.created_at).toLocaleDateString('fa-IR',{timeZone:'Asia/Tehran'}):'');
                 row.append(heading,status,meta);
-                if(item.can_reedit){const edit=document.createElement('a');edit.className='profile-contribution-edit';edit.textContent='ویرایش دوباره';edit.href=link.href;row.append(edit);}
+                if(item.can_reedit){const edit=document.createElement('a');edit.className='profile-contribution-edit';edit.textContent='ویرایش دوباره';edit.href=(typeof SITE!=='undefined'?SITE.page('place-register.html'):'place-register.html')+'?venue='+encodeURIComponent(item.place_id);row.append(edit);}
                 if(item.review_note){const note=document.createElement('p');note.textContent=item.review_note;row.append(note);}
                 root.append(row);
             }

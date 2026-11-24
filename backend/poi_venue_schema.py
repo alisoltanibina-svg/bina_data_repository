@@ -43,12 +43,13 @@ def source_administration(row,province):
         settlement_name=row.address_city if same else None)
 
 
-def prepare_administration(attributes,province):
+def prepare_administration(attributes,province,validate_county=True):
     values=dict(attributes)
     declared=values.get('province')
     if declared and normalize(declared)!=normalize(province):
         raise HTTPException(422,detail='استان واردشده با موقعیت انتخاب‌شده روی نقشه یکسان نیست.')
     values['province']=province
+    if not validate_county:return values
     county=values.get('county')
     if county is not None and not isinstance(county,str):raise HTTPException(422,detail='نام شهرستان باید متن باشد.')
     if county:

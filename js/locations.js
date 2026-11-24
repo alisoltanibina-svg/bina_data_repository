@@ -99,7 +99,7 @@ function locationDistance(a, b) { return LocationDiscovery.distance(a, b); }
                     meta.textContent=(place.tag==='added'?'افزوده‌شده':'ویرایش‌شده')+' · '+(author||'ثبت‌کننده مشخص نیست');label.append(meta);}
                 return label;
             });
-        marker.on('click', () => state.editor?.inspect?.(place));
+        marker.on('click', () => { marker.closePopup?.(); state.editor?.inspect?.(place,marker); });
         return marker;
     }
     function groupMarker(group) {
@@ -240,6 +240,12 @@ function locationDistance(a, b) { return LocationDiscovery.distance(a, b); }
         cancelLive(); state.moving = false;
         if (!state.map || !state.selected || document.hidden) return;
         if (state.editor) state.editor.schedule(state.selected);
+        if (state.editing) {
+            if(state.map.hasLayer(state.live))state.map.removeLayer(state.live);
+            if(state.map.hasLayer(state.summary))state.map.removeLayer(state.summary);
+            if(state.circle){state.circle.remove();state.circle=null;}
+            setStatus('انتخاب موقعیت از نقشه');return;
+        }
         const zoom = state.map.getZoom(), detailed = zoom >= state.config.min_zoom;
         element('locations-mode').textContent = detailed ? (zoom < 17 ? 'نمای کلی' : 'مکان‌های نزدیک') : 'آمار استانی';
         element('locations-explanation').textContent = detailed ? 'عدد هر گروه، تعداد مکان‌های یافت‌شده است. برای جزئیات، روی آن بزنید.' : 'آمار مکان‌های ثبت‌شده؛ نبود داده با «نامشخص» نمایش داده می‌شود.';
@@ -264,7 +270,7 @@ function locationDistance(a, b) { return LocationDiscovery.distance(a, b); }
     }
     function requestNext() {
         clearTimeout(state.timer); state.timer = null;
-        if (state.inflight || document.hidden || state.moving || !state.selected || !state.viewCredits) return;
+        if (state.editing || state.inflight || document.hidden || state.moving || !state.selected || !state.viewCredits) return;
         state.queue = state.queue.filter(cell => cell.category === state.selected.category
             && (state.store.eligible(cell) || ['failed', 'unavailable'].includes(state.store.cells.get(cell.key)?.status)));
         if (!state.queue.length) { memoryStatus(); return; }
@@ -272,7 +278,7 @@ function locationDistance(a, b) { return LocationDiscovery.distance(a, b); }
         const wait = Math.max(state.config.debounce_ms, state.nextAllowed - Date.now(), (record?.retryAt || 0) - Date.now());
         state.timer = setTimeout(() => {
             state.timer = null;
-            if (document.hidden || state.moving || state.inflight) return;
+            if (state.editing || document.hidden || state.moving || state.inflight) return;
             const next = state.queue.shift();
             if (next && state.store.begin(next)) { --state.viewCredits; requestNearby(next); }
         }, wait);
@@ -301,7 +307,7 @@ function locationDistance(a, b) { return LocationDiscovery.distance(a, b); }
             const payload = await readResponse(response);
             if (state.inflight !== token) return;
             state.store.finish(cell, payload, protectedPoint);
-            if (!document.hidden && !state.moving && state.map.getZoom() >= state.config.min_zoom && state.selected?.category === cell.category) {
+            if (!state.editing && !document.hidden && !state.moving && state.map.getZoom() >= state.config.min_zoom && state.selected?.category === cell.category) {
                 clearError(); syncVisiblePoints();
             }
         } catch (error) {
@@ -352,6 +358,7 @@ function locationDistance(a, b) { return LocationDiscovery.distance(a, b); }
                 },
                 onModeChange(editing) {
                     state.editing = editing;
+                    if(editing){cancelLive();if(state.inflight){state.inflight.controller.abort();state.store.abandon(state.inflight.cell);state.inflight=null;}}
                     renderCategories();
                     if (!state.selected && state.categories.length) selectCategory(state.categories[0]);
                     else scheduleViewport();
@@ -371,6 +378,8 @@ function locationDistance(a, b) { return LocationDiscovery.distance(a, b); }
             clearError();
             const linkedVenue=new URLSearchParams(window.location.search||'').get('venue');
             if(linkedVenue && /^[a-f0-9-]{36}$/i.test(linkedVenue)) state.editor?.open?.(linkedVenue);
+            const relocateVenue=new URLSearchParams(window.location.search||'').get('relocate');
+            if(relocateVenue && /^[a-f0-9-]{36}$/i.test(relocateVenue)) state.editor?.relocate?.(relocateVenue);
         } catch (error) { state.initialized = false; showError(error.message); setStatus('راه‌اندازی اطلاعات مکانی انجام نشد.'); }
     }
     function start() {
