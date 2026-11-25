@@ -4,6 +4,7 @@ from sqlalchemy import Column as C, BigInteger as B, Boolean, Integer as I, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import deferred
 from backend.models import Base
+from backend.poi_sql import province_key
 
 def uid(): return C(UUID(as_uuid=True), primary_key=True, default=uuid4)
 def timestamp(): return C(DateTime(timezone=True))
@@ -338,3 +339,18 @@ class PoiPreparation(Base):
     total_tiles=C(I,nullable=False,default=0)
     created_at=C(DateTime(timezone=True),nullable=False,server_default=func.now())
     updated_at=C(DateTime(timezone=True),nullable=False,server_default=func.now())
+
+
+# Fixed-expression indexes keep profile authorization scoped to its provinces.
+# PostgreSQL-only DDL lets disposable SQLite contracts retain their own schema.
+Index('idx_poi_segment_province_gate',PoiSegment.job_id,province_key(PoiSegment.province_name),
+    PoiSegment.parent_segment_id,PoiSegment.status,postgresql_where=text("kind='coverage'"),
+    postgresql_include=['pending_details','review_reason','coverage_circle_id']).ddl_if(dialect='postgresql')
+Index('idx_poi_segment_root_gate',PoiSegment.job_id,PoiSegment.coverage_circle_id,PoiSegment.status,
+    postgresql_where=text("kind='coverage' AND parent_segment_id IS NULL"),
+    postgresql_include=['pending_details','review_reason']).ddl_if(dialect='postgresql')
+Index('idx_poi_circle_province_gate',PoiCoverageCircle.plan_id,province_key(PoiCoverageCircle.province_name),
+    PoiCoverageCircle.id).ddl_if(dialect='postgresql')
+Index('idx_poi_contribution_province_gate',province_key(PoiCoverageContribution.province_name),PoiCoverageContribution.circle_id,
+    postgresql_where=text("province_name<>'__union__'")).ddl_if(dialect='postgresql')
+Index('idx_poi_retired_extent',PoiRetiredPlace.longitude,PoiRetiredPlace.latitude).ddl_if(dialect='postgresql')

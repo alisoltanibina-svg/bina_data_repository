@@ -1,6 +1,7 @@
 # Place identity and nationwide discovery repair
 
-This release adds migrations `0030_poi_canonical` and `0031_poi_retired_sources`. It changes the independent
+This release adds migrations `0030_poi_canonical`, `0031_poi_retired_sources`, and
+`0032_poi_matching_indexes`. It changes the independent
 collector as well as the application. Run the preparation separately for each
 database that needs repair. An imported test database and the database used by
 the running collector may be different.
@@ -145,3 +146,19 @@ database, use `--province "PROVINCE" --category CATEGORY` scopes. The command
 commits each successful group independently; an interruption reports committed
 deletions and a rerun continues with remaining duplicates. It does not reset
 province searches or call Neshan. Restart the updated services afterwards.
+
+## Faster nearby-to-database matching
+
+Migration `0032_poi_matching_indexes` adds lookup and province-gate indexes.
+Apply `venv/bin/python -m alembic upgrade head` in the checkout/environment for
+each database being served, then reload the API. Pause the corresponding
+collector while building indexes; reload its service too when deploying the
+updated model file so its revision matches the API's expected revision.
+
+Matching now selects nearby original, archived, and locally moved locations
+separately through their indexes before loading canonical metadata. The
+20-metre distance, category, province/name, privacy, and ambiguity checks remain
+in force. Profiles check only their original/corrected provinces, with fresh
+cross-border and descendant checks. Reopening unchanged source information
+avoids rewriting its observation records. No matching or authorization TTL
+cache is introduced.

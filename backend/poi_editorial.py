@@ -8,7 +8,7 @@ import re
 
 from fastapi import HTTPException
 from pydantic import Field, FiniteFloat, field_validator
-from sqlalchemy import select, func
+from sqlalchemy import select, func,and_,literal_column
 from sqlalchemy.dialects.postgresql import insert
 from uuid import uuid4
 
@@ -19,6 +19,7 @@ from backend.poi_models import (PoiPlace, PoiPlaceCategory, PoiJob, PoiCoverageP
 from backend.poi_editorial_models import PoiEditorGrant, PoiFieldDefinition, PoiEditorial, PoiSourceIdentity, PoiSourceRevision
 from backend.poi_editorial_models import PoiEditRevision
 from backend.models import User
+from backend.poi_sql import province_key
 
 COMMON = ('name','category','latitude','longitude','address','phoneNumber','website','workHours','socialNetworks')
 
@@ -40,10 +41,21 @@ def observe_source(session,row):
     """Capture only source versions actually read by editing; never write collector rows."""
     identity=source_identity(row)
     if not identity:return
-    session.execute(insert(PoiSourceIdentity).values(place_id=row.id,match_key=identity)
-        .on_conflict_do_update(index_elements=['place_id'],set_={'match_key':identity}))
-    if row.resolved_at and isinstance(row.raw_details,dict):
-        session.execute(insert(PoiSourceRevision).values(id=uuid4(),place_id=row.id,digest=fingerprint(row.raw_details),
+    digest=fingerprint(row.raw_details) if row.resolved_at and isinstance(row.raw_details,dict) else None
+    # Existing observations are a single indexed read, rather than an UPSERT
+    # on every profile view. This avoids serializing viewers on the same row.
+    if digest:
+        observed=session.execute(select(PoiSourceIdentity.match_key,PoiSourceRevision.id).outerjoin(
+            PoiSourceRevision,and_(PoiSourceRevision.place_id==PoiSourceIdentity.place_id,PoiSourceRevision.digest==digest))
+            .where(PoiSourceIdentity.place_id==row.id)).first()
+        previous=observed.match_key if observed else None;snapshot_exists=bool(observed and observed.id)
+    else:
+        previous=session.scalar(select(PoiSourceIdentity.match_key).where(PoiSourceIdentity.place_id==row.id));snapshot_exists=False
+    if previous!=identity:
+        session.execute(insert(PoiSourceIdentity).values(place_id=row.id,match_key=identity)
+            .on_conflict_do_update(index_elements=['place_id'],set_={'match_key':identity},where=PoiSourceIdentity.match_key!=identity))
+    if digest and not snapshot_exists:
+        session.execute(insert(PoiSourceRevision).values(id=uuid4(),place_id=row.id,digest=digest,
             details=row.raw_details,observed_at=row.resolved_at).on_conflict_do_nothing(constraint='uq_poi_source_snapshot'))
 
 
@@ -85,6 +97,26 @@ def completion_row(province, total, done, ready=True):
 
 
 def eligibility(session):
+    """Full provincial catalogue for the registration/administration interface."""
+    return _eligibility(session)
+
+
+def eligibility_for_provinces(session,provinces):
+    """Fresh authorization checks for a profile's source/corrected provinces.
+
+    No TTL cache is used: an unfinished descendant or neighbouring coverage
+    contribution must disable editing immediately, even after a prior view.
+    """
+    scope={normalize(province) for province in provinces if normalize(province)}
+    if not scope:return dict(job_id=None,categories=[],provinces=[])
+    return _eligibility(session,scope)
+
+
+def eligibility_for_province(session,province):
+    return eligibility_for_provinces(session,[province])
+
+
+def _eligibility(session,scope=None):
     """Completed roots, descendants and discovery policy, without area projection."""
     job = session.scalar(select(PoiJob).where(PoiJob.provider=='neshan').order_by(
         PoiJob.status.in_(('pending','running')).desc(),PoiJob.created_at.desc(),PoiJob.id.desc()).limit(1))
@@ -95,30 +127,39 @@ def eligibility(session):
         from backend.poi_coverage_state import discovery_ready
         ready = plan.state == 'ready' and bool((plan.summary or {}).get('coverage_verified')) and discovery_ready(plan)
         counts = defaultdict(lambda: [0,0])
-        rows = session.execute(select(PoiCoverageCircle.province_name,PoiSegment.status,func.count()).join(
+        roots=select(PoiCoverageCircle.province_name,PoiSegment.status,func.count()).join(
             PoiSegment,PoiSegment.coverage_circle_id==PoiCoverageCircle.id).where(
-                PoiCoverageCircle.plan_id==plan.id,PoiSegment.job_id==job.id,PoiSegment.kind=='coverage',
-                PoiSegment.parent_segment_id.is_(None)).group_by(PoiCoverageCircle.province_name,PoiSegment.status)).all()
+                PoiCoverageCircle.plan_id==plan.id,PoiSegment.job_id==job.id,PoiSegment.kind==literal_column("'coverage'"),
+                PoiSegment.parent_segment_id.is_(None))
+        if scope is not None:roots=roots.where(province_key(PoiCoverageCircle.province_name).in_(scope))
+        rows=session.execute(roots.group_by(PoiCoverageCircle.province_name,PoiSegment.status)).all()
         for name,status,n in rows:
             counts[normalize(name)][0] += n
             if status == 'complete': counts[normalize(name)][1] += n
-        blocked={normalize(name) for name in session.scalars(select(PoiSegment.province_name).where(
-            PoiSegment.job_id==job.id,PoiSegment.kind=='coverage',
-            (PoiSegment.status!='complete')|PoiSegment.review_reason.is_not(None)|(PoiSegment.pending_details>0))).all()}
+        assigned=select(PoiSegment.province_name).where(
+            PoiSegment.job_id==job.id,PoiSegment.kind==literal_column("'coverage'"),
+            (PoiSegment.status!='complete')|PoiSegment.review_reason.is_not(None)|(PoiSegment.pending_details>0))
+        if scope is not None:assigned=assigned.where(province_key(PoiSegment.province_name).in_(scope))
+        blocked={normalize(name) for name in session.scalars(assigned.distinct()).all()}
         # Search circles can cross provincial borders. Their owned coverage
         # pieces also block neighbouring provinces until the root is complete.
-        blocked.update(normalize(name) for name in session.scalars(select(PoiCoverageContribution.province_name).join(
+        contributions=select(PoiCoverageContribution.province_name).join(
             PoiSegment,PoiSegment.coverage_circle_id==PoiCoverageContribution.circle_id).where(
-                PoiSegment.job_id==job.id,PoiSegment.kind=='coverage',PoiSegment.parent_segment_id.is_(None),
-                PoiCoverageContribution.province_name!='__union__',
-                (PoiSegment.status!='complete')|PoiSegment.review_reason.is_not(None)|(PoiSegment.pending_details>0))).all())
+                PoiSegment.job_id==job.id,PoiSegment.kind==literal_column("'coverage'"),PoiSegment.parent_segment_id.is_(None),
+                PoiCoverageContribution.province_name!=literal_column("'__union__'"),
+                (PoiSegment.status!='complete')|PoiSegment.review_reason.is_not(None)|(PoiSegment.pending_details>0))
+        if scope is not None:contributions=contributions.where(province_key(PoiCoverageContribution.province_name).in_(scope))
+        blocked.update(normalize(name) for name in session.scalars(contributions.distinct()).all())
         names = session.scalars(select(PoiBoundary.name).where(PoiBoundary.version==plan.source_version,
             PoiBoundary.level=='province').order_by(PoiBoundary.name)).all()
-        provinces = [completion_row(name,*counts[normalize(name)],ready and normalize(name) not in blocked) for name in names]
+        provinces = [completion_row(name,*counts[normalize(name)],ready and normalize(name) not in blocked)
+            for name in names if scope is None or normalize(name) in scope]
     elif job.search_dataset_version:
-        from backend.poi import geographic_progress
-        provinces = [completion_row(r['province'],r['expected_searches'],r['completed_searches'],False)
-            for r in geographic_progress(session,job)['provinces']]
+        if scope is None:
+            from backend.poi import geographic_progress
+            provinces = [completion_row(r['province'],r['expected_searches'],r['completed_searches'],False)
+                for r in geographic_progress(session,job)['provinces']]
+        else:provinces=[]
     else:
         # Legacy grid and pilot work do not establish the provincial progress in this workflow.
         provinces = []

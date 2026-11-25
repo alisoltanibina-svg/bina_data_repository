@@ -1,11 +1,13 @@
 """Match source places by category, <=20 m, province and exact normalized name."""
 from dataclasses import dataclass
 import math
-from sqlalchemy import select,func,and_,or_,case
+from sqlalchemy import select,func,and_,or_,case,literal,literal_column
 from sqlalchemy.orm import aliased
-from backend.poi_models import PoiPlace,PoiPlaceCategory,PoiPlaceLink
+from backend.poi_models import PoiPlace,PoiPlaceCategory,PoiPlaceLink,PoiRetiredPlace
 from backend.poi_editorial_models import PoiEditorial
 from backend.poi_identity_rules import normalized,distance,RADIUS
+from backend.poi_canonical import canonical_predicate
+from backend.poi_sql import published_coordinate
 
 SCHEME='category-distance-province-name-v1'
 MAX_CANDIDATES=2000
@@ -24,21 +26,19 @@ class Variant:
 class TooManyCandidates(Exception):pass
 
 def load_variants(session,category,points,published_only=False):
-    """One bounded metadata query per batch; Nearby inputs are never written."""
+    """Use spatial indexes before loading canonical and published metadata.
+
+    Keep original, archived and moved published locations in separate queries.
+    Combining their coordinate predicates with OR forced national source scans.
+    Nearby inputs and lookup results are never written or cached here.
+    """
     if not points:return []
-    root=aliased(PoiPlace,name='canonical_place')
-    root_id=func.coalesce(PoiPlaceLink.canonical_id,PoiPlace.id)
-    source_category=PoiPlace.raw_details['layer']['slug'].as_string()
-    categorized=select(PoiPlaceCategory.place_id).where(PoiPlaceCategory.place_id==PoiPlace.id,PoiPlaceCategory.category==category).exists()
-    source_matches=or_(source_category==category,and_(or_(source_category.is_(None),source_category==''),categorized))
-    overrides=PoiEditorial.published['overrides']
-    published_category=overrides['category'].as_string()
-    published_matches=or_(published_category==category,and_(published_category.is_(None),source_matches))
-    published_lat=func.coalesce(overrides['latitude'].as_float(),root.latitude)
-    published_lon=func.coalesce(overrides['longitude'].as_float(),root.longitude)
-    published_name=func.coalesce(overrides['name'].as_string(),root.name)
-    moved=or_(overrides['latitude'].as_float().is_not(None),overrides['longitude'].as_float().is_not(None))
-    published_province=case((moved,PoiEditorial.province_name),else_=root.province_name)
+    if published_only:
+        # Most discovery views have no local corrections to replace. Avoid
+        # spatial work entirely until a canonical published profile exists.
+        available=session.scalar(select(PoiEditorial.place_id).join(PoiPlace,PoiPlace.id==PoiEditorial.place_id).where(
+            PoiEditorial.published_version>literal_column('0'),canonical_predicate(PoiEditorial.place_id)).limit(1))
+        if available is None:return []
     rectangles=[];seen=set()
     for point in points:
         coords=(point.latitude,point.longitude)
@@ -46,26 +46,61 @@ def load_variants(session,category,points,published_only=False):
         seen.add(coords);dy=RADIUS/110000;dx=dy/math.cos(math.radians(abs(point.latitude)+dy))
         rectangles.append((point.latitude-dy,point.latitude+dy,point.longitude-dx,point.longitude+dx))
     def nearby(lat,lon):return or_(*(and_(lat.between(s,n),lon.between(w,e)) for s,n,w,e in rectangles))
-    published=PoiEditorial.published_version>0
-    allowed=or_(and_(PoiPlace.provider=='neshan',PoiPlace.resolved_at.is_not(None)),and_(PoiPlace.provider=='manual',published))
-    # A collected observation linked to an unapproved manual place does not
-    # make that contributor's pending profile public.
-    allowed=and_(allowed,or_(root.provider!='manual',published))
-    query=select(root_id.label('id'),PoiPlace.name,PoiPlace.latitude,PoiPlace.longitude,PoiPlace.province_name,
-        source_matches.label('source_matches'),published_matches.label('published_matches'),PoiEditorial.published_version,
-        published_name.label('published_name'),published_lat.label('published_lat'),published_lon.label('published_lon'),published_province.label('published_province'))
-    query=query.select_from(PoiPlace).outerjoin(PoiPlaceLink,PoiPlaceLink.source_id==PoiPlace.id).join(root,root.id==root_id)
-    query=query.outerjoin(PoiEditorial,PoiEditorial.place_id==root.id).where(allowed,
-        or_(and_(source_matches,nearby(PoiPlace.latitude,PoiPlace.longitude)),and_(published,published_matches,nearby(published_lat,published_lon))))
-    if published_only:query=query.where(published)
-    rows=session.execute(query.order_by(PoiPlace.id).limit(MAX_CANDIDATES+1)).all()
-    if len(rows)>MAX_CANDIDATES:raise TooManyCandidates()
-    variants=[]
-    for row in rows:
-        active=bool(row.published_version)
-        if row.source_matches:variants.append(Variant(row.id,row.name,row.latitude,row.longitude,row.province_name,active))
-        if active and row.published_matches:variants.append(Variant(row.id,row.published_name,row.published_lat,row.published_lon,row.published_province,True))
-    return variants
+    def source_match(table):
+        if table is PoiRetiredPlace:return table.category==category
+        raw=table.raw_details['layer']['slug'].as_string()
+        mapped=select(PoiPlaceCategory.place_id).where(PoiPlaceCategory.place_id==table.id,PoiPlaceCategory.category==category).exists()
+        return or_(raw==category,and_(or_(raw.is_(None),raw==''),mapped))
+    def query_for(table,root_id,archived=False):
+        root=aliased(PoiPlace,name='canonical_place')
+        source_matches=source_match(table);published=PoiEditorial.published_version>literal_column('0')
+        overrides=PoiEditorial.published['overrides'];pub_category=overrides['category'].as_string()
+        published_matches=or_(pub_category==category,and_(pub_category.is_(None),source_matches))
+        pub_lat=func.coalesce(overrides['latitude'].as_float(),root.latitude)
+        pub_lon=func.coalesce(overrides['longitude'].as_float(),root.longitude)
+        moved=or_(overrides['latitude'].as_float().is_not(None),overrides['longitude'].as_float().is_not(None))
+        source_id=table.source_id if archived else table.id
+        query=select(source_id.label('source_id'),root_id.label('id'),table.name,table.latitude,table.longitude,table.province_name,
+            source_matches.label('source_matches'),published_matches.label('published_matches'),PoiEditorial.published_version,
+            func.coalesce(overrides['name'].as_string(),root.name).label('published_name'),pub_lat.label('published_lat'),
+            pub_lon.label('published_lon'),case((moved,PoiEditorial.province_name),else_=root.province_name).label('published_province')).select_from(table)
+        if not archived:query=query.outerjoin(PoiPlaceLink,PoiPlaceLink.source_id==table.id)
+        query=query.join(root,root.id==root_id).outerjoin(PoiEditorial,PoiEditorial.place_id==root.id)
+        resolved=literal(True) if archived else table.resolved_at.is_not(None)
+        query=query.where(or_(and_(table.provider=='neshan',resolved),and_(table.provider=='manual',published)),
+            or_(root.provider!='manual',published))
+        if published_only:query=query.where(published)
+        return query,source_matches,published_matches,published,pub_lat,pub_lon
+    variants={};loaded=set()
+    def collect(query,key):
+        rows=session.execute(query.limit(MAX_CANDIDATES+1)).all()
+        if len(rows)>MAX_CANDIDATES:raise TooManyCandidates()
+        for row in rows:
+            source_key=(key,row.source_id)
+            if source_key in loaded:continue
+            loaded.add(source_key)
+            active=bool(row.published_version)
+            values=[]
+            if row.source_matches:values.append(Variant(row.id,row.name,row.latitude,row.longitude,row.province_name,active))
+            if active and row.published_matches:values.append(Variant(row.id,row.published_name,row.published_lat,row.published_lon,row.published_province,True))
+            for variant in values:variants[variant]=variant
+        if len(loaded)>MAX_CANDIDATES:raise TooManyCandidates()
+    root_id=func.coalesce(PoiPlaceLink.canonical_id,PoiPlace.id)
+    query,source_matches,pub_matches,published,pub_lat,pub_lon=query_for(PoiPlace,root_id)
+    collect(query.where(nearby(PoiPlace.latitude,PoiPlace.longitude),or_(source_matches,and_(published,pub_matches,nearby(pub_lat,pub_lon)))),'live')
+    query,source_matches,pub_matches,published,pub_lat,pub_lon=query_for(PoiRetiredPlace,PoiRetiredPlace.canonical_id,True)
+    collect(query.where(nearby(PoiRetiredPlace.latitude,PoiRetiredPlace.longitude),or_(source_matches,and_(published,pub_matches,nearby(pub_lat,pub_lon)))),'retired')
+    # Only a local coordinate override can put a published place outside the
+    # original-location queries. Filter its changed axis using expression
+    # indexes before resolving the other axis against the canonical source.
+    lat=published_coordinate(PoiEditorial.published,'latitude');lon=published_coordinate(PoiEditorial.published,'longitude')
+    axes=or_(*(or_(and_(lat.is_not(None),lat.between(s,n),or_(lon.is_(None),lon.between(w,e))),
+        and_(lon.is_not(None),lat.is_(None),lon.between(w,e))) for s,n,w,e in rectangles))
+    moved_ids=select(PoiEditorial.place_id).where(PoiEditorial.published_version>literal_column('0'),axes,
+        canonical_predicate(PoiEditorial.place_id)).cte('nearby_local_corrections').prefix_with('MATERIALIZED')
+    query,_,pub_matches,published,pub_lat,pub_lon=query_for(PoiPlace,root_id)
+    collect(query.join(moved_ids,moved_ids.c.place_id==PoiPlace.id).where(published,pub_matches,nearby(pub_lat,pub_lon)),'live')
+    return list(variants.values())
 
 class SpatialIndex:
     def __init__(self,variants):
@@ -89,5 +124,10 @@ class SpatialIndex:
         return list(found.values())
 
 def match_points(session,category,points,province_for_point,published_only=False):
-    index=SpatialIndex(load_variants(session,category,points,published_only))
-    return [(point,index.matches(point,province_for_point(point.latitude,point.longitude).get('province_name'))) for point in points]
+    provinces={}
+    for point in points:
+        key=(point.latitude,point.longitude)
+        if key not in provinces:provinces[key]=province_for_point(*key).get('province_name')
+    valid=[point for point in points if normalized(provinces[(point.latitude,point.longitude)])]
+    index=SpatialIndex(load_variants(session,category,valid,published_only))
+    return [(point,index.matches(point,provinces[(point.latitude,point.longitude)])) for point in points]

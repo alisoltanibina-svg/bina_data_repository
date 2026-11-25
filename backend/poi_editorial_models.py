@@ -1,8 +1,9 @@
 """Editing-owned storage. The collector does not import these models."""
 from uuid import uuid4
-from sqlalchemy import Column as C, Boolean, Integer as I, Text as T, String as S, Float as F, DateTime, ForeignKey as FK, UniqueConstraint as UQ, CheckConstraint as CK, Index, func
+from sqlalchemy import Column as C, Boolean, Integer as I, Text as T, String as S, Float as F, DateTime, ForeignKey as FK, UniqueConstraint as UQ, CheckConstraint as CK, Index, func,text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from backend.models import Base
+from backend.poi_sql import published_coordinate
 
 def uid(): return C(UUID(as_uuid=True), primary_key=True, default=uuid4)
 def timestamp(): return C(DateTime(timezone=True))
@@ -128,4 +129,10 @@ class PoiSmsNotification(Base):
     available_at=C(DateTime(timezone=True),nullable=False,server_default=func.now(),index=True)
     sent_at=timestamp()
     created_at=C(DateTime(timezone=True),nullable=False,server_default=func.now())
+
+
+Index('idx_poi_editorial_override_extent',published_coordinate(PoiEditorial.published,'longitude'),
+    published_coordinate(PoiEditorial.published,'latitude'),postgresql_where=text('published_version>0'),_table=PoiEditorial.__table__).ddl_if(dialect='postgresql')
+Index('idx_poi_editorial_override_lat',published_coordinate(PoiEditorial.published,'latitude'),
+    postgresql_where=text('published_version>0'),_table=PoiEditorial.__table__).ddl_if(dialect='postgresql')
 

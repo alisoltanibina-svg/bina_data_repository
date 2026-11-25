@@ -167,7 +167,7 @@ def detail(session,row,actor,allow_pending=False):
         contributors=edit.attributions(session,[editorial]).get(row.id) if editorial and editorial.published_version else None,
         photo_url=place_photos.url((payload or {}).get('photo_path')))
     if scoped(permission,row,editorial):
-        coverage=edit.eligibility(session);allowed=True
+        coverage=edit.eligibility_for_provinces(session,[row.province_name,edit.effective_province(row,editorial)]);allowed=True
         try:
             venue_schema.require_editable_category(session,baseline['category'])
             venue_schema.require_editable_category(session,values['category'])
