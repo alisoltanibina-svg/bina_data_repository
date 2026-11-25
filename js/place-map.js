@@ -7,16 +7,18 @@ function LocationEditor({map,categories,canEdit,onModeChange,getScene,onOverlayC
     const layer=L.layerGroup().addTo(map),profile=el('locations-profile'),addDialog=el('locations-add-dialog');
     function configure(data){
         config=data;el('locations-add').hidden=!data.permissions.can_edit;
+        const provinces=data.coverage.provinces.filter(row=>provinceAllowed(data,row.province));
         el('locations-add-types').replaceChildren();
         for(const category of categories){const button=node('button',category.title,'place-type-choice');button.type='button';
             button.disabled=category.category!=='mosque'||!data.editable_categories.includes(category.category);
             const icon=node('img');icon.src=category.icon_url;icon.alt='';button.prepend(icon);
             button.addEventListener('click',()=>{
                 el('locations-type-step').hidden=true;el('locations-province-step').hidden=false;el('locations-add-title').textContent='استان را انتخاب کنید';
+                el('locations-add-eligibility').textContent=provinces.length?'':'در حال حاضر استانی برای ثبت مکان فعال نیست.';
                 el('locations-add-province').focus();});el('locations-add-types').append(button);}
-        const select=el('locations-add-province'),previous=select.value,blank=node('option','استان را انتخاب کنید');blank.value='';select.replaceChildren(blank);
-        for(const row of data.coverage.provinces){const option=node('option',row.province+(provinceAllowed(data,row.province)?'':' — غیرفعال'));option.value=row.province;select.append(option);}
-        select.value=data.coverage.provinces.some(row=>row.province===previous)?previous:'';
+        const select=el('locations-add-province'),previous=select.value,blank=node('option',provinces.length?'استان را انتخاب کنید':'استان فعالی وجود ندارد');blank.value='';select.replaceChildren(blank);
+        for(const row of provinces){const option=node('option',row.province);option.value=row.province;select.append(option);}
+        select.disabled=!provinces.length;select.value=provinces.some(row=>row.province===previous)?previous:'';
         return data;
     }
     const ready=api('/api/poi-explore/editor/config').then(configure).catch(error=>{el('locations-add-error').textContent=error.message;throw error;});

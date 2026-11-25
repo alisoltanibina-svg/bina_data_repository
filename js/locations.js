@@ -247,9 +247,6 @@ function locationDistance(a, b) { return LocationDiscovery.distance(a, b); }
             setStatus('انتخاب موقعیت از نقشه');return;
         }
         const zoom = state.map.getZoom(), detailed = zoom >= state.config.min_zoom;
-        element('locations-key').hidden = detailed;
-        element('locations-mode').textContent = detailed ? '' : 'آمار استانی';
-        element('locations-explanation').textContent = detailed ? '' : 'آمار مکان‌های ثبت‌شده؛ نبود داده با «نامشخص» نمایش داده می‌شود.';
         if (!detailed) {
             if (state.map.hasLayer(state.live)) state.map.removeLayer(state.live);
             if (!state.map.hasLayer(state.summary)) state.summary.addTo(state.map);

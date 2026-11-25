@@ -583,11 +583,13 @@ html.treat-v1 body.admin-body #top-banner::before {
     box-shadow: var(--treat-shadow);
 }
 
-html.treat-v1 body.register-body #top-banner {
+html.treat-v1 body.register-body #top-banner,
+html.treat-v1 body.contributions-body #top-banner {
     border-radius: var(--treat-radius-room);
 }
 
-html.treat-v1 body.register-body #top-banner::before {
+html.treat-v1 body.register-body #top-banner::before,
+html.treat-v1 body.contributions-body #top-banner::before {
     box-shadow: var(--treat-shadow);
 }
 

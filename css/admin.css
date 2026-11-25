@@ -360,6 +360,8 @@ body.admin-body {
     white-space: nowrap;
 }
 
+.admin-review-entry { text-decoration: none; }
+
 .admin-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;

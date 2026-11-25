@@ -1,10 +1,8 @@
 .contributions-body { margin:0; min-height:100dvh; height:auto; overflow:auto; background:#f7f4ed; color:#515811; font-family:PeydaFaNumWeb,Tahoma,sans-serif; line-height:1.8; }
+.contributions-body,.contributions-body *,.contributions-body *::before,.contributions-body *::after { box-sizing:border-box; }
 .contributions-body [hidden] { display:none !important; }
+.contributions-body #top-banner .banner-seg,.contributions-body #top-banner .top-nav { display:none !important; }
 .contributions-page { width:min(1120px,100%); box-sizing:border-box; margin:0 auto; padding:125px 28px 40px; }
-.contributions-account-nav { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:26px; }
-.contributions-account-nav a { padding:7px 18px; border-radius:999px; color:#777448; font-size:.85rem; text-decoration:none; }
-.contributions-account-nav a[aria-current="page"] { background:#515811; color:#fff; }
-.contributions-account-nav a:hover { background:#eae7d9; color:#515811; }
 .contributions-heading { display:flex; align-items:center; justify-content:space-between; gap:24px; margin-bottom:28px; }
 .contributions-kicker { margin:0; color:#a18447; font-size:.8rem; }
 .contributions-heading h1 { font-size:1.65rem; margin:4px 0 8px; }
@@ -43,8 +41,6 @@
     .contributions-page { padding:92px 16px 28px; }
     .contributions-heading { align-items:flex-start; flex-direction:column; gap:16px; }
     .contributions-heading h1 { font-size:1.4rem; }
-    .contributions-account-nav { gap:4px; margin-bottom:20px; }
-    .contributions-account-nav a { padding:7px 12px; font-size:.78rem; }
     .profile-contribution-stats { gap:8px; }
     .profile-contribution-stats > div { padding:15px 12px; border-radius:16px; }
     .profile-contribution-stats span { font-size:.7rem; }

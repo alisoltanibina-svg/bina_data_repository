@@ -3,10 +3,6 @@ File: profile.css
 Purpose: Photo picker on the signed-in profile page.
 */
 
-.profile-contributions-link { display:inline-flex; align-items:center; gap:12px; align-self:center; padding:7px 18px; margin:0 0 16px; border:1px solid #ded8c7; border-radius:999px; background:#f8f5ef; color:#515811; font-size:.85rem; text-decoration:none; }
-.profile-contributions-link:hover { background:#eeecdf; }
-.profile-contributions-link:focus-visible { outline:2px solid #a18447; outline-offset:3px; }
-
 .profile-photo {
     display: flex;
     flex-direction: column;

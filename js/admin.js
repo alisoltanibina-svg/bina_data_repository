@@ -634,7 +634,10 @@ function setAdminView(view) {
     if (support) support.hidden = view !== 'support';
     const ops = document.getElementById('view-ops');
     if (ops) ops.hidden = view !== 'ops';
+    const placeReviews = document.getElementById('view-place-reviews');
+    if (placeReviews) placeReviews.hidden = view !== 'place-reviews';
     const titles = {
+        'place-reviews': 'مشارکت‌های مکانی',
         poi: 'گردآوری مکان‌ها',
         support: 'تیکت‌های پشتیبانی',
         requests: 'درخواست‌های عضویت',
@@ -642,6 +645,7 @@ function setAdminView(view) {
         ops: 'وضعیت سامانه'
     };
     const leads = {
+        'place-reviews': 'بررسی و تأیید مکان‌های پیشنهادی و ویرایش‌های کاربران.',
         poi: 'کنترل گردآوری سراسری، وضعیت پردازشگر و گزارش پوشش جغرافیایی.',
         support: 'مشکلات ورود و عضویت را بررسی کنید و همین‌جا به کاربر پاسخ دهید.',
         requests: 'درخواست‌های ثبت‌نام را بررسی کنید. پذیرش، حساب را می‌سازد؛ رد را می‌توان بعداً به پذیرش برگرداند.',

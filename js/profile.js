@@ -554,11 +554,6 @@ onReady(async () => {
     try {
         const profile = await apiJson('/api/auth/me');
         applySavedProfile(profile);
-        const adminLink = document.getElementById('profile-admin-link');
-        if (adminLink) {
-            adminLink.href = SITE.page('admin.html');
-            adminLink.hidden = profile.is_admin !== true;
-        }
     } catch (err) {
         if (err.message !== 'auth') showNotice('بارگذاری حساب ممکن نشد.');
         return;
