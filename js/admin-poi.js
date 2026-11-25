@@ -11,7 +11,10 @@
         'Polygon plan prepared; complete offline coverage verification before starting':'برنامهٔ چندضلعی ساخته شده است؛ تأیید هندسی کامل باید پیش از شروع پایان یابد.',
         'Polygon plan verified; provider result limit required':'پوشش هندسی کامل تأیید شده است؛ وضعیت سقف نتایج را در همین صفحه انتخاب و ثبت کنید.',
         'Polygon plan verified; resume explicitly to begin':'پوشش هندسی کامل تأیید شده است؛ برای اجرا شروع گردآوری را بزنید.',
-        'Polygon plan requires completed coverage verification and a result-limit mode':'پوشش هندسی و وضعیت سقف نتایج را پیش از اجرا بررسی کنید.',
+        'Polygon plan requires completed coverage verification and a result-limit mode':'پوشش هندسی را پیش از اجرا بررسی کنید.',
+        'Preparing historical saturated searches for refinement':'جست‌وجوهای قبلیِ اشباع‌شده برای بررسی دقیق‌تر آماده می‌شوند.',
+        'Interrupted searches queued safely; resume explicitly after backoff':'جست‌وجوهای قطع‌شده برای اجرای دوباره آماده‌اند؛ پس از زمان انتظار، ادامه را انتخاب کنید.',
+        'Collection search requires review; coverage remains incomplete':'بخشی از جست‌وجو نیاز به بررسی دارد؛ پوشش آن ناحیه هنوز کامل نیست.',
         'Polygon plan requires completed coverage verification and a confirmed provider result limit':'پوشش هندسی و وضعیت سقف نتایج را پیش از اجرا بررسی کنید.',
         'Provider result limit still reached at minimum radius; coverage requires review':'حتی در کمترین شعاع، پاسخ به سقف نتایج رسیده است؛ ناحیه هنوز کامل نیست و نیاز به بررسی دارد.','Collection plan finished':'جست‌وجوهای برنامه پایان یافته‌اند؛ سرویس پردازشگر روشن می‌ماند.',
             'Collection plan finished; review flagged results':'جست‌وجوها پایان یافته‌اند؛ موارد علامت‌گذاری‌شده را بررسی کنید.',
@@ -83,7 +86,7 @@
         if(!$('poi-coverage-limit-mode').value && savedMode!=='unconfigured')$('poi-coverage-limit-mode').value=savedMode;
         if(g?.result_limit && !$('poi-coverage-limit').value)$('poi-coverage-limit').value=String(g.result_limit);
         updateLimitInput();
-        $('poi-coverage-limit-status').textContent=savedMode==='unknown'?'سقف اعلام نشده است؛ گردآوری بدون فرض سقف عددی انجام می‌شود، کامل‌بودن نتایج نشان نامشخص است و تقسیم مبتنی بر تعداد نتایج غیرفعال است.':savedMode==='unlimited'?'بدون سقف به تأیید نشان؛ تقسیم مبتنی بر تعداد نتایج غیرفعال است.':savedMode==='capped'?`سقف ثبت‌شده: ${num(g.result_limit)}؛ تقسیم خودکار نواحی پرتراکم فعال است.`:'وضعیت سقف نتایج را انتخاب و ذخیره کنید؛ در صورت اعلام‌نشدن سقف، نیازی به واردکردن عدد نیست.';
+        $('poi-coverage-limit-status').textContent=`آستانهٔ بررسی دقیق‌تر: ${num(g?.effective_result_limit||5)} نتیجه؛ نواحی پرتراکم به محدوده‌های کوچک‌تر تقسیم می‌شوند. ${savedMode==='capped'?`سقف ثبت‌شده: ${num(g.result_limit)}.`:'کامل‌بودن فهرست مکان‌های نشان از تعداد نتایج قابل اثبات نیست.'}`;
         $('poi-report-time').textContent='آخرین گزارش: '+time(d.reported_at || new Date().toISOString())+' · تازه‌سازی دستی';
         $('poi-worker').textContent='وضعیت گردآوری: '+(labels[d.state] || d.state)+' · سرویس پردازشگر: '+(d.worker_alive?'متصل':'قطع / اجرا نشده');
         $('poi-timing').textContent='آخرین ضربان: '+time(d.heartbeat_at)+' · زودترین درخواست بعدی: '+time(d.next_request_at);

@@ -1,26 +1,16 @@
 """Match source places by category, <=20 m, province and exact normalized name."""
 from dataclasses import dataclass
 import math
-import unicodedata
 from sqlalchemy import select,func,and_,or_,case
-from backend.poi_models import PoiPlace,PoiPlaceCategory
+from sqlalchemy.orm import aliased
+from backend.poi_models import PoiPlace,PoiPlaceCategory,PoiPlaceLink
 from backend.poi_editorial_models import PoiEditorial
+from backend.poi_identity_rules import normalized,distance,RADIUS
 
 SCHEME='category-distance-province-name-v1'
-RADIUS=20
 MAX_CANDIDATES=2000
 LAT_STEP=RADIUS/110000
 LON_STEP=LAT_STEP/math.cos(math.radians(41))
-
-def normalized(value):
-    text=unicodedata.normalize('NFC',str(value or ''))
-    text=text.translate(str.maketrans('يك۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩','یک01234567890123456789')).replace('\u200c',' ')
-    return ' '.join(text.split()).casefold()
-
-def distance(latitude,longitude,other_latitude,other_longitude):
-    a,b,c,d=map(math.radians,(latitude,longitude,other_latitude,other_longitude))
-    term=math.sin((c-a)/2)**2+math.cos(a)*math.cos(c)*math.sin((d-b)/2)**2
-    return 6371000*2*math.asin(min(1,math.sqrt(term)))
 
 @dataclass(frozen=True)
 class Variant:
@@ -36,17 +26,19 @@ class TooManyCandidates(Exception):pass
 def load_variants(session,category,points,published_only=False):
     """One bounded metadata query per batch; Nearby inputs are never written."""
     if not points:return []
+    root=aliased(PoiPlace,name='canonical_place')
+    root_id=func.coalesce(PoiPlaceLink.canonical_id,PoiPlace.id)
     source_category=PoiPlace.raw_details['layer']['slug'].as_string()
     categorized=select(PoiPlaceCategory.place_id).where(PoiPlaceCategory.place_id==PoiPlace.id,PoiPlaceCategory.category==category).exists()
-    source_matches=or_(source_category==category,and_(source_category.is_(None),categorized))
+    source_matches=or_(source_category==category,and_(or_(source_category.is_(None),source_category==''),categorized))
     overrides=PoiEditorial.published['overrides']
     published_category=overrides['category'].as_string()
     published_matches=or_(published_category==category,and_(published_category.is_(None),source_matches))
-    published_lat=func.coalesce(overrides['latitude'].as_float(),PoiPlace.latitude)
-    published_lon=func.coalesce(overrides['longitude'].as_float(),PoiPlace.longitude)
-    published_name=func.coalesce(overrides['name'].as_string(),PoiPlace.name)
+    published_lat=func.coalesce(overrides['latitude'].as_float(),root.latitude)
+    published_lon=func.coalesce(overrides['longitude'].as_float(),root.longitude)
+    published_name=func.coalesce(overrides['name'].as_string(),root.name)
     moved=or_(overrides['latitude'].as_float().is_not(None),overrides['longitude'].as_float().is_not(None))
-    published_province=case((moved,PoiEditorial.province_name),else_=PoiPlace.province_name)
+    published_province=case((moved,PoiEditorial.province_name),else_=root.province_name)
     rectangles=[];seen=set()
     for point in points:
         coords=(point.latitude,point.longitude)
@@ -56,10 +48,14 @@ def load_variants(session,category,points,published_only=False):
     def nearby(lat,lon):return or_(*(and_(lat.between(s,n),lon.between(w,e)) for s,n,w,e in rectangles))
     published=PoiEditorial.published_version>0
     allowed=or_(and_(PoiPlace.provider=='neshan',PoiPlace.resolved_at.is_not(None)),and_(PoiPlace.provider=='manual',published))
-    query=select(PoiPlace.id,PoiPlace.name,PoiPlace.latitude,PoiPlace.longitude,PoiPlace.province_name,
+    # A collected observation linked to an unapproved manual place does not
+    # make that contributor's pending profile public.
+    allowed=and_(allowed,or_(root.provider!='manual',published))
+    query=select(root_id.label('id'),PoiPlace.name,PoiPlace.latitude,PoiPlace.longitude,PoiPlace.province_name,
         source_matches.label('source_matches'),published_matches.label('published_matches'),PoiEditorial.published_version,
         published_name.label('published_name'),published_lat.label('published_lat'),published_lon.label('published_lon'),published_province.label('published_province'))
-    query=query.outerjoin(PoiEditorial,PoiEditorial.place_id==PoiPlace.id).where(allowed,
+    query=query.select_from(PoiPlace).outerjoin(PoiPlaceLink,PoiPlaceLink.source_id==PoiPlace.id).join(root,root.id==root_id)
+    query=query.outerjoin(PoiEditorial,PoiEditorial.place_id==root.id).where(allowed,
         or_(and_(source_matches,nearby(PoiPlace.latitude,PoiPlace.longitude)),and_(published,published_matches,nearby(published_lat,published_lon))))
     if published_only:query=query.where(published)
     rows=session.execute(query.order_by(PoiPlace.id).limit(MAX_CANDIDATES+1)).all()

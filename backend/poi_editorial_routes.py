@@ -14,8 +14,9 @@ from backend import database,poi_editorial as edit
 from backend import poi_venue_schema as venue_schema
 from backend import place_photos,place_notifications
 from backend import poi_place_matching as matching
+from backend import poi_canonical as canonical
 from backend.models import User
-from backend.poi_models import PoiPlace,PoiPlaceCategory
+from backend.poi_models import PoiPlace,PoiPlaceCategory,PoiPlaceLink,PoiRetiredPlace
 from backend.poi_editorial_models import (PoiEditorial,PoiEditRevision,
     PoiEditorGrant,PoiFieldDefinition,PoiContributionAward,PoiSourceRevision,PoiPlacePhoto)
 from backend.poi_manual import assign_province
@@ -105,6 +106,20 @@ class Definition(InputBody):
 def iso(value): return value.isoformat() if value else None
 def actor_name(actor):return ' '.join(filter(None,[actor.get('first_name'),actor.get('last_name')])) or f"کاربر {actor['id']}"
 def source(session,row): return edit.source_values(row,edit.source_category(session,row))
+
+def canonical_row(session,place_id):
+    try:
+        for _ in range(3):
+            root=canonical.canonical_id(session,place_id)
+            row=session.get(PoiPlace,root)
+            if row is not None:return row
+            # A source may have been retired after resolving its UUID. Resolve
+            # once more instead of turning a preserved URL into a transient404.
+            target=canonical.canonical_id(session,root)
+            if target==root:return None
+            place_id=target
+    except canonical.IdentityConflict:raise HTTPException(409,detail='شناسهٔ مکان نیاز به بررسی مدیر دارد.') from None
+    raise HTTPException(409,detail='شناسهٔ مکان در حال یکپارچه‌سازی است؛ دوباره تلاش کنید.')
 def scoped(permission,row,editorial):
     target=edit.effective_province(row,editorial)
     return edit.in_scope(permission,row.province_name) and (not target or edit.in_scope(permission,target))
@@ -127,20 +142,21 @@ def prevent_duplicate_addition(session,values,province,exclude=None):
     lat=edit.coordinate_expression('latitude');lon=edit.coordinate_expression('longitude')
     pending=select(PoiEditRevision.id).where(PoiEditRevision.place_id==PoiPlace.id,PoiEditRevision.status=='pending').exists()
     rows=session.execute(select(PoiPlace,PoiEditorial).outerjoin(PoiEditorial,PoiEditorial.place_id==PoiPlace.id)
-        .join(PoiPlaceCategory,PoiPlaceCategory.place_id==PoiPlace.id).where(
+        .outerjoin(PoiPlaceCategory,PoiPlaceCategory.place_id==PoiPlace.id).where(
             edit.category_expression()==values['category'],
             or_(PoiPlace.provider!='manual',PoiEditorial.published_version>0,pending),
             lat.between(values['latitude']-.001,values['latitude']+.001),lon.between(values['longitude']-.001,values['longitude']+.001))
         .limit(100)).all()
     for row,editorial in rows:
-        if row.id==exclude:continue
+        if canonical.canonical_id(session,row.id)==exclude:continue
         candidate=edit.effective(edit.source_values(row,values['category']),editorial.published if editorial else None)
-        if normalize(candidate['name'])==normalize(values['name']) and within_search_radius(candidate['latitude'],candidate['longitude'],
-                (values['latitude'],values['longitude']),30):
+        if matching.normalized(edit.effective_province(row,editorial))==matching.normalized(province) and matching.normalized(candidate['name'])==matching.normalized(values['name']) and within_search_radius(candidate['latitude'],candidate['longitude'],
+                (values['latitude'],values['longitude']),matching.RADIUS):
             raise HTTPException(409,detail='مکانی با همین نام و نوع در این نقطه ثبت شده است؛ ابتدا مکان موجود را از روی نقشه باز کنید.')
 
 
 def detail(session,row,actor,allow_pending=False):
+    row=canonical_row(session,row.id)
     edit.observe_source(session,row)
     baseline=source(session,row); editorial=session.get(PoiEditorial,row.id)
     permission=edit.permissions(session,actor); payload=editorial.published if editorial else None
@@ -221,12 +237,13 @@ def build_router(require_admin,require_user):
         with database.db_session() as session:
             photo=session.get(PoiPlacePhoto,identity)
             if not photo:raise HTTPException(404,detail='عکس یافت نشد.')
-            editorial=session.get(PoiEditorial,photo.place_id) if photo.place_id else None
+            root=canonical.canonical_id(session,photo.place_id) if photo.place_id else None
+            editorial=session.get(PoiEditorial,root) if root else None
             published=bool(editorial and editorial.published_version and (editorial.published or {}).get('photo_path')==photo.path)
             permission=edit.permissions(session,actor)
             allowed=photo.uploader_id==actor['id'] or published
             if not allowed and permission['can_review'] and photo.place_id:
-                row=session.get(PoiPlace,photo.place_id);allowed=bool(row and scoped(permission,row,editorial))
+                row=session.get(PoiPlace,root);allowed=bool(row and scoped(permission,row,editorial))
             path=place_photos.managed_file(photo.path)
             if not allowed or not path or not path.is_file():raise HTTPException(404,detail='عکس یافت نشد.')
         return FileResponse(path,media_type='image/webp',headers={'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'})
@@ -254,7 +271,9 @@ def build_router(require_admin,require_user):
             matches=results[0][1]
             if len(matches)>1:raise HTTPException(409,detail='چند مکان با همین نوع، موقعیت، استان و نام ثبت شده است؛ تطبیق یکتا ممکن نیست.')
             if not matches:raise HTTPException(404,detail='مکانی با نوع، موقعیت در فاصلهٔ ۲۰ متر، استان و نام یکسان در پایگاه داده پیدا نشد.')
-            return response(detail(session,session.get(PoiPlace,matches[0].place_id),actor))
+            row=canonical_row(session,matches[0].place_id)
+            if not row:raise HTTPException(404,detail='مکان یافت نشد.')
+            return response(detail(session,row,actor))
 
     @router.get('/api/poi-explore/editor/eligibility')
     def point_eligibility(request:Request,category:str,latitude:float=Query(ge=24,le=41),longitude:float=Query(ge=43,le=64)):
@@ -272,9 +291,9 @@ def build_router(require_admin,require_user):
     def venue(place_id:UUID,request:Request,draft:bool=False):
         actor=require_user(request)
         with database.db_session() as session:
-            row=session.get(PoiPlace,place_id)
+            row=canonical_row(session,place_id)
             if not row:raise HTTPException(404,detail='مکان یافت نشد.')
-            editorial=session.get(PoiEditorial,place_id)
+            editorial=session.get(PoiEditorial,row.id)
             if row.provider=='manual' and not (editorial and editorial.published_version) and not scoped(edit.permissions(session,actor),row,editorial):
                 raise HTTPException(404,detail='مکان یافت نشد.')
             return response(detail(session,row,actor,draft))
@@ -300,8 +319,8 @@ def build_router(require_admin,require_user):
             dy=body.radius/110000
             dx=body.radius/(110000*math.cos(math.radians(min(89,abs(body.latitude)+dy))))
             rows=session.execute(select(PoiPlace,PoiEditorial).join(PoiEditorial,PoiEditorial.place_id==PoiPlace.id)
-                .join(PoiPlaceCategory,PoiPlaceCategory.place_id==PoiPlace.id).where(
-                PoiEditorial.published_version>0,edit.category_expression()==body.category,
+                .outerjoin(PoiPlaceCategory,PoiPlaceCategory.place_id==PoiPlace.id).where(
+                canonical.canonical_predicate(),PoiEditorial.published_version>0,edit.category_expression()==body.category,
                 edit.coordinate_expression('latitude').between(max(body.south,body.latitude-dy),min(body.north,body.latitude+dy)),
                 edit.coordinate_expression('longitude').between(max(body.west,body.longitude-dx),min(body.east,body.longitude+dx)))
                 .distinct()
@@ -327,8 +346,8 @@ def build_router(require_admin,require_user):
             if province:edit.require_region(permission,edit.eligibility(session),province,category)
             lat=edit.coordinate_expression('latitude');lon=edit.coordinate_expression('longitude')
             rows=session.execute(select(PoiPlace,PoiEditorial).outerjoin(PoiEditorial,PoiEditorial.place_id==PoiPlace.id)
-                .join(PoiPlaceCategory,PoiPlaceCategory.place_id==PoiPlace.id).where(
-                    edit.category_expression()==category,
+                .outerjoin(PoiPlaceCategory,PoiPlaceCategory.place_id==PoiPlace.id).where(
+                    canonical.canonical_predicate(),edit.category_expression()==category,
                     or_(PoiPlace.province_name==province,PoiEditorial.province_name==province) if province else True,
                     lat.between(south,north),lon.between(west,east),or_(PoiPlace.resolved_at.is_not(None),
                         and_(PoiPlace.provider=='manual',PoiEditorial.created_by==actor['id'])))
@@ -342,10 +361,12 @@ def build_router(require_admin,require_user):
         if not body.reason.strip():raise HTTPException(422,detail='دلیل تغییر را بنویسید.')
         published_category(body.values.category)
         with database.db_session() as session:
+            canonical.identity_lock(session)
+            if place_id:place_id=canonical.canonical_id(session,place_id)
             session.scalar(select(User.id).where(User.id==actor['id']).with_for_update())
             previous=session.scalar(select(PoiEditRevision).where(PoiEditRevision.submission_id==body.submission_id))
             if previous:
-                if previous.actor_id!=actor['id'] or (place_id and previous.place_id!=place_id):raise HTTPException(409,detail='شناسه ارسال تکراری است.')
+                if previous.actor_id!=actor['id'] or (place_id and canonical.canonical_id(session,previous.place_id)!=place_id):raise HTTPException(409,detail='شناسه ارسال تکراری است.')
                 return dict(id=str(previous.place_id),revision_id=str(previous.id),version=previous.version,status=previous.status)
             permission=edit.permissions(session,actor);coverage=edit.eligibility(session)
             venue_schema.require_editable_category(session,body.values.category)
@@ -417,10 +438,12 @@ def build_router(require_admin,require_user):
     def history(place_id:UUID,request:Request,page:int=Query(default=0,ge=0,le=10000)):
         actor=require_user(request)
         with database.db_session() as session:
-            row=session.get(PoiPlace,place_id)
-            if not row or not scoped(edit.permissions(session,actor),row,session.get(PoiEditorial,place_id)):raise HTTPException(403,detail='دسترسی به سابقه ندارید.')
-            rows=session.scalars(select(PoiEditRevision).where(PoiEditRevision.place_id==place_id).order_by(PoiEditRevision.version.desc()).offset(page*50).limit(51)).all()
-            snapshots=session.scalars(select(PoiSourceRevision).where(PoiSourceRevision.place_id==place_id)
+            row=canonical_row(session,place_id)
+            if not row or not scoped(edit.permissions(session,actor),row,session.get(PoiEditorial,row.id)):raise HTTPException(403,detail='دسترسی به سابقه ندارید.')
+            members=canonical.member_ids(session,row.id)
+            rows=session.scalars(select(PoiEditRevision).where(PoiEditRevision.place_id.in_(members))
+                .order_by(PoiEditRevision.created_at.desc(),PoiEditRevision.id.desc()).offset(page*50).limit(51)).all()
+            snapshots=session.scalars(select(PoiSourceRevision).where(PoiSourceRevision.place_id.in_(members))
                 .order_by(PoiSourceRevision.observed_at.desc()).offset(page*20).limit(21)).all()
             source_history=[]
             for snapshot in snapshots[:20]:
@@ -435,18 +458,21 @@ def build_router(require_admin,require_user):
     def restore(place_id:UUID,body:Restore,request:Request,background_tasks:BackgroundTasks):
         actor=require_user(request)
         with database.db_session() as session:
-            row=session.get(PoiPlace,place_id);revision=session.get(PoiEditRevision,body.revision_id)
-            if not row or not revision or revision.place_id!=place_id or not scoped(edit.permissions(session,actor),row,session.get(PoiEditorial,place_id)):
+            row=canonical_row(session,place_id);revision=session.get(PoiEditRevision,body.revision_id)
+            if not row or not revision or canonical.canonical_id(session,revision.place_id)!=row.id or not scoped(edit.permissions(session,actor),row,session.get(PoiEditorial,row.id)):
                 raise HTTPException(403,detail='این سابقه قابل بازیابی نیست.')
             baseline=source(session,row)
-            values=edit.effective(baseline,revision.payload)
+            # A retired alias can have a different source baseline; restore its
+            # historical effective values rather than rebasing old overrides.
+            values=edit.effective(revision.source_snapshot['values'],revision.payload)
             for key in ('workHours','socialNetworks'):
                 if key not in revision.payload.get('overrides',{}):values.pop(key,None)
             submission=Submission(submission_id=body.submission_id,version=body.version,source_version=edit.fingerprint(baseline),
                 values=values,attributes=revision.payload.get('attributes',{}),reason=body.reason,
                 photo_id=UUID(revision.payload['photo_path'][len(place_photos.PREFIX):-5]) if place_photos.managed_file(revision.payload.get('photo_path')) else None,
                 remove_photo=not revision.payload.get('photo_path'))
-        result=submit(submission,actor,place_id);background_tasks.add_task(place_notifications.dispatch_pending);return response(result)
+            target_place_id=row.id
+        result=submit(submission,actor,target_place_id);background_tasks.add_task(place_notifications.dispatch_pending);return response(result)
 
     @router.get('/api/poi-explore/editor/revisions')
     def pending(request:Request):
@@ -454,26 +480,38 @@ def build_router(require_admin,require_user):
         with database.db_session() as session:
             permission=edit.permissions(session,actor)
             if not permission['can_review']:raise HTTPException(403,detail='دسترسی بررسی ندارید.')
-            rows=session.execute(select(PoiEditRevision,PoiPlace).join(PoiPlace,PoiPlace.id==PoiEditRevision.place_id)
+            target=func.coalesce(PoiPlaceLink.canonical_id,PoiRetiredPlace.canonical_id,PoiEditRevision.place_id)
+            rows=session.execute(select(PoiEditRevision,PoiPlace).select_from(PoiEditRevision)
+                .outerjoin(PoiPlaceLink,PoiPlaceLink.source_id==PoiEditRevision.place_id)
+                .outerjoin(PoiRetiredPlace,PoiRetiredPlace.source_id==PoiEditRevision.place_id).join(PoiPlace,PoiPlace.id==target)
                 .where(PoiEditRevision.status=='pending').order_by(PoiEditRevision.created_at).limit(200)).all()
-            return response(dict(revisions=[{**revision_dict(r),'name':p.name} for r,p in rows if scoped(permission,p,session.get(PoiEditorial,p.id))]))
+            return response(dict(revisions=[{**revision_dict(r),'name':p.name,
+                'canonical_place_id':str(p.id),'is_consolidated_alias':p.id!=r.place_id}
+                for r,p in rows if scoped(permission,p,session.get(PoiEditorial,p.id))]))
 
     @router.post('/api/poi-explore/editor/revisions/{revision_id}/review')
     def review(revision_id:UUID,body:Review,request:Request,background_tasks:BackgroundTasks):
         actor=require_user(request)
         with database.db_session() as session:
+            canonical.identity_lock(session)
             revision=session.get(PoiEditRevision,revision_id)
             if not revision:raise HTTPException(404,detail='تغییر یافت نشد.')
-            editorial=lock_editorial(session,revision.place_id);row=session.get(PoiPlace,revision.place_id)
+            editorial=lock_editorial(session,revision.place_id);row=canonical_row(session,revision.place_id)
             session.refresh(revision)
             permission=edit.permissions(session,actor)
-            if not permission['can_review'] or not scoped(permission,row,editorial):raise HTTPException(403,detail='دسترسی بررسی ندارید.')
+            permission_editorial=session.get(PoiEditorial,row.id) if row else None
+            if not row or not permission['can_review'] or not scoped(permission,row,permission_editorial):raise HTTPException(403,detail='دسترسی بررسی ندارید.')
             if revision.actor_id==actor['id'] and not actor.get('is_admin'):raise HTTPException(403,detail='تغییر خود را به بررسی‌کنندهٔ دیگری بسپارید.')
             if revision.status!='pending':return response(dict(status=revision.status))
+            root=canonical.canonical_id(session,revision.place_id)
+            if body.approve and root!=revision.place_id:
+                raise HTTPException(409,detail='این پیشنهاد متعلق به رکوردی است که یکپارچه شده است؛ اطلاعات را از صفحهٔ مکان اصلی دوباره ثبت کنید.')
             if not body.approve and not body.note.strip():raise HTTPException(422,detail='دلیل رد تغییر را بنویسید.')
             if body.approve:
                 if revision.base_published_version!=editorial.published_version:raise HTTPException(409,detail='نسخهٔ منتشرشده تغییر کرده است؛ این پیشنهاد نیاز به بازبینی دارد.')
                 baseline=source(session,row);edit.observe_source(session,row);values=edit.effective(baseline,revision.payload)
+                if edit.fingerprint(baseline)!=edit.fingerprint(revision.source_snapshot['values']):
+                    raise HTTPException(409,detail='دادهٔ منبع پس از ثبت پیشنهاد تغییر کرده است؛ اطلاعات مکان را بازبینی و پیشنهاد را دوباره ثبت کنید.')
                 venue_schema.require_editable_category(session,baseline['category'])
                 venue_schema.require_editable_category(session,values['category'])
                 assignment=assign_province(values['latitude'],values['longitude']);coverage=edit.eligibility(session)
@@ -486,7 +524,10 @@ def build_router(require_admin,require_user):
                 editorial.published=revision.payload;editorial.published_version=revision.version;editorial.name=values['name'];editorial.category=values['category']
                 editorial.latitude=values['latitude'];editorial.longitude=values['longitude'];editorial.province_name=assignment['province_name'];editorial.published_by=actor['id']
                 if row.provider=='manual' and not row.resolved_at:row.resolved_at=datetime.now(timezone.utc)
-                if revision.actor_id:
+                members=canonical.member_ids(session,row.id)
+                awarded=session.scalar(select(PoiContributionAward.id).where(PoiContributionAward.user_id==revision.actor_id,
+                    PoiContributionAward.place_id.in_(members),PoiContributionAward.action==revision.action,PoiContributionAward.revoked.is_(False)).limit(1)) if revision.actor_id else None
+                if revision.actor_id and not awarded:
                     session.execute(insert(PoiContributionAward).values(id=uuid4(),user_id=revision.actor_id,place_id=row.id,revision_id=revision.id,
                         action=revision.action,points=10 if revision.action=='added' else 3,revoked=False).on_conflict_do_nothing(constraint='uq_poi_contribution_once'))
             revision.status='approved' if body.approve else 'rejected';revision.reviewer_id=actor['id'];revision.reviewer_name=actor_name(actor);revision.review_note=body.note;revision.reviewed_at=datetime.now(timezone.utc)
@@ -500,15 +541,26 @@ def build_router(require_admin,require_user):
         actor=require_user(request)
         with database.db_session() as session:
             summary=dict(session.execute(select(PoiEditRevision.status,func.count()).where(PoiEditRevision.actor_id==actor['id']).group_by(PoiEditRevision.status)).all())
-            points=session.scalar(select(func.coalesce(func.sum(PoiContributionAward.points),0)).where(PoiContributionAward.user_id==actor['id'],PoiContributionAward.revoked.is_(False)))
+            award_target=func.coalesce(PoiPlaceLink.canonical_id,PoiRetiredPlace.canonical_id,PoiContributionAward.place_id)
+            awards=select(award_target.label('place'),
+                PoiContributionAward.action,func.max(PoiContributionAward.points).label('points')).outerjoin(PoiPlaceLink,
+                    PoiPlaceLink.source_id==PoiContributionAward.place_id).outerjoin(PoiRetiredPlace,
+                        PoiRetiredPlace.source_id==PoiContributionAward.place_id).where(PoiContributionAward.user_id==actor['id'],
+                        PoiContributionAward.revoked.is_(False)).group_by(award_target,PoiContributionAward.action).subquery()
+            points=session.scalar(select(func.coalesce(func.sum(awards.c.points),0)))
             permission=edit.permissions(session,actor)
             coverage=edit.eligibility(session) if permission['can_edit'] else None
             enabled=venue_schema.editable_categories(session) if permission['can_edit'] else set()
-            rows=session.execute(select(PoiEditRevision,PoiPlace,PoiEditorial).join(PoiPlace,PoiPlace.id==PoiEditRevision.place_id)
+            target=func.coalesce(PoiPlaceLink.canonical_id,PoiRetiredPlace.canonical_id,PoiEditRevision.place_id)
+            rows=session.execute(select(PoiEditRevision,PoiPlace,PoiEditorial).select_from(PoiEditRevision)
+                .outerjoin(PoiPlaceLink,PoiPlaceLink.source_id==PoiEditRevision.place_id)
+                .outerjoin(PoiRetiredPlace,PoiRetiredPlace.source_id==PoiEditRevision.place_id).join(PoiPlace,PoiPlace.id==target)
                 .outerjoin(PoiEditorial,PoiEditorial.place_id==PoiPlace.id).where(PoiEditRevision.actor_id==actor['id'])
                 .order_by(PoiEditRevision.created_at.desc(),PoiEditRevision.id.desc()).offset(page*20).limit(21)).all()
+            roots={row.id:canonical.canonical_id(session,row.id) for revision,row,editorial in rows[:20]}
             writable={}
             for revision,row,editorial in rows[:20]:
+                row=session.get(PoiPlace,roots[row.id]);editorial=session.get(PoiEditorial,row.id)
                 if row.id in writable:continue
                 allowed=bool(permission['can_edit'] and scoped(permission,row,editorial) and (row.resolved_at or row.provider=='manual'))
                 baseline=source(session,row)
@@ -520,9 +572,9 @@ def build_router(require_admin,require_user):
                         edit.require_region(permission,coverage,edit.effective_province(row,editorial),target['category'])
                     except HTTPException:allowed=False
                 writable[row.id]=allowed
-            return response(dict(points=points,summary=summary,page=page,has_more=len(rows)>20,contributions=[dict(id=str(r.id),place_id=str(p.id),
+            return response(dict(points=points,summary=summary,page=page,has_more=len(rows)>20,contributions=[dict(id=str(r.id),place_id=str(roots[p.id]),
                 name=edit.effective(r.source_snapshot['values'],r.payload)['name'],action=r.action,status=r.status,created_at=iso(r.created_at),review_note=r.review_note,
-                can_reedit=writable[p.id]) for r,p,e in rows[:20]],
+                can_reedit=writable[roots[p.id]]) for r,p,e in rows[:20]],
                 scoring=dict(added=10,edited=3,once_per_user_place_action=True)))
 
     @router.get('/api/admin/poi/editors')

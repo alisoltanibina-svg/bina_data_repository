@@ -15,7 +15,7 @@ from uuid import uuid4
 from backend.input_security import InputBody, safe_text
 from backend.poi_geo import normalize
 from backend.poi_models import (PoiPlace, PoiPlaceCategory, PoiJob, PoiCoveragePlan, PoiCoverageCircle,
-    PoiSegment, PoiBoundary)
+    PoiSegment, PoiBoundary,PoiCoverageContribution)
 from backend.poi_editorial_models import PoiEditorGrant, PoiFieldDefinition, PoiEditorial, PoiSourceIdentity, PoiSourceRevision
 from backend.poi_editorial_models import PoiEditRevision
 from backend.models import User
@@ -53,7 +53,7 @@ def coordinate_expression(key):
 
 def category_expression():
     return func.coalesce(PoiEditorial.published['overrides']['category'].as_string(),
-        PoiPlace.raw_details['layer']['slug'].as_string(),PoiPlaceCategory.category)
+        func.nullif(PoiPlace.raw_details['layer']['slug'].as_string(),''),PoiPlaceCategory.category)
 
 
 def edited_coordinates(editorial):
@@ -85,13 +85,15 @@ def completion_row(province, total, done, ready=True):
 
 
 def eligibility(session):
-    """Same root-search counters as the worker table, without area projection work."""
-    job = session.scalar(select(PoiJob).order_by(PoiJob.created_at.desc(),PoiJob.id.desc()).limit(1))
+    """Completed roots, descendants and discovery policy, without area projection."""
+    job = session.scalar(select(PoiJob).where(PoiJob.provider=='neshan').order_by(
+        PoiJob.status.in_(('pending','running')).desc(),PoiJob.created_at.desc(),PoiJob.id.desc()).limit(1))
     if not job:
         return dict(job_id=None,categories=[],provinces=[])
     plan = session.scalar(select(PoiCoveragePlan).where(PoiCoveragePlan.job_id == job.id))
     if plan:
-        ready = plan.state == 'ready' and bool((plan.summary or {}).get('coverage_verified'))
+        from backend.poi_coverage_state import discovery_ready
+        ready = plan.state == 'ready' and bool((plan.summary or {}).get('coverage_verified')) and discovery_ready(plan)
         counts = defaultdict(lambda: [0,0])
         rows = session.execute(select(PoiCoverageCircle.province_name,PoiSegment.status,func.count()).join(
             PoiSegment,PoiSegment.coverage_circle_id==PoiCoverageCircle.id).where(
@@ -100,12 +102,22 @@ def eligibility(session):
         for name,status,n in rows:
             counts[normalize(name)][0] += n
             if status == 'complete': counts[normalize(name)][1] += n
+        blocked={normalize(name) for name in session.scalars(select(PoiSegment.province_name).where(
+            PoiSegment.job_id==job.id,PoiSegment.kind=='coverage',
+            (PoiSegment.status!='complete')|PoiSegment.review_reason.is_not(None)|(PoiSegment.pending_details>0))).all()}
+        # Search circles can cross provincial borders. Their owned coverage
+        # pieces also block neighbouring provinces until the root is complete.
+        blocked.update(normalize(name) for name in session.scalars(select(PoiCoverageContribution.province_name).join(
+            PoiSegment,PoiSegment.coverage_circle_id==PoiCoverageContribution.circle_id).where(
+                PoiSegment.job_id==job.id,PoiSegment.kind=='coverage',PoiSegment.parent_segment_id.is_(None),
+                PoiCoverageContribution.province_name!='__union__',
+                (PoiSegment.status!='complete')|PoiSegment.review_reason.is_not(None)|(PoiSegment.pending_details>0))).all())
         names = session.scalars(select(PoiBoundary.name).where(PoiBoundary.version==plan.source_version,
             PoiBoundary.level=='province').order_by(PoiBoundary.name)).all()
-        provinces = [completion_row(name,*counts[normalize(name)],ready) for name in names]
+        provinces = [completion_row(name,*counts[normalize(name)],ready and normalize(name) not in blocked) for name in names]
     elif job.search_dataset_version:
         from backend.poi import geographic_progress
-        provinces = [completion_row(r['province'],r['expected_searches'],r['completed_searches'])
+        provinces = [completion_row(r['province'],r['expected_searches'],r['completed_searches'],False)
             for r in geographic_progress(session,job)['provinces']]
     else:
         # Legacy grid and pilot work do not establish the provincial progress in this workflow.
@@ -130,7 +142,7 @@ def source_values(row, category):
 
 def source_category(session, row):
     layer=(row.raw_details or {}).get('layer') if row.provider=='neshan' and isinstance(row.raw_details,dict) else None
-    if isinstance(layer,dict) and isinstance(layer.get('slug'),str):return layer['slug']
+    if isinstance(layer,dict) and isinstance(layer.get('slug'),str) and layer['slug']:return layer['slug']
     return session.scalar(select(PoiPlaceCategory.category).where(PoiPlaceCategory.place_id==row.id)
         .order_by(PoiPlaceCategory.category).limit(1))
 

@@ -14,9 +14,10 @@ from backend import database
 from backend.poi_models import (PoiControl, PoiBoundary, PoiCategory, PoiJob, PoiSegment,
     PoiPlace, PoiPlaceCategory, PoiDetailTask, PoiRequest, PoiDuplicateReview, PoiSourceDataset, PoiSettlement)
 from backend.poi_geo import BoundaryIndex, grid, load_boundaries, normalize, parse_address
-from backend.poi_provider import nearby_items, details, access_error_message
+from backend.poi_provider import nearby_items, details, coordinates, access_error_message
 from backend.poi_budget import record_provider_backoff
 from backend import poi_coverage_state as coverage
+from backend import poi_canonical as canonical
 
 LOCK_KEY = 741923816
 ACTIVE = ('pending', 'running')
@@ -155,8 +156,15 @@ def next_target(session, job, pilot_segment_id=None):
     return None
 
 
-def discover(session, job, segment, items):
+def discover(session, job, segment, items, transient_points=None):
     """Return an in-memory handoff, never write Nearby places or identifiers to disk."""
+    transient={}
+    for point in transient_points or []:
+        if not isinstance(point,dict) or not isinstance(point.get('poiHash'),str) or not isinstance(point.get('name'),str):continue
+        try:latitude,longitude=coordinates(point.get('location'))
+        except (ValueError,TypeError,OverflowError):continue
+        if not point['name'].strip() or len(point['name'])>250:continue
+        transient[point['poiHash']]=(point['name'],latitude,longitude)
     hashes, seen = [], set()
     for item in items:
         provider_id = item.get('poiHash')
@@ -168,8 +176,15 @@ def discover(session, job, segment, items):
             job.duplicates_skipped += 1
             continue
         seen.add(provider_id)
-        place = session.scalar(select(PoiPlace).where(PoiPlace.provider == job.provider,
-                                                     PoiPlace.provider_id == provider_id))
+        place = canonical.remembered_place(session,job.provider,provider_id)
+        if place is None and provider_id in transient:
+            # Compare transient Nearby metadata with permitted stored Details.
+            # No token alias or Nearby field is persisted when a Details call
+            # can be skipped. Refresh jobs still honour their freshness cutoff.
+            name,latitude,longitude=transient[provider_id]
+            assignment=boundary_index(job.search_dataset_version or job.boundary_version).assign(latitude,longitude)
+            try:place=canonical.match_existing_source(session,job.provider,segment.category,name,latitude,longitude,assignment.get('province_name'))
+            except canonical.IdentityConflict:place=None
         if place and place.resolved_at and (job.mode == 'initial' or place.resolved_at >= job.refresh_before):
             job.duplicates_skipped += 1
         else:
@@ -179,11 +194,14 @@ def discover(session, job, segment, items):
 
 def save_details(session, job, provider_id, body, stamp):
     lat, lon = details(body)
-    session.execute(insert(PoiPlace).values(id=uuid4(), provider=job.provider, provider_id=provider_id,
-        name=body['name'], normalized_name=normalize(body['name']), latitude=lat, longitude=lon)
-        .on_conflict_do_nothing(index_elements=['provider','provider_id']))
-    place = session.scalar(select(PoiPlace).where(PoiPlace.provider==job.provider, PoiPlace.provider_id==provider_id))
-    for key, value in {**parse_address(body), **boundary_index(job.search_dataset_version or job.boundary_version).assign(lat,lon)}.items():
+    assignment=boundary_index(job.search_dataset_version or job.boundary_version).assign(lat,lon)
+    place=canonical.resolve_details(session,job.provider,provider_id,body,assignment)
+    if place is None:
+        session.execute(insert(PoiPlace).values(id=uuid4(), provider=job.provider, provider_id=provider_id,
+            name=body['name'], normalized_name=normalize(body['name']), latitude=lat, longitude=lon)
+            .on_conflict_do_nothing(index_elements=['provider','provider_id']))
+        place=session.scalar(select(PoiPlace).where(PoiPlace.provider==job.provider,PoiPlace.provider_id==provider_id))
+    for key, value in {**parse_address(body), **assignment}.items():
         setattr(place, key, value)
     place.name, place.normalized_name = body['name'], normalize(body['name'])
     place.latitude, place.longitude = lat, lon
@@ -194,6 +212,8 @@ def save_details(session, job, provider_id, body, stamp):
         title = layer.get('title') if isinstance(layer.get('title'), str) else slug
         session.execute(insert(PoiCategory).values(slug=slug, title=title).on_conflict_do_nothing())
         session.execute(insert(PoiPlaceCategory).values(place_id=place.id, category=slug).on_conflict_do_nothing())
+    session.flush()
+    canonical.remember_token(session,job.provider,provider_id,place.id)
     # Review candidates only; never automatically merge independent provider identities.
     peers = session.scalars(select(PoiPlace).where(PoiPlace.id != place.id,
         PoiPlace.normalized_name == place.normalized_name,
@@ -232,20 +252,35 @@ def apply_reply(session, request_id, reply, result_cap=0, detail_hash=None, deta
         else:
             if req.kind == 'nearby':
                 items = nearby_items(reply.body)
-                handoff = discover(session, job, target, items)
+                handoff = discover(session, job, target, items,transient_points=reply.body['layerPoints']['nearestPoints'])
                 req.result_count = len(items)
                 req.hash_count = sum(bool(item.get('poiHash')) for item in items)
                 req.queued_count = len(handoff)
                 target.pending_details = len(handoff)
                 if not handoff and (c.collection_mode=='pilot' or not job.search_dataset_version):
                     c.paused, c.reason = True, 'Nearby produced no new usable hashes; review area/category with Neshan before continuing'
-                if coverage_plan and coverage_plan.result_limit and len(items)>=coverage_plan.result_limit:
+                if coverage_plan and len(items)>=coverage.effective_result_limit(coverage_plan):
                     coverage.subdivide(session,job,target,coverage_plan)
                 if not coverage_plan and result_cap and len(items) >= result_cap:
                     target.review_reason = 'Provider result cap reached; repeat with smaller search radius'
             else:
                 if not detail_hash: raise RuntimeError('Details response has no in-memory request identity')
-                save_details(session, job, detail_hash, reply.body, stamp)
+                from backend.poi_canonical import IdentityConflict
+                try:
+                    # A rejected identity must not leave a partial alias or
+                    # source update in the otherwise valid request transaction.
+                    with session.begin_nested():
+                        save_details(session, job, detail_hash, reply.body, stamp)
+                        session.flush()
+                except IdentityConflict as error:
+                    req.outcome,req.error,req.raw_response='uncertain','identity_review:'+error.reason,reply.body
+                    target.status,target.pending_details,target.review_reason='failed',0,'identity_review:'+error.reason
+                    if coverage_plan:coverage.invalidate_ancestors(session,target)
+                    c.paused,c.reason=True,'Place identity requires review; source records were preserved'
+                    delay=max(delay,min(reply.retry_after,31536000))
+                    if reply.retry_after:record_provider_backoff(session,max(60,delay))
+                    c.next_request_at=stamp+timedelta(seconds=delay)
+                    return []
                 req.raw_response=reply.body
                 target.pending_details = max(0, target.pending_details - 1)
             req.outcome = 'successful'
@@ -362,7 +397,7 @@ def resume_collection(session):
 
 def status(session):
     c = session.get(PoiControl, 1)
-    job = session.scalar(select(PoiJob).order_by(PoiJob.created_at.desc()).limit(1))
+    job = session.scalar(select(PoiJob).order_by(PoiJob.status.in_(ACTIVE).desc(),PoiJob.created_at.desc()).limit(1))
     pilot=session.get(PoiSegment,c.pilot_segment_id) if c and c.pilot_segment_id else None
     readiness = collection_readiness(c, job, storage_cleanup_required(session),pilot,unresolved_scope(session,job,c),coverage.blocker(session,job))
     alive = readiness['worker_alive']

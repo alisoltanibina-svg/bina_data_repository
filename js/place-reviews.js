@@ -13,12 +13,16 @@ onReady(async()=>{
                 const note=node('textarea');note.placeholder='یادداشت برای ثبت‌کننده';note.setAttribute('aria-label','یادداشت بررسی '+revision.after.name);note.maxLength=1000;
                 const feedback=node('p',null,'place-review-error');feedback.setAttribute('role','status');
                 const actions=node('div',null,'place-review-actions');let busy=false;
-                const decide=async approve=>{if(busy)return;busy=true;approveButton.disabled=rejectButton.disabled=true;feedback.textContent='';
+                const decide=async approve=>{if(busy||approve&&revision.is_consolidated_alias)return;busy=true;approveButton.disabled=rejectButton.disabled=true;feedback.textContent='';
                     try{await api('/api/poi-explore/editor/revisions/'+encodeURIComponent(revision.id)+'/review',{method:'POST',body:JSON.stringify({approve,note:note.value.trim()})});card.remove();
                         if(!root.childElementCount)el('place-reviews-status').textContent='پیشنهادی در انتظار بررسی نیست.';
-                    }catch(error){feedback.textContent=error.message;}finally{busy=false;approveButton.disabled=rejectButton.disabled=false;}};
+                    }catch(error){feedback.textContent=error.message;}finally{busy=false;approveButton.disabled=!!revision.is_consolidated_alias;rejectButton.disabled=false;}};
                 const approveButton=node('button','تأیید و انتشار','place-primary'),rejectButton=node('button','رد پیشنهاد','place-review-reject');
                 approveButton.type=rejectButton.type='button';approveButton.addEventListener('click',()=>decide(true));rejectButton.addEventListener('click',()=>decide(false));
+                if(revision.is_consolidated_alias){
+                    approveButton.disabled=true;card.append(node('p','این پیشنهاد به رکوردی مربوط است که یکپارچه شده است. اطلاعات را در صفحهٔ مکان اصلی دوباره ثبت کنید.'));
+                    const reopen=node('a','باز کردن مکان اصلی','place-back');reopen.href=page('place-register.html')+'?venue='+encodeURIComponent(revision.canonical_place_id);card.append(reopen);
+                }
                 actions.append(approveButton,rejectButton);card.append(dl,map,note,actions,feedback);root.append(card);}
             el('place-reviews-status').textContent=data.revisions.length?'':'پیشنهادی در انتظار بررسی نیست.';
         }catch(error){el('place-reviews-status').textContent=error.message;}finally{loading=false;el('place-reviews-refresh').disabled=false;}}

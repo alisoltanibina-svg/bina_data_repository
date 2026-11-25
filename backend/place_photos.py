@@ -79,7 +79,8 @@ def claim(session,identity,actor,place_id):
     if not photo or not managed_file(photo.path) or not managed_file(photo.path).is_file():
         raise HTTPException(409,detail='عکس انتخاب‌شده در دسترس نیست؛ دوباره بارگذاری کنید.')
     if photo.revision_id:
-        if photo.place_id!=place_id:raise HTTPException(403,detail='عکس متعلق به این مکان نیست.')
+        from backend.poi_canonical import canonical_id
+        if not photo.place_id or canonical_id(session,photo.place_id)!=canonical_id(session,place_id):raise HTTPException(403,detail='عکس متعلق به این مکان نیست.')
         return photo
     if photo.uploader_id!=actor['id']:raise HTTPException(403,detail='عکس متعلق به شما نیست.')
     created=photo.created_at.replace(tzinfo=timezone.utc) if photo.created_at.tzinfo is None else photo.created_at

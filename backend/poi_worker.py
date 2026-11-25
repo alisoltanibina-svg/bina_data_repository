@@ -54,10 +54,16 @@ class Worker:
             req.outcome, req.error, req.finished_at = 'uncertain', 'worker_interrupted_after_dispatch', now()
             target = session.get(PoiSegment if req.target_type=='segment' else PoiDetailTask, req.target_id)
             if target: target.status = 'uncertain'
+        session.flush()
         abandoned = session.scalars(select(PoiSegment).where(PoiSegment.status=='processing')).all()
         for segment in abandoned: segment.status='uncertain'
-        if pending or c.in_flight or abandoned:
+        session.flush()
+        lost=session.scalars(select(PoiSegment).where(PoiSegment.kind=='coverage',PoiSegment.status=='uncertain')).all()
+        recovered=sum(coverage.recover_interrupted_handoff(session,segment) for segment in lost)
+        if pending or c.in_flight or abandoned or recovered:
             c.paused, c.reason = True, 'Interrupted request has an unknown outcome; inspect history before retrying'
+            if recovered and all(segment.status!='uncertain' for segment in lost):
+                c.reason='Interrupted searches queued safely; resume explicitly after backoff'
             c.next_request_at = max(c.next_request_at or now(), now()+timedelta(seconds=60))
         if storage_cleanup_required(session):
             c.paused, c.reason = True, 'Legacy Nearby data requires reviewed cleanup before collection'
@@ -85,6 +91,12 @@ class Worker:
             if c.collection_mode=='pilot' and not c.pilot_segment_id:
                 c.paused,c.reason=True,'Choose a single-area pilot before continuing; nationwide grid is paused'
                 return
+            coverage_plan=coverage.plan_for(session,job)
+            if coverage_plan and not self.pending and not coverage.discovery_ready(coverage_plan):
+                if coverage.repair_one(session,job,coverage_plan):
+                    c.reason='Preparing historical saturated searches for refinement'
+                    return
+                if c.reason=='Preparing historical saturated searches for refinement':c.reason=''
             pending_detail = self.pending[0] if self.pending else None
             if pending_detail:
                 row = session.get(PoiSegment,pending_detail.segment_id)
@@ -125,7 +137,7 @@ class Worker:
                 coverage_plan=coverage.plan_for(session,job)
                 scope=PoiSegment.kind==('coverage' if coverage_plan else 'settlement' if job.search_dataset_version else 'grid')
                 unresolved=session.scalar(select(func.count()).select_from(PoiSegment).where(PoiSegment.job_id==job.id,
-                    scope,PoiSegment.status.in_(['failed','uncertain'])))
+                    scope,PoiSegment.status.not_in(['complete','cancelled'])))
                 if not job.search_dataset_version:
                     unresolved+=session.scalar(select(func.count()).select_from(PoiDetailTask).where(PoiDetailTask.job_id==job.id,
                         PoiDetailTask.status.in_(['failed','uncertain'])))

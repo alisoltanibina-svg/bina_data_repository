@@ -63,17 +63,25 @@ def audit_database(session, province, category, point=None, row_limit=50000, poi
     from sqlalchemy import select,func,and_,or_,inspect,text
     from backend.poi_models import PoiPlace,PoiPlaceCategory,PoiJob,PoiCoveragePlan,PoiSegment,PoiRequest
     from backend.poi_place_matching import normalized,distance
-    from backend.poi_coverage_state import result_limit_mode
+    from backend.poi_coverage_state import result_limit_mode,effective_result_limit,discovery_ready
     def province_key(column):
         return func.lower(func.trim(func.regexp_replace(func.replace(func.translate(column,'يك','یک'),'\u200c',' '),r'\s+',' ','g')))
     source_category=PoiPlace.raw_details['layer']['slug'].as_string()
-    category_matches=or_(source_category==category,and_(source_category.is_(None),
+    category_matches=or_(source_category==category,and_(or_(source_category.is_(None),source_category==''),
         select(PoiPlaceCategory.place_id).where(PoiPlaceCategory.place_id==PoiPlace.id,PoiPlaceCategory.category==category).exists()))
     scope=(PoiPlace.provider=='neshan',province_key(PoiPlace.province_name)==normalized(province),category_matches)
     fields=(PoiPlace.id,PoiPlace.name,PoiPlace.latitude,PoiPlace.longitude,PoiPlace.province_name,PoiPlace.resolved_at)
     rows=session.execute(select(*fields).where(*scope).order_by(PoiPlace.id).limit(row_limit+1)).all()
     source_truncated=len(rows)>row_limit;rows=rows[:row_limit]
     duplicates=duplicate_candidates(rows);groups=duplicates.pop('groups');duplicates['source_scan_truncated']=source_truncated
+    registry_available=inspect(session.connection()).has_table('poi_place_links',schema='poi')
+    links={}
+    if registry_available and rows:
+        from backend.poi_models import PoiPlaceLink
+        links={str(source):str(root) for source,root in session.execute(select(PoiPlaceLink.source_id,PoiPlaceLink.canonical_id)
+            .where(PoiPlaceLink.source_id.in_([row.id for row in rows])))}
+    duplicates['linked_source_rows']=len(links)
+    duplicates['unresolved_candidate_groups']=sum(len({links.get(key,key) for key in group['source_ids']})>1 for group in groups)
     # Bound report size; do not expose tokens, contact information or snapshots.
     samples=groups[:10];example_ids={v for group in samples for v in group['source_ids']}
     sample_ids=[r.id for r in rows if str(r.id) in example_ids]
@@ -83,6 +91,7 @@ def audit_database(session, province, category, point=None, row_limit=50000, poi
         editorial={str(r.place_id):r for r in session.execute(select(PoiEditorial.place_id,PoiEditorial.version,PoiEditorial.published_version)
             .where(PoiEditorial.place_id.in_(sample_ids)))}
     for group in samples:
+        group['canonical_ids']=sorted({links.get(key,key) for key in group['source_ids']})
         group['edited_source_ids']=[key for key in group['source_ids'] if key in editorial and editorial[key].version]
         group['published_source_ids']=[key for key in group['source_ids'] if key in editorial and editorial[key].published_version]
         group['source_ids']=group['source_ids'][:20]
@@ -90,6 +99,7 @@ def audit_database(session, province, category, point=None, row_limit=50000, poi
     report=dict(database=session.scalar(text('SELECT current_database()')),province=province,category=category,
         provider_calls_made=0,read_only=True,source_rows_inspected=len(rows),
         resolved_rows_inspected=sum(r.resolved_at is not None for r in rows),duplicate_candidates=duplicates,
+        canonical_registry_available=registry_available,canonical_places_inspected=len({links.get(str(row.id),str(row.id)) for row in rows}),
         inventory_completeness='not_established_by_search_counters',jobs=[])
     jobs=session.scalars(select(PoiJob).where(PoiJob.provider=='neshan').order_by(PoiJob.created_at.desc(),PoiJob.id.desc()).limit(3)).all()
     for job in jobs:
@@ -111,7 +121,7 @@ def audit_database(session, province, category, point=None, row_limit=50000, poi
         if category not in job.categories:flags.append('category_not_in_job')
         if not plan:flags.append('no_verified_polygon_plan')
         elif not (plan.state=='ready' and (plan.summary or {}).get('coverage_verified')):flags.append('polygon_plan_not_verified')
-        if plan and result_limit_mode(plan)!='capped':flags.append('no_automatic_result_limit_subdivision')
+        if plan and not discovery_ready(plan):flags.append('historical_saturation_repair_pending')
         if any(r.review_reason for r in segment_rows):flags.append('searches_flagged_for_review')
         if any(r.status!='complete' for r in segment_rows):flags.append('unfinished_searches')
         if any(r.pending_details for r in segment_rows):flags.append('details_handoff_not_finished')
@@ -130,6 +140,8 @@ def audit_database(session, province, category, point=None, row_limit=50000, poi
             root_status_counts=dict(Counter(r.status for r in roots)),all_segment_status_counts=dict(Counter(r.status for r in segment_rows)),
             flagged_searches=sum(bool(r.review_reason) for r in segment_rows),pending_details=sum(r.pending_details for r in segment_rows),
             plan_id=str(plan.id) if plan else None,result_limit=limit,result_limit_mode=result_limit_mode(plan) if plan else 'not_a_polygon_plan',
+            effective_saturation_trigger=effective_result_limit(plan) if plan else None,
+            historical_saturation_reconciled=discovery_ready(plan) if plan else False,
             root_counters_equal=bool(roots and all(r.status=='complete' for r in roots)),
             diagnostic_flags=flags,completed_roots_without_search_record=unrecorded_roots,nearby_searches=search,
             details_request_outcomes=details_counts)

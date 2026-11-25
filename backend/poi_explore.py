@@ -21,6 +21,7 @@ from backend.poi_provider import LAYERS, Neshan, coordinates
 from backend.poi_budget import ProviderBusy, reserve_live_slot, record_provider_backoff
 from backend.settings import get_settings
 from backend import poi_place_matching as matching
+from backend import poi_canonical as canonical
 from backend.poi_manual import assign_province
 
 LIVE_MIN_ZOOM = 8
@@ -105,11 +106,11 @@ def stored_counts(category, provinces):
             PoiEditorial.published['overrides']['longitude'].as_float().is_not(None))
         province=case((and_(published,changed_coordinates),PoiEditorial.province_name),else_=PoiPlace.province_name)
         category_value=func.coalesce(PoiEditorial.published['overrides']['category'].as_string(),
-            PoiPlace.raw_details['layer']['slug'].as_string(),PoiPlaceCategory.category)
-        rows = session.execute(select(province, func.count(func.distinct(PoiPlace.id))).join(
+            func.nullif(PoiPlace.raw_details['layer']['slug'].as_string(),''),PoiPlaceCategory.category)
+        rows = session.execute(select(province, func.count(func.distinct(PoiPlace.id))).outerjoin(
             PoiPlaceCategory, PoiPlaceCategory.place_id == PoiPlace.id).outerjoin(PoiEditorial,PoiEditorial.place_id==PoiPlace.id).where(
-                or_(and_(published,category_value==category),and_(or_(PoiEditorial.published_version.is_(None),PoiEditorial.published_version==0),PoiPlaceCategory.category==category)),
-                PoiPlace.provider.in_(['neshan','manual']),PoiPlace.resolved_at.is_not(None)
+                category_value==category,PoiPlace.provider.in_(['neshan','manual']),PoiPlace.resolved_at.is_not(None),
+                canonical.canonical_predicate()
             ).group_by(province)).all()
     return aggregate_provinces(provinces, rows)
 

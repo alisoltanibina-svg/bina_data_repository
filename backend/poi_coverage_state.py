@@ -1,15 +1,127 @@
 """PostgreSQL planning/progress and recursive saturation handling for the worker."""
 from collections import defaultdict
 from uuid import uuid4
-from sqlalchemy import select,func
+from sqlalchemy import select,func,and_,or_,exists
+from sqlalchemy.orm import aliased
 from sqlalchemy.dialects.postgresql import insert
 from shapely import from_wkb,union_all,set_precision,prepare
 from shapely.geometry import Point,shape,mapping
 from shapely.strtree import STRtree
 from backend.poi_models import (PoiCoveragePlan as Plan,PoiCoverageTile as Tile,PoiCoverageCircle as Search,
-    PoiCoverageContribution as Part,PoiSegment,PoiBoundary,PoiJob)
+    PoiCoverageContribution as Part,PoiSegment,PoiBoundary,PoiJob,PoiRequest)
 from backend.poi_coverage import Circle,METRIC_CRS,ALGORITHM,PRECISION_M,project,wgs84,cover,tiles,circle_key,refinement_target
 from backend.poi_geo import normalize
+
+# Five is a conservative saturation trigger observed in the recorded service
+# responses, not a contractual guarantee that shorter responses are exhaustive.
+DISCOVERY_POLICY='nearby-saturation-v2'
+CONSERVATIVE_RESULT_LIMIT=5
+MAX_REFINEMENT_DEPTH=12
+
+
+def effective_result_limit(plan):
+    configured=int(plan.result_limit or 0)
+    return min(configured,CONSERVATIVE_RESULT_LIMIT) if configured>0 else CONSERVATIVE_RESULT_LIMIT
+
+
+def discovery_ready(plan):
+    policy=(plan.summary or {}).get('discovery_policy',{})
+    return bool(policy.get('version')==DISCOVERY_POLICY and policy.get('threshold')==effective_result_limit(plan)
+        and policy.get('reconciled'))
+
+
+def invalidate_ancestors(session,segment):
+    """A repaired leaf and all ancestors become incomplete in the same commit."""
+    seen={segment.id};current=segment
+    while current.parent_segment_id:
+        parent=session.get(PoiSegment,current.parent_segment_id)
+        if not parent or parent.job_id!=segment.job_id or parent.id in seen:
+            raise ValueError('Invalid collection refinement hierarchy')
+        seen.add(parent.id);parent.status='subdivided';current=parent
+
+
+def recover_interrupted_handoff(session,segment):
+    """Call only while the caller owns the standalone collector advisory lock.
+
+    A Details handoff lives only in the former process's memory. Repeat the
+    read-only Nearby query after a clean interruption instead of pretending its
+    missing hashes can still be consumed. Real provider/identity errors remain
+    available for explicit review.
+    """
+    if segment.kind!='coverage' or segment.status not in ('processing','uncertain') or segment.review_reason:return False
+    request=session.scalar(select(PoiRequest).where(PoiRequest.job_id==segment.job_id,PoiRequest.target_type=='segment',
+        PoiRequest.target_id==segment.id).order_by(PoiRequest.id.desc()).limit(1))
+    if not request or request.http_status not in (None,200):return False
+    lost=segment.pending_details or (request.kind=='nearby' and request.outcome=='uncertain' and request.error=='worker_interrupted_after_dispatch')
+    if not lost:return False
+    safe=(request.outcome=='successful' and not request.error) or (request.outcome=='uncertain' and request.error=='worker_interrupted_after_dispatch')
+    if not safe:return False
+    segment.status='pending';segment.pending_details=0
+    segment.planning_note='Interrupted in-memory Details handoff; repeat Nearby before continuing'
+    invalidate_ancestors(session,segment)
+    plan=plan_for(session,session.get(PoiJob,segment.job_id))
+    if plan:
+        policy=(plan.summary or {}).get('discovery_policy',{})
+        plan.summary={**(plan.summary or {}),'discovery_policy':{**policy,'reconciled':False}}
+    return True
+
+
+def saturation_candidates(session,job,plan):
+    """Latest successful search per completed leaf; old retries cannot reopen it."""
+    newer=aliased(PoiRequest);child=aliased(PoiSegment)
+    latest=~exists(select(newer.id).where(newer.job_id==job.id,newer.kind=='nearby',newer.target_type=='segment',
+        newer.target_id==PoiRequest.target_id,newer.outcome=='successful',newer.id>PoiRequest.id))
+    leaf=~exists(select(child.id).where(child.parent_segment_id==PoiSegment.id))
+    return select(PoiSegment).join(PoiRequest,and_(PoiRequest.target_id==PoiSegment.id,PoiRequest.target_type=='segment')).where(
+        PoiSegment.job_id==job.id,PoiSegment.kind=='coverage',PoiSegment.status=='complete',PoiSegment.pending_details==0,
+        PoiRequest.job_id==job.id,PoiRequest.kind=='nearby',PoiRequest.outcome=='successful',
+        PoiRequest.result_count>=effective_result_limit(plan),latest,leaf).order_by(PoiSegment.id)
+
+
+def repair_one(session,job,plan):
+    """Idempotent, bounded repair of a historical capped leaf; no provider call.
+
+    Queue one complete refinement transaction before returning to the scheduler.
+    Repaired parents cease qualifying, so an interrupted run resumes without a
+    second tree or an unbounded JSON list of checkpoints.
+    """
+    if discovery_ready(plan):return False
+    policy=(plan.summary or {}).get('discovery_policy',{})
+    if policy.get('version')!=DISCOVERY_POLICY or policy.get('threshold')!=effective_result_limit(plan):
+        policy=dict(version=DISCOVERY_POLICY,threshold=effective_result_limit(plan),reconciled=False,repaired_leaves=0)
+    child=aliased(PoiSegment)
+    bad_parent=session.scalar(select(PoiSegment).where(PoiSegment.job_id==job.id,PoiSegment.kind=='coverage',
+        PoiSegment.status=='complete',exists(select(child.id).where(child.parent_segment_id==PoiSegment.id,
+            or_(child.status!='complete',child.pending_details>0,child.review_reason.is_not(None))))).order_by(PoiSegment.id).limit(1))
+    if bad_parent:
+        bad_parent.status='subdivided';invalidate_ancestors(session,bad_parent)
+        plan.summary={**(plan.summary or {}),'discovery_policy':{**policy,'reconciled':False}}
+        session.flush();return True
+    leaf=~exists(select(child.id).where(child.parent_segment_id==PoiSegment.id))
+    evidence=exists(select(PoiRequest.id).where(PoiRequest.job_id==job.id,PoiRequest.kind=='nearby',PoiRequest.target_type=='segment',
+        PoiRequest.target_id==PoiSegment.id,PoiRequest.outcome=='successful'))
+    unverified=session.scalar(select(PoiSegment).where(PoiSegment.job_id==job.id,PoiSegment.kind=='coverage',
+        PoiSegment.status=='complete',leaf,or_(~evidence,PoiSegment.pending_details>0,PoiSegment.review_reason.is_not(None)))
+        .order_by(PoiSegment.id).limit(1))
+    if unverified:
+        if unverified.review_reason:unverified.status='failed'
+        else:
+            unverified.status='pending';unverified.pending_details=0
+            unverified.planning_note='Historical completion had no successful search evidence or a lost Details handoff; queued for verification'
+        invalidate_ancestors(session,unverified)
+        plan.summary={**(plan.summary or {}),'discovery_policy':{**policy,'reconciled':False,
+            'unverified_leaves':policy.get('unverified_leaves',0)+1}}
+        session.flush();return True
+    segment=session.scalar(saturation_candidates(session,job,plan).limit(1))
+    if segment:
+        subdivide(session,job,segment,plan)
+        segment.status='failed' if segment.review_reason else 'subdivided'
+        invalidate_ancestors(session,segment)
+        policy={**policy,'reconciled':False,'repaired_leaves':policy.get('repaired_leaves',0)+1}
+    else:policy={**policy,'reconciled':True}
+    plan.summary={**(plan.summary or {}),'discovery_policy':policy}
+    session.flush()
+    return bool(segment)
 
 
 def result_limit_mode(plan):
@@ -164,18 +276,32 @@ def finalize_plan(session,plan):
     from backend.poi import control,ACTIVE
     if session.scalar(select(PoiJob.id).where(PoiJob.id==plan.job_id,PoiJob.status.in_(ACTIVE))):
         c=control(session);c.paused=True
-        c.reason='Polygon plan verified; provider result limit required' if result_limit_mode(plan)=='unconfigured' else 'Polygon plan verified; resume explicitly to begin'
+        c.reason='Polygon plan verified; resume explicitly to begin'
     return plan
 
 
 def subdivide(session,job,segment,plan):
-    parent=session.get(Search,segment.coverage_circle_id)
     if session.scalar(select(PoiSegment.id).where(PoiSegment.parent_segment_id==segment.id).limit(1)):return
+    parent=session.get(Search,segment.coverage_circle_id) if segment.coverage_circle_id else None
+    if not parent or parent.plan_id!=plan.id:
+        segment.review_reason='missing_coverage_circle';return
+    if not 50<=int(plan.minimum_radius_m or 0)<=int(plan.radius_m or 0)<=5000 or parent.radius_m<=0:
+        segment.review_reason='invalid_refinement_radius';return
+    ancestor=segment;seen={segment.id};depth=0
+    while ancestor.parent_segment_id:
+        ancestor=session.get(PoiSegment,ancestor.parent_segment_id);depth+=1
+        if not ancestor or ancestor.job_id!=job.id or ancestor.id in seen:
+            raise ValueError('Invalid collection refinement hierarchy')
+        seen.add(ancestor.id)
+    if depth>=MAX_REFINEMENT_DEPTH:
+        segment.review_reason='provider_limit_refinement_depth';return
     radius=max(plan.minimum_radius_m,parent.radius_m//2)
     if parent.radius_m<=plan.minimum_radius_m:
         segment.review_reason='provider_limit_at_minimum_radius';return
     target=shape(parent.target_geometry) if parent.target_geometry else refinement_target(Circle(parent.code,parent.x,parent.y,parent.radius_m)) if parent.kind=='point' else Circle(parent.code,parent.x,parent.y,parent.radius_m).footprint()
     circles,owned,certificate=cover(target,radius)
+    if not certificate.get('verified') or certificate.get('uncovered_area_m2')!=0 or not any(piece.area>0 for piece in owned):
+        raise ValueError('Refinement has no verified coverage')
     for c,piece in zip(circles,owned):
         if piece.area<=0:continue
         code=f'refine:{segment.id}:{c.key}'
@@ -192,9 +318,11 @@ def subdivide(session,job,segment,plan):
 def settle(session,segment):
     """A root finishes only when every descendant and Details handoff finishes."""
     if segment.pending_details:return
-    if segment.review_reason=='provider_limit_at_minimum_radius':
+    if segment.review_reason:
         from backend.poi import control
-        segment.status='failed';c=control(session);c.paused=True;c.reason='Provider result limit still reached at minimum radius; coverage requires review';return
+        segment.status='failed';invalidate_ancestors(session,segment);c=control(session);c.paused=True
+        c.reason='Provider result limit still reached at minimum radius; coverage requires review' if segment.review_reason=='provider_limit_at_minimum_radius' else 'Collection search requires review; coverage remains incomplete'
+        return
     children=session.scalars(select(PoiSegment).where(PoiSegment.parent_segment_id==segment.id)).all()
     segment.status='complete' if not children or all(c.status=='complete' for c in children) else 'subdivided'
     session.flush()
@@ -221,13 +349,26 @@ def progress(session,plan):
         if kind=='point':
             point_total+=n
             if status=='complete':point_done+=n
+    issues=defaultdict(int);reviews=defaultdict(int)
+    for name,n,reviewed in session.execute(select(PoiSegment.province_name,func.count(),func.count().filter(
+        or_(PoiSegment.status.in_(['failed','uncertain']),PoiSegment.review_reason.is_not(None)))).where(
+        PoiSegment.job_id==job.id,PoiSegment.kind=='coverage',or_(PoiSegment.status!='complete',
+            PoiSegment.pending_details>0,PoiSegment.review_reason.is_not(None))).group_by(PoiSegment.province_name)):
+        issues[normalize(name)]+=n;reviews[normalize(name)]+=reviewed
+    latest=select(PoiRequest.target_id,func.max(PoiRequest.id).label('request_id')).where(PoiRequest.job_id==job.id,
+        PoiRequest.kind=='nearby',PoiRequest.target_type=='segment',PoiRequest.outcome=='successful').group_by(PoiRequest.target_id).subquery()
+    empty=dict(session.execute(select(PoiSegment.province_name,func.count()).join(latest,latest.c.target_id==PoiSegment.id)
+        .join(PoiRequest,PoiRequest.id==latest.c.request_id).where(PoiSegment.job_id==job.id,PoiSegment.kind=='coverage',
+            func.coalesce(PoiRequest.queued_count,PoiRequest.result_count)==0).group_by(PoiSegment.province_name)).all())
     province_rows=[]
     for order,name in enumerate(sorted(set(areas)|set(counts),key=lambda name:(name not in areas,normalize(name)))):
         area=areas.get(name,0);denominator=area*categories;finished=completed.get(name,0);n=counts[name]
         province_rows.append(dict(order=order,province=name,percent=round(100*finished/denominator,2) if denominator else None,
             area_m2=area,completed_area_m2=finished/categories,expected_searches=n['total'],completed_searches=n['complete'],
-            pending_searches=n['total']-n['complete'],review_searches=n['failed']+n['uncertain'],empty_searches=0,
-            complete=bool(finished>=denominator-max(1,denominator*1e-9) and n['complete']==n['total']) if denominator else bool(n['total'] and n['complete']==n['total'])))
+            pending_searches=n['total']-n['complete'],review_searches=reviews[normalize(name)],empty_searches=empty.get(name,0),
+            unresolved_searches=issues[normalize(name)],
+            complete=bool(discovery_ready(plan) and not issues[normalize(name)] and
+                (finished>=denominator-max(1,denominator*1e-9) and n['complete']==n['total'] if denominator else n['total'] and n['complete']==n['total']))))
     point_complete=0
     completed_point_rows=select(Search.id,Search.associations).join(PoiSegment,PoiSegment.coverage_circle_id==Search.id).where(
         *roots,Search.kind=='point',Search.plan_id==plan.id,PoiSegment.status=='complete').group_by(Search.id,Search.associations).having(func.count()==categories)
@@ -236,13 +377,15 @@ def progress(session,plan):
     expected=(total or 0)*categories
     return dict(scope='verified_polygon_union_and_3km_points',plan_id=str(plan.id),planning_state=plan.state,
         coverage_verified=plan.summary.get('coverage_verified',False),pending_tiles=pending_tiles,result_limit=plan.result_limit,
-        result_limit_mode=result_limit_mode(plan),adaptive_subdivision_enabled=plan.result_limit>0,
+        result_limit_mode=result_limit_mode(plan),adaptive_subdivision_enabled=True,
+        effective_result_limit=effective_result_limit(plan),discovery_policy_ready=discovery_ready(plan),
+        discovery_policy=(plan.summary or {}).get('discovery_policy'),inventory_completeness='not_established_by_search_counters',
         point_radius_m=3000,polygon_radius_m=plan.radius_m,metric_area_m2=plan.metric_area_m2,completed_area_m2=finished/categories,
         area_percent=round(100*finished/denominator,4) if denominator else 0,
         percent=round(100*done/expected,2) if expected else 0,completed_searches=done,expected_searches=expected,
         total_points=plan.summary.get('source_summary',{}).get('ready',0),completed_points=point_complete,point_percent=round(100*point_done/point_total,2) if point_total else 0,
         expected_point_searches=point_total,completed_point_searches=point_done,
-        excluded_points=0,empty_searches=0,current_province=session.scalar(select(PoiSegment.province_name).where(
+        excluded_points=0,empty_searches=sum(empty.values()),current_province=session.scalar(select(PoiSegment.province_name).where(
             PoiSegment.job_id==job.id,PoiSegment.kind=='coverage',PoiSegment.status!='complete').order_by(PoiSegment.province_order,PoiSegment.id).limit(1)),provinces=province_rows,
         summary=plan.summary)
 
@@ -252,5 +395,4 @@ def blocker(session,job):
     if not plan:return ''
     if plan.summary.get('algorithm')!=ALGORITHM:return 'coverage_algorithm_mismatch'
     if plan.state!='ready':return 'coverage_not_ready'
-    if result_limit_mode(plan)=='unconfigured':return 'coverage_limit_required'
     return ''

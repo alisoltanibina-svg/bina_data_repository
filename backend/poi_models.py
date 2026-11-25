@@ -137,6 +137,59 @@ class PoiPlaceCategory(Base):
     place_id = C(UUID(as_uuid=True), FK('poi.poi_places.id'), primary_key=True)
     category = C(S(100), FK('poi.poi_categories.slug'), primary_key=True)
 
+
+class PoiPlaceLink(Base):
+    """Preserved source row -> stable canonical place; no editorial dependency."""
+    __tablename__='poi_place_links'
+    __table_args__=(CK('source_id <> canonical_id',name='ck_poi_place_link_not_self'),
+        Index('idx_poi_place_link_canonical','canonical_id'),{'schema':'poi'})
+    source_id=C(UUID(as_uuid=True),FK('poi.poi_places.id'),primary_key=True)
+    canonical_id=C(UUID(as_uuid=True),FK('poi.poi_places.id'),nullable=False)
+    reason=C(T,nullable=False)
+    linked_by=C(S(100),nullable=False)
+    created_at=C(DateTime(timezone=True),nullable=False,server_default=func.now())
+
+
+class PoiProviderAlias(Base):
+    """Token fingerprints observed only after a successful permitted Details read."""
+    __tablename__='poi_provider_aliases'
+    __table_args__=(Index('idx_poi_provider_alias_place','place_id'),{'schema':'poi'})
+    provider=C(S(30),primary_key=True)
+    token_digest=C(S(64),primary_key=True)
+    place_id=C(UUID(as_uuid=True),FK('poi.poi_places.id'),nullable=False)
+    observed_at=C(DateTime(timezone=True),nullable=False,server_default=func.now())
+
+
+class PoiRetiredPlace(Base):
+    """Deleted duplicate source metadata; old UUIDs retain their canonical route."""
+    __tablename__='poi_retired_places'
+    __table_args__=(CK('source_id <> canonical_id',name='ck_poi_retired_not_self'),
+        CK('latitude BETWEEN -90 AND 90 AND longitude BETWEEN -180 AND 180',name='ck_poi_retired_coordinates'),
+        Index('idx_poi_retired_canonical','canonical_id'),{'schema':'poi'})
+    source_id=C(UUID(as_uuid=True),primary_key=True)
+    canonical_id=C(UUID(as_uuid=True),FK('poi.poi_places.id'),nullable=False)
+    provider=C(S(30),nullable=False)
+    category=C(S(100),nullable=False)
+    name=C(T,nullable=False)
+    province_name=C(T)
+    latitude=C(F,nullable=False)
+    longitude=C(F,nullable=False)
+    snapshot=C(JSONB,nullable=False)
+    retired_by=C(S(100),nullable=False)
+    retired_at=C(DateTime(timezone=True),nullable=False,server_default=func.now())
+
+
+class PoiCanonicalEvent(Base):
+    __tablename__='poi_canonical_events'
+    __table_args__={'schema':'poi'}
+    id=uid()
+    canonical_id=C(UUID(as_uuid=True),FK('poi.poi_places.id'),nullable=False)
+    members=C(JSONB,nullable=False)
+    previous_mapping=C(JSONB,nullable=False)
+    actor=C(S(100),nullable=False)
+    reason=C(T,nullable=False)
+    created_at=C(DateTime(timezone=True),nullable=False,server_default=func.now())
+
 class PoiDetailTask(Base):
     __tablename__ = 'poi_detail_tasks'
     __table_args__ = (UQ('job_id','place_id', name='uq_poi_detail_task'),
@@ -154,6 +207,7 @@ class PoiDetailTask(Base):
 class PoiRequest(Base):
     __tablename__ = 'poi_requests'
     __table_args__ = (Index('idx_poi_request_job_outcome','job_id','kind','outcome'),
+        Index('idx_poi_request_nearby_target','job_id','target_id','id',postgresql_where=text("kind='nearby' AND target_type='segment' AND outcome='successful'")),
         CK("kind != 'nearby' OR raw_response IS NULL", name='ck_poi_no_nearby_payload'),
         {"schema": "poi"},
     )
