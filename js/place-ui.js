@@ -35,7 +35,8 @@ const PlaceUI = (() => {
             config.editable_categories.includes(category)&&config.coverage.categories.includes(category)&&
             config.coverage.provinces.some(row=>normalize(row.province)===normalize(province)&&row.eligible));
     }
-    function definitions(config){return config.fields.filter(f=>f.active&&f.categories.includes('mosque')&&fields.includes(f.key)).sort((a,b)=>fields.indexOf(a.key)-fields.indexOf(b.key));}
+    function definitions(config,province){const p=config.permissions,privateAccess=p.can_view_private&&(p.staff_all_provinces||p.staff_provinces?.some(name=>normalize(name)===normalize(province)));
+        return config.fields.filter(f=>f.active&&(f.public||privateAccess)&&f.categories.includes('mosque')&&fields.includes(f.key)).sort((a,b)=>fields.indexOf(a.key)-fields.indexOf(b.key));}
     function photoUrl(value){return typeof value==='string'&&/^\/api\/poi-explore\/photos\/[a-f0-9-]{32,36}$/.test(value)?`${window.API_BASE_URL||''}${value}`:null;}
     return {api,readResponse,node,page,normalize,safeLink,text,fact,provinceAllowed,definitions,fields,photoUrl};
 })();

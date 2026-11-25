@@ -81,6 +81,17 @@ def claim(session,identity,actor,place_id):
     if photo.revision_id:
         from backend.poi_canonical import canonical_id
         if not photo.place_id or canonical_id(session,photo.place_id)!=canonical_id(session,place_id):raise HTTPException(403,detail='عکس متعلق به این مکان نیست.')
+        if photo.uploader_id!=actor['id']:
+            from backend import poi_editorial as edit
+            from backend.poi_editorial_models import PoiEditorial
+            from backend.poi_models import PoiPlace
+            root=canonical_id(session,place_id);editorial=session.get(PoiEditorial,root)
+            published=bool(editorial and editorial.published_version and (editorial.published or {}).get('photo_path')==photo.path)
+            if not published:
+                permission=edit.permissions(session,actor);row=session.get(PoiPlace,root)
+                allowed=bool(row and permission['can_review'] and edit.in_staff_scope(permission,row.province_name) and
+                    edit.in_staff_scope(permission,edit.effective_province(row,editorial)))
+                if not allowed:raise HTTPException(403,detail='دسترسی استفاده از این عکس را ندارید.')
         return photo
     if photo.uploader_id!=actor['id']:raise HTTPException(403,detail='عکس متعلق به شما نیست.')
     created=photo.created_at.replace(tzinfo=timezone.utc) if photo.created_at.tzinfo is None else photo.created_at

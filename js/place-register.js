@@ -8,7 +8,7 @@ onReady(async()=>{
             !Number.isFinite(data.created_at)||Date.now()-data.created_at>86400000||data.venue_id!==(venue||null))return null;return data;
     }catch{return null;}}
     function renderFields(values){
-        for(const field of PlaceUI.definitions(config)){const label=node('label',field.label);let input;
+        for(const field of PlaceUI.definitions(config,point.province)){const label=node('label',field.label);let input;
             if(field.kind==='boolean'||field.kind==='choice'){input=node('select');const blank=node('option','نامشخص');blank.value='';input.append(blank);
                 for(const [value,title] of field.kind==='boolean'?[['true','بله'],['false','خیر']]:field.choices.map(v=>[v,v])){const o=node('option',title);o.value=value;input.append(o);}
             }else{input=node('input');input.type=field.kind==='number'?'number':'text';const rules=field.constraints||{};

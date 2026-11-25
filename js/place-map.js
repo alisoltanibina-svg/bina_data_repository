@@ -40,7 +40,7 @@ function LocationEditor({map,categories,canEdit,onModeChange,getScene,onOverlayC
         const values=data.values,root=el('locations-detail-body');profileData=data;profileLocalId=data.id;root.replaceChildren();el('locations-detail-title').textContent=values.name;
         fact(root,'نشانی',values.address);fact(root,'شماره تماس',values.phoneNumber);fact(root,'وبسایت یا صفحهٔ اجتماعی',values.website,true);
         fact(root,'استان',data.province||data.attributes?.province);
-        for(const field of PlaceUI.definitions(config))fact(root,field.label,data.attributes?.[field.key]);
+        for(const field of PlaceUI.definitions(config,data.province))fact(root,field.label,data.attributes?.[field.key]);
         const authors=data.contributors;if(authors){fact(root,data.tag==='added'?'ثبت‌کننده':'ویرایش‌کننده',data.tag==='added'?authors.created_by?.name:authors.last_edited_by?.name);
             if(data.tag==='added'&&authors.last_edited_by?.name!==authors.created_by?.name)fact(root,'آخرین ویرایش‌کننده',authors.last_edited_by?.name);}
         el('locations-detail-status').textContent=data.tag==='added'?'افزوده‌شده در سامانه':data.tag==='edited'?'ویرایش‌شده در سامانه':'اطلاعات ثبت‌شدهٔ مکان';

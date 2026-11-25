@@ -225,7 +225,7 @@ def build_router(require_admin, require_user):
         if fresh:
             from backend.poi_editorial import permissions
             with database.db_session() as session:
-                if not permissions(session,actor)['can_edit']:
+                if not permissions(session,actor)['can_view_private']:
                     raise HTTPException(403,detail='دسترسی تازه‌سازی ندارید.')
         require_display_authorization()
         selected = published_category(category)

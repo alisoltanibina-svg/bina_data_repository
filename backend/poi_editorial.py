@@ -78,17 +78,26 @@ def effective_province(row,editorial):
 
 
 def permissions(session, actor):
-    admin = bool(actor.get('is_admin'))
-    grant = None if admin else session.get(PoiEditorGrant, actor['id'])
+    authenticated=bool(actor.get('id'))
+    admin = authenticated and bool(actor.get('is_admin'))
+    grant = None if admin or not authenticated else session.get(PoiEditorGrant, actor['id'])
     active = bool(grant and grant.active)
-    return dict(can_edit=admin or active, can_review=admin or bool(active and grant.can_review),
-        can_manage=admin, all_provinces=admin or bool(active and grant.all_provinces),
-        provinces=grant.provinces if active else [])
+    # Every signed-in user can contribute. Existing grants still govern
+    # moderation and private information, independently of contribution access.
+    return dict(can_edit=authenticated, can_review=admin or bool(active and grant.can_review),
+        can_manage=admin, all_provinces=authenticated, provinces=[],can_view_private=admin or active,
+        staff_all_provinces=admin or bool(active and grant.all_provinces),
+        staff_provinces=grant.provinces if active else [])
 
 
 def in_scope(permission, province):
     return bool(permission['can_edit'] and (permission['all_provinces'] or
         normalize(province) in {normalize(p) for p in permission['provinces']}))
+
+
+def in_staff_scope(permission,province):
+    return bool(permission.get('can_view_private') and (permission.get('staff_all_provinces') or
+        normalize(province) in {normalize(p) for p in permission.get('staff_provinces',[])}))
 
 
 def completion_row(province, total, done, ready=True):
@@ -104,8 +113,8 @@ def eligibility(session):
 def eligibility_for_provinces(session,provinces):
     """Fresh authorization checks for a profile's source/corrected provinces.
 
-    No TTL cache is used: an unfinished descendant or neighbouring coverage
-    contribution must disable editing immediately, even after a prior view.
+    No TTL cache is used: reopened searches or pending Details in these
+    provinces must disable editing immediately, even after a prior view.
     """
     scope={normalize(province) for province in provinces if normalize(province)}
     if not scope:return dict(job_id=None,categories=[],provinces=[])
@@ -182,9 +191,10 @@ def _eligibility(session,scope=None):
     return dict(job_id=str(job.id),categories=list(job.categories),provinces=provinces)
 
 
-def require_region(permission, coverage, province, category):
-    if not in_scope(permission,province):
-        raise HTTPException(403,detail='ویرایش این استان در دسترسی شما نیست.')
+def require_region(permission, coverage, province, category,*,review=False):
+    allowed=permission.get('can_review') and in_staff_scope(permission,province) if review else in_scope(permission,province)
+    if not allowed:
+        raise HTTPException(403,detail='بررسی این استان در دسترسی شما نیست.' if review else 'ویرایش این استان در دسترسی شما نیست.')
     row = next((r for r in coverage['provinces'] if normalize(r['province']) == normalize(province)),None)
     if not row or not row['eligible'] or category not in coverage['categories']:
         raise HTTPException(409,detail=(row or {}).get('blocked_reason') or 'گردآوری این استان یا نوع مکان هنوز کامل نشده است؛ ثبت و ویرایش فعلاً بسته است.')

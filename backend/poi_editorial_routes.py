@@ -120,9 +120,19 @@ def canonical_row(session,place_id):
             place_id=target
     except canonical.IdentityConflict:raise HTTPException(409,detail='شناسهٔ مکان نیاز به بررسی مدیر دارد.') from None
     raise HTTPException(409,detail='شناسهٔ مکان در حال یکپارچه‌سازی است؛ دوباره تلاش کنید.')
-def scoped(permission,row,editorial):
+def scoped(permission,row,editorial,*,staff=False):
     target=edit.effective_province(row,editorial)
-    return edit.in_scope(permission,row.province_name) and (not target or edit.in_scope(permission,target))
+    check=edit.in_staff_scope if staff else edit.in_scope
+    return check(permission,row.province_name) and (not target or check(permission,target))
+
+
+def reviewable(permission,row,editorial):
+    return bool(permission['can_review'] and scoped(permission,row,editorial,staff=True))
+
+
+def accessible_place(actor,permission,row,editorial):
+    return bool(row.provider!='manual' or (editorial and (editorial.published_version or editorial.created_by==actor['id'])) or
+        reviewable(permission,row,editorial))
 
 
 def lock_editorial(session,place_id):
@@ -157,10 +167,12 @@ def prevent_duplicate_addition(session,values,province,exclude=None):
 
 def detail(session,row,actor,allow_pending=False):
     row=canonical_row(session,row.id)
+    editorial=session.get(PoiEditorial,row.id);permission=edit.permissions(session,actor)
+    if not accessible_place(actor,permission,row,editorial):raise HTTPException(404,detail='مکان یافت نشد.')
     edit.observe_source(session,row)
-    baseline=source(session,row); editorial=session.get(PoiEditorial,row.id)
-    permission=edit.permissions(session,actor); payload=editorial.published if editorial else None
+    baseline=source(session,row);payload=editorial.published if editorial else None
     values=edit.effective(baseline,payload);catalogue=edit.definitions(session)
+    private=scoped(permission,row,editorial,staff=True)
     output=dict(id=str(row.id),values=values,tag=editorial.tag if editorial and editorial.published_version else None,
         published=bool(editorial and editorial.published_version),identity=edit.source_identity(row),province=edit.effective_province(row,editorial),
         attributes=edit.attribute_values(row,editorial,catalogue,values['category']),can_edit=False,
@@ -177,14 +189,16 @@ def detail(session,row,actor,allow_pending=False):
         except HTTPException as error:allowed=False;output['locked_reason']=error.detail
         output.update(can_edit=bool(allowed and (row.resolved_at or row.provider=='manual')),source=baseline,source_version=edit.fingerprint(baseline),
             version=editorial.version if editorial else 0,published_version=editorial.published_version if editorial else 0,
-            attributes=edit.attribute_values(row,editorial,catalogue,values['category'],private=True),
+            attributes=edit.attribute_values(row,editorial,catalogue,values['category'],private=private),
             source_attributes=venue_schema.source_administration(row,row.province_name))
-        pending=session.scalar(select(PoiEditRevision).where(PoiEditRevision.place_id==row.id,PoiEditRevision.status=='pending')
-            .order_by(PoiEditRevision.version.desc()).limit(1))
-        if allow_pending and pending and (pending.actor_id==actor['id'] or permission['can_review']):
+        pending_query=select(PoiEditRevision).where(PoiEditRevision.place_id==row.id,PoiEditRevision.status=='pending')
+        if not reviewable(permission,row,editorial):pending_query=pending_query.where(PoiEditRevision.actor_id==actor['id'])
+        pending=session.scalar(pending_query.order_by(PoiEditRevision.version.desc()).limit(1))
+        if allow_pending and pending and (pending.actor_id==actor['id'] or reviewable(permission,row,editorial)):
             proposed=edit.effective(baseline,pending.payload)
             province=assign_province(proposed['latitude'],proposed['longitude'])['province_name']
-            output.update(values=proposed,attributes={**venue_schema.source_administration(row,province),**pending.payload.get('attributes',{})},
+            attributes=pending.payload.get('attributes',{}) if private else edit.public_attributes(catalogue,pending.payload)
+            output.update(values=proposed,attributes={**venue_schema.source_administration(row,province),**attributes},
                 pending_revision=str(pending.id),pending_actor=dict(user_id=pending.actor_id,name=pending.actor_name),photo_url=place_photos.url(pending.payload.get('photo_path')))
     if not row.resolved_at and row.provider!='manual':output['locked_reason']='جزئیات این مکان هنوز در پایگاه داده کامل نشده است.'
     return output
@@ -243,7 +257,7 @@ def build_router(require_admin,require_user):
             permission=edit.permissions(session,actor)
             allowed=photo.uploader_id==actor['id'] or published
             if not allowed and permission['can_review'] and photo.place_id:
-                row=session.get(PoiPlace,root);allowed=bool(row and scoped(permission,row,editorial))
+                row=session.get(PoiPlace,root);allowed=bool(row and reviewable(permission,row,editorial))
             path=place_photos.managed_file(photo.path)
             if not allowed or not path or not path.is_file():raise HTTPException(404,detail='عکس یافت نشد.')
         return FileResponse(path,media_type='image/webp',headers={'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'})
@@ -255,7 +269,7 @@ def build_router(require_admin,require_user):
             permission=edit.permissions(session,actor)
             return response(dict(permissions=permission,coverage=edit.eligibility(session),
                 editable_categories=sorted(venue_schema.editable_categories(session)),administrative_areas=venue_schema.administrative_areas() if permission['can_edit'] else {},
-                fields=[edit.field_dict(r) for r in edit.definitions(session) if r.active and (permission['can_edit'] or r.public)]))
+                fields=[edit.field_dict(r) for r in edit.definitions(session) if r.active and (permission['can_view_private'] or r.public)]))
 
     @router.get('/api/poi-explore/venue-match/{identity}')
     def legacy_match(identity:str,request:Request):
@@ -293,9 +307,6 @@ def build_router(require_admin,require_user):
         with database.db_session() as session:
             row=canonical_row(session,place_id)
             if not row:raise HTTPException(404,detail='مکان یافت نشد.')
-            editorial=session.get(PoiEditorial,row.id)
-            if row.provider=='manual' and not (editorial and editorial.published_version) and not scoped(edit.permissions(session,actor),row,editorial):
-                raise HTTPException(404,detail='مکان یافت نشد.')
             return response(detail(session,row,actor,draft))
 
     @router.post('/api/poi-explore/overlays')
@@ -377,6 +388,7 @@ def build_router(require_admin,require_user):
                 lock_editorial(session,place_id)
                 row=session.get(PoiPlace,place_id)
                 if not row or (not row.resolved_at and row.provider!='manual'):raise HTTPException(409,detail='ثبت جزئیات این مکان کامل نشده است.')
+                if not accessible_place(actor,permission,row,session.get(PoiEditorial,row.id)):raise HTTPException(404,detail='مکان یافت نشد.')
                 baseline=source(session,row)
                 venue_schema.require_editable_category(session,baseline['category'])
                 edit.observe_source(session,row)
@@ -404,7 +416,11 @@ def build_router(require_admin,require_user):
             # Keep previously recorded, now retired fields out of the form without
             # deleting their values when an editor changes the current fields.
             supplied={**current.get('attributes',{}),**venue_schema.prepare_administration(body.attributes,assignment['province_name'])}
-            attributes=edit.validate_attributes(edit.definitions(session),body.values.category,supplied,current.get('attributes'))
+            catalogue=edit.definitions(session)
+            private=scoped(permission,row,editorial,staff=True) and edit.in_staff_scope(permission,assignment['province_name'])
+            if not private and any(not field.public and field.key in body.attributes for field in catalogue):
+                raise HTTPException(403,detail='دسترسی تغییر ویژگی‌های خصوصی این مکان را ندارید.')
+            attributes=edit.validate_attributes(catalogue,body.values.category,supplied,current.get('attributes'))
             attributes=venue_schema.attribute_overrides(attributes,venue_schema.source_administration(row,assignment['province_name']))
             values={**edit.effective(baseline,current),**body.values.model_dump(exclude_unset=True)}
             payload=edit.make_payload(baseline,values,attributes)
@@ -444,9 +460,11 @@ def build_router(require_admin,require_user):
         actor=require_user(request)
         with database.db_session() as session:
             row=canonical_row(session,place_id)
-            if not row or not scoped(edit.permissions(session,actor),row,session.get(PoiEditorial,row.id)):raise HTTPException(403,detail='دسترسی به سابقه ندارید.')
+            permission=edit.permissions(session,actor);editorial=session.get(PoiEditorial,row.id) if row else None
+            if not row or not scoped(permission,row,editorial) or not accessible_place(actor,permission,row,editorial):raise HTTPException(403,detail='دسترسی به سابقه ندارید.')
             members=canonical.member_ids(session,row.id)
-            rows=session.scalars(select(PoiEditRevision).where(PoiEditRevision.place_id.in_(members))
+            rows=session.scalars(select(PoiEditRevision).where(PoiEditRevision.place_id.in_(members),
+                or_(PoiEditRevision.status=='approved',PoiEditRevision.actor_id==actor['id'],reviewable(permission,row,editorial)))
                 .order_by(PoiEditRevision.created_at.desc(),PoiEditRevision.id.desc()).offset(page*50).limit(51)).all()
             snapshots=session.scalars(select(PoiSourceRevision).where(PoiSourceRevision.place_id.in_(members))
                 .order_by(PoiSourceRevision.observed_at.desc()).offset(page*20).limit(21)).all()
@@ -457,14 +475,21 @@ def build_router(require_admin,require_user):
                     **{key:raw.get(key) for key in ('name','address','phoneNumber','website','workHours','socialNetworks')},
                     'latitude':location.get('latitude',location.get('y')),'longitude':location.get('longitude',location.get('x')),
                     'category':layer.get('slug') if isinstance(layer,dict) else None}))
-            return response(dict(revisions=[revision_dict(r) for r in rows[:50]],source_history=source_history,has_more=len(rows)>50 or len(snapshots)>20))
+            revisions=[];catalogue=edit.definitions(session);private=scoped(permission,row,editorial,staff=True)
+            for revision in rows[:50]:
+                item=revision_dict(revision)
+                if not private:item['attributes']=edit.public_attributes(catalogue,revision.payload)
+                revisions.append(item)
+            return response(dict(revisions=revisions,source_history=source_history,has_more=len(rows)>50 or len(snapshots)>20))
 
     @router.post('/api/poi-explore/venues/{place_id}/restore')
     def restore(place_id:UUID,body:Restore,request:Request,background_tasks:BackgroundTasks):
         actor=require_user(request)
         with database.db_session() as session:
             row=canonical_row(session,place_id);revision=session.get(PoiEditRevision,body.revision_id)
-            if not row or not revision or canonical.canonical_id(session,revision.place_id)!=row.id or not scoped(edit.permissions(session,actor),row,session.get(PoiEditorial,row.id)):
+            permission=edit.permissions(session,actor);editorial=session.get(PoiEditorial,row.id) if row else None
+            if not row or not revision or canonical.canonical_id(session,revision.place_id)!=row.id or not scoped(permission,row,editorial) or not accessible_place(actor,permission,row,editorial) or not (
+                    revision.status=='approved' or revision.actor_id==actor['id'] or reviewable(permission,row,editorial)):
                 raise HTTPException(403,detail='این سابقه قابل بازیابی نیست.')
             baseline=source(session,row)
             # A retired alias can have a different source baseline; restore its
@@ -472,8 +497,9 @@ def build_router(require_admin,require_user):
             values=edit.effective(revision.source_snapshot['values'],revision.payload)
             for key in ('workHours','socialNetworks'):
                 if key not in revision.payload.get('overrides',{}):values.pop(key,None)
+            attributes=revision.payload.get('attributes',{}) if scoped(permission,row,editorial,staff=True) else edit.public_attributes(edit.definitions(session),revision.payload)
             submission=Submission(submission_id=body.submission_id,version=body.version,source_version=edit.fingerprint(baseline),
-                values=values,attributes=revision.payload.get('attributes',{}),reason=body.reason,
+                values=values,attributes=attributes,reason=body.reason,
                 photo_id=UUID(revision.payload['photo_path'][len(place_photos.PREFIX):-5]) if place_photos.managed_file(revision.payload.get('photo_path')) else None,
                 remove_photo=not revision.payload.get('photo_path'))
             target_place_id=row.id
@@ -492,7 +518,7 @@ def build_router(require_admin,require_user):
                 .where(PoiEditRevision.status=='pending').order_by(PoiEditRevision.created_at).limit(200)).all()
             return response(dict(revisions=[{**revision_dict(r),'name':p.name,
                 'canonical_place_id':str(p.id),'is_consolidated_alias':p.id!=r.place_id}
-                for r,p in rows if scoped(permission,p,session.get(PoiEditorial,p.id))]))
+                for r,p in rows if reviewable(permission,p,session.get(PoiEditorial,p.id))]))
 
     @router.post('/api/poi-explore/editor/revisions/{revision_id}/review')
     def review(revision_id:UUID,body:Review,request:Request,background_tasks:BackgroundTasks):
@@ -505,7 +531,7 @@ def build_router(require_admin,require_user):
             session.refresh(revision)
             permission=edit.permissions(session,actor)
             permission_editorial=session.get(PoiEditorial,row.id) if row else None
-            if not row or not permission['can_review'] or not scoped(permission,row,permission_editorial):raise HTTPException(403,detail='دسترسی بررسی ندارید.')
+            if not row or not reviewable(permission,row,permission_editorial):raise HTTPException(403,detail='دسترسی بررسی ندارید.')
             if revision.actor_id==actor['id'] and not actor.get('is_admin'):raise HTTPException(403,detail='تغییر خود را به بررسی‌کنندهٔ دیگری بسپارید.')
             if revision.status!='pending':return response(dict(status=revision.status))
             root=canonical.canonical_id(session,revision.place_id)
@@ -520,8 +546,8 @@ def build_router(require_admin,require_user):
                 venue_schema.require_editable_category(session,baseline['category'])
                 venue_schema.require_editable_category(session,values['category'])
                 assignment=assign_province(values['latitude'],values['longitude']);coverage=edit.eligibility(session)
-                edit.require_region(permission,coverage,row.province_name,baseline['category'])
-                edit.require_region(permission,coverage,assignment['province_name'],values['category']);published_category(values['category'])
+                edit.require_region(permission,coverage,row.province_name,baseline['category'],review=True)
+                edit.require_region(permission,coverage,assignment['province_name'],values['category'],review=True);published_category(values['category'])
                 if row.provider=='manual':prevent_duplicate_addition(session,values,assignment['province_name'],row.id)
                 verified=venue_schema.prepare_administration({**venue_schema.source_administration(row,assignment['province_name']),**revision.payload.get('attributes',{})},assignment['province_name'],
                     validate_county=any(field.active and field.key=='county' for field in edit.definitions(session)))
