@@ -5,17 +5,21 @@ function LocationEditor({map,categories,canEdit,onModeChange,getScene,onOverlayC
     let picking=false,province='',point=null,draftMarker=null,provinceLayer=null,profileMarker=null,profileRequest=0,focusBeforeProfile=null,relocatingId=null,addRequest=0;
     let profileLocalId=null,profileLiveKey=null,profileData=null;
     const layer=L.layerGroup().addTo(map),profile=el('locations-profile'),addDialog=el('locations-add-dialog');
-    const ready=api('/api/poi-explore/editor/config').then(data=>{
+    function configure(data){
         config=data;el('locations-add').hidden=!data.permissions.can_edit;
+        el('locations-add-types').replaceChildren();
         for(const category of categories){const button=node('button',category.title,'place-type-choice');button.type='button';
             button.disabled=category.category!=='mosque'||!data.editable_categories.includes(category.category);
             const icon=node('img');icon.src=category.icon_url;icon.alt='';button.prepend(icon);
             button.addEventListener('click',()=>{
                 el('locations-type-step').hidden=true;el('locations-province-step').hidden=false;el('locations-add-title').textContent='استان را انتخاب کنید';
                 el('locations-add-province').focus();});el('locations-add-types').append(button);}
-        for(const row of data.coverage.provinces){const option=node('option',row.province+(provinceAllowed(data,row.province)?'':' — غیرفعال'));option.value=row.province;el('locations-add-province').append(option);}
+        const select=el('locations-add-province'),previous=select.value,blank=node('option','استان را انتخاب کنید');blank.value='';select.replaceChildren(blank);
+        for(const row of data.coverage.provinces){const option=node('option',row.province+(provinceAllowed(data,row.province)?'':' — غیرفعال'));option.value=row.province;select.append(option);}
+        select.value=data.coverage.provinces.some(row=>row.province===previous)?previous:'';
         return data;
-    }).catch(error=>{el('locations-add-error').textContent=error.message;throw error;});
+    }
+    const ready=api('/api/poi-explore/editor/config').then(configure).catch(error=>{el('locations-add-error').textContent=error.message;throw error;});
     ready.catch(()=>{});
     function closeProfile(){++profileRequest;if(profile.open)profile.close();profileLocalId=profileLiveKey=null;profileData=null;profileMarker?.setOpacity?.(1);profileMarker=null;focusBeforeProfile?.focus?.();onOverlayChange();}
     function present(place,marker){
@@ -129,9 +133,13 @@ function LocationEditor({map,categories,canEdit,onModeChange,getScene,onOverlayC
         for(const place of published){if(profile.open&&place.id===profileLocalId)continue;if(!LocationDiscovery.inside(place,bounds)||LocationDiscovery.distance(place,plan)>plan.radius)continue;
             output.push({key:`local/${place.id}/${place.published_version||0}`,category:place.category,place:{...place,localId:place.id,id:place.id}});}return output;
     }
-    el('locations-add').addEventListener('click',async()=>{try{await ready;if(!config.permissions.can_edit)return;if(picking)cancelPoint();relocatingId=null;
+    el('locations-add').addEventListener('click',async()=>{const request=++addRequest;try{await ready;
+        const latest=await api('/api/poi-explore/editor/config');if(request!==addRequest)return;configure(latest);
+        if(!config.permissions.can_edit)return;if(picking)cancelPoint();relocatingId=null;
+        el('locations-add-province').value='';
+        el('locations-add-eligibility').textContent='';el('locations-add-next').disabled=true;el('locations-add-error').textContent='';
         el('locations-type-step').hidden=false;el('locations-province-step').hidden=true;el('locations-add-title').textContent='نوع مکان را انتخاب کنید';addDialog.showModal();
-    }catch(error){el('locations-add-error').textContent=error.message;}});
+    }catch(error){if(request===addRequest)el('locations-add-error').textContent=error.message;}});
     el('locations-add-close').addEventListener('click',()=>{++addRequest;addDialog.close();});addDialog.addEventListener('cancel',()=>{++addRequest;});
     el('locations-add-back').addEventListener('click',()=>{el('locations-type-step').hidden=false;el('locations-province-step').hidden=true;el('locations-add-title').textContent='نوع مکان را انتخاب کنید';});
     el('locations-add-province').addEventListener('change',()=>{const name=el('locations-add-province').value,allowed=provinceAllowed(config,name);

@@ -15,7 +15,7 @@ from uuid import uuid4
 from backend.input_security import InputBody, safe_text
 from backend.poi_geo import normalize
 from backend.poi_models import (PoiPlace, PoiPlaceCategory, PoiJob, PoiCoveragePlan, PoiCoverageCircle,
-    PoiSegment, PoiBoundary,PoiCoverageContribution)
+    PoiSegment, PoiBoundary)
 from backend.poi_editorial_models import PoiEditorGrant, PoiFieldDefinition, PoiEditorial, PoiSourceIdentity, PoiSourceRevision
 from backend.poi_editorial_models import PoiEditRevision
 from backend.models import User
@@ -124,9 +124,7 @@ def _eligibility(session,scope=None):
         return dict(job_id=None,categories=[],provinces=[])
     plan = session.scalar(select(PoiCoveragePlan).where(PoiCoveragePlan.job_id == job.id))
     if plan:
-        from backend.poi_coverage_state import discovery_ready
         ready = plan.state == 'ready' and bool((plan.summary or {}).get('coverage_verified'))
-        historical_blocked=set()
         counts = defaultdict(lambda: [0,0])
         roots=select(PoiCoverageCircle.province_name,PoiSegment.status,func.count()).join(
             PoiSegment,PoiSegment.coverage_circle_id==PoiCoverageCircle.id).where(
@@ -137,43 +135,40 @@ def _eligibility(session,scope=None):
         for name,status,n in rows:
             counts[normalize(name)][0] += n
             if status == 'complete': counts[normalize(name)][1] += n
-        assigned=select(PoiSegment.province_name).where(
+        assigned=select(PoiSegment.province_name,
+            func.count().filter(PoiSegment.status!='complete').label('unfinished'),
+            func.sum(PoiSegment.pending_details).label('pending_details'),
+            func.count().filter(PoiSegment.review_reason.is_not(None)).label('review')).where(
             PoiSegment.job_id==job.id,PoiSegment.kind==literal_column("'coverage'"),
             (PoiSegment.status!='complete')|PoiSegment.review_reason.is_not(None)|(PoiSegment.pending_details>0))
         if scope is not None:assigned=assigned.where(province_key(PoiSegment.province_name).in_(scope))
-        blocked={normalize(name) for name in session.scalars(assigned.distinct()).all()}
-        # Search circles can cross provincial borders. Their owned coverage
-        # pieces also block neighbouring provinces until the root is complete.
-        contributions=select(PoiCoverageContribution.province_name).join(
-            PoiSegment,PoiSegment.coverage_circle_id==PoiCoverageContribution.circle_id).where(
-                PoiSegment.job_id==job.id,PoiSegment.kind==literal_column("'coverage'"),PoiSegment.parent_segment_id.is_(None),
-                PoiCoverageContribution.province_name!=literal_column("'__union__'"),
-                (PoiSegment.status!='complete')|PoiSegment.review_reason.is_not(None)|(PoiSegment.pending_details>0))
-        if scope is not None:contributions=contributions.where(province_key(PoiCoverageContribution.province_name).in_(scope))
-        blocked.update(normalize(name) for name in session.scalars(contributions.distinct()).all())
-        if ready and not discovery_ready(plan):
-            # Provinces with unfinished searches are already closed. Audit
-            # historical evidence only where it could actually enable entry.
-            candidates={name for name,(total,done) in counts.items() if total and done==total and name not in blocked}
-            if scope is not None:candidates.intersection_update(scope)
-            if candidates:
-                from backend.poi_editorial_coverage import province_discovery_blockers
-                historical_blocked=province_discovery_blockers(session,job,plan,candidates)
+        issues=defaultdict(lambda:[0,0,0])
+        for name,unfinished,pending,review in session.execute(assigned.group_by(PoiSegment.province_name)):
+            values=issues[normalize(name)]
+            for index,value in enumerate((unfinished,pending,review)):values[index]+=value or 0
+        # Registration follows the selected province's worker completion.
+        # National inventory audits and another province's overlapping searches
+        # belong to collection quality; they do not extend editor restrictions.
         names = session.scalars(select(PoiBoundary.name).where(PoiBoundary.version==plan.source_version,
             PoiBoundary.level=='province').order_by(PoiBoundary.name)).all()
         provinces=[]
         for name in names:
             key=normalize(name)
             if scope is not None and key not in scope:continue
-            row=completion_row(name,*counts[key],ready and key not in blocked and key not in historical_blocked)
+            row=completion_row(name,*counts[key],ready and key not in issues)
             if not row['eligible']:
                 if not ready:
                     reason='coverage_plan_unverified';message='طرح پوشش جغرافیایی هنوز تأیید نشده است.'
-                elif key in historical_blocked:
-                    reason='search_history_incomplete';message='بررسی سابقهٔ جستجوهای این استان کامل نیست؛ گردآوری باید تکمیل شود.'
+                elif key in issues and issues[key][1]:
+                    reason='province_details_pending';message='دریافت جزئیات برخی مکان‌های این استان هنوز تکمیل نشده است.'
+                elif key in issues and issues[key][2]:
+                    reason='province_review_required';message='برخی جستجوهای این استان نیاز به بررسی دارند.'
                 else:
                     reason='collection_incomplete';message='گردآوری این استان هنوز کامل نشده است.'
                 row.update(blocked_reason=message,blocked_reason_code=reason)
+                if key in issues:
+                    unfinished,pending,review=issues[key]
+                    row.update(unfinished_searches=unfinished,pending_details=pending,review_searches=review)
             provinces.append(row)
     elif job.search_dataset_version:
         if scope is None:
