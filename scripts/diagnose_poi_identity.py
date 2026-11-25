@@ -4,7 +4,7 @@ Run in the API checkout:
   venv/bin/python -m scripts.diagnose_poi_identity PLACE_UUID --probe
 
 Default: database/configuration checks only, no provider calls.
---probe: at most two paced Nearby requests with identical parameters. Only
+--probe: two paced Nearby requests by default (at most five with --samples). Only
 fingerprints/comparisons are printed, never API keys or raw provider hashes.
 --api-pid PID: use that API process's settings environment on Linux.
 """
@@ -84,6 +84,51 @@ def summarize_reply(reply,stored,expected_live_id=None):
     return result
 
 
+def collect_structure_sample(reply,stored,target_tokens,other_groups):
+    """Keep only transient token cohorts in memory; do not emit provider content."""
+    from backend.poi_explore import within_search_radius
+    from backend.poi_provider import coordinates
+    from backend.poi_geo import normalize
+    if reply.status!=200 or not isinstance(reply.body,dict):return
+    points=reply.body.get('layerPoints',{}).get('nearestPoints')
+    if not isinstance(points,list):return
+    targets=[];others={}
+    for item in points:
+        if not isinstance(item,dict) or not isinstance(item.get('poiHash'),str) or not isinstance(item.get('name'),str):continue
+        try:lat,lon=coordinates(item.get('location'))
+        except (ValueError,TypeError,OverflowError):continue
+        name=normalize(item['name'])
+        close=within_search_radius(lat,lon,(stored.latitude,stored.longitude),2)
+        if name==normalize(stored.name) and close:targets.append(item['poiHash'])
+        else:
+            # Geometry/name are comparison labels only, never saved or used for matching.
+            label=(name,round(lat,7),round(lon,7));others.setdefault(label,[]).append(item['poiHash'])
+    if len(targets)==1:target_tokens.append(targets[0])
+    for label,tokens in others.items():
+        if len(tokens)==1:other_groups.setdefault(label,[]).append(tokens[0])
+
+
+def check_historical_collisions(place_id,regions):
+    from sqlalchemy import select,text
+    from backend import database
+    from backend.poi_models import PoiPlace
+    from scripts.poi_token_structure import decode_token
+    for region in regions:region.update(stored_records_checked=0,stored_region_collisions=0,stored_records_unusable=0)
+    with database.db_session() as session:
+        session.execute(text('SET TRANSACTION READ ONLY'))
+        rows=session.execute(select(PoiPlace.id,PoiPlace.provider_id).where(PoiPlace.provider=='neshan',PoiPlace.id!=place_id).execution_options(yield_per=1000))
+        for identity,token in rows:
+            try:decoded=decode_token(token)
+            except ValueError:
+                for region in regions:region['stored_records_unusable']+=1
+                continue
+            for region in regions:
+                offset,length=region['offset'],region['length']
+                if len(decoded)<offset+length:region['stored_records_unusable']+=1;continue
+                region['stored_records_checked']+=1
+                if hashlib.sha256(decoded[offset:offset+length]).hexdigest()==region['target_region_fingerprint']:region['stored_region_collisions']+=1
+
+
 def use_process_settings(pid):
     from backend.settings import Settings,PROJECT_ROOT
     root=Path('/proc')/str(pid)
@@ -125,9 +170,12 @@ def main():
     parser.add_argument('--api-pid',type=int)
     parser.add_argument('--expected-live-id',type=str)
     parser.add_argument('--query',help='Repeat a browser request: latitude,longitude,radius_m')
+    parser.add_argument('--samples',type=int,choices=range(2,6),default=2)
+    parser.add_argument('--analyze-tokens',action='store_true',help='Compare Base64-decoded blocks in memory; never changes matching')
     args=parser.parse_args()
     try:
         if args.expected_live_id and not re.fullmatch('[a-f0-9]{64}',args.expected_live_id):raise ValueError('invalid_expected_live_id')
+        if args.analyze_tokens and not args.probe:raise ValueError('token_analysis_requires_probe')
         if args.api_pid:use_process_settings(args.api_pid)
         from backend.settings import get_settings
         from backend.poi_provider import Neshan
@@ -152,7 +200,8 @@ def main():
                 if not all(math.isfinite(value) for value in (latitude,longitude,raw_radius)) or not 24<=latitude<=41 or not 43<=longitude<=64 or not 10<=raw_radius<=100000 or not raw_radius.is_integer():raise ValueError('invalid_query')
                 radius=int(raw_radius)
             report['repeating_supplied_browser_query']=bool(args.query)
-            for index in range(2):
+            target_tokens=[];other_groups={}
+            for index in range(args.samples):
                 if index:
                     interval=settings.neshan_explore_interval_seconds
                     if interval>5:report['second_probe']='deferred_for_configured_pacing';break
@@ -165,12 +214,22 @@ def main():
                 report['provider_calls_made']+=1
                 reply=Neshan(key).request('nearby',dict(location=f'{latitude},{longitude}',layer=stored.category,searchRadius=radius),timeout=5,max_bytes=1024*1024)
                 report['probes'].append(summarize_reply(reply,stored,args.expected_live_id))
+                if args.analyze_tokens:collect_structure_sample(reply,stored,target_tokens,other_groups)
                 if reply.status in (429,481,482):extend_provider_backoff(max(60,reply.retry_after));break
                 if reply.status!=200:break
-            if len(report['probes'])==2:
+            if len(report['probes'])>=2:
                 def identities(probe):return sorted(item['raw_hash_sha256'] for item in probe.get('items_at_stored_coordinates',[]) if item.get('same_name') and item.get('has_raw_hash'))
-                first,second=map(identities,report['probes'])
-                report['same_raw_identifiers_in_identical_requests']=first==second if first and second else None
+                groups=list(map(identities,report['probes']))
+                report['same_raw_identifiers_in_identical_requests']=all(group==groups[0] for group in groups) if all(groups) else None
+            if args.analyze_tokens:
+                from scripts.poi_token_structure import analyze_tokens
+                analysis=analyze_tokens(target_tokens,stored.provider_id,list(other_groups.values()))
+                if analysis['experimental_regions']:
+                    check_historical_collisions(args.place_id,analysis['experimental_regions'])
+                    for region in analysis['experimental_regions']:
+                        region['historical_database_check_passed']=region['stored_records_checked']>0 and region['stored_region_collisions']==0 and region['stored_records_unusable']==0
+                    if not any(region['historical_database_check_passed'] for region in analysis['experimental_regions']):analysis['conclusion']='candidate_regions_failed_historical_database_check'
+                report['token_structure']=analysis
         print(json.dumps(report,indent=2,ensure_ascii=True))
     except Exception as error:
         # Exception strings/SQL parameters/HTTP URLs can contain sensitive values.
