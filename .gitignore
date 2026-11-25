@@ -42,6 +42,7 @@ LOCATION_INFORMATION.md
 MAINTENANCE.md
 SCHEMA_CUTOVER.md
 POI_EDITORIAL.md
+POI_REPAIR_GUIDE.md
 
 backend/_storage_audit*.json
 backend/_api_hashes.json

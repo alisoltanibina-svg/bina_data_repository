@@ -43,7 +43,7 @@ function PlacePhotoPicker({onChange}) {
             if(remove)return {remove_photo:true};
             if(file&&!uploaded){const data=new FormData();data.append('file',file);data.append('crop',JSON.stringify(crop));data.append('latitude',point.latitude);data.append('longitude',point.longitude);
                 const response=await fetch(`${window.API_BASE_URL||''}/api/poi-explore/photos`,{method:'POST',credentials:'include',cache:'no-store',headers:{'X-CSRF-Protection':'1'},body:data});
-                const result=await response.json();if(!response.ok)throw new Error(typeof result.detail==='string'?result.detail:'بارگذاری عکس انجام نشد.');uploaded=result.id;}
+                const result=await PlaceUI.readResponse(response,'بارگذاری عکس انجام نشد.');uploaded=result.id;}
             const id=uploaded||(existing?existing.split('/').pop():null);return id?{photo_id:id}:{};
         },
         committed(){uploaded=null;},

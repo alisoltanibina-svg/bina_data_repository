@@ -393,6 +393,11 @@ def build_router(require_admin,require_user):
             if not editorial:
                 editorial=PoiEditorial(place_id=row.id,tag='added' if row.provider=='manual' else 'edited',version=0,published_version=0,created_by=actor['id'])
                 session.add(editorial)
+                # Production sessions use autoflush=False. Persist the parent
+                # explicitly before inserting a revision that references it.
+                # This remains part of the same transaction and rolls back if
+                # validation, revision insertion, or notification setup fails.
+                session.flush()
             if editorial.version!=body.version:raise HTTPException(409,detail='نسخهٔ جدیدتری ثبت شده است؛ اطلاعات مکان را دوباره باز کنید.')
             if editorial.province_name:edit.require_region(permission,coverage,edit.effective_province(row,editorial),edit.effective(baseline,editorial.published)['category'])
             current=editorial.published or {}

@@ -5,10 +5,22 @@ const PlaceUI = (() => {
     const node=(tag,text,className)=>{const n=document.createElement(tag);if(text!=null)n.textContent=text;if(className)n.className=className;return n;};
     const page=name=>typeof SITE!=='undefined'?SITE.page(name):name;
     const normalize=value=>String(value||'').replace(/ي/g,'ی').replace(/ك/g,'ک').replace(/[\s\u200c]+/g,' ').trim();
+    async function readResponse(response,fallback='انجام درخواست ممکن نشد.'){
+        let data;
+        try{data=await response.json();}catch{const error=new Error(fallback);error.status=response.status;throw error;}
+        if(!response.ok){
+            const detail=data?.detail;
+            let message=typeof detail==='string'?detail:typeof detail?.message==='string'?detail.message:fallback;
+            const reference=typeof detail?.reference==='string'&&/^[a-f0-9]{16}$/i.test(detail.reference)?detail.reference:null;
+            if(reference)message+=` (کد پیگیری: ${reference})`;
+            const error=new Error(message);error.status=response.status;if(reference)error.reference=reference;throw error;
+        }
+        return data;
+    }
     async function api(path,options={}) {
         const response=await fetch(`${window.API_BASE_URL||''}${path}`,{credentials:'include',cache:'no-store',...options,
             headers:{'Content-Type':'application/json','X-CSRF-Protection':'1',...(options.headers||{})}});
-        const data=await response.json();if(!response.ok){const error=new Error(typeof data.detail==='string'?data.detail:'انجام درخواست ممکن نشد.');error.status=response.status;throw error;}return data;
+        return readResponse(response);
     }
     function safeLink(value){
         if(typeof value!=='string'||!value.trim())return null;let text=value.trim();if(!/^[a-z][a-z0-9+.-]*:/i.test(text))text='https://'+text;
@@ -25,5 +37,5 @@ const PlaceUI = (() => {
     }
     function definitions(config){return config.fields.filter(f=>f.active&&f.categories.includes('mosque')&&fields.includes(f.key)).sort((a,b)=>fields.indexOf(a.key)-fields.indexOf(b.key));}
     function photoUrl(value){return typeof value==='string'&&/^\/api\/poi-explore\/photos\/[a-f0-9-]{32,36}$/.test(value)?`${window.API_BASE_URL||''}${value}`:null;}
-    return {api,node,page,normalize,safeLink,text,fact,provinceAllowed,definitions,fields,photoUrl};
+    return {api,readResponse,node,page,normalize,safeLink,text,fact,provinceAllowed,definitions,fields,photoUrl};
 })();
