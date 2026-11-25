@@ -134,8 +134,11 @@ function LocationEditor({map,categories,canEdit,onModeChange,getScene,onOverlayC
     }catch(error){el('locations-add-error').textContent=error.message;}});
     el('locations-add-close').addEventListener('click',()=>{++addRequest;addDialog.close();});addDialog.addEventListener('cancel',()=>{++addRequest;});
     el('locations-add-back').addEventListener('click',()=>{el('locations-type-step').hidden=false;el('locations-province-step').hidden=true;el('locations-add-title').textContent='نوع مکان را انتخاب کنید';});
-    el('locations-add-province').addEventListener('change',()=>{const allowed=provinceAllowed(config,el('locations-add-province').value);
-        el('locations-add-next').disabled=!allowed;el('locations-add-eligibility').textContent=allowed?'ثبت مکان در این استان فعال است.':'ثبت مکان در این استان هنوز فعال نیست یا دسترسی آن را ندارید.';});
+    el('locations-add-province').addEventListener('change',()=>{const name=el('locations-add-province').value,allowed=provinceAllowed(config,name);
+        const row=config.coverage.provinces.find(p=>normalize(p.province)===normalize(name)),permission=config.permissions;
+        const scoped=permission.can_edit&&(permission.all_provinces||permission.provinces.some(p=>normalize(p)===normalize(name)));
+        el('locations-add-next').disabled=!allowed;el('locations-add-eligibility').textContent=allowed?'ثبت مکان در این استان فعال است.':
+            (scoped&&row?.blocked_reason)||'ثبت مکان در این استان هنوز فعال نیست یا دسترسی آن را ندارید.';});
     el('locations-add-next').addEventListener('click',chooseProvince);el('locations-point-cancel').addEventListener('click',cancelPoint);
     el('locations-point-next').addEventListener('click',()=>{if(!picking||!point)return;try{sessionStorage.setItem('place-registration',JSON.stringify({category:'mosque',province,...point,venue_id:relocatingId,created_at:Date.now(),submission_id:crypto.randomUUID()}));
         window.location.href=page('place-register.html')+(relocatingId?'?venue='+encodeURIComponent(relocatingId):'');}catch{el('locations-point-hint').textContent='ذخیرهٔ موقت فرم ممکن نشد؛ تنظیمات مرورگر را بررسی کنید.';}});

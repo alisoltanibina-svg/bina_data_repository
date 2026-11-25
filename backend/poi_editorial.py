@@ -117,7 +117,7 @@ def eligibility_for_province(session,province):
 
 
 def _eligibility(session,scope=None):
-    """Completed roots, descendants and discovery policy, without area projection."""
+    """Completed provincial roots and descendants, without area projection."""
     job = session.scalar(select(PoiJob).where(PoiJob.provider=='neshan').order_by(
         PoiJob.status.in_(('pending','running')).desc(),PoiJob.created_at.desc(),PoiJob.id.desc()).limit(1))
     if not job:
@@ -125,7 +125,8 @@ def _eligibility(session,scope=None):
     plan = session.scalar(select(PoiCoveragePlan).where(PoiCoveragePlan.job_id == job.id))
     if plan:
         from backend.poi_coverage_state import discovery_ready
-        ready = plan.state == 'ready' and bool((plan.summary or {}).get('coverage_verified')) and discovery_ready(plan)
+        ready = plan.state == 'ready' and bool((plan.summary or {}).get('coverage_verified'))
+        historical_blocked=set()
         counts = defaultdict(lambda: [0,0])
         roots=select(PoiCoverageCircle.province_name,PoiSegment.status,func.count()).join(
             PoiSegment,PoiSegment.coverage_circle_id==PoiCoverageCircle.id).where(
@@ -150,10 +151,30 @@ def _eligibility(session,scope=None):
                 (PoiSegment.status!='complete')|PoiSegment.review_reason.is_not(None)|(PoiSegment.pending_details>0))
         if scope is not None:contributions=contributions.where(province_key(PoiCoverageContribution.province_name).in_(scope))
         blocked.update(normalize(name) for name in session.scalars(contributions.distinct()).all())
+        if ready and not discovery_ready(plan):
+            # Provinces with unfinished searches are already closed. Audit
+            # historical evidence only where it could actually enable entry.
+            candidates={name for name,(total,done) in counts.items() if total and done==total and name not in blocked}
+            if scope is not None:candidates.intersection_update(scope)
+            if candidates:
+                from backend.poi_editorial_coverage import province_discovery_blockers
+                historical_blocked=province_discovery_blockers(session,job,plan,candidates)
         names = session.scalars(select(PoiBoundary.name).where(PoiBoundary.version==plan.source_version,
             PoiBoundary.level=='province').order_by(PoiBoundary.name)).all()
-        provinces = [completion_row(name,*counts[normalize(name)],ready and normalize(name) not in blocked)
-            for name in names if scope is None or normalize(name) in scope]
+        provinces=[]
+        for name in names:
+            key=normalize(name)
+            if scope is not None and key not in scope:continue
+            row=completion_row(name,*counts[key],ready and key not in blocked and key not in historical_blocked)
+            if not row['eligible']:
+                if not ready:
+                    reason='coverage_plan_unverified';message='طرح پوشش جغرافیایی هنوز تأیید نشده است.'
+                elif key in historical_blocked:
+                    reason='search_history_incomplete';message='بررسی سابقهٔ جستجوهای این استان کامل نیست؛ گردآوری باید تکمیل شود.'
+                else:
+                    reason='collection_incomplete';message='گردآوری این استان هنوز کامل نشده است.'
+                row.update(blocked_reason=message,blocked_reason_code=reason)
+            provinces.append(row)
     elif job.search_dataset_version:
         if scope is None:
             from backend.poi import geographic_progress
@@ -171,7 +192,7 @@ def require_region(permission, coverage, province, category):
         raise HTTPException(403,detail='ویرایش این استان در دسترسی شما نیست.')
     row = next((r for r in coverage['provinces'] if normalize(r['province']) == normalize(province)),None)
     if not row or not row['eligible'] or category not in coverage['categories']:
-        raise HTTPException(409,detail='گردآوری این استان یا نوع مکان هنوز کامل نشده است؛ ثبت و ویرایش فعلاً بسته است.')
+        raise HTTPException(409,detail=(row or {}).get('blocked_reason') or 'گردآوری این استان یا نوع مکان هنوز کامل نشده است؛ ثبت و ویرایش فعلاً بسته است.')
 
 
 def source_values(row, category):

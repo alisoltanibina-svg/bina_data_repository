@@ -283,7 +283,7 @@ def build_router(require_admin,require_user):
             try:
                 venue_schema.require_editable_category(session,category)
                 if not assignment['province_name']:raise HTTPException(409,detail='نقطه داخل مرز استان‌های ایران نیست.')
-                edit.require_region(permission,edit.eligibility(session),assignment['province_name'],category)
+                edit.require_region(permission,edit.eligibility_for_provinces(session,[assignment['province_name']]),assignment['province_name'],category)
                 return response(dict(eligible=True,province=assignment['province_name']))
             except HTTPException as error:return response(dict(eligible=False,province=assignment['province_name'],reason=error.detail))
 
@@ -343,7 +343,7 @@ def build_router(require_admin,require_user):
             permission=edit.permissions(session,actor)
             if not permission['can_edit']:raise HTTPException(403,detail='دسترسی ویرایش ندارید.')
             venue_schema.require_editable_category(session,category)
-            if province:edit.require_region(permission,edit.eligibility(session),province,category)
+            if province:edit.require_region(permission,edit.eligibility_for_provinces(session,[province]),province,category)
             lat=edit.coordinate_expression('latitude');lon=edit.coordinate_expression('longitude')
             rows=session.execute(select(PoiPlace,PoiEditorial).outerjoin(PoiEditorial,PoiEditorial.place_id==PoiPlace.id)
                 .outerjoin(PoiPlaceCategory,PoiPlaceCategory.place_id==PoiPlace.id).where(

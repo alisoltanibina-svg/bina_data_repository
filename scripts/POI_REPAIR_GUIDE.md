@@ -82,6 +82,18 @@ that shorter responses are exhaustive. Minimum-radius saturation remains
 unresolved for review. Provincial editing stays disabled while relevant
 searches, descendants, Details, or cross-border coverage pieces are incomplete.
 
+A missing or unreconciled `discovery_policy` no longer closes every province.
+The application checks the recorded evidence for each province's root searches
+and descendants, including neighbouring roots whose coverage overlaps it.
+Completed leaves must have a successful Nearby search with a known result count
+below the current saturation threshold. A saturated parent is allowed once its
+refined descendants are complete. Missing, unknown, or saturated leaf evidence
+still blocks the affected provinces until collection/repair resolves it, even
+when old root counters show matching totals. This is a read-only application
+check; it does not change worker state or mark a plan reconciled. The editor
+configuration reports `blocked_reason` and `blocked_reason_code` for unavailable
+provinces, and the province selector displays that reason.
+
 `--activate JOB_UUID --expect-database appdb_test` on the coverage repair command
 can select a prepared historical job only when no other job is active. It
 leaves collection paused. Legacy settlement/grid history is preserved; it does
