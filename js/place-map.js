@@ -3,7 +3,7 @@ function LocationEditor({map,categories,canEdit,onModeChange,getScene,onOverlayC
     const {api,node,page,normalize,fact,provinceAllowed}=PlaceUI,el=id=>document.getElementById(id);
     let config,selected=null,timer,controller,generation=0,lastKey='',published=[],suppressed=new Set();
     let picking=false,province='',point=null,draftMarker=null,provinceLayer=null,profileMarker=null,profileRequest=0,focusBeforeProfile=null,relocatingId=null,addRequest=0;
-    let profileIdentity=null,profileLiveIdentity=null,profileLocalId=null;
+    let profileLocalId=null,profileLiveKey=null,profileData=null;
     const layer=L.layerGroup().addTo(map),profile=el('locations-profile'),addDialog=el('locations-add-dialog');
     const ready=api('/api/poi-explore/editor/config').then(data=>{
         config=data;el('locations-add').hidden=!data.permissions.can_edit;
@@ -17,11 +17,11 @@ function LocationEditor({map,categories,canEdit,onModeChange,getScene,onOverlayC
         return data;
     }).catch(error=>{el('locations-add-error').textContent=error.message;throw error;});
     ready.catch(()=>{});
-    function closeProfile(){++profileRequest;if(profile.open)profile.close();profileIdentity=profileLiveIdentity=profileLocalId=null;profileMarker?.setOpacity?.(1);profileMarker=null;focusBeforeProfile?.focus?.();onOverlayChange();}
+    function closeProfile(){++profileRequest;if(profile.open)profile.close();profileLocalId=profileLiveKey=null;profileData=null;profileMarker?.setOpacity?.(1);profileMarker=null;focusBeforeProfile?.focus?.();onOverlayChange();}
     function present(place,marker){
         if(profileMarker&&profileMarker!==marker)profileMarker.setOpacity?.(1);profileMarker=marker;focusBeforeProfile=marker?.getElement?.()||document.activeElement;
         const origin=marker?.getElement?.()?.getBoundingClientRect();marker?.setOpacity?.(0);
-        profileIdentity=profileLiveIdentity=place.id||null;profileLocalId=place.localId||null;el('locations-detail-loading').hidden=true;
+        profileLocalId=place.localId||null;profileLiveKey=null;profileData=null;el('locations-detail-loading').hidden=true;
         el('locations-detail-title').textContent=place.name||'اطلاعات مکان';el('locations-detail-body').replaceChildren();
         el('locations-detail-lock').textContent='';el('locations-detail-status').textContent='';el('locations-detail-edit').hidden=true;
         const image=el('locations-profile-icon');image.alt='';image.classList.remove('is-place-photo');image.onerror=null;image.src=(categories.find(c=>c.category===place.category)||selected||categories[0])?.icon_url||'';
@@ -33,7 +33,7 @@ function LocationEditor({map,categories,canEdit,onModeChange,getScene,onOverlayC
     function showDetails(data){
         const image=el('locations-profile-icon'),photoUrl=PlaceUI.photoUrl(data.photo_url);
         if(photoUrl){const fallback=image.src;image.classList.add('is-place-photo');image.alt='عکس '+data.values.name;image.src=photoUrl;image.onerror=()=>{image.onerror=null;image.alt='';image.classList.remove('is-place-photo');image.src=fallback;};}
-        const values=data.values,root=el('locations-detail-body');profileIdentity=data.match_id||data.identity||profileIdentity;profileLocalId=data.id;root.replaceChildren();el('locations-detail-title').textContent=values.name;
+        const values=data.values,root=el('locations-detail-body');profileData=data;profileLocalId=data.id;root.replaceChildren();el('locations-detail-title').textContent=values.name;
         fact(root,'نشانی',values.address);fact(root,'شماره تماس',values.phoneNumber);fact(root,'وبسایت یا صفحهٔ اجتماعی',values.website,true);
         fact(root,'استان',data.province||data.attributes?.province);
         for(const field of PlaceUI.definitions(config))fact(root,field.label,data.attributes?.[field.key]);
@@ -43,19 +43,14 @@ function LocationEditor({map,categories,canEdit,onModeChange,getScene,onOverlayC
         const edit=el('locations-detail-edit');edit.hidden=!canEdit||picking;edit.href=page('place-register.html')+'?venue='+encodeURIComponent(data.id);
         if(!data.can_edit){edit.hidden=true;el('locations-detail-lock').textContent=data.locked_reason||'ویرایش این مکان در دسترس نیست.';}
     }
-    async function inspect(place,marker){
-        const request=++profileRequest;present(place,marker);el('locations-detail-loading').hidden=false;
-        try{await ready;const lookup=place.lookup_id||place.id;
-            const path=place.localId?'/api/poi-explore/venues/'+encodeURIComponent(place.localId):lookup?'/api/poi-explore/venue-match/'+encodeURIComponent(lookup):null;
-            if(!path)throw new Error('شناسهٔ قابل تطبیق برای این مکان دریافت نشده است.');
-            const params=new URLSearchParams();
-            if(!place.localId&&Number.isFinite(place.latitude)&&Number.isFinite(place.longitude)){
-                params.set('latitude',place.latitude);params.set('longitude',place.longitude);
-                if(place.identity_scheme==='neshan-prefix32-v1'){params.set('prefix32_key',place.id);params.set('category',place.category||selected?.category||'');}
-            }
-            const query=params.size?'?'+params:'';
-            const data=await api(path+query);if(request===profileRequest)showDetails(data);
-        }catch(error){if(request===profileRequest)el('locations-detail-lock').textContent=error.status===404?'اطلاعات این مکان هنوز در پایگاه داده ثبت نشده است.':error.message;}
+    async function inspect(place,marker,recordKey){
+        const request=++profileRequest;present(place,marker);profileLiveKey=recordKey||null;el('locations-detail-loading').hidden=false;
+        try{await ready;
+            const data=place.localId?await api('/api/poi-explore/venues/'+encodeURIComponent(place.localId)):
+                await api('/api/poi-explore/venue-match',{method:'POST',body:JSON.stringify({category:place.category||selected?.category,
+                    name:place.name,latitude:place.latitude,longitude:place.longitude})});
+            if(request===profileRequest)showDetails(data);
+        }catch(error){if(request===profileRequest)el('locations-detail-lock').textContent=error.message;}
         finally{if(request===profileRequest)el('locations-detail-loading').hidden=true;}
     }
     async function open(id){
@@ -103,25 +98,37 @@ function LocationEditor({map,categories,canEdit,onModeChange,getScene,onOverlayC
             }catch(error){if(error.name!=='AbortError'&&version===generation)el('locations-point-hint').textContent=error.message;}return;
         }
         layer.clearLayers();if(scene.zoom<8||!plan){published=[];suppressed.clear();onOverlayChange();return;}
-        const identities=[...new Set(scene.records.map(r=>r.place.lookup_id||r.place.id).filter(id=>/^[a-f0-9]{64}$/.test(id||'')))];
-        const stableKeys=[...new Set(scene.records.filter(r=>r.place.identity_scheme==='neshan-prefix32-v1').map(r=>r.place.id).filter(id=>/^[a-f0-9]{64}$/.test(id||'')))];
-        const key=JSON.stringify([selected.category,bounds,plan,identities,stableKeys,Math.floor(Date.now()/30000)]);if(lastKey===key)return;
-        try{const rows=new Map(),hidden=new Set(),prefixes=[...new Set(identities.map(id=>id.slice(0,8)))];let hasMore=false;
-            // Keep each JSON request below the API's 64 KiB input cap.
-            const width=stableKeys.length?2500:5000;
-            for(let offset=0;offset<Math.max(1,Math.ceil(prefixes.length/width),Math.ceil(stableKeys.length/500));offset++){
+        const live=scene.records.map((record,reference)=>({reference,name:record.place.name,latitude:record.place.latitude,longitude:record.place.longitude}));
+        const key=JSON.stringify([selected.category,bounds,plan,live,Math.floor(Date.now()/30000)]);if(lastKey===key)return;
+        const batches=[];let batch=[],bytes=0;
+        const utf8Size=text=>{let total=0;for(const char of text){const code=char.codePointAt(0);total+=code<128?1:code<2048?2:code<65536?3:4;}return total;};
+        for(const point of live){const size=utf8Size(JSON.stringify(point))+1;
+            if(batch.length&&(batch.length>=200||bytes+size>55000)){batches.push(batch);batch=[];bytes=0;}batch.push(point);bytes+=size;}
+        if(batch.length||!batches.length)batches.push(batch);
+        try{const rows=new Map(),hidden=new Set();let hasMore=false;
+            for(let offset=0;offset<batches.length;offset++){
                 const data=await api('/api/poi-explore/overlays',{method:'POST',signal:controller.signal,body:JSON.stringify({category:selected.category,...bounds,
-                    latitude:plan.latitude,longitude:plan.longitude,radius:plan.radius,zoom:Math.floor(scene.zoom),prefixes:prefixes.slice(offset*width,(offset+1)*width),
-                    ...(stableKeys.length?{prefix32_keys:stableKeys.slice(offset*500,(offset+1)*500)}:{}),include_places:offset===0})});
-                data.places.forEach(row=>rows.set(row.id,row));data.suppressed.forEach(id=>hidden.add(id));(data.suppressed_prefix32||[]).forEach(id=>hidden.add(id));hasMore ||= data.has_more;}
+                    latitude:plan.latitude,longitude:plan.longitude,radius:plan.radius,zoom:Math.floor(scene.zoom),live_places:batches[offset],include_places:offset===0})});
+                data.places.forEach(row=>rows.set(row.id,row));(data.suppressed_refs||[]).forEach(reference=>{const record=scene.records[reference];if(record)hidden.add(record.key);});hasMore ||= data.has_more;}
             if(version!==generation)return;published=[...rows.values()];suppressed=hidden;lastKey=key;onOverlayChange();el('locations-overlay-note').hidden=!hasMore;
         }catch(error){if(error.name!=='AbortError'&&version===generation){lastKey='';el('locations-overlay-note').textContent='دریافت مکان‌های ثبت‌شده انجام نشد.';el('locations-overlay-note').hidden=false;}}
     }
     function schedule(category=selected){if(selected?.category!==category?.category){published=[];suppressed.clear();lastKey='';layer.clearLayers();}
         selected=category;if(controller)controller.abort();++generation;clearTimeout(timer);timer=setTimeout(refresh,200);}
-    function merge(records,bounds,zoom){if(picking)return [];const output=records.filter(r=>!suppressed.has(r.place.id)&&!suppressed.has(r.place.lookup_id)&&!(profile.open&&(r.place.id===profileIdentity||r.place.id===profileLiveIdentity||r.place.localId===profileLocalId)));if(zoom<8)return output;const plan=getScene().plan;if(!plan)return output;
-        for(const place of published){if(profile.open&&(place.id===profileLocalId||place.identity&&place.identity===profileIdentity))continue;if(!LocationDiscovery.inside(place,bounds)||LocationDiscovery.distance(place,plan)>plan.radius)continue;
-            output.push({key:`local/${place.id}/${place.published_version||0}`,category:place.category,place:{...place,localId:place.id,id:place.match_id||place.identity||undefined}});}return output;}
+    function merge(records,bounds,zoom){
+        if(picking)return [];
+        const output=records.filter(record=>{
+            if(suppressed.has(record.key))return false;
+            if(!profile.open)return true;
+            if(profileLiveKey&&record.key===profileLiveKey||record.place.localId===profileLocalId&&profileLocalId)return false;
+            if(profileData&&LocationDiscovery.samePlace({...record.place,category:record.category},
+                {...profileData.values,province_name:profileData.province}))return false;
+            return true;
+        });
+        if(zoom<8)return output;const plan=getScene().plan;if(!plan)return output;
+        for(const place of published){if(profile.open&&place.id===profileLocalId)continue;if(!LocationDiscovery.inside(place,bounds)||LocationDiscovery.distance(place,plan)>plan.radius)continue;
+            output.push({key:`local/${place.id}/${place.published_version||0}`,category:place.category,place:{...place,localId:place.id,id:place.id}});}return output;
+    }
     el('locations-add').addEventListener('click',async()=>{try{await ready;if(!config.permissions.can_edit)return;if(picking)cancelPoint();relocatingId=null;
         el('locations-type-step').hidden=false;el('locations-province-step').hidden=true;el('locations-add-title').textContent='نوع مکان را انتخاب کنید';addDialog.showModal();
     }catch(error){el('locations-add-error').textContent=error.message;}});

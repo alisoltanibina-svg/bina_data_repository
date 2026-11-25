@@ -19,7 +19,6 @@ from backend.poi_models import (PoiPlace, PoiPlaceCategory, PoiJob, PoiCoverageP
 from backend.poi_editorial_models import PoiEditorGrant, PoiFieldDefinition, PoiEditorial, PoiSourceIdentity, PoiSourceRevision
 from backend.poi_editorial_models import PoiEditRevision
 from backend.models import User
-from backend import poi_identity
 
 COMMON = ('name','category','latitude','longitude','address','phoneNumber','website','workHours','socialNetworks')
 
@@ -271,5 +270,4 @@ def public_place(row, editorial, source, catalogue,contributors=None):
     values=effective(source,payload)
     return dict(id=str(row.id),**values,province=effective_province(row,editorial),tag=editorial.tag,
         identity=source_identity(row),version=editorial.version,published_version=editorial.published_version,
-        attributes=attribute_values(row,editorial,catalogue,values['category']),contributors=contributors,
-        match_id=poi_identity.prefix32_key(row.provider_id) if poi_identity.enabled() and row.provider=='neshan' else None)
+        attributes=attribute_values(row,editorial,catalogue,values['category']),contributors=contributors)

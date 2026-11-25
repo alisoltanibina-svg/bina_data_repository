@@ -87,7 +87,7 @@ function locationDistance(a, b) { return LocationDiscovery.distance(a, b); }
             && state.inflight.cell.category === state.selected.category);
         setStatus(`${number.format(state.visibleCount + state.manualCount)} مکان${loading ? ' · در حال جستجو…' : ''}`);
     }
-    function placeMarker(place) {
+    function placeMarker(place,recordKey) {
         const icon = L.icon({iconUrl: state.selected.icon_url, iconSize: [30, 30],
             iconAnchor: [15, 15], popupAnchor: [0, -16], className: 'locations-live-icon' + (place.tag ? ' locations-manual-icon' : '')});
         const marker = L.marker([place.latitude, place.longitude], {icon, title: place.name, keyboard: true})
@@ -103,7 +103,7 @@ function locationDistance(a, b) { return LocationDiscovery.distance(a, b); }
         return marker;
     }
     function groupMarker(group) {
-        if (group.items.length === 1) return placeMarker(group.items[0].place);
+        if (group.items.length === 1) return placeMarker(group.items[0].place,group.items[0].key);
         const node = document.createElement('div'); node.className = 'locations-cluster';
         const icon = document.createElement('img'); icon.src = state.selected.icon_url; icon.alt = '';
         const count = document.createElement('strong'); count.textContent = number.format(group.items.length);

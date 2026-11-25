@@ -13,11 +13,11 @@ from sqlalchemy.dialects.postgresql import insert
 from backend import database,poi_editorial as edit
 from backend import poi_venue_schema as venue_schema
 from backend import place_photos,place_notifications
-from backend import poi_identity
+from backend import poi_place_matching as matching
 from backend.models import User
 from backend.poi_models import PoiPlace,PoiPlaceCategory
 from backend.poi_editorial_models import (PoiEditorial,PoiEditRevision,
-    PoiEditorGrant,PoiFieldDefinition,PoiContributionAward,PoiSourceRevision,PoiSourceIdentity,PoiPlacePhoto)
+    PoiEditorGrant,PoiFieldDefinition,PoiContributionAward,PoiSourceRevision,PoiPlacePhoto)
 from backend.poi_manual import assign_province
 from backend.poi_geo import normalize
 from backend.poi_explore import response,published_category,within_search_radius
@@ -46,6 +46,17 @@ class Review(InputBody):
     approve: bool
     note: str = Field(default='',max_length=1000)
 
+class MatchPoint(InputBody):
+    name: str = Field(min_length=1,max_length=250)
+    latitude: FiniteFloat = Field(ge=24,le=41)
+    longitude: FiniteFloat = Field(ge=43,le=64)
+
+class PlaceMatch(MatchPoint):
+    category: str = Field(min_length=1,max_length=100)
+
+class LiveMatchPoint(MatchPoint):
+    reference: int = Field(ge=0,le=20000,strict=True)
+
 
 class Overlay(InputBody):
     category: str = Field(max_length=100)
@@ -59,7 +70,7 @@ class Overlay(InputBody):
     zoom: int = Field(ge=8,le=19,strict=True)
     identities: list[str] = Field(default_factory=list,max_length=500)
     prefixes: list[str] = Field(default_factory=list,max_length=5000)
-    prefix32_keys: list[str] = Field(default_factory=list,max_length=500)
+    live_places: list[LiveMatchPoint] = Field(default_factory=list,max_length=200)
     include_places: bool = True
 
 
@@ -138,8 +149,7 @@ def detail(session,row,actor,allow_pending=False):
         published=bool(editorial and editorial.published_version),identity=edit.source_identity(row),province=edit.effective_province(row,editorial),
         attributes=edit.attribute_values(row,editorial,catalogue,values['category']),can_edit=False,
         contributors=edit.attributions(session,[editorial]).get(row.id) if editorial and editorial.published_version else None,
-        photo_url=place_photos.url((payload or {}).get('photo_path')),
-        match_id=poi_identity.prefix32_key(row.provider_id) if poi_identity.enabled() and row.provider=='neshan' else None)
+        photo_url=place_photos.url((payload or {}).get('photo_path')))
     if scoped(permission,row,editorial):
         coverage=edit.eligibility(session);allowed=True
         try:
@@ -231,34 +241,20 @@ def build_router(require_admin,require_user):
                 fields=[edit.field_dict(r) for r in edit.definitions(session) if r.active and (permission['can_edit'] or r.public)]))
 
     @router.get('/api/poi-explore/venue-match/{identity}')
-    def match(identity:str,request:Request,draft:bool=False,latitude:float|None=Query(default=None,ge=24,le=41),longitude:float|None=Query(default=None,ge=43,le=64),
-              prefix32_key:str|None=Query(default=None,pattern='^[a-f0-9]{64}$'),category:str|None=Query(default=None,max_length=100)):
-        actor=require_user(request)
-        if not re.fullmatch('[a-f0-9]{64}',identity):raise HTTPException(422,detail='شناسه معتبر نیست.')
+    def legacy_match(identity:str,request:Request):
+        require_user(request)
+        raise HTTPException(409,detail='روش تطبیق مکان تغییر کرده است؛ صفحه را دوباره بارگذاری کنید.')
+
+    @router.post('/api/poi-explore/venue-match')
+    def match(body:PlaceMatch,request:Request):
+        actor=require_user(request);published_category(body.category)
         with database.db_session() as session:
-            row=session.scalar(select(PoiPlace).join(PoiSourceIdentity,PoiSourceIdentity.place_id==PoiPlace.id)
-                .where(PoiPlace.provider=='neshan',PoiSourceIdentity.match_key==identity))
-            if row and edit.source_identity(row)!=identity:row=None
-            if row is None:
-                query=select(PoiPlace).where(PoiPlace.provider=='neshan',edit.source_identity_expression()==identity)
-                if latitude is not None and longitude is not None:
-                    row=session.scalar(query.where(PoiPlace.latitude.between(latitude-1,latitude+1),PoiPlace.longitude.between(longitude-1.5,longitude+1.5)).limit(1))
-                if row is None:row=session.scalar(query.limit(1))
-            if row is None and prefix32_key:
-                if not poi_identity.enabled():raise HTTPException(409,detail='تطبیق آزمایشی شناسه غیرفعال است؛ صفحه را تازه‌سازی کنید.')
-                if latitude is None or longitude is None or not category:raise HTTPException(422,detail='موقعیت و نوع مکان برای تطبیق شناسه لازم است.')
-                # Count across the entire source table, including newly collected
-                # rows: an incomplete editing cache must never imply uniqueness.
-                candidates=session.scalars(select(PoiPlace).where(PoiPlace.provider=='neshan',
-                    poi_identity.prefix32_expression(PoiPlace.provider_id)==prefix32_key).limit(2)).all()
-                if len(candidates)>1:raise HTTPException(409,detail='این شناسه با چند مکان ثبت‌شده تطبیق دارد؛ تطبیق خودکار انجام نشد.')
-                if candidates:
-                    candidate=candidates[0]
-                    if candidate.latitude is None or candidate.longitude is None or edit.source_category(session,candidate)!=category or not within_search_radius(candidate.latitude,candidate.longitude,(latitude,longitude),100):
-                        raise HTTPException(409,detail='نوع یا موقعیت مکان با شناسهٔ ثبت‌شده سازگار نیست؛ تطبیق خودکار انجام نشد.')
-                    row=candidate
-            if not row:raise HTTPException(404,detail='این مکان هنوز در پایگاه داده ثبت نشده است؛ ویرایش فعلاً ممکن نیست.')
-            return response(detail(session,row,actor,draft))
+            try:results=matching.match_points(session,body.category,[body],assign_province)
+            except matching.TooManyCandidates:raise HTTPException(409,detail='تعداد رکوردهای نزدیک بیش از حد مجاز است؛ تطبیق یکتا ممکن نیست.') from None
+            matches=results[0][1]
+            if len(matches)>1:raise HTTPException(409,detail='چند مکان با همین نوع، موقعیت، استان و نام ثبت شده است؛ تطبیق یکتا ممکن نیست.')
+            if not matches:raise HTTPException(404,detail='مکانی با نوع، موقعیت در فاصلهٔ ۲۰ متر، استان و نام یکسان در پایگاه داده پیدا نشد.')
+            return response(detail(session,session.get(PoiPlace,matches[0].place_id),actor))
 
     @router.get('/api/poi-explore/editor/eligibility')
     def point_eligibility(request:Request,category:str,latitude:float=Query(ge=24,le=41),longitude:float=Query(ge=43,le=64)):
@@ -286,24 +282,21 @@ def build_router(require_admin,require_user):
     @router.post('/api/poi-explore/overlays')
     def overlays(body:Overlay,request:Request):
         require_user(request);published_category(body.category)
-        if body.south>body.north or body.west>body.east or any(not re.fullmatch('[a-f0-9]{64}',v) for v in body.identities+body.prefix32_keys) or any(not re.fullmatch('[a-f0-9]{8}',v) for v in body.prefixes):
+        if body.south>body.north or body.west>body.east or any(not re.fullmatch('[a-f0-9]{64}',v) for v in body.identities) or any(not re.fullmatch('[a-f0-9]{8}',v) for v in body.prefixes):
             raise HTTPException(422,detail='محدوده یا شناسه معتبر نیست.')
         with database.db_session() as session:
-            suppressed=session.scalars(select(PoiSourceIdentity.match_key).join(PoiEditorial,PoiEditorial.place_id==PoiSourceIdentity.place_id).where(
-                PoiEditorial.published_version>0,or_(PoiSourceIdentity.match_key.in_(body.identities),
-                    func.substr(PoiSourceIdentity.match_key,1,8).in_(body.prefixes)))).all() if body.identities or body.prefixes else []
-            suppressed_prefix32=[]
-            if body.prefix32_keys and poi_identity.enabled():
-                key=poi_identity.prefix32_expression(PoiPlace.provider_id)
-                # Most views have no curated corrections. Check the small editing
-                # set first, then verify global uniqueness only for affected keys.
-                published_keys=session.scalars(select(key).select_from(PoiEditorial).join(PoiPlace,PoiPlace.id==PoiEditorial.place_id)
-                    .where(PoiEditorial.published_version>0,PoiPlace.provider=='neshan',key.in_(body.prefix32_keys))).all()
-                if published_keys:
-                    suppressed_prefix32=session.scalars(select(key).select_from(PoiPlace).outerjoin(PoiEditorial,PoiEditorial.place_id==PoiPlace.id)
-                        .where(PoiPlace.provider=='neshan',key.in_(set(published_keys))).group_by(key)
-                        .having(func.count(PoiPlace.id)==1,func.max(PoiEditorial.published_version)>0)).all()
-            if not body.include_places:return response(dict(places=[],suppressed=suppressed,suppressed_prefix32=suppressed_prefix32,has_more=False))
+            references=[point.reference for point in body.live_places]
+            if len(references)!=len(set(references)):raise HTTPException(422,detail='ارجاع مکان تکراری است.')
+            suppressed_refs=[];ambiguous_refs=[];matching_overflow=False
+            if body.live_places:
+                try:
+                    published=matching.match_points(session,body.category,body.live_places,assign_province,published_only=True)
+                    relevant=[point for point,hits in published if hits]
+                    for point,hits in matching.match_points(session,body.category,relevant,assign_province):
+                        if len(hits)>1:ambiguous_refs.append(point.reference)
+                        elif hits and hits[0].published:suppressed_refs.append(point.reference)
+                except matching.TooManyCandidates:matching_overflow=True
+            if not body.include_places:return response(dict(places=[],suppressed=[],suppressed_refs=suppressed_refs,ambiguous_refs=ambiguous_refs,has_more=matching_overflow))
             dy=body.radius/110000
             dx=body.radius/(110000*math.cos(math.radians(min(89,abs(body.latitude)+dy))))
             rows=session.execute(select(PoiPlace,PoiEditorial).join(PoiEditorial,PoiEditorial.place_id==PoiPlace.id)
@@ -320,7 +313,7 @@ def build_router(require_admin,require_user):
                 if within_search_radius(values['latitude'],values['longitude'],(body.latitude,body.longitude),body.radius):
                     places.append(edit.public_place(row,editorial,edit.source_values(row,body.category),catalogue,authors.get(row.id)))
                     if len(places)>500:break
-            return response(dict(places=places[:500],suppressed=suppressed,suppressed_prefix32=suppressed_prefix32,has_more=len(places)>500 or len(rows)>1000))
+            return response(dict(places=places[:500],suppressed=[],suppressed_refs=suppressed_refs,ambiguous_refs=ambiguous_refs,has_more=matching_overflow or len(places)>500 or len(rows)>1000))
 
     @router.get('/api/poi-explore/editor/places')
     def editable_places(request:Request,category:str,south:float=Query(ge=24,le=41),north:float=Query(ge=24,le=41),

@@ -58,10 +58,16 @@ const LocationDiscovery = (() => {
             longitude: items.reduce((sum,item) => sum + item.place.longitude, 0) / items.length,
             signature: JSON.stringify(items.map(item => [item.key, item.place.name, item.place.latitude, item.place.longitude]).sort())}));
     }
+    const normalized=value=>String(value||'').normalize('NFC').replace(/ي/g,'ی').replace(/ك/g,'ک').replace(/[۰-۹٠-٩]/g,char=>String('۰۱۲۳۴۵۶۷۸۹'.includes(char)?'۰۱۲۳۴۵۶۷۸۹'.indexOf(char):'٠١٢٣٤٥٦٧٨٩'.indexOf(char))).replace(/\u200c/g,' ').trim().replace(/\s+/g,' ').toLowerCase();
+    function samePlace(first,second){
+        return first.category===second.category&&distance(first,second)<=20&&!!normalized(first.province_name)&&
+            normalized(first.province_name)===normalized(second.province_name)&&normalized(first.name)===normalized(second.name);
+    }
     class Store {
         constructor(config = {}, now = () => Date.now()) {
             this.config = {...defaults, ...config}; this.now = now;
             this.points = new Map(); this.cells = new Map();
+            this.matchBuckets=new Map();this.sequence=0;
             this.metrics = {requests: 0, successes: 0, failures: 0, reused: 0, evicted: 0};
         }
         eligible(cell) {
@@ -86,22 +92,21 @@ const LocationDiscovery = (() => {
         }
         finish(cell, payload, protectedPoint = () => false) {
             const keys = new Set();
-            for (let place of payload.places) {
+            for (const place of payload.places) {
                 if (!Number.isFinite(place.latitude) || !Number.isFinite(place.longitude)
                     || place.latitude < 24 || place.latitude > 41 || place.longitude < 43 || place.longitude > 64
                     || typeof place.name !== 'string' || distance(place, cell) > cell.radius) continue;
-                let identity = typeof place.id === 'string' && place.id ? place.id
+                const identity = typeof place.id === 'string' && place.id ? place.id
                     : JSON.stringify([place.latitude, place.longitude, place.name]);
                 let key = `${cell.category}/${identity}`;
-                let old = this.points.get(key);
-                if (place.identity_scheme === 'neshan-prefix32-v1' && old &&
-                    (old.place.name !== place.name || distance(old.place, place) > 2) && place.lookup_id) {
-                    // Preserve both points when observed data contradicts the
-                    // experimental identity rule; never silently merge them.
-                    place = {...place, id:place.lookup_id};delete place.identity_scheme;
-                    identity=place.id;key=`${cell.category}/${identity}`;old=this.points.get(key);
+                const bucket=normalized(place.province_name)?JSON.stringify([cell.category,normalized(place.province_name),normalized(place.name)]):null;
+                if(bucket){
+                    const matches=[...(this.matchBuckets.get(bucket)||[])].map(k=>this.points.get(k)).filter(record=>record&&samePlace({...record.place,category:record.category},{...place,category:cell.category}));
+                    key=matches.length===1?matches[0].key:`${cell.category}/spatial/${++this.sequence}`;
                 }
-                this.points.set(key, {key, category: cell.category, place, seen: this.now(), used: old ? old.used : this.now()});
+                const old=this.points.get(key);
+                this.points.set(key, {key, category: cell.category, place, seen: this.now(), used: old ? old.used : this.now(),matchBucket:bucket});
+                if(bucket){if(!this.matchBuckets.has(bucket))this.matchBuckets.set(bucket,new Set());this.matchBuckets.get(bucket).add(key);}
                 keys.add(key);
             }
             ++this.metrics.successes;
@@ -123,11 +128,12 @@ const LocationDiscovery = (() => {
                 if (protectedPoint(point)) point.used = now;
                 else if (now - point.used > this.config.inactive_ttl_ms) removed.add(point.key);
             }
-            for (const key of removed) this.points.delete(key);
+            const remove=key=>{const point=this.points.get(key);const bucket=point?.matchBucket;if(bucket){const keys=this.matchBuckets.get(bucket);keys?.delete(key);if(!keys?.size)this.matchBuckets.delete(bucket);}this.points.delete(key);};
+            for (const key of removed) remove(key);
             if (this.points.size > this.config.memory_places) {
                 const ordered = [...this.points.values()].sort((a,b) => Number(protectedPoint(a)) - Number(protectedPoint(b)) || a.used - b.used);
                 for (const point of ordered.slice(0, this.points.size - this.config.memory_places)) {
-                    removed.add(point.key); this.points.delete(point.key);
+                    removed.add(point.key); remove(point.key);
                 }
             }
             this.metrics.evicted += removed.size;
@@ -141,5 +147,5 @@ const LocationDiscovery = (() => {
             }
         }
     }
-    return {Store, candidates, groups, inside, distance, defaults};
+    return {Store, candidates, groups, inside, distance, defaults, samePlace, normalized};
 })();
