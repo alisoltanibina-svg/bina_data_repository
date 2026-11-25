@@ -20,6 +20,7 @@ from backend.poi_editorial_models import PoiEditorial
 from backend.poi_provider import LAYERS, Neshan, coordinates
 from backend.poi_budget import ProviderBusy, reserve_live_slot, record_provider_backoff
 from backend.settings import get_settings
+from backend import poi_identity
 
 LIVE_MIN_ZOOM = 8
 LIVE_INTERVAL_SECONDS = 1
@@ -144,7 +145,7 @@ def within_search_radius(latitude, longitude, center, radius):
     return 6371000 * 2 * math.asin(min(1, math.sqrt(a))) <= radius
 
 
-def nearby_display_points(body, *, center=None, radius=None):
+def nearby_display_points(body, *, center=None, radius=None, prefix32_enabled=False):
     """Strip hashes and all unused provider fields; validate before display."""
     if not isinstance(body, dict) or not isinstance(body.get('layerPoints'), dict):
         raise ValueError('Invalid Nearby response')
@@ -171,9 +172,24 @@ def nearby_display_points(body, *, center=None, radius=None):
         place = dict(name=name, latitude=latitude, longitude=longitude)
         if identity:
             place['id'] = identity
+            stable=poi_identity.prefix32_key(provider_id) if prefix32_enabled else None
+            if stable:
+                place.update(id=stable,lookup_id=identity,identity_scheme=poi_identity.SCHEME)
         places.append(place)
         if len(places) == LIVE_MAX_POINTS:
             break
+    if prefix32_enabled:
+        # A reused prefix in this response must not collapse different points.
+        locations={}
+        for place in places:
+            if place.get('identity_scheme')==poi_identity.SCHEME:
+                locations.setdefault(place['id'],set()).add((place['name'],place['latitude'],place['longitude']))
+        for place in places:
+            if place.get('identity_scheme')==poi_identity.SCHEME and len(locations[place['id']])>1:
+                place['id']=place.pop('lookup_id');place.pop('identity_scheme',None)
+        unique={}
+        for place in places:unique.setdefault(place.get('id') or (place['name'],place['latitude'],place['longitude']),place)
+        places=list(unique.values())
     return places, len(items)
 
 
@@ -208,7 +224,9 @@ def build_router(require_admin, require_user):
             from backend.poi_editorial import permissions
             access=permissions(session,actor) if actor.get('id') else dict(can_edit=False,can_review=False,can_manage=False)
         settings = get_settings()
-        return response(dict(categories=categories, permissions=access, live=dict(min_zoom=LIVE_MIN_ZOOM,
+        prefix32_active=getattr(settings,'neshan_poi_prefix32_matching_enabled',False)
+        return response(dict(categories=categories, permissions=access,
+            identity_matching=dict(scheme=poi_identity.SCHEME if prefix32_active else 'full-sha256',experimental=prefix32_active),live=dict(min_zoom=LIVE_MIN_ZOOM,
             radius_by_zoom=LIVE_RADII, debounce_ms=200, interval_ms=round(live_interval_seconds() * 1000), max_points=LIVE_MAX_POINTS,
             discovery=dict(requests_per_view=settings.neshan_explore_requests_per_view,
                 session_request_limit=settings.neshan_explore_session_request_limit,
@@ -253,7 +271,8 @@ def build_router(require_admin, require_user):
             raise HTTPException(503, detail='سرویس مکان‌های نزدیک در دسترس نیست.', headers=NO_STORE)
         try:
             places, source_count = nearby_display_points(reply.body,
-                center=(body.latitude, body.longitude), radius=radius)
+                center=(body.latitude, body.longitude), radius=radius,
+                prefix32_enabled=getattr(settings,'neshan_poi_prefix32_matching_enabled',False))
         except ValueError:
             raise HTTPException(502, detail='پاسخ سرویس مکان‌های نزدیک معتبر نبود.', headers=NO_STORE) from None
         # No database/cache/log call can receive reply.body, names, coordinates, or hashes.

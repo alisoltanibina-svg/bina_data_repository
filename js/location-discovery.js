@@ -86,14 +86,21 @@ const LocationDiscovery = (() => {
         }
         finish(cell, payload, protectedPoint = () => false) {
             const keys = new Set();
-            for (const place of payload.places) {
+            for (let place of payload.places) {
                 if (!Number.isFinite(place.latitude) || !Number.isFinite(place.longitude)
                     || place.latitude < 24 || place.latitude > 41 || place.longitude < 43 || place.longitude > 64
                     || typeof place.name !== 'string' || distance(place, cell) > cell.radius) continue;
-                const identity = typeof place.id === 'string' && place.id ? place.id
+                let identity = typeof place.id === 'string' && place.id ? place.id
                     : JSON.stringify([place.latitude, place.longitude, place.name]);
-                const key = `${cell.category}/${identity}`;
-                const old = this.points.get(key);
+                let key = `${cell.category}/${identity}`;
+                let old = this.points.get(key);
+                if (place.identity_scheme === 'neshan-prefix32-v1' && old &&
+                    (old.place.name !== place.name || distance(old.place, place) > 2) && place.lookup_id) {
+                    // Preserve both points when observed data contradicts the
+                    // experimental identity rule; never silently merge them.
+                    place = {...place, id:place.lookup_id};delete place.identity_scheme;
+                    identity=place.id;key=`${cell.category}/${identity}`;old=this.points.get(key);
+                }
                 this.points.set(key, {key, category: cell.category, place, seen: this.now(), used: old ? old.used : this.now()});
                 keys.add(key);
             }

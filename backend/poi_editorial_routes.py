@@ -13,6 +13,7 @@ from sqlalchemy.dialects.postgresql import insert
 from backend import database,poi_editorial as edit
 from backend import poi_venue_schema as venue_schema
 from backend import place_photos,place_notifications
+from backend import poi_identity
 from backend.models import User
 from backend.poi_models import PoiPlace,PoiPlaceCategory
 from backend.poi_editorial_models import (PoiEditorial,PoiEditRevision,
@@ -58,6 +59,7 @@ class Overlay(InputBody):
     zoom: int = Field(ge=8,le=19,strict=True)
     identities: list[str] = Field(default_factory=list,max_length=500)
     prefixes: list[str] = Field(default_factory=list,max_length=5000)
+    prefix32_keys: list[str] = Field(default_factory=list,max_length=500)
     include_places: bool = True
 
 
@@ -136,7 +138,8 @@ def detail(session,row,actor,allow_pending=False):
         published=bool(editorial and editorial.published_version),identity=edit.source_identity(row),province=edit.effective_province(row,editorial),
         attributes=edit.attribute_values(row,editorial,catalogue,values['category']),can_edit=False,
         contributors=edit.attributions(session,[editorial]).get(row.id) if editorial and editorial.published_version else None,
-        photo_url=place_photos.url((payload or {}).get('photo_path')))
+        photo_url=place_photos.url((payload or {}).get('photo_path')),
+        match_id=poi_identity.prefix32_key(row.provider_id) if poi_identity.enabled() and row.provider=='neshan' else None)
     if scoped(permission,row,editorial):
         coverage=edit.eligibility(session);allowed=True
         try:
@@ -228,7 +231,8 @@ def build_router(require_admin,require_user):
                 fields=[edit.field_dict(r) for r in edit.definitions(session) if r.active and (permission['can_edit'] or r.public)]))
 
     @router.get('/api/poi-explore/venue-match/{identity}')
-    def match(identity:str,request:Request,draft:bool=False,latitude:float|None=Query(default=None,ge=24,le=41),longitude:float|None=Query(default=None,ge=43,le=64)):
+    def match(identity:str,request:Request,draft:bool=False,latitude:float|None=Query(default=None,ge=24,le=41),longitude:float|None=Query(default=None,ge=43,le=64),
+              prefix32_key:str|None=Query(default=None,pattern='^[a-f0-9]{64}$'),category:str|None=Query(default=None,max_length=100)):
         actor=require_user(request)
         if not re.fullmatch('[a-f0-9]{64}',identity):raise HTTPException(422,detail='شناسه معتبر نیست.')
         with database.db_session() as session:
@@ -240,6 +244,19 @@ def build_router(require_admin,require_user):
                 if latitude is not None and longitude is not None:
                     row=session.scalar(query.where(PoiPlace.latitude.between(latitude-1,latitude+1),PoiPlace.longitude.between(longitude-1.5,longitude+1.5)).limit(1))
                 if row is None:row=session.scalar(query.limit(1))
+            if row is None and prefix32_key:
+                if not poi_identity.enabled():raise HTTPException(409,detail='تطبیق آزمایشی شناسه غیرفعال است؛ صفحه را تازه‌سازی کنید.')
+                if latitude is None or longitude is None or not category:raise HTTPException(422,detail='موقعیت و نوع مکان برای تطبیق شناسه لازم است.')
+                # Count across the entire source table, including newly collected
+                # rows: an incomplete editing cache must never imply uniqueness.
+                candidates=session.scalars(select(PoiPlace).where(PoiPlace.provider=='neshan',
+                    poi_identity.prefix32_expression(PoiPlace.provider_id)==prefix32_key).limit(2)).all()
+                if len(candidates)>1:raise HTTPException(409,detail='این شناسه با چند مکان ثبت‌شده تطبیق دارد؛ تطبیق خودکار انجام نشد.')
+                if candidates:
+                    candidate=candidates[0]
+                    if candidate.latitude is None or candidate.longitude is None or edit.source_category(session,candidate)!=category or not within_search_radius(candidate.latitude,candidate.longitude,(latitude,longitude),100):
+                        raise HTTPException(409,detail='نوع یا موقعیت مکان با شناسهٔ ثبت‌شده سازگار نیست؛ تطبیق خودکار انجام نشد.')
+                    row=candidate
             if not row:raise HTTPException(404,detail='این مکان هنوز در پایگاه داده ثبت نشده است؛ ویرایش فعلاً ممکن نیست.')
             return response(detail(session,row,actor,draft))
 
@@ -269,13 +286,24 @@ def build_router(require_admin,require_user):
     @router.post('/api/poi-explore/overlays')
     def overlays(body:Overlay,request:Request):
         require_user(request);published_category(body.category)
-        if body.south>body.north or body.west>body.east or any(not re.fullmatch('[a-f0-9]{64}',v) for v in body.identities) or any(not re.fullmatch('[a-f0-9]{8}',v) for v in body.prefixes):
+        if body.south>body.north or body.west>body.east or any(not re.fullmatch('[a-f0-9]{64}',v) for v in body.identities+body.prefix32_keys) or any(not re.fullmatch('[a-f0-9]{8}',v) for v in body.prefixes):
             raise HTTPException(422,detail='محدوده یا شناسه معتبر نیست.')
         with database.db_session() as session:
             suppressed=session.scalars(select(PoiSourceIdentity.match_key).join(PoiEditorial,PoiEditorial.place_id==PoiSourceIdentity.place_id).where(
                 PoiEditorial.published_version>0,or_(PoiSourceIdentity.match_key.in_(body.identities),
                     func.substr(PoiSourceIdentity.match_key,1,8).in_(body.prefixes)))).all() if body.identities or body.prefixes else []
-            if not body.include_places:return response(dict(places=[],suppressed=suppressed,has_more=False))
+            suppressed_prefix32=[]
+            if body.prefix32_keys and poi_identity.enabled():
+                key=poi_identity.prefix32_expression(PoiPlace.provider_id)
+                # Most views have no curated corrections. Check the small editing
+                # set first, then verify global uniqueness only for affected keys.
+                published_keys=session.scalars(select(key).select_from(PoiEditorial).join(PoiPlace,PoiPlace.id==PoiEditorial.place_id)
+                    .where(PoiEditorial.published_version>0,PoiPlace.provider=='neshan',key.in_(body.prefix32_keys))).all()
+                if published_keys:
+                    suppressed_prefix32=session.scalars(select(key).select_from(PoiPlace).outerjoin(PoiEditorial,PoiEditorial.place_id==PoiPlace.id)
+                        .where(PoiPlace.provider=='neshan',key.in_(set(published_keys))).group_by(key)
+                        .having(func.count(PoiPlace.id)==1,func.max(PoiEditorial.published_version)>0)).all()
+            if not body.include_places:return response(dict(places=[],suppressed=suppressed,suppressed_prefix32=suppressed_prefix32,has_more=False))
             dy=body.radius/110000
             dx=body.radius/(110000*math.cos(math.radians(min(89,abs(body.latitude)+dy))))
             rows=session.execute(select(PoiPlace,PoiEditorial).join(PoiEditorial,PoiEditorial.place_id==PoiPlace.id)
@@ -292,7 +320,7 @@ def build_router(require_admin,require_user):
                 if within_search_radius(values['latitude'],values['longitude'],(body.latitude,body.longitude),body.radius):
                     places.append(edit.public_place(row,editorial,edit.source_values(row,body.category),catalogue,authors.get(row.id)))
                     if len(places)>500:break
-            return response(dict(places=places[:500],suppressed=suppressed,has_more=len(places)>500 or len(rows)>1000))
+            return response(dict(places=places[:500],suppressed=suppressed,suppressed_prefix32=suppressed_prefix32,has_more=len(places)>500 or len(rows)>1000))
 
     @router.get('/api/poi-explore/editor/places')
     def editable_places(request:Request,category:str,south:float=Query(ge=24,le=41),north:float=Query(ge=24,le=41),
