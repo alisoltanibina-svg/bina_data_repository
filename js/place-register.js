@@ -2,7 +2,10 @@
 onReady(async()=>{
     const {api,node,normalize,provinceAllowed}=PlaceUI,el=id=>document.getElementById(id),form=el('place-registration-form');
     const params=new URLSearchParams(window.location.search),venue=params.get('venue'),inputs=new Map();
-    const stageIds=['place-stage-1','place-stage-2','place-stage-3','place-registration-form'];
+    const stageIds=['place-stage-1','place-stage-2','place-registration-form'];
+    // Preserve stored stage IDs so existing province/map drafts resume here
+    // and existing details drafts still resume on the final stage.
+    const storedSteps=[1,3,4],readStep=value=>value===1?1:value===4?3:2;
     let config,draft,data,step=1,changed=0,saved=0,timer,saveTask,busy=false,closed=false,pointValid=false,conflict=false,polling=false;
     const message=(text,error=false)=>{el('place-form-status').textContent=text;el('place-form-status').classList.toggle('is-error',error);};
     const saveStatus=text=>el('place-draft-status').textContent=text;
@@ -15,11 +18,11 @@ onReady(async()=>{
     function controls(){
         if(!data)return;
         for(const button of document.querySelectorAll('[data-step]')){
-            const target=Number(button.dataset.step);button.disabled=busy||(target>1&&!typeAllowed())||(target>2&&!provinceReady())||(target>3&&!pointExists());
+            const target=Number(button.dataset.step);button.disabled=busy||(target>1&&!typeAllowed())||(target===3&&(!provinceReady()||!pointExists()));
             if(target===step)button.setAttribute('aria-current','step');else button.removeAttribute('aria-current');
         }
-        el('place-previous').disabled=busy||step===1;el('place-next').hidden=step===4;el('place-submit').hidden=step!==4;
-        el('place-next').disabled=busy||(step===1&&!typeAllowed())||(step===2&&!provinceReady())||(step===3&&!pointValid);
+        el('place-previous').disabled=busy||step===1;el('place-next').hidden=step===3;el('place-submit').hidden=step!==3;
+        el('place-next').disabled=busy||(step===1&&!typeAllowed())||(step===2&&(!provinceReady()||!pointValid));
         el('place-submit').disabled=busy||!provinceReady()||!pointValid||draft?.status==='pending';
         el('place-cancel-request').disabled=busy;form.inert=busy;
         el('place-context').textContent=[config.categories.find(c=>c.category===data.category)?.title,data.province].filter(Boolean).join(' · ');
@@ -95,7 +98,7 @@ onReady(async()=>{
                 while(changed!==saved&&!closed){
                     const attachment=await photo.upload(data);
                     data.photo_id=attachment.photo_id||null;data.remove_photo=attachment.remove_photo===true;
-                    const snapshot=changed,body={version:draft.version,step,data:structuredClone(data)};
+                    const snapshot=changed,body={version:draft.version,step:storedSteps[step-1],data:structuredClone(data)};
                     const result=await api('/api/poi-explore/registration-drafts/'+draft.id,{method:'PUT',keepalive,body:JSON.stringify(body)});
                     updateMetadata(result);saved=snapshot;saveStatus('ذخیره شد');
                 }
@@ -116,12 +119,15 @@ onReady(async()=>{
         }catch(error){message(error.message,true);}
         controls();return pointValid;
     }
+    function displayMap(){
+        map.hide();const visible=step===2&&provinceReady();el('place-map-section').hidden=!visible;
+        if(visible)map.show(data,config.categories,draft.place_id);
+    }
     function displayStage(target,focus=true){
         step=target;
         stageIds.forEach((id,index)=>el(id).hidden=index+1!==step);
-        map.hide();controls();
-        if(step===3)map.show(data,config.categories,draft.place_id);
-        if(focus)el(['place-type-title','place-province-title','place-point-title','place-details-title'][step-1]).focus();
+        displayMap();controls();
+        if(focus)el(['place-type-title','place-province-title','place-details-title'][step-1]).focus();
     }
     async function go(target){
         if(busy||closed||target===step)return;
@@ -129,7 +135,7 @@ onReady(async()=>{
         busy=true;controls();saveStatus('در حال ذخیره…');
         try{
             await persist();
-            if(target===4&&!await validatePoint())return;
+            if(target===3&&!await validatePoint())return;
             displayStage(target);touch(false);await persist();message('');
         }catch(error){message(error.message,true);}
         finally{busy=false;controls();}
@@ -159,7 +165,7 @@ onReady(async()=>{
         draft=requested?await api('/api/poi-explore/registration-drafts/'+encodeURIComponent(requested)):params.get('new')==='1'?null:
             (await api('/api/poi-explore/registration-drafts/current'+(venue?'?place_id='+encodeURIComponent(venue):''))).draft;
         if(!draft)draft=await api('/api/poi-explore/registration-drafts',{method:'POST',body:JSON.stringify({place_id:venue||null,start_new:params.get('new')==='1'})});
-        data=structuredClone(draft.data);step=draft.step;
+        data=structuredClone(draft.data);step=readStep(draft.step);
         const url=new URL(window.location.href);url.search='';url.searchParams.set('draft',draft.id);history.replaceState(null,'',url);
         if(['approved','cancelled'].includes(draft.status)){finish(draft.status);return;}
         // Import a pre-upgrade handoff once, then keep the server draft authoritative.
@@ -168,23 +174,23 @@ onReady(async()=>{
             Object.assign(data,{category:legacy.category,province:legacy.province,latitude:legacy.latitude,longitude:legacy.longitude,zoom:legacy.zoom||16});
             if(legacy.form){Object.assign(data.values,legacy.form.values);data.attributes=legacy.form.attributes||{};
                 data.photo_id=legacy.form.photo?.photo_id||null;data.remove_photo=legacy.form.photo?.remove_photo===true;}
-            step=4;touch();
+            step=3;touch();
         }
         el('place-form-title').textContent=draft.place_id?'ویرایش مکان':'افزودن مکان';
         for(const [key,id] of [['name','place-name'],['address','place-address'],['phoneNumber','place-phone'],['website','place-website']])el(id).value=data.values[key]||'';
         photo.restore(data);renderFields();renderTypes();renderProvinces();el('place-wizard').hidden=false;
-        if(!typeAllowed())step=1;else if(!provinceReady())step=Math.min(step,2);else if(!pointExists())step=Math.min(step,3);
-        displayStage(params.get('step')==='3'&&provinceReady()?3:step,false);message('');saveStatus('ذخیره شد');
+        if(!typeAllowed())step=1;else if(!provinceReady()||!pointExists())step=Math.min(step,2);
+        displayStage(params.get('step')==='3'&&typeAllowed()?2:step,false);message('');saveStatus('ذخیره شد');
         if(pointExists())await validatePoint();await persist();sessionStorage.removeItem('place-registration');
     }catch(error){message(error.message,true);return;}
     for(const button of document.querySelectorAll('[data-step]'))button.addEventListener('click',()=>go(Number(button.dataset.step)));
-    el('place-next').addEventListener('click',()=>go(Math.min(4,step+1)));
+    el('place-next').addEventListener('click',()=>go(Math.min(3,step+1)));
     el('place-previous').addEventListener('click',()=>go(Math.max(1,step-1)));
-    el('place-change-position').addEventListener('click',()=>go(3));
+    el('place-change-position').addEventListener('click',()=>go(2));
     el('place-province').addEventListener('change',()=>{
         const name=el('place-province').value||null;if(normalize(name)===normalize(data.province))return;
         data.province=name;data.latitude=data.longitude=null;data.attributes.province=name;pointValid=false;
-        renderFields();touch();controls();
+        renderFields();touch();displayMap();controls();
     });
     form.addEventListener('input',event=>{if(event.target.id==='place-photo-file')return;readForm();touch();controls();});
     el('place-map-reset').addEventListener('click',map.reset);

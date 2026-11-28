@@ -29,7 +29,7 @@
 #place-form-status.is-error,.place-review-error { color:#a1382b; }
 .place-page a:focus-visible,.place-page button:focus-visible,.place-page input:focus-visible,.place-page select:focus-visible,.place-page textarea:focus-visible { outline:2px solid #aa965f; outline-offset:3px; }
 .place-wizard-page { width:min(1120px,100%); }
-.place-wizard-steps { list-style:none; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; padding:8px; }
+.place-wizard-steps { list-style:none; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; padding:8px; }
 .place-wizard-steps button { width:100%; display:flex; align-items:center; justify-content:center; gap:10px; padding:12px 8px; border:0; border-radius:12px; color:#777448; background:transparent; font:inherit; cursor:pointer; }
 .place-wizard-steps button span { display:grid; place-items:center; width:28px; height:28px; border:1px solid #ded8c7; border-radius:50%; flex-shrink:0; }
 .place-wizard-steps button[aria-current] { background:#515811; color:white; }
