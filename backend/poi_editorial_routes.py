@@ -688,7 +688,8 @@ def build_router(require_admin,require_user):
     def contributions(request:Request,page:int=Query(default=0,ge=0,le=10000)):
         actor=require_user(request)
         with database.db_session() as session:
-            summary=dict(session.execute(select(PoiEditRevision.status,func.count()).where(PoiEditRevision.actor_id==actor['id']).group_by(PoiEditRevision.status)).all())
+            visible=(PoiEditRevision.actor_id==actor['id'],PoiEditRevision.status!='cancelled')
+            summary=dict(session.execute(select(PoiEditRevision.status,func.count()).where(*visible).group_by(PoiEditRevision.status)).all())
             award_target=func.coalesce(PoiPlaceLink.canonical_id,PoiRetiredPlace.canonical_id,PoiContributionAward.place_id)
             awards=select(award_target.label('place'),
                 PoiContributionAward.action,func.max(PoiContributionAward.points).label('points')).outerjoin(PoiPlaceLink,
@@ -703,7 +704,7 @@ def build_router(require_admin,require_user):
             rows=session.execute(select(PoiEditRevision,PoiPlace,PoiEditorial).select_from(PoiEditRevision)
                 .outerjoin(PoiPlaceLink,PoiPlaceLink.source_id==PoiEditRevision.place_id)
                 .outerjoin(PoiRetiredPlace,PoiRetiredPlace.source_id==PoiEditRevision.place_id).join(PoiPlace,PoiPlace.id==target)
-                .outerjoin(PoiEditorial,PoiEditorial.place_id==PoiPlace.id).where(PoiEditRevision.actor_id==actor['id'])
+                .outerjoin(PoiEditorial,PoiEditorial.place_id==PoiPlace.id).where(*visible)
                 .order_by(PoiEditRevision.created_at.desc(),PoiEditRevision.id.desc()).offset(page*20).limit(21)).all()
             roots={row.id:canonical.canonical_id(session,row.id) for revision,row,editorial in rows[:20]}
             writable={}
