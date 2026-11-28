@@ -10,7 +10,7 @@
     <script src="https://static.neshan.org/sdk/leaflet/v1.9.4/neshan-sdk/v1.0.8/index.js" defer></script>
     <script src="../js/config.js"></script><script src="../js/shared.js"></script>
     <script src="../js/place-ui.js" defer></script><script src="../js/place-photo.js" defer></script>
-    <script src="../js/place-registration-map.js" defer></script><script src="../js/place-register.js" defer></script><script src="../js/auth.js" defer></script>
+    <script src="../js/place-registration-map.js" defer></script><script src="../js/place-address.js" defer></script><script src="../js/place-register.js" defer></script><script src="../js/auth.js" defer></script>
 </head>
 <body class="place-page-body">
     <div id="top-banner" data-page="explorer"></div><script src="../js/banner.js"></script>
@@ -40,6 +40,10 @@
                 <div id="place-registration-map" aria-label="نقشهٔ انتخاب موقعیت"></div>
                 <p id="place-point-status" role="status" aria-live="polite"></p>
                 <p id="place-map-status" class="place-photo-help" role="status"></p><button id="place-map-retry" type="button" class="place-back" hidden>تلاش دوباره برای نقشه</button>
+                <label for="place-address">نشانی</label><textarea id="place-address" maxlength="2000" rows="3" aria-describedby="place-address-status" placeholder="نشانی مکان را بررسی یا وارد کنید"></textarea>
+                <p id="place-address-status" class="place-photo-help" role="status" aria-live="polite"></p>
+                <button id="place-address-retry" type="button" class="place-back" hidden>دریافت دوبارهٔ نشانی</button>
+                <div id="place-address-suggestion" class="place-address-suggestion" hidden><p id="place-address-suggestion-text"></p><button id="place-address-use" type="button" class="place-secondary">استفاده از نشانی پیشنهادی</button></div>
                 </section>
             </section>
             <form id="place-registration-form" class="place-form place-wizard-stage" hidden>
@@ -48,7 +52,6 @@
                 <div class="place-form-section"><h2>اطلاعات اصلی</h2><div class="place-form-grid">
                     <label>نام مسجد<input id="place-name" required maxlength="250" autocomplete="off"></label>
                     <label>شماره تماس<input id="place-phone" maxlength="150" dir="ltr" type="tel"></label>
-                    <label class="place-field-wide">نشانی<textarea id="place-address" maxlength="2000" rows="3"></textarea></label>
                     <label class="place-field-wide">وبسایت یا صفحهٔ اجتماعی<input id="place-website" maxlength="800" dir="ltr" placeholder="example.com"></label>
                 </div></div>
                 <div class="place-form-section"><h2>عکس مکان</h2>

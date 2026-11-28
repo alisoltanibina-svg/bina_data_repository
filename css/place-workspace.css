@@ -53,6 +53,8 @@
 .place-page-body #top-banner { box-sizing:border-box; max-width:calc(100% - 32px); }
 @media(max-width:767px) { .place-page-body #top-banner { max-width:calc(100% - 16px); }.place-page-body #top-banner .top-nav { display:none; }.place-page-body #top-banner .project-texts { flex:1 1 auto; min-width:0; } }
 #place-point-status { font-size:.85rem; color:#777448; min-height:28px; }
+.place-address-suggestion { margin-top:12px; padding:14px; border:1px solid #ded8c7; border-radius:12px; background:#f8f5ef; font-size:.85rem; }
+.place-address-suggestion p { margin:0 0 10px; white-space:pre-wrap; overflow-wrap:anywhere; }
 .place-registration-pin { background:transparent; border:2px solid white; border-radius:50%; filter:drop-shadow(0 2px 3px #34380c33); }
 @media(max-width:600px) { .place-wizard-steps { gap:2px; padding:5px; }.place-wizard-steps button { flex-direction:column; gap:5px; padding:8px 2px; font-size:.72rem; }.place-wizard-types { grid-template-columns:1fr; }.place-wizard-type:last-child:nth-child(odd) { width:100%; }.place-wizard-footer { align-items:flex-start; }.place-wizard-footer>div { justify-content:flex-end; }.place-wizard-footer button { padding:9px 14px; font-size:.78rem; } }
 .place-review-card { margin-bottom:18px; }

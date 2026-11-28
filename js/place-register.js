@@ -10,8 +10,9 @@ onReady(async()=>{
     const message=(text,error=false)=>{el('place-form-status').textContent=text;el('place-form-status').classList.toggle('is-error',error);};
     const saveStatus=text=>el('place-draft-status').textContent=text;
     const photo=PlacePhotoPicker({onChange:()=>touch()});
-    const map=PlaceRegistrationMap({onPoint(point){Object.assign(data,point);pointValid=false;touch();controls();},
-        onValidity(value){pointValid=value;controls();},onZoom(zoom){if(data&&data.zoom!==zoom){data.zoom=zoom;touch(false);}}});
+    const address=PlaceAddressLookup({onEdit(value){data.values.address=value;touch();}});
+    const map=PlaceRegistrationMap({onPoint(point){Object.assign(data,point);address.selected({category:data.category,...point});pointValid=false;touch();controls();},
+        onValidity(value){pointValid=value;address.validity(value);controls();},onZoom(zoom){if(data&&data.zoom!==zoom){data.zoom=zoom;touch(false);}}});
     function pointExists(){return Number.isFinite(data?.latitude)&&Number.isFinite(data?.longitude);}
     function typeAllowed(){return !!data?.category&&config.editable_categories.includes(data.category)&&config.categories.some(row=>row.category===data.category);}
     function provinceReady(){return typeAllowed()&&provinceAllowed(config,data.province,data.category);}
@@ -24,7 +25,7 @@ onReady(async()=>{
         el('place-previous').disabled=busy||step===1;el('place-next').hidden=step===3;el('place-submit').hidden=step!==3;
         el('place-next').disabled=busy||(step===1&&!typeAllowed())||(step===2&&(!provinceReady()||!pointValid));
         el('place-submit').disabled=busy||!provinceReady()||!pointValid||draft?.status==='pending';
-        el('place-cancel-request').disabled=busy;form.inert=busy;
+        el('place-cancel-request').disabled=busy;form.inert=busy;el('place-stage-2').inert=busy;
         el('place-context').textContent=[config.categories.find(c=>c.category===data.category)?.title,data.province].filter(Boolean).join(' · ');
         const pending=draft?.status==='pending',rejected=draft?.status==='rejected',notice=el('place-request-status');
         notice.hidden=!pending&&!rejected;
@@ -69,6 +70,7 @@ onReady(async()=>{
             button.addEventListener('click',()=>{
                 if(data.category===category.category)return;
                 data.category=category.category;data.province=null;data.latitude=data.longitude=null;pointValid=false;
+                address.clear();
                 renderTypes();renderProvinces();touch();controls();
             });el('place-types').append(button);
         }
@@ -134,6 +136,10 @@ onReady(async()=>{
         if(target>1&&!typeAllowed()||target>2&&!provinceReady()){message('ابتدا نوع مکان و استان فعال را انتخاب کنید.',true);return;}
         busy=true;controls();saveStatus('در حال ذخیره…');
         try{
+            if(step===2){
+                if(target===3)await address.flush();else address.cancel();
+                if(data.values.address!==el('place-address').value){data.values.address=el('place-address').value;touch();}
+            }
             await persist();
             if(target===3&&!await validatePoint())return;
             displayStage(target);touch(false);await persist();message('');
@@ -141,7 +147,7 @@ onReady(async()=>{
         finally{busy=false;controls();}
     }
     function finish(status){
-        closed=true;clearTimeout(timer);map.hide();el('place-wizard').hidden=true;el('place-success').hidden=false;message('');
+        closed=true;clearTimeout(timer);map.hide();address.clear();el('place-wizard').hidden=true;el('place-success').hidden=false;message('');
         el('place-success-title').textContent=status==='approved'?'اطلاعات مکان تأیید شد':'درخواست لغو شد';
         el('place-success-message').textContent=status==='approved'?'اطلاعات تأییدشده روی نقشه نمایش داده می‌شود.':'این پیش‌نویس بسته شد و برای بررسی ارسال نخواهد شد.';
         el('place-success-title').focus();
@@ -190,6 +196,7 @@ onReady(async()=>{
     el('place-province').addEventListener('change',()=>{
         const name=el('place-province').value||null;if(normalize(name)===normalize(data.province))return;
         data.province=name;data.latitude=data.longitude=null;data.attributes.province=name;pointValid=false;
+        address.clear();
         renderFields();touch();displayMap();controls();
     });
     form.addEventListener('input',event=>{if(event.target.id==='place-photo-file')return;readForm();touch();controls();});

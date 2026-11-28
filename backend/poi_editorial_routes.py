@@ -12,7 +12,7 @@ from sqlalchemy import select,func,or_,and_
 from sqlalchemy.dialects.postgresql import insert
 from backend import database,poi_editorial as edit
 from backend import poi_venue_schema as venue_schema
-from backend import place_photos,place_notifications,place_drafts
+from backend import place_photos,place_notifications,place_drafts,place_geocoding
 from backend import poi_place_matching as matching
 from backend import poi_canonical as canonical
 from backend.models import User
@@ -41,6 +41,12 @@ class Submission(InputBody):
 class DraftStart(InputBody):
     place_id:UUID|None=None
     start_new:bool=False
+
+
+class AddressPoint(InputBody):
+    category:str=Field(min_length=1,max_length=100)
+    latitude:FiniteFloat=Field(ge=24,le=41)
+    longitude:FiniteFloat=Field(ge=43,le=64)
 
 
 class Restore(InputBody):
@@ -285,6 +291,18 @@ def build_router(require_admin,require_user):
                 categories=[dict(category=r.category,title=r.title,icon_url=r.icon_url) for r in categories],
                 editable_categories=sorted(venue_schema.editable_categories(session)),administrative_areas=venue_schema.administrative_areas() if permission['can_edit'] else {},
                 fields=[edit.field_dict(r) for r in edit.definitions(session) if r.active and (permission['can_view_private'] or r.public)]))
+
+    @router.post('/api/poi-explore/editor/address')
+    def point_address(body:AddressPoint,request:Request):
+        actor=require_user(request)
+        with database.db_session() as session:
+            province=assign_province(body.latitude,body.longitude)['province_name']
+            if not province:raise HTTPException(422,detail='نقطه باید داخل مرز استان‌های ایران باشد.')
+            venue_schema.require_editable_category(session,body.category)
+            edit.require_region(edit.permissions(session,actor),edit.eligibility_for_provinces(session,[province]),province,body.category)
+        # Release the DB connection before contacting the provider. Only the
+        # user-confirmed address subsequently travels through the normal draft/review flow.
+        return response(dict(address=place_geocoding.address(body.latitude,body.longitude)))
 
     def current_draft(session,actor,place_id=None):
         query=select(PoiRegistrationDraft).where(PoiRegistrationDraft.user_id==actor['id'],PoiRegistrationDraft.status.in_(place_drafts.ACTIVE))

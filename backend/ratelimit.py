@@ -41,6 +41,7 @@ _EXPENSIVE_PATHS = frozenset(
     {
         "/api/curtain/race",
         "/api/poi-explore/nearby",
+        "/api/poi-explore/editor/address",
         "/api/admin/avatars/export",
         "/api/explorer/indicator",
         "/api/atlas/topic-trends",
