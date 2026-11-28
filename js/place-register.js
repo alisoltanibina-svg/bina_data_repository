@@ -45,9 +45,20 @@ onReady(async()=>{
     function renderFields(){
         inputs.clear();el('place-attribute-fields').replaceChildren();
         for(const field of PlaceUI.definitions(config,data.province)){
-            const label=node('label',field.label);let input;
+            const label=node('label'),title=node('span',field.label);title.id='place-label-'+field.key;label.append(title);let input;
             if(field.kind==='boolean'||field.kind==='choice'){
                 input=node('select');const blank=node('option','نامشخص');blank.value='';input.append(blank);
+                if(window.CSS?.supports('appearance','base-select')){
+                    const anchor='--place-field-'+field.key;
+                    input.style.setProperty('anchor-name',anchor);input.style.setProperty('--place-picker-anchor',anchor);
+                    const preparePicker=event=>{
+                        if(input.matches(':open')||event.type==='keydown'&&!['ArrowDown','ArrowUp',' ','Enter'].includes(event.key))return;
+                        const limit=Math.min(280,window.innerHeight*.45),room=()=>window.innerHeight-input.getBoundingClientRect().bottom-20;
+                        if(room()<Math.min(limit,160))window.scrollBy({top:Math.min(limit,160)-room(),behavior:'instant'});
+                        input.style.setProperty('--place-picker-height',Math.max(72,Math.min(limit,room()))+'px');
+                    };
+                    input.addEventListener('pointerdown',preparePicker);input.addEventListener('keydown',preparePicker);
+                }
                 for(const [value,title] of field.kind==='boolean'?[['true','بله'],['false','خیر']]:field.choices.map(v=>[v,v])){
                     const option=node('option',title);option.value=value;input.append(option);
                 }
@@ -57,6 +68,7 @@ onReady(async()=>{
                 else input.maxLength=rules.max_length||2000;
             }
             input.value=data.attributes[field.key]==null?'':String(data.attributes[field.key]);input.required=field.required;
+            input.setAttribute('aria-labelledby',title.id);
             label.append(input);el('place-attribute-fields').append(label);inputs.set(field.key,{input,field});
         }
     }
@@ -126,11 +138,9 @@ onReady(async()=>{
     }
     function displayStage(target,focus=true){
         step=target;
-        document.body.classList.toggle('place-details-stage',step===3);
-        el('place-details-category').textContent=config.categories.find(row=>row.category===data.category)?.title||'مکان';
         stageIds.forEach((id,index)=>el(id).hidden=index+1!==step);
         displayMap();controls();
-        if(focus)el(['place-type-title','place-province-title','place-details-title'][step-1]).focus();
+        if(focus)el(['place-type-title','place-province-title','place-name'][step-1]).focus();
     }
     async function go(target){
         if(busy||closed||target===step)return;
@@ -148,7 +158,6 @@ onReady(async()=>{
         finally{busy=false;controls();}
     }
     function finish(status){
-        document.body.classList.remove('place-details-stage');
         closed=true;clearTimeout(timer);map.hide();address.clear();el('place-wizard').hidden=true;el('place-success').hidden=false;message('');
         el('place-success-title').textContent=status==='approved'?'اطلاعات مکان تأیید شد':'درخواست لغو شد';
         el('place-success-message').textContent=status==='approved'?'اطلاعات تأییدشده روی نقشه نمایش داده می‌شود.':'این پیش‌نویس بسته شد و برای بررسی ارسال نخواهد شد.';
@@ -193,7 +202,6 @@ onReady(async()=>{
     for(const button of document.querySelectorAll('[data-step]'))button.addEventListener('click',()=>go(Number(button.dataset.step)));
     el('place-next').addEventListener('click',()=>go(Math.min(3,step+1)));
     el('place-previous').addEventListener('click',()=>go(Math.max(1,step-1)));
-    el('place-change-position').addEventListener('click',()=>go(2));
     el('place-province').addEventListener('change',()=>{
         const name=el('place-province').value||null;if(normalize(name)===normalize(data.province))return;
         data.province=name;data.latitude=data.longitude=null;data.attributes.province=name;pointValid=false;
@@ -225,7 +233,7 @@ onReady(async()=>{
             readForm();await persist();if(!await validatePoint())return;
             const body={draft_id:draft.id,draft_version:draft.version,submission_id:data.submission_id,version:data.base_version,source_version:data.source_version,
                 values:{...data.values,name:data.values.name.trim(),category:data.category,latitude:data.latitude,longitude:data.longitude},
-                attributes:{...data.attributes,province:data.province},reason:draft.place_id?'به‌روزرسانی اطلاعات مسجد از فرم ثبت':'ثبت مسجد از فرم اطلاعات مکانی',
+                attributes:{...Object.fromEntries(Object.entries(data.attributes).filter(([key])=>config.fields.some(field=>field.key===key&&field.active))),province:data.province},reason:draft.place_id?'به‌روزرسانی اطلاعات مسجد از فرم ثبت':'ثبت مسجد از فرم اطلاعات مکانی',
                 photo_id:data.photo_id,remove_photo:data.remove_photo};
             const result=await api('/api/poi-explore/manual-places'+(draft.place_id?'/'+encodeURIComponent(draft.place_id):''),{method:draft.place_id?'PATCH':'POST',body:JSON.stringify(body)});
             updateMetadata(result.draft);photo.committed();saveStatus('ذخیره شد');message('درخواست برای بررسی ارسال شد.');controls();

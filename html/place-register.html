@@ -45,15 +45,11 @@
                 <div id="place-address-suggestion" class="place-address-suggestion" hidden><p id="place-address-suggestion-text"></p><button id="place-address-use" type="button" class="place-secondary">استفاده از نشانی پیشنهادی</button></div>
                 </section>
             </section>
-            <form id="place-registration-form" class="place-form place-wizard-stage" hidden>
-                <header class="place-details-heading">
-                    <button type="button" id="place-change-position" class="place-back" aria-label="تغییر موقعیت روی نقشه" title="تغییر موقعیت روی نقشه"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg><span id="place-details-category">مسجد</span></button>
-                    <h2 id="place-details-title" tabindex="-1">اطلاعات مکان</h2>
-                </header>
+            <form id="place-registration-form" class="place-form place-wizard-stage" aria-label="فرم ثبت اطلاعات مکان" hidden>
                 <div class="place-details-scroll" role="region" aria-label="اطلاعات و امکانات مکان">
                     <div class="place-details-main-fields">
-                        <label><span class="place-visually-hidden">نام مسجد</span><input id="place-name" required maxlength="250" autocomplete="off" placeholder="نام مسجد"></label>
-                        <label><span class="place-visually-hidden">وبسایت یا صفحهٔ اجتماعی</span><input id="place-website" maxlength="800" dir="auto" placeholder="وبسایت یا صفحهٔ اجتماعی"></label>
+                        <label><span>نام مسجد</span><input id="place-name" required maxlength="250" autocomplete="off"></label>
+                        <label><span>وبسایت یا صفحهٔ اجتماعی</span><input id="place-website" maxlength="800" dir="auto"></label>
                     </div>
                     <div class="place-details-photo">
                         <label class="place-photo-select place-photo-tile"><span class="place-photo-plus" aria-hidden="true">+</span><span class="place-visually-hidden">انتخاب یا تغییر عکس مکان</span><input id="place-photo-file" type="file" accept="image/png,image/jpeg,image/webp" aria-describedby="place-photo-help"><img id="place-photo-preview" class="place-photo-preview" alt="پیش‌نمایش عکس مکان" hidden></label>

@@ -1,7 +1,7 @@
 // Shared presentation helpers for local venue profiles, registration and review.
 const PlaceUI = (() => {
     const fields=['settlement_type','operational_status','daily_congregational_prayers','has_board_of_trustees','has_imam',
-        'has_basij_base','has_cultural_artistic_center','has_arts_group','has_charity_fund','has_sports_complex','has_assembly_hall','heritage_registered','is_waqf'];
+        'has_basij_base','has_cultural_artistic_center','has_charity_fund','has_sports_complex','has_assembly_hall','heritage_registered','is_waqf'];
     const node=(tag,text,className)=>{const n=document.createElement(tag);if(text!=null)n.textContent=text;if(className)n.className=className;return n;};
     const page=name=>typeof SITE!=='undefined'?SITE.page(name):name;
     const normalize=value=>String(value||'').replace(/ي/g,'ی').replace(/ك/g,'ک').replace(/[\s\u200c]+/g,' ').trim();
