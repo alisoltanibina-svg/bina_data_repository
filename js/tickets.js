@@ -214,6 +214,6 @@
         const seconds = Math.max(0,...Array.from(waits.values(),until => Math.ceil((until-Date.now())/1000)));
         $('wait').hidden = !seconds; $('wait').textContent = seconds ? 'محدودیت موقت برخی اقدامات: ' + seconds + ' ثانیه تا تلاش بعدی.' : '';
     },1000);
-    setView('empty');
+    setView('create');
     load();
 })();

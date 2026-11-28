@@ -10,7 +10,7 @@ from types import SimpleNamespace
 from uuid import UUID
 from sqlalchemy import select,func,and_,or_,union_all
 from backend.poi_models import PoiPlace,PoiPlaceCategory,PoiPlaceLink,PoiProviderAlias,PoiCanonicalEvent,PoiRetiredPlace
-from backend.poi_identity_rules import normalized,distance,same_identity,RADIUS,MAX_CANDIDATES
+from backend.poi_identity_rules import normalized,distance,same_identity,MAX_CANDIDATES
 
 LOCK_KEY=741923819
 MAX_MEMBERS=10000
@@ -247,11 +247,13 @@ def resolve_details(session,provider,provider_id,body,assignment):
 
 
 def match_existing_source(session,provider,category,name,latitude,longitude,province):
-    """Read-only exact identity check against legally stored source Details.
+    """Match stored Details at exactly the same latitude and longitude.
 
     Ephemeral Nearby metadata may be compared with these rows to avoid an
     unnecessary Details request. This helper never remembers tokens, records
-    input metadata or changes source/canonical tables.
+    input metadata or changes source/canonical tables. Coordinates are not
+    rounded or compared with a distance tolerance; category, normalized province
+    and normalized name must also match.
     """
     # Border/outside-boundary or uncategorized Details are still permitted
     # source records. They cannot be auto-linked by a rule requiring a known
@@ -260,9 +262,8 @@ def match_existing_source(session,provider,category,name,latitude,longitude,prov
     lat,lon=latitude,longitude
     if not all(isinstance(value,(int,float)) and not isinstance(value,bool) and math.isfinite(value) for value in (lat,lon)) or not -90<=lat<=90 or not -180<=lon<=180:return None
     target=SimpleNamespace(category=category,name=name,province=province,latitude=lat,longitude=lon)
-    dy=RADIUS/110000;dx=dy/math.cos(math.radians(min(89,abs(lat)+dy)))
     rows=session.scalars(select(PoiPlace).where(PoiPlace.provider==provider,PoiPlace.resolved_at.is_not(None),
-        source_category_match(category),PoiPlace.latitude.between(lat-dy,lat+dy),PoiPlace.longitude.between(lon-dx,lon+dx))
+        source_category_match(category),PoiPlace.latitude==lat,PoiPlace.longitude==lon)
         .order_by(PoiPlace.id).limit(MAX_CANDIDATES+1)).all()
     if len(rows)>MAX_CANDIDATES:raise IdentityConflict('too_many_source_candidates')
     values=positions(session,rows)
@@ -272,6 +273,8 @@ def match_existing_source(session,provider,category,name,latitude,longitude,prov
     if not roots:return None
     root=roots.pop();members=member_ids(session,root)
     members_rows=retained_sources(session,members)
+    # Preserve the safety check for previously confirmed groups. Their existing
+    # links do not widen the exact-coordinate lookup above.
     if any(not same_identity(value,target) for value in positions(session,members_rows).values()):
         raise IdentityConflict('new_details_would_bridge_group')
     return collection_row(session,provider,root,preferred_source=matches[0].id)

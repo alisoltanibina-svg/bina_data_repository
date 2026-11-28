@@ -1,0 +1,46 @@
+/* Shared account-page treatment from the ticket and contribution designs. */
+.account-page-body {
+    --account-cream: #f3ecdc;
+    --account-ink: #515811;
+    --account-muted: #968761;
+    --account-shadow: 0 4px 6px rgba(81, 88, 17, .12);
+    margin: 0;
+    min-height: 100dvh;
+    height: auto;
+    overflow: auto;
+    display: flow-root;
+    background: var(--account-cream);
+    color: var(--account-ink);
+    font-family: PeydaFaNumWeb, Tahoma, sans-serif;
+    line-height: 1.8;
+}
+.account-page-body, .account-page-body *, .account-page-body *::before, .account-page-body *::after { box-sizing: border-box; }
+.account-page-body [hidden] { display: none !important; }
+.account-page-body .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.account-page-body #top-banner { top: 14px; left: 14px; right: 14px; width: calc(100% - 28px); height: 88px; padding-inline: 40px; border-radius: 14px; }
+html.treat-v1 body.account-page-body #top-banner::before { background: #fff; box-shadow: var(--account-shadow); }
+.account-page-body #top-banner .banner-seg, .account-page-body #top-banner .top-nav { display: none !important; }
+.account-page-body #top-banner .banner-auth-btn { min-height: 38px; border-radius: 6px; font-size: .75rem; }
+.account-page-shell { width: min(1280px, 100%); margin: clamp(140px, 22.06vh, 186px) auto 64px; padding: 0 24px; }
+.account-page-desk { min-width: 0; padding: 20px; border: 1px solid #f5f2e9; border-radius: 20px; background: #fff; box-shadow: var(--account-shadow); }
+.account-page-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; }
+.account-page-heading h1 { margin: 7px 0 0; font-size: 1.7rem; line-height: 1.5; font-weight: 800; }
+.account-page-kicker { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--account-muted); font-size: .82rem; font-weight: 400; }
+.account-page-back { display: inline-flex; justify-content: center; align-items: center; flex: none; width: 20px; height: 24px; color: var(--account-muted); text-decoration: none; }
+.account-page-back:hover { color: var(--account-ink); }
+.account-page-refresh { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 44px; width: 44px; height: 44px; padding: 0; border: 1px solid #f4f0e5; border-radius: 50%; background: #fff; color: var(--account-ink); box-shadow: 0 3px 0 #e8e0c5; cursor: pointer; }
+.account-page-refresh svg { display: block; width: 20px; height: 20px; flex: none; }
+.account-page-refresh:hover:not(:disabled) { background: #faf7ef; }
+.account-page-body .support-button { min-width: 124px; min-height: 46px; border-color: transparent; background: var(--account-ink); color: #fff; font: inherit; font-size: .9rem; font-weight: 600; text-decoration: none; }
+.account-page-body .support-button:hover:not(:disabled) { background: #646b1b; }
+.account-page-body .support-button.secondary { background: var(--account-cream); color: var(--account-ink); border-color: transparent; box-shadow: var(--account-shadow); }
+.account-page-body button:disabled { opacity: .5; cursor: default; }
+.account-page-body a:focus-visible, .account-page-body button:focus-visible, .account-page-body input:focus-visible, .account-page-body select:focus-visible, .account-page-body textarea:focus-visible { outline: 2px solid #858e46; outline-offset: 3px; }
+@media (max-width: 767px) {
+    .account-page-shell { margin: 112px auto 28px; padding-inline: 12px; }
+    .account-page-desk { padding: 18px 16px; border-radius: 20px; }
+    .account-page-body #top-banner { padding-inline: 12px; }
+    .account-page-heading { gap: 16px; }
+    .account-page-heading h1 { font-size: 1.45rem; }
+    .account-page-refresh { flex-basis: 40px; width: 40px; height: 40px; }
+}
