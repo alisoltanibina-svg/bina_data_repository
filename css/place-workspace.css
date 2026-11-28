@@ -118,6 +118,19 @@ html.treat-v1 .place-details-stage #top-banner::before { background:#fff; box-sh
 .place-details-fields #place-attribute-fields { display:contents; }
 .place-registration-page .place-details-fields label { min-width:0; gap:0; padding:5px 16px; border-radius:24px; background:#f3ecdc; box-shadow:0 3px 5px #5158111a; font-size:.73rem; color:#8c825f; }
 .place-registration-page .place-details-fields input,.place-registration-page .place-details-fields select { padding:2px 0; min-height:30px; background:transparent; border:0; border-radius:6px; font-size:.86rem; }
+.place-registration-page .place-details-fields select { appearance:none; padding-inline-end:24px; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23515811' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:left center; cursor:pointer; }
+.place-registration-page .place-details-fields option { background:#f3ecdc; color:#515811; font:inherit; }
+/* Native customizable selects preserve keyboard, validation and form behavior. */
+@supports (appearance:base-select) {
+    .place-registration-page .place-details-fields select { appearance:base-select; align-items:center; padding-inline-end:0; background-image:none; }
+    .place-registration-page .place-details-fields select::picker(select) { appearance:base-select; padding:6px; border:1px solid #e5dcc5; border-radius:20px; background:#f3ecdc; color:#515811; box-shadow:0 5px 14px #51581126; font:inherit; min-inline-size:anchor-size(width); max-block-size:min(320px,50dvh); overflow:auto; scrollbar-width:thin; scrollbar-color:#968761 #f3ecdc; }
+    .place-registration-page .place-details-fields select::picker-icon { content:""; flex:none; width:14px; height:14px; background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23515811' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center/contain no-repeat; }
+    .place-registration-page .place-details-fields select:open::picker-icon { transform:rotate(180deg); }
+    .place-registration-page .place-details-fields option { padding:8px 14px; margin:2px 0; border-radius:999px; line-height:1.8; cursor:pointer; }
+    .place-registration-page .place-details-fields option::checkmark { display:none; }
+    .place-registration-page .place-details-fields option:hover,.place-registration-page .place-details-fields option:focus { outline:none; background:#e8dfc7; }
+    .place-registration-page .place-details-fields option:checked { background:#515811; color:#fff; }
+}
 .place-details-stage .place-wizard-footer { flex:none; margin-top:22px; }
 .place-details-stage .place-wizard-footer button { min-width:134px; min-height:46px; }
 .place-details-stage .place-wizard-footer .place-secondary,.place-details-stage .place-wizard-footer .place-review-reject { border-color:#777448; }
