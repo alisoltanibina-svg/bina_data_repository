@@ -53,6 +53,10 @@
 .place-page-body #top-banner { box-sizing:border-box; max-width:calc(100% - 32px); }
 @media(max-width:767px) { .place-page-body #top-banner { max-width:calc(100% - 16px); }.place-page-body #top-banner .top-nav { display:none; }.place-page-body #top-banner .project-texts { flex:1 1 auto; min-width:0; } }
 #place-point-status { font-size:.85rem; color:#777448; min-height:28px; }
+#place-point-status:empty,#place-map-status:empty,#place-province-hint:empty { display:none; }
+.place-map-heading { margin-block:18px 14px; }.place-form .place-map-heading h2 { margin:0; }
+.place-map-reset { display:grid; place-items:center; flex-shrink:0; width:40px; height:40px; padding:0; border:1px solid #ded8c7; border-radius:50%; color:#515811; background:#f8f5ef; cursor:pointer; }
+.place-map-reset:hover { background:#f0eee3; border-color:#aa965f; }
 .place-address-suggestion { margin-top:12px; padding:14px; border:1px solid #ded8c7; border-radius:12px; background:#f8f5ef; font-size:.85rem; }
 .place-address-suggestion p { margin:0 0 10px; white-space:pre-wrap; overflow-wrap:anywhere; }
 .place-registration-pin { background:transparent; border:2px solid white; border-radius:50%; filter:drop-shadow(0 2px 3px #34380c33); }
@@ -77,3 +81,65 @@
 #place-photo-canvas:focus-visible { outline:2px solid #aa965f; outline-offset:7px; }
 #place-photo-zoom { display:block; width:100%; accent-color:#515811; margin:12px 0 20px; }
 @media(max-width:767px) { .place-page { padding:90px 16px 28px; }.place-form,.place-review-card,.place-success { padding:20px 16px; }.place-form-grid { grid-template-columns:1fr; }.place-review-card dl { grid-template-columns:1fr; gap:2px; }.place-review-card dd { margin-bottom:10px; }.place-page-heading h1 { font-size:1.35rem; } }
+
+/* The final registration stage keeps its heading and actions beside a scrollable form. */
+.place-registration-page .place-visually-hidden { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; border:0; }
+.place-details-stage { background:#f3ecdc; }
+html.treat-v1 .place-details-stage #top-banner { height:88px; padding-inline:40px; border-radius:14px; }
+html.treat-v1 .place-details-stage #top-banner::before { background:#fff; box-shadow:0 4px 6px #5158111f; }
+.place-details-stage #top-banner .banner-seg,.place-details-stage #top-banner .top-nav { display:none !important; }
+.place-details-stage .place-wizard-page { width:min(1280px,100%); padding:144px 24px 44px; }
+.place-details-stage .place-wizard-page>.place-back { display:none; }
+.place-details-stage .place-wizard-steps { margin:0; padding:12px 18px; border:0; border-radius:20px; background:#fff; box-shadow:0 4px 6px #5158111f; }
+.place-details-stage .place-wizard-steps button { min-height:46px; padding:8px; border-radius:18px; }
+.place-details-stage .place-wizard-steps button span { border-color:currentColor; }
+.place-details-stage .place-wizard-state { min-height:20px; margin:0 12px; font-size:.68rem; }
+.place-details-stage .place-stage-card { display:flex; flex-direction:column; height:clamp(560px,67dvh,720px); padding:12px 20px 24px; background:#fff; border:1px solid #f5f2e9; border-radius:20px; box-shadow:0 4px 6px #5158111f; }
+.place-details-stage #place-registration-form { display:flex; flex:1; flex-direction:column; min-height:0; padding:0; border:0; border-radius:0; }
+.place-details-heading { padding:0 0 32px; }
+.place-registration-page .place-details-heading .place-back { display:inline-flex; align-items:center; gap:10px; margin:0; padding:0 0 6px; color:#968761; font-size:.8rem; }
+.place-registration-page .place-details-heading h2 { margin:0; font-size:1.65rem; font-weight:800; line-height:1.7; }
+.place-details-scroll { flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; padding:8px 6px 12px; scrollbar-width:thin; scrollbar-color:#515811 transparent; scrollbar-gutter:stable; }
+.place-details-scroll::-webkit-scrollbar { width:5px; }
+.place-details-scroll::-webkit-scrollbar-thumb { background:#515811; border-radius:999px; }
+.place-details-main-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px; }
+.place-registration-page .place-details-main-fields input { min-height:46px; padding:10px 18px; border:1px solid transparent; border-radius:999px; background:#f3ecdc; box-shadow:0 3px 5px #5158111a; font-size:.95rem; text-align:right; }
+.place-details-main-fields input::placeholder { color:#8c825f; opacity:1; }
+.place-details-photo { display:flex; align-items:flex-start; gap:16px; padding-block:24px 18px; border-bottom:1px solid #777448; margin-bottom:24px; }
+.place-registration-page .place-photo-tile { position:relative; display:grid; place-items:center; flex:0 0 116px; width:116px; height:116px; overflow:hidden; border-radius:22px; background:#f3ecdc; box-shadow:0 3px 5px #5158111a; cursor:pointer; }
+.place-photo-tile:focus-within { outline:2px solid #aa965f; outline-offset:3px; }
+.place-registration-page .place-photo-tile input { position:absolute; inset:0; z-index:2; width:100%; height:100%; padding:0; opacity:0; cursor:pointer; }
+.place-photo-plus { font-size:2rem; line-height:1; font-weight:400; }
+.place-registration-page .place-photo-tile .place-photo-preview { position:absolute; inset:0; width:100%; height:100%; margin:0; border-radius:inherit; object-fit:cover; }
+.place-photo-caption { min-width:0; padding-top:6px; color:#8c825f; }
+.place-photo-caption p { margin:0; }
+.place-photo-caption .place-photo-help { font-size:.75rem; }
+.place-photo-caption .place-review-reject { margin-top:8px; padding:4px 14px; font-size:.75rem; }
+.place-photo-caption .place-review-error:empty { display:none; }
+.place-details-fields { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px 14px; }
+.place-details-fields #place-attribute-fields { display:contents; }
+.place-registration-page .place-details-fields label { min-width:0; gap:0; padding:5px 16px; border-radius:24px; background:#f3ecdc; box-shadow:0 3px 5px #5158111a; font-size:.73rem; color:#8c825f; }
+.place-registration-page .place-details-fields input,.place-registration-page .place-details-fields select { padding:2px 0; min-height:30px; background:transparent; border:0; border-radius:6px; font-size:.86rem; }
+.place-details-stage .place-wizard-footer { flex:none; margin-top:22px; }
+.place-details-stage .place-wizard-footer button { min-width:134px; min-height:46px; }
+.place-details-stage .place-wizard-footer .place-secondary,.place-details-stage .place-wizard-footer .place-review-reject { border-color:#777448; }
+.place-details-stage .place-wizard-footer .place-primary { box-shadow:0 3px 5px #51581126; }
+@media(max-width:900px) {
+    .place-details-fields { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media(max-width:767px) {
+    html.treat-v1 .place-details-stage #top-banner { padding-inline:12px; }
+    .place-details-stage .place-wizard-page { padding:120px 12px 28px; }
+    .place-details-stage .place-wizard-steps { padding:8px; border-radius:18px; }
+    .place-details-stage .place-stage-card { height:auto; padding:16px; }
+    .place-details-heading { padding-bottom:20px; }
+    .place-registration-page .place-details-heading h2 { font-size:1.4rem; }
+    .place-details-scroll { overflow:visible; padding:4px; }
+    .place-details-main-fields { grid-template-columns:1fr; gap:14px; }
+    .place-registration-page .place-photo-tile { flex-basis:96px; width:96px; height:96px; }
+    .place-details-photo { gap:12px; padding-top:20px; }
+    .place-details-fields { grid-template-columns:1fr; }
+    .place-details-stage .place-wizard-footer { flex-wrap:wrap; gap:12px; }
+    .place-details-stage .place-wizard-footer>div { flex:1; justify-content:flex-start; }
+    .place-details-stage .place-wizard-footer button { min-width:0; padding:9px 12px; min-height:42px; }
+}

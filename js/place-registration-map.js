@@ -37,7 +37,7 @@ function PlaceRegistrationMap({onPoint,onValidity,onZoom}) {
             const result=await api('/api/poi-explore/editor/eligibility?'+new URLSearchParams({category,...candidate}),{signal:gateController.signal});
             if(request!==gateGeneration)return false;
             if(!result.eligible||normalize(result.province)!==normalize(province))throw new Error(result.eligible?'نقطه باید داخل استان انتخاب‌شده باشد.':result.reason||'ثبت مکان در این محدوده فعال نیست.');
-            el('place-point-status').textContent='موقعیت انتخاب شد. برای تنظیم دقیق‌تر، نشانگر را جابه‌جا کنید.';onValidity(true);return true;
+            el('place-point-status').textContent='';onValidity(true);return true;
         }catch(error){if(request===gateGeneration&&error.name!=='AbortError')el('place-point-status').textContent=error.message;return false;}
     }
     async function refresh(){
@@ -50,7 +50,7 @@ function PlaceRegistrationMap({onPoint,onValidity,onZoom}) {
             if(request!==generation||!visible)return;places.clearLayers();
             for(const row of result.places){if(row.id===targetId)continue;const item=L.marker([row.latitude,row.longitude],{icon:selectedIcon(25),title:row.name,opacity:.75});
                 const title=document.createElement('span');title.textContent=row.name;item.bindTooltip(title);item.addTo(places);}
-            note(result.has_more?'برای دیدن مکان‌های بیشتر، نقشه را بزرگ‌تر کنید.':'');
+            note('');
         }catch(error){if(request===generation&&error.name!=='AbortError')note(error.message);}
     }
     function schedule(){clearTimeout(timer);if(visible)timer=setTimeout(refresh,250);}

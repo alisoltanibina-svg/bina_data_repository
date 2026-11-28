@@ -26,7 +26,6 @@ onReady(async()=>{
         el('place-next').disabled=busy||(step===1&&!typeAllowed())||(step===2&&(!provinceReady()||!pointValid));
         el('place-submit').disabled=busy||!provinceReady()||!pointValid||draft?.status==='pending';
         el('place-cancel-request').disabled=busy;form.inert=busy;el('place-stage-2').inert=busy;
-        el('place-context').textContent=[config.categories.find(c=>c.category===data.category)?.title,data.province].filter(Boolean).join(' · ');
         const pending=draft?.status==='pending',rejected=draft?.status==='rejected',notice=el('place-request-status');
         notice.hidden=!pending&&!rejected;
         el('place-new-request').hidden=!pending;
@@ -80,7 +79,7 @@ onReady(async()=>{
         const blank=node('option',rows.length?'استان را انتخاب کنید':'استان فعالی وجود ندارد');blank.value='';select.replaceChildren(blank);
         for(const row of rows){const option=node('option',row.province);option.value=row.province;select.append(option);}
         select.disabled=!rows.length;select.value=rows.find(row=>normalize(row.province)===normalize(data.province))?.province||'';
-        el('place-province-hint').textContent=rows.length?'فقط استان‌هایی که ثبت مکان در آن‌ها فعال است نمایش داده می‌شوند.':'در حال حاضر استانی برای ثبت مکان فعال نیست. پیش‌نویس شما محفوظ می‌ماند.';
+        el('place-province-hint').textContent=rows.length?'':'در حال حاضر استانی برای ثبت مکان فعال نیست. پیش‌نویس شما محفوظ می‌ماند.';
     }
     function updateMetadata(result){draft={...result};data.base_version=result.data.base_version;data.source_version=result.data.source_version;controls();}
     function sameContent(a,b){
@@ -127,6 +126,8 @@ onReady(async()=>{
     }
     function displayStage(target,focus=true){
         step=target;
+        document.body.classList.toggle('place-details-stage',step===3);
+        el('place-details-category').textContent=config.categories.find(row=>row.category===data.category)?.title||'مکان';
         stageIds.forEach((id,index)=>el(id).hidden=index+1!==step);
         displayMap();controls();
         if(focus)el(['place-type-title','place-province-title','place-details-title'][step-1]).focus();
@@ -147,6 +148,7 @@ onReady(async()=>{
         finally{busy=false;controls();}
     }
     function finish(status){
+        document.body.classList.remove('place-details-stage');
         closed=true;clearTimeout(timer);map.hide();address.clear();el('place-wizard').hidden=true;el('place-success').hidden=false;message('');
         el('place-success-title').textContent=status==='approved'?'اطلاعات مکان تأیید شد':'درخواست لغو شد';
         el('place-success-message').textContent=status==='approved'?'اطلاعات تأییدشده روی نقشه نمایش داده می‌شود.':'این پیش‌نویس بسته شد و برای بررسی ارسال نخواهد شد.';
@@ -182,7 +184,6 @@ onReady(async()=>{
                 data.photo_id=legacy.form.photo?.photo_id||null;data.remove_photo=legacy.form.photo?.remove_photo===true;}
             step=3;touch();
         }
-        el('place-form-title').textContent=draft.place_id?'ویرایش مکان':'افزودن مکان';
         for(const [key,id] of [['name','place-name'],['address','place-address'],['phoneNumber','place-phone'],['website','place-website']])el(id).value=data.values[key]||'';
         photo.restore(data);renderFields();renderTypes();renderProvinces();el('place-wizard').hidden=false;
         if(!typeAllowed())step=1;else if(!provinceReady()||!pointExists())step=Math.min(step,2);
