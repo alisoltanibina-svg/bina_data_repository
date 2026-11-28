@@ -38,7 +38,7 @@ class PoiEditorial(Base):
 class PoiEditRevision(Base):
     __tablename__ = 'poi_edit_revisions'
     __table_args__ = (UQ('place_id','version',name='uq_poi_edit_version'),
-        CK("status IN ('pending','approved','rejected')",name='ck_poi_edit_status'),
+        CK("status IN ('pending','approved','rejected','cancelled')",name='ck_poi_edit_status'),
         Index('idx_poi_edit_actor','actor_id','created_at'), {"schema": "poi"})
     id = uid()
     place_id = C(UUID(as_uuid=True), FK('poi.poi_editorial.place_id'), nullable=False, index=True)
@@ -129,6 +129,25 @@ class PoiSmsNotification(Base):
     available_at=C(DateTime(timezone=True),nullable=False,server_default=func.now(),index=True)
     sent_at=timestamp()
     created_at=C(DateTime(timezone=True),nullable=False,server_default=func.now())
+
+
+class PoiRegistrationDraft(Base):
+    __tablename__='poi_registration_drafts'
+    __table_args__=(CK("status IN ('draft','pending','rejected','approved','cancelled')",name='ck_poi_registration_draft_status'),
+        CK('step BETWEEN 1 AND 4',name='ck_poi_registration_draft_step'),
+        Index('idx_poi_registration_draft_owner','user_id','scope','status'),{'schema':'poi'})
+    id=uid()
+    user_id=C(I,FK('accounts.users.id',ondelete='CASCADE'),nullable=False)
+    scope=C(S(40),nullable=False)  # "new" or the original logical place UUID.
+    place_id=C(UUID(as_uuid=True))  # No foreign key to collector-owned rows.
+    revision_id=C(UUID(as_uuid=True),FK('poi.poi_edit_revisions.id'))
+    photo_id=C(UUID(as_uuid=True),FK('poi.poi_place_photos.id',ondelete='SET NULL'))
+    status=C(S(12),nullable=False,default='draft',server_default='draft')
+    version=C(I,nullable=False,default=0,server_default='0')
+    step=C(I,nullable=False,default=1,server_default='1')
+    data=C(JSONB,nullable=False,default=dict,server_default='{}')
+    created_at=C(DateTime(timezone=True),nullable=False,server_default=func.now())
+    updated_at=C(DateTime(timezone=True),nullable=False,server_default=func.now())
 
 
 Index('idx_poi_editorial_override_extent',published_coordinate(PoiEditorial.published,'longitude'),

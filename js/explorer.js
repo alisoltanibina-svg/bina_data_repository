@@ -1,6 +1,6 @@
 // File: explorer.js
 // Purpose: JavaScript for the Explorer (landing & subtopics) page.
-//   Provides UI logic for the staggered mosaic landing, subtopic cards, indicator charts,
+//   Provides UI logic for module selection, indicator filters, indicator charts,
 //   lazy-loading of large background images, and search suggestions.
 // Notes: Comments standardized to English; Persian UI strings are not modified.
 
@@ -157,7 +157,6 @@ let explorerMapScores = new Map();
 let explorerMapScoreMin = 0, explorerMapScoreMax = 1;
 let explorerMapBounds = null;
 
-let isBulkAction = true; 
 let hiddenDatasets = {};
 
 const provinceColorPalette = [
@@ -194,8 +193,7 @@ async function loadExplorerData() {
         });
         activeDatasets = [];
 
-        renderMosaicMenu();
-        renderProvincesList();
+        renderExplorerModules();
 
         const urlParams = new URLSearchParams(window.location.search);
         const queryIndicator = urlParams.get('indicator');
@@ -223,7 +221,7 @@ async function loadExplorerData() {
 
     } catch (err) {
         console.error("Error Loading API Data", err);
-        document.getElementById('mosaic-menu').textContent = 'دریافت ماژول‌ها انجام نشد. صفحه را دوباره بارگذاری کنید.';
+        document.getElementById('explorer-modules').textContent = 'دریافت ماژول‌ها انجام نشد. صفحه را دوباره بارگذاری کنید.';
         showNotice("مشکل در ارتباط با سرور.");
     } finally {
         clearTimeout(timeout);
@@ -244,15 +242,7 @@ function applyExplorerTheme(topic) {
     } catch (e) {}
 }
 
-function countTopicIndicators(topic) {
-    return Object.values(topicsHierarchy[topic] || {}).reduce((n, list) => n + (list ? list.length : 0), 0);
-}
-
-let mosaicAnimCtx = null;
-let mosaicRenderGen = 0;
-let mosaicLayoutKey = '';
-
-function mosaicTopics() {
+function explorerTopics() {
     return Object.keys(topicsHierarchy).filter(topic => {
         const subs = topicsHierarchy[topic];
         return subs && Object.keys(subs).length > 0;
@@ -261,37 +251,12 @@ function mosaicTopics() {
 
 function explorerTopicsInAtlasOrder() {
     // Both Atlas topics and Explorer colors arrive in topics.id order.
-    const remaining = new Set(mosaicTopics());
+    const remaining = new Set(explorerTopics());
     const ordered = [];
     topicsColorData.forEach(row => {
         if (remaining.delete(row.topic_name)) ordered.push(row.topic_name);
     });
     return ordered.concat([...remaining]);
-}
-
-function topicTileSrc(topic) {
-    return encodeURI(SITE.asset(`images/${topic}-tile.webp`));
-}
-
-function mosaicLayout() {
-    const n = mosaicTopics().length || 9;
-    const w = window.innerWidth;
-    if (w < 768) {
-        if (n % 3 === 0) return { cols: 3 };
-        return { cols: 2 };
-    }
-    if (w < 980) return { cols: 2 };
-    if (n % 4 === 0) return { cols: 4 };
-    if (n % 3 === 0) return { cols: 3 };
-    return { cols: 4 };
-}
-
-function firstTopicIndicator(topic) {
-    const subs = topicsHierarchy[topic] || {};
-    for (const list of Object.values(subs)) {
-        if (list && list.length) return list[0];
-    }
-    return null;
 }
 
 function subtopicsOf(topic) {
@@ -569,130 +534,9 @@ function syncExplorerVisibility() {
     syncExplorerGuide();
 }
 
-function isLandingVisible() {
-    const el = document.getElementById('view-landing');
-    return !!(el && el.style.display !== 'none' && !el.classList.contains('hidden'));
-}
 
-function killMosaicAnimations() {
-    if (typeof gsap === 'undefined') return;
-    if (mosaicAnimCtx) {
-        mosaicAnimCtx.revert();
-        mosaicAnimCtx = null;
-    }
-    if (typeof ScrollTrigger !== 'undefined') {
-        ScrollTrigger.getAll().forEach(st => {
-            const trigger = st.trigger;
-            if (trigger && trigger.closest && trigger.closest('#mosaic-menu')) st.kill();
-        });
-    }
-}
-
-function waitForMosaicImages(root) {
-    const urls = new Set();
-    root.querySelectorAll('.ex-room-photo, .ex-room-visual').forEach(el => {
-        const bg = el.style.backgroundImage;
-        const m = bg && bg.match(/url\(["']?(.*?)["']?\)/);
-        if (m && m[1]) urls.add(m[1]);
-    });
-    if (urls.size === 0) return Promise.resolve();
-    return Promise.all([...urls].map(src => new Promise(resolve => {
-        const im = new Image();
-        im.onload = im.onerror = () => resolve();
-        im.src = src;
-    })));
-}
-
-function topicFlipHtml(topic, index, cols) {
-    const col = index % cols;
-    const row = Math.floor(index / cols);
-    const tone = (row + col) % 2 === 0 ? 'gold' : 'olive';
-    const n = countTopicIndicators(topic);
-    return `
-        <article class="ex-room" data-col="${col}" data-tone="${tone}" data-topic="${escapeHtml(topic)}">
-            <button type="button" class="ex-room-face">
-                <div class="ex-room-visual">
-                    <div class="ex-room-photo"></div>
-                    <div class="ex-room-copy">
-                        <h2>${escapeHtml(topic)}</h2>
-                        <p class="ex-room-count">${toFa(n)} شاخص</p>
-                    </div>
-                </div>
-            </button>
-        </article>
-    `;
-}
-
-function bindMosaicInteractions(container) {
-    container.querySelectorAll('.ex-room').forEach(card => {
-        const topic = card.dataset.topic;
-        card.addEventListener('mouseenter', () => {
-            container.classList.add('is-topic-hover');
-            applyExplorerTheme(topic);
-        });
-        const face = card.querySelector('.ex-room-face');
-        if (face) face.addEventListener('click', () => openTopicIndex(topic));
-    });
-    const topicsEl = container.querySelector('.ex-topics');
-    if (topicsEl) {
-        topicsEl.addEventListener('mouseleave', () => {
-            container.classList.remove('is-topic-hover');
-            setTopicChrome('#a18447');
-        });
-    }
-}
-
-function initStaggeredAnimations(container) {
-    killMosaicAnimations();
-    if (window.matchMedia('(max-width: 767px)').matches || typeof gsap === 'undefined' || !isLandingVisible()) {
-        container.classList.remove('is-pending');
-        return;
-    }
-
-    const rooms = container.querySelectorAll('.ex-room');
-    const hero = container.querySelector('.ex-hero');
-    const panels = container.querySelectorAll('.ex-panel');
-
-    mosaicAnimCtx = gsap.context(() => {
-        if (hero) gsap.set(hero.children, { y: 14, autoAlpha: 0 });
-        gsap.set(rooms, { y: 18, autoAlpha: 0 });
-        gsap.set(panels, { y: 18, autoAlpha: 0 });
-        container.classList.remove('is-pending');
-
-        if (hero) {
-            gsap.to(hero.children, {
-                y: 0,
-                autoAlpha: 1,
-                duration: 0.9,
-                stagger: 0.1,
-                ease: 'power2.out'
-            });
-        }
-        gsap.to(rooms, {
-            y: 0,
-            autoAlpha: 1,
-            duration: 0.85,
-            delay: 0.12,
-            stagger: 0.05,
-            ease: 'power2.out'
-        });
-        gsap.to(panels, {
-            y: 0,
-            autoAlpha: 1,
-            duration: 0.95,
-            delay: 0.28,
-            stagger: 0.12,
-            ease: 'power2.out'
-        });
-    }, container);
-
-    if (typeof ScrollTrigger !== 'undefined') {
-        requestAnimationFrame(() => ScrollTrigger.refresh());
-    }
-}
-
-function renderMosaicMenu() {
-    const container = document.getElementById('mosaic-menu');
+function renderExplorerModules() {
+    const container = document.getElementById('explorer-modules');
     container.className = 'ex-module-grid';
     container.replaceChildren();
     explorerModules.forEach(module => {
@@ -751,7 +595,6 @@ async function loadIndicator(indicatorName, topicName) {
     if (topicName) activeTopicGlob = topicName;
     if (activeTopicGlob) applyExplorerTheme(activeTopicGlob);
     
-    killMosaicAnimations();
     document.getElementById('view-landing').style.display = 'none';
     document.getElementById('view-dashboard').classList.remove('hidden');
     document.getElementById('indicator-title').innerText = indicatorName;
@@ -812,9 +655,6 @@ async function loadIndicator(indicatorName, topicName) {
 
         activeDatasets = [...provincesList];
         hiddenDatasets = {};
-        document.querySelectorAll('.province-checkbox').forEach(cb => { cb.checked = false; });
-
-        isBulkAction = true;
         syncExplorerVisibility();
         setChartMode(currentChartMode);
 
@@ -836,70 +676,9 @@ function goBackToLanding() {
     const landing = document.getElementById('view-landing');
     landing.style.display = '';
     landing.classList.remove('hidden');
-    renderMosaicMenu();
+    renderExplorerModules();
 }
 
-function renderProvincesList() {
-    const container = document.getElementById('provinces-list');
-    container.innerHTML = '';
-    provincesList.forEach(prov => {
-        const div = document.createElement('div');
-        div.className = 'province-item';
-        
-        const cb = document.createElement('input');
-        cb.type = 'checkbox'; cb.id = `prov-${prov}`;
-        cb.className = 'province-checkbox';
-        cb.checked = activeDatasets.includes(prov);
-        cb.style.accentColor = provinceColors[prov];
-        
-        cb.addEventListener('change', (e) => {
-            isBulkAction = false; 
-            if(e.target.checked) { if(!activeDatasets.includes(prov)) activeDatasets.push(prov); } 
-            else { activeDatasets = activeDatasets.filter(p => p !== prov); }
-            if(activeIndicatorGlob) refreshActiveChart();
-        });
-
-        const label = document.createElement('label');
-        label.htmlFor = `prov-${prov}`;
-        label.className = 'ml-3 text-sm text-gray-700 cursor-pointer select-none flex-1 pr-3';
-        label.innerText = prov;
-        
-        div.appendChild(cb); 
-        div.appendChild(label); 
-        container.appendChild(div);
-    });
-}
-
-function filterProvinces() {
-    const term = document.getElementById('province-search').value;
-    const items = document.querySelectorAll('.province-item');
-    items.forEach(item => {
-        const label = item.querySelector('label').innerText;
-        item.style.display = label.includes(term) ? 'flex' : 'none';
-    });
-}
-
-function selectAllProvinces() {
-    activeDatasets = [...provincesList];
-    document.querySelectorAll('.province-checkbox').forEach(cb => cb.checked = true);
-    isBulkAction = true; 
-    if(activeIndicatorGlob) refreshActiveChart();
-}
-
-function clearAllProvinces() {
-    activeDatasets = [];
-    document.querySelectorAll('.province-checkbox').forEach(cb => cb.checked = false);
-    isBulkAction = true; 
-    if(activeIndicatorGlob) refreshActiveChart();
-}
-
-function setProvinceFilterEnabled(enabled) {
-    const aside = document.querySelector('#view-dashboard .ex-side, .ex-prov-rail');
-    if (aside) aside.classList.toggle('is-disabled', !enabled);
-    document.querySelectorAll('.province-checkbox').forEach(cb => { cb.disabled = !enabled; });
-    const search = document.getElementById('province-search');
-    if (search) search.disabled = !enabled;
-}
 
 function refreshActiveChart() {
     if (explorerLoadState !== 'ready') return;
@@ -1850,7 +1629,6 @@ function drawChart() {
 
         startSweep(chartInstance);
     }
-    isBulkAction = false;
     syncCountryLegend();
 }
 
@@ -1933,14 +1711,6 @@ const onExplorerResize = debounce(() => {
     try { if (chartInstance && typeof chartInstance.resize === 'function') chartInstance.resize(); } catch (e) {}
     try { if (scatterProvinceChart && typeof scatterProvinceChart.resize === 'function') scatterProvinceChart.resize(); } catch (e) {}
     if (currentChartMode === 'map' && explorerLeafletMap) renderExplorerMap();
-    const layout = mosaicLayout();
-    const nextKey = String(layout.cols);
-    if (isLandingVisible() && nextKey !== mosaicLayoutKey) {
-        mosaicLayoutKey = nextKey;
-        renderMosaicMenu();
-    } else if (typeof ScrollTrigger !== 'undefined') {
-        ScrollTrigger.refresh();
-    }
 }, 150);
 window.addEventListener('resize', onExplorerResize);
 
@@ -1970,12 +1740,6 @@ function bindExplorerChrome() {
         explorerMapYearIndex = Number(mapTimeline.value);
         if (currentChartMode === 'map') renderExplorerMap();
     });
-    const search = document.getElementById('province-search');
-    if (search) search.addEventListener('input', filterProvinces);
-    const selectAll = document.getElementById('btn-select-all-provinces');
-    if (selectAll) selectAll.addEventListener('click', selectAllProvinces);
-    const clearAll = document.getElementById('btn-clear-all-provinces');
-    if (clearAll) clearAll.addEventListener('click', clearAllProvinces);
     const countryLegend = document.getElementById('btn-country-legend');
     if (countryLegend) countryLegend.addEventListener('click', toggleCountryLegend);
     document.querySelectorAll('[data-explorer-tab]').forEach(button => button.addEventListener('click', () => {

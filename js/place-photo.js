@@ -39,6 +39,12 @@ function PlacePhotoPicker({onChange}) {
     window.addEventListener('pagehide',()=>{clearPreviewUrl();if(originalUrl)URL.revokeObjectURL(originalUrl);});
     return {
         setExisting(url){existing=PlaceUI.photoUrl(url)?url:null;preview(PlaceUI.photoUrl(existing));},
+        restore(data){
+            if(data?.remove_photo){remove=true;preview(null);return;}
+            if(typeof data?.photo_id!=='string'||!/^[a-f0-9-]{32,36}$/i.test(data.photo_id))return;
+            if(data.photo_id!==existing?.split('/').pop())uploaded=data.photo_id;
+            preview(PlaceUI.photoUrl('/api/poi-explore/photos/'+data.photo_id));
+        },
         async upload(point){
             if(remove)return {remove_photo:true};
             if(file&&!uploaded){const data=new FormData();data.append('file',file);data.append('crop',JSON.stringify(crop));data.append('latitude',point.latitude);data.append('longitude',point.longitude);
@@ -46,6 +52,6 @@ function PlacePhotoPicker({onChange}) {
                 const result=await PlaceUI.readResponse(response,'بارگذاری عکس انجام نشد.');uploaded=result.id;}
             const id=uploaded||(existing?existing.split('/').pop():null);return id?{photo_id:id}:{};
         },
-        committed(){uploaded=null;},
+        committed(){if(uploaded)existing='/api/poi-explore/photos/'+uploaded;uploaded=null;file=crop=null;if(remove)existing=null;remove=false;},
     };
 }

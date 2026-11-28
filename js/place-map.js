@@ -1,27 +1,11 @@
-// Viewing stays live; choosing a registration point uses only our database.
-function LocationEditor({map,categories,canEdit,onModeChange,getScene,onOverlayChange,onSelectCategory}) {
-    const {api,node,page,normalize,fact,provinceAllowed}=PlaceUI,el=id=>document.getElementById(id);
+// Live viewing and corrected local overlays; registration has its own wizard.
+function LocationEditor({map,categories,canEdit,getScene,onOverlayChange,onSelectCategory}) {
+    const {api,page,fact}=PlaceUI,el=id=>document.getElementById(id);
     let config,selected=null,timer,controller,generation=0,lastKey='',published=[],suppressed=new Set();
-    let picking=false,province='',point=null,draftMarker=null,provinceLayer=null,profileMarker=null,profileRequest=0,focusBeforeProfile=null,relocatingId=null,addRequest=0;
+    let profileMarker=null,profileRequest=0,focusBeforeProfile=null;
     let profileLocalId=null,profileLiveKey=null,profileData=null;
-    const layer=L.layerGroup().addTo(map),profile=el('locations-profile'),addDialog=el('locations-add-dialog');
-    function configure(data){
-        config=data;el('locations-add').hidden=!data.permissions.can_edit;
-        const provinces=data.coverage.provinces.filter(row=>provinceAllowed(data,row.province));
-        el('locations-add-types').replaceChildren();
-        for(const category of categories){const button=node('button',category.title,'place-type-choice');button.type='button';
-            button.disabled=category.category!=='mosque'||!data.editable_categories.includes(category.category);
-            const icon=node('img');icon.src=category.icon_url;icon.alt='';button.prepend(icon);
-            button.addEventListener('click',()=>{
-                el('locations-type-step').hidden=true;el('locations-province-step').hidden=false;el('locations-add-title').textContent='استان را انتخاب کنید';
-                el('locations-add-eligibility').textContent=provinces.length?'':'در حال حاضر استانی برای ثبت مکان فعال نیست.';
-                el('locations-add-province').focus();});el('locations-add-types').append(button);}
-        const select=el('locations-add-province'),previous=select.value,blank=node('option',provinces.length?'استان را انتخاب کنید':'استان فعالی وجود ندارد');blank.value='';select.replaceChildren(blank);
-        for(const row of provinces){const option=node('option',row.province);option.value=row.province;select.append(option);}
-        select.disabled=!provinces.length;select.value=provinces.some(row=>row.province===previous)?previous:'';
-        return data;
-    }
-    const ready=api('/api/poi-explore/editor/config').then(configure).catch(error=>{el('locations-add-error').textContent=error.message;throw error;});
+    const profile=el('locations-profile');
+    const ready=api('/api/poi-explore/editor/config').then(data=>{config=data;canEdit=data.permissions.can_edit;el('locations-add').hidden=!canEdit;return data;});
     ready.catch(()=>{});
     function closeProfile(){++profileRequest;if(profile.open)profile.close();profileLocalId=profileLiveKey=null;profileData=null;profileMarker?.setOpacity?.(1);profileMarker=null;focusBeforeProfile?.focus?.();onOverlayChange();}
     function present(place,marker){
@@ -46,7 +30,7 @@ function LocationEditor({map,categories,canEdit,onModeChange,getScene,onOverlayC
         const authors=data.contributors;if(authors){fact(root,data.tag==='added'?'ثبت‌کننده':'ویرایش‌کننده',data.tag==='added'?authors.created_by?.name:authors.last_edited_by?.name);
             if(data.tag==='added'&&authors.last_edited_by?.name!==authors.created_by?.name)fact(root,'آخرین ویرایش‌کننده',authors.last_edited_by?.name);}
         el('locations-detail-status').textContent=data.tag==='added'?'افزوده‌شده در سامانه':data.tag==='edited'?'ویرایش‌شده در سامانه':'اطلاعات ثبت‌شدهٔ مکان';
-        const edit=el('locations-detail-edit');edit.hidden=!canEdit||picking;edit.href=page('place-register.html')+'?venue='+encodeURIComponent(data.id);
+        const edit=el('locations-detail-edit');edit.hidden=!canEdit;edit.href=page('place-register.html')+'?venue='+encodeURIComponent(data.id);
         if(!data.can_edit){edit.hidden=true;el('locations-detail-lock').textContent=data.locked_reason||'ویرایش این مکان در دسترس نیست.';}
     }
     async function inspect(place,marker,recordKey){
@@ -65,45 +49,10 @@ function LocationEditor({map,categories,canEdit,onModeChange,getScene,onOverlayC
             if(request!==profileRequest)return;present(data.values);showDetails(data);
         }catch(error){present({name:'اطلاعات مکان'});el('locations-detail-lock').textContent=error.message;}
     }
-    async function chooseProvince(){
-        const name=el('locations-add-province').value;if(!config||!provinceAllowed(config,name))return;
-        const request=++addRequest;
-        el('locations-add-next').disabled=true;el('locations-add-error').textContent='';
-        try{const response=await fetch('../data/iran.geojson',{credentials:'same-origin'});if(!response.ok)throw new Error('دریافت محدودهٔ استان انجام نشد.');
-            const geo=await response.json();const feature=geo.features.find(f=>normalize(f.properties.ADM1_FA||f.properties.ProvincNam||f.properties.Name)===normalize(name));
-            if(!feature)throw new Error('محدودهٔ استان یافت نشد.');if(request!==addRequest||!addDialog.open)return;
-            const area=L.geoJSON(feature,{interactive:false,style:{color:'#aa965f',weight:2,fillColor:'#515811',fillOpacity:.025}});const bounds=area.getBounds();
-            provinceLayer?.remove?.();provinceLayer=area;area.addTo?.(map);
-            province=name;point=null;++pointRequest;picking=true;document.body.classList.add('is-selecting-point');closeProfile();addDialog.close();el('locations-point-step').hidden=false;
-            el('locations-point-title').textContent='ثبت مسجد · '+province;el('locations-point-next').disabled=true;
-            el('locations-point-hint').textContent='محل مسجد را روی نقشه انتخاب کنید. نمادها، مکان‌های ثبت‌شدهٔ پایگاه داده هستند.';
-            onModeChange(true);await onSelectCategory?.('mosque');map.fitBounds(bounds,{padding:[60,100],maxZoom:11});schedule();
-        }catch(error){if(request===addRequest){el('locations-add-error').textContent=error.message;el('locations-add-next').disabled=false;}}
-    }
-    function cancelPoint(){++pointRequest;picking=false;point=null;relocatingId=null;document.body.classList.remove('is-selecting-point');if(draftMarker){draftMarker.remove();draftMarker=null;}provinceLayer?.remove?.();provinceLayer=null;layer.clearLayers();el('locations-point-step').hidden=true;onModeChange(false);lastKey='';schedule();}
-    let pointRequest=0;
-    map.on('click',async event=>{
-        if(!picking)return;const request=++pointRequest;point=null;el('locations-point-next').disabled=true;
-        if(draftMarker)draftMarker.remove();const candidate={latitude:event.latlng.lat,longitude:event.latlng.lng};
-        draftMarker=L.marker([candidate.latitude,candidate.longitude],{icon:L.icon({iconUrl:categories.find(c=>c.category==='mosque')?.icon_url,iconSize:[38,38],iconAnchor:[19,19],className:'locations-live-icon locations-manual-icon'})}).addTo(map);
-        el('locations-point-hint').textContent='در حال بررسی موقعیت…';
-        try{const result=await api('/api/poi-explore/editor/eligibility?'+new URLSearchParams({category:'mosque',...candidate}));if(!picking||request!==pointRequest)return;
-            if(!result.eligible||normalize(result.province)!==normalize(province))throw new Error(result.eligible?'نقطه باید در استان انتخاب‌شده باشد.':result.reason);
-            point=candidate;el('locations-point-next').disabled=false;el('locations-point-hint').textContent='موقعیت انتخاب شد. برای ثبت اطلاعات ادامه دهید.';
-        }catch(error){if(picking&&request===pointRequest)el('locations-point-hint').textContent=error.message;}
-    });
     async function refresh(){
         if(controller)controller.abort();const version=++generation;if(!selected||document.hidden)return;const scene=getScene(),bounds=scene.bounds,plan=scene.plan;
         controller=new AbortController();
-        if(picking){
-            try{const data=await api('/api/poi-explore/editor/places?'+new URLSearchParams({category:'mosque',province,...bounds}),{signal:controller.signal});
-                if(version!==generation||!picking)return;layer.clearLayers();data.places.forEach(row=>L.marker([row.latitude,row.longitude],{
-                    icon:L.icon({iconUrl:selected.icon_url,iconSize:[26,26],iconAnchor:[13,13],className:'locations-live-icon locations-database-icon'}),title:row.name})
-                    .on('click',()=>inspect({localId:row.id,name:row.name,category:'mosque'})).addTo(layer));
-                if(data.has_more)el('locations-point-hint').textContent='برای دیدن مکان‌های ثبت‌شدهٔ بیشتر، نقشه را بزرگ‌تر کنید.';
-            }catch(error){if(error.name!=='AbortError'&&version===generation)el('locations-point-hint').textContent=error.message;}return;
-        }
-        layer.clearLayers();if(scene.zoom<8||!plan){published=[];suppressed.clear();onOverlayChange();return;}
+        if(scene.zoom<8||!plan){published=[];suppressed.clear();onOverlayChange();return;}
         const live=scene.records.map((record,reference)=>({reference,name:record.place.name,latitude:record.place.latitude,longitude:record.place.longitude}));
         const key=JSON.stringify([selected.category,bounds,plan,live,Math.floor(Date.now()/30000)]);if(lastKey===key)return;
         const batches=[];let batch=[],bytes=0;
@@ -119,10 +68,9 @@ function LocationEditor({map,categories,canEdit,onModeChange,getScene,onOverlayC
             if(version!==generation)return;published=[...rows.values()];suppressed=hidden;lastKey=key;onOverlayChange();el('locations-overlay-note').hidden=!hasMore;
         }catch(error){if(error.name!=='AbortError'&&version===generation){lastKey='';el('locations-overlay-note').textContent='دریافت مکان‌های ثبت‌شده انجام نشد.';el('locations-overlay-note').hidden=false;}}
     }
-    function schedule(category=selected){if(selected?.category!==category?.category){published=[];suppressed.clear();lastKey='';layer.clearLayers();}
+    function schedule(category=selected){if(selected?.category!==category?.category){published=[];suppressed.clear();lastKey='';}
         selected=category;if(controller)controller.abort();++generation;clearTimeout(timer);timer=setTimeout(refresh,200);}
     function merge(records,bounds,zoom){
-        if(picking)return [];
         const output=records.filter(record=>{
             if(suppressed.has(record.key))return false;
             if(!profile.open)return true;
@@ -135,29 +83,11 @@ function LocationEditor({map,categories,canEdit,onModeChange,getScene,onOverlayC
         for(const place of published){if(profile.open&&place.id===profileLocalId)continue;if(!LocationDiscovery.inside(place,bounds)||LocationDiscovery.distance(place,plan)>plan.radius)continue;
             output.push({key:`local/${place.id}/${place.published_version||0}`,category:place.category,place:{...place,localId:place.id,id:place.id}});}return output;
     }
-    el('locations-add').addEventListener('click',async()=>{const request=++addRequest;try{await ready;
-        const latest=await api('/api/poi-explore/editor/config');if(request!==addRequest)return;configure(latest);
-        if(!config.permissions.can_edit)return;if(picking)cancelPoint();relocatingId=null;
-        el('locations-add-province').value='';
-        el('locations-add-eligibility').textContent='';el('locations-add-next').disabled=true;el('locations-add-error').textContent='';
-        el('locations-type-step').hidden=false;el('locations-province-step').hidden=true;el('locations-add-title').textContent='نوع مکان را انتخاب کنید';addDialog.showModal();
-    }catch(error){if(request===addRequest)el('locations-add-error').textContent=error.message;}});
-    el('locations-add-close').addEventListener('click',()=>{++addRequest;addDialog.close();});addDialog.addEventListener('cancel',()=>{++addRequest;});
-    el('locations-add-back').addEventListener('click',()=>{el('locations-type-step').hidden=false;el('locations-province-step').hidden=true;el('locations-add-title').textContent='نوع مکان را انتخاب کنید';});
-    el('locations-add-province').addEventListener('change',()=>{const name=el('locations-add-province').value,allowed=provinceAllowed(config,name);
-        const row=config.coverage.provinces.find(p=>normalize(p.province)===normalize(name)),permission=config.permissions;
-        const scoped=permission.can_edit&&(permission.all_provinces||permission.provinces.some(p=>normalize(p)===normalize(name)));
-        el('locations-add-next').disabled=!allowed;el('locations-add-eligibility').textContent=allowed?'ثبت مکان در این استان فعال است.':
-            (scoped&&row?.blocked_reason)||'ثبت مکان در این استان هنوز فعال نیست یا دسترسی آن را ندارید.';});
-    el('locations-add-next').addEventListener('click',chooseProvince);el('locations-point-cancel').addEventListener('click',cancelPoint);
-    el('locations-point-next').addEventListener('click',()=>{if(!picking||!point)return;try{sessionStorage.setItem('place-registration',JSON.stringify({category:'mosque',province,...point,venue_id:relocatingId,created_at:Date.now(),submission_id:crypto.randomUUID()}));
-        window.location.href=page('place-register.html')+(relocatingId?'?venue='+encodeURIComponent(relocatingId):'');}catch{el('locations-point-hint').textContent='ذخیرهٔ موقت فرم ممکن نشد؛ تنظیمات مرورگر را بررسی کنید.';}});
+    el('locations-add').addEventListener('click',()=>{window.location.href=page('place-register.html');});
     el('locations-detail-close').addEventListener('click',closeProfile);profile.addEventListener('cancel',event=>{event.preventDefault();closeProfile();});
     profile.addEventListener('close',()=>{profileMarker?.setOpacity?.(1);profileMarker=null;});
     window.addEventListener('pagehide',()=>{clearTimeout(timer);controller?.abort();});
-    async function relocate(id){try{await ready;const data=await api('/api/poi-explore/venues/'+encodeURIComponent(id));if(!data.can_edit||data.values.category!=='mosque')throw new Error(data.locked_reason||'ویرایش موقعیت در دسترس نیست.');
-        relocatingId=id;el('locations-type-step').hidden=true;el('locations-province-step').hidden=false;el('locations-add-title').textContent='استان موقعیت جدید را انتخاب کنید';
-        el('locations-add-province').value=data.province||data.attributes.province;el('locations-add-province').dispatchEvent(new Event('change'));addDialog.showModal();
-    }catch(error){present({name:'ویرایش موقعیت'});el('locations-detail-lock').textContent=error.message;}}
-    return {schedule,merge,inspect,open,relocate,canEditCategory:name=>!picking||name==='mosque'};
+    function relocate(id){window.location.replace(page('place-register.html')+'?venue='+encodeURIComponent(id)+'&step=3');}
+    function resume(){window.location.replace(page('place-register.html')+'?step=3');}
+    return {schedule,merge,inspect,open,relocate,resume};
 }

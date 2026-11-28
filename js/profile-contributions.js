@@ -3,7 +3,7 @@ onReady(() => {
     const el=id=>document.getElementById(id);
     if(!el('profile-contributions'))return;
     const number=new Intl.NumberFormat('fa-IR');let page=0,loading=false;
-    const title={pending:'در انتظار بررسی',approved:'تأییدشده',rejected:'ردشده'};
+    const title={pending:'در انتظار بررسی',approved:'تأییدشده',rejected:'ردشده',cancelled:'لغوشده'};
     async function load(){
         if(loading)return;loading=true;
         el('profile-contributions-previous').disabled=true;el('profile-contributions-next').disabled=true;

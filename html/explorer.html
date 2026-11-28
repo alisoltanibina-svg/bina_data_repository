@@ -18,8 +18,6 @@
     <script src="../js/force-motion.js"></script>
     <script src="../assets/vendor/chart.js/chart.umd.min.js" defer></script>
     <script src="../assets/vendor/chartjs-plugin-datalabels/chartjs-plugin-datalabels.min.js" defer></script>
-    <script src="../assets/vendor/gsap/gsap.min.js" defer></script>
-    <script src="../assets/vendor/gsap/ScrollTrigger.min.js" defer></script>
     <link rel="stylesheet" href="../css/global.css">
     <link rel="stylesheet" href="../css/explorer.css">
     <link rel="stylesheet" href="../css/treat-v1.css">
@@ -42,7 +40,7 @@
     <div class="explorer-workspace">
 
         <div id="view-landing" class="ex-landing">
-            <div class="ex-stage" id="mosaic-menu"></div>
+            <div class="ex-stage" id="explorer-modules"></div>
         </div>
 
         <div id="view-dashboard" class="ex-dash ex-monitor-layout hidden">
@@ -72,7 +70,6 @@
             <div class="legacy-province-controls" hidden>
                 <button type="button" class="ex-rail-item ex-rail-database" id="dd-database-btn" data-explorer-section="database" aria-controls="explorer-selection-panel" aria-expanded="false"><span>دیتا<br>بیس</span></button>
                 <button type="button" class="ex-rail-item" id="dd-filter-btn" data-explorer-section="filter" aria-controls="explorer-selection-panel" aria-expanded="false">فیلتر</button>
-                <input id="province-search"><button id="btn-select-all-provinces"></button><button id="btn-clear-all-provinces"></button><div id="provinces-list"></div>
             </div>
             <div class="ex-dash-body">
                 <aside class="ex-metadata-sidebar custom-scrollbar" aria-label="فرادادهٔ شاخص">

@@ -26,7 +26,6 @@ class Settings(BaseSettings):
     neshan_nearby_result_cap: int = 0
     neshan_collection_authorized: bool = False
     neshan_explore_authorized: bool = False
-    neshan_poi_prefix32_matching_enabled: bool = False  # Deprecated; live matching ignores this setting.
     neshan_explore_interval_seconds: float = Field(default=1.0, ge=1.0, le=60.0)
     neshan_explore_requests_per_view: int = Field(default=2, ge=1, le=3)
     neshan_explore_session_request_limit: int = Field(default=120, ge=1, le=1000)

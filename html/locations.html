@@ -43,11 +43,6 @@
             </div>
             <p id="locations-status" class="locations-status" role="status" aria-live="polite">در حال آماده‌سازی نقشه…</p>
             <p id="locations-overlay-note" class="locations-overlay-note" hidden>برای دیدن مکان‌های بیشتر، نقشه را بزرگ‌نمایی کنید.</p>
-            <section id="locations-point-step" class="place-point-step" hidden aria-labelledby="locations-point-title">
-                <h2 id="locations-point-title">انتخاب موقعیت</h2>
-                <p id="locations-point-hint" role="status">محل مسجد را روی نقشه انتخاب کنید.</p>
-                <div><button type="button" id="locations-point-next" class="place-primary" disabled>ادامه و تکمیل اطلاعات</button><button type="button" id="locations-point-cancel">انصراف</button></div>
-            </section>
             <div id="locations-error" class="locations-error" role="alert" hidden><span id="locations-error-text"></span><button type="button" id="locations-retry">تلاش دوباره</button></div>
         </section>
     </main>
@@ -58,17 +53,6 @@
         <dl id="locations-detail-body" class="place-facts"></dl>
         <p id="locations-detail-lock" role="status"></p>
         <a id="locations-detail-edit" class="place-primary" hidden>ویرایش اطلاعات</a>
-    </dialog>
-    <dialog id="locations-add-dialog" class="place-dialog" aria-labelledby="locations-add-title">
-        <button type="button" id="locations-add-close" class="place-dialog-close" aria-label="بستن">×</button>
-        <p class="locations-eyebrow">افزودن مکان</p><h2 id="locations-add-title">نوع مکان را انتخاب کنید</h2>
-        <section id="locations-type-step"><div id="locations-add-types" class="place-type-options"></div></section>
-        <section id="locations-province-step" hidden>
-            <label for="locations-add-province">استان</label><select id="locations-add-province"><option value="">استان را انتخاب کنید</option></select>
-            <p id="locations-add-eligibility" role="status"></p>
-            <div class="place-dialog-actions"><button type="button" id="locations-add-next" class="place-primary" disabled>انتخاب موقعیت روی نقشه</button><button type="button" id="locations-add-back">مرحله قبل</button></div>
-        </section>
-        <p id="locations-add-error" role="alert"></p>
     </dialog>
 </body>
 </html>

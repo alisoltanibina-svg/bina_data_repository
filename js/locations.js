@@ -4,12 +4,7 @@ function locationMarkerSize(count, maximum) {
 }
 
 function locationCategoryIcon(category) {
-    // The Nearby layer is formal_school, but Neshan publishes its icon as school.
-    if (category.category === 'formal_school' && (!category.icon_url ||
-        /^https:\/\/static\.neshanmap\.ir\/poi\/(32|64|128)\/formal_school\.png$/.test(category.icon_url))) {
-        return 'https://static.neshanmap.ir/poi/64/school.png';
-    }
-    return category.icon_url;
+    return PlaceUI.categoryIcon(category);
 }
 
 function locationNearbyPlan(category, center, zoom, config, bounds) {
@@ -41,7 +36,7 @@ function locationDistance(a, b) { return LocationDiscovery.distance(a, b); }
         live: null, circle: null, config: null, store: null, timer: null, frame: null,
         rendered: new Map(), countsCache: new Map(), renderGeneration: 0, categoryGeneration: 0,
         countController: null, inflight: null, nextAllowed: 0, queue: [], moving: false,
-        region: null, viewKey: '', viewCredits: 0, visibleCount: 0, manualCount: 0, initialized: false, editing: false, editor: null};
+        region: null, viewKey: '', viewCredits: 0, visibleCount: 0, manualCount: 0, initialized: false, editor: null};
     const number = new Intl.NumberFormat('fa-IR');
     const element = id => document.getElementById(id);
     const api = path => `${window.API_BASE_URL || ''}${path}`;
@@ -170,7 +165,6 @@ function locationDistance(a, b) { return LocationDiscovery.distance(a, b); }
             const button = document.createElement('button');
             button.type = 'button';
             button.className = 'locations-category';
-            button.disabled=!!(state.editing&&state.editor?.canEditCategory&&!state.editor.canEditCategory(category.category));
             if(button.disabled)button.title='ثبت و ویرایش فعلاً فقط برای مسجد فعال است.';
             button.classList.toggle('is-active', state.selected && category.category === state.selected.category);
             button.setAttribute('aria-pressed', String(!!state.selected && category.category === state.selected.category));
@@ -240,12 +234,6 @@ function locationDistance(a, b) { return LocationDiscovery.distance(a, b); }
         cancelLive(); state.moving = false;
         if (!state.map || !state.selected || document.hidden) return;
         if (state.editor) state.editor.schedule(state.selected);
-        if (state.editing) {
-            if(state.map.hasLayer(state.live))state.map.removeLayer(state.live);
-            if(state.map.hasLayer(state.summary))state.map.removeLayer(state.summary);
-            if(state.circle){state.circle.remove();state.circle=null;}
-            setStatus('انتخاب موقعیت از نقشه');return;
-        }
         const zoom = state.map.getZoom(), detailed = zoom >= state.config.min_zoom;
         if (!detailed) {
             if (state.map.hasLayer(state.live)) state.map.removeLayer(state.live);
@@ -268,7 +256,7 @@ function locationDistance(a, b) { return LocationDiscovery.distance(a, b); }
     }
     function requestNext() {
         clearTimeout(state.timer); state.timer = null;
-        if (state.editing || state.inflight || document.hidden || state.moving || !state.selected || !state.viewCredits) return;
+        if (state.inflight || document.hidden || state.moving || !state.selected || !state.viewCredits) return;
         state.queue = state.queue.filter(cell => cell.category === state.selected.category
             && (state.store.eligible(cell) || ['failed', 'unavailable'].includes(state.store.cells.get(cell.key)?.status)));
         if (!state.queue.length) { memoryStatus(); return; }
@@ -276,7 +264,7 @@ function locationDistance(a, b) { return LocationDiscovery.distance(a, b); }
         const wait = Math.max(state.config.debounce_ms, state.nextAllowed - Date.now(), (record?.retryAt || 0) - Date.now());
         state.timer = setTimeout(() => {
             state.timer = null;
-            if (state.editing || document.hidden || state.moving || state.inflight) return;
+            if (document.hidden || state.moving || state.inflight) return;
             const next = state.queue.shift();
             if (next && state.store.begin(next)) { --state.viewCredits; requestNearby(next); }
         }, wait);
@@ -305,7 +293,7 @@ function locationDistance(a, b) { return LocationDiscovery.distance(a, b); }
             const payload = await readResponse(response);
             if (state.inflight !== token) return;
             state.store.finish(cell, payload, protectedPoint);
-            if (!state.editing && !document.hidden && !state.moving && state.map.getZoom() >= state.config.min_zoom && state.selected?.category === cell.category) {
+            if (!document.hidden && !state.moving && state.map.getZoom() >= state.config.min_zoom && state.selected?.category === cell.category) {
                 clearError(); syncVisiblePoints();
             }
         } catch (error) {
@@ -353,19 +341,8 @@ function locationDistance(a, b) { return LocationDiscovery.distance(a, b); }
                 async onSelectCategory(name) {
                     const category=state.categories.find(item=>item.category===name);
                     if(category)await selectCategory(category);
-                },
-                onModeChange(editing) {
-                    state.editing = editing;
-                    if(editing){cancelLive();if(state.inflight){state.inflight.controller.abort();state.store.abandon(state.inflight.cell);state.inflight=null;}}
-                    renderCategories();
-                    if (!state.selected && state.categories.length) selectCategory(state.categories[0]);
-                    else scheduleViewport();
-                },
-                async onSaved(place) {
-                    state.countsCache.clear();
-                    const category = state.categories.find(item => item.category === place.category) || state.selected;
-                    if (category) await selectCategory(category, true);
                 }
+
             });
             state.map.on('movestart', () => { state.moving = true; cancelLive(); });
             state.map.on('moveend', scheduleViewport);
@@ -378,6 +355,7 @@ function locationDistance(a, b) { return LocationDiscovery.distance(a, b); }
             if(linkedVenue && /^[a-f0-9-]{36}$/i.test(linkedVenue)) state.editor?.open?.(linkedVenue);
             const relocateVenue=new URLSearchParams(window.location.search||'').get('relocate');
             if(relocateVenue && /^[a-f0-9-]{36}$/i.test(relocateVenue)) state.editor?.relocate?.(relocateVenue);
+            else if(new URLSearchParams(window.location.search||'').get('resume')==='registration') state.editor?.resume?.();
         } catch (error) { state.initialized = false; showError(error.message); setStatus('راه‌اندازی اطلاعات مکانی انجام نشد.'); }
     }
     function start() {

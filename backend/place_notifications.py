@@ -8,7 +8,7 @@ from sqlalchemy import select,or_,exists
 from sqlalchemy.orm import aliased
 from backend import database
 from backend.models import User
-from backend.poi_editorial_models import PoiSmsNotification
+from backend.poi_editorial_models import PoiSmsNotification,PoiEditRevision
 from backend.otp import deliver_plain_sms
 
 log=logging.getLogger(__name__)
@@ -32,12 +32,25 @@ def dispatch_pending(limit=10):
                 or_(PoiSmsNotification.event!='approved',~waiting),
                 PoiSmsNotification.available_at<=now).order_by(PoiSmsNotification.created_at,PoiSmsNotification.id).with_for_update(skip_locked=True).limit(1))
             if not row:return
+            revision=session.get(PoiEditRevision,row.revision_id)
+            if revision and revision.status=='cancelled':
+                row.attempts=-1
+                continue
             user=session.get(User,row.user_id) if row.user_id else None
-            if not user or not user.is_active:row.attempts=-1;continue
+            if not user or not user.is_active:
+                row.attempts=-1
+                log.warning('Place SMS skipped: notification=%s event=%s reason=recipient_missing_or_inactive',row.id,row.event)
+                continue
             row.attempts+=1
             try:
-                if deliver_plain_sms(user.phone,MESSAGES[row.event]):row.sent_at=now;continue
-            except Exception:log.warning('Place SMS delivery failed: notification=%s attempt=%s',row.id,row.attempts)
+                if deliver_plain_sms(user.phone,MESSAGES[row.event]):
+                    row.sent_at=now
+                    log.info('Place SMS accepted by provider: notification=%s event=%s attempt=%s',row.id,row.event,row.attempts)
+                    continue
+                log.warning('Place SMS delivery unavailable: notification=%s event=%s attempt=%s',row.id,row.event,row.attempts)
+            except Exception as error:
+                # Provider exceptions can contain URLs with API credentials.
+                log.warning('Place SMS delivery failed: notification=%s event=%s attempt=%s error_type=%s',row.id,row.event,row.attempts,type(error).__name__)
             row.available_at=now+timedelta(seconds=min(3600,30*2**min(row.attempts,7)))
 
 async def _loop():

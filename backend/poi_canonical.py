@@ -10,7 +10,7 @@ from types import SimpleNamespace
 from uuid import UUID
 from sqlalchemy import select,func,and_,or_,union_all
 from backend.poi_models import PoiPlace,PoiPlaceCategory,PoiPlaceLink,PoiProviderAlias,PoiCanonicalEvent,PoiRetiredPlace
-from backend.poi_identity_rules import normalized,distance,same_identity,MAX_CANDIDATES
+from backend.poi_identity_rules import normalized,same_identity,MAX_CANDIDATES
 
 LOCK_KEY=741923819
 MAX_MEMBERS=10000

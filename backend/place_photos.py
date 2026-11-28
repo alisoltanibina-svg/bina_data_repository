@@ -10,7 +10,11 @@ from fastapi import HTTPException
 from PIL import Image,ImageOps,UnidentifiedImageError
 from sqlalchemy import select,func
 from backend.settings import PROJECT_ROOT
-from backend.poi_editorial_models import PoiPlacePhoto
+from backend.poi_editorial_models import PoiPlacePhoto,PoiRegistrationDraft
+
+def retained_photo_ids():
+    return select(PoiRegistrationDraft.photo_id).where(PoiRegistrationDraft.photo_id.is_not(None),
+        PoiRegistrationDraft.status.in_(('draft','pending','rejected')))
 
 PHOTO_DIR=PROJECT_ROOT/'assets'/'images'/'places'
 MAX_BYTES=5*1024*1024
@@ -57,13 +61,14 @@ def stage(session,actor,data,filename,crop):
     session.scalar(select(User.id).where(User.id==actor['id']).with_for_update())
     now=datetime.now(timezone.utc)
     rows=session.scalars(select(PoiPlacePhoto).where(PoiPlacePhoto.uploader_id==actor['id'],PoiPlacePhoto.revision_id.is_(None))).all()
+    retained=set(session.scalars(retained_photo_ids()))
     for row in rows:
         created=row.created_at.replace(tzinfo=timezone.utc) if row.created_at.tzinfo is None else row.created_at
-        if created<now-timedelta(days=1):
+        if created<now-timedelta(days=1) and row.id not in retained:
             file=managed_file(row.path)
             if file:file.unlink(missing_ok=True)
             session.delete(row)
-    active=sum(1 for row in rows if (row.created_at.replace(tzinfo=timezone.utc) if row.created_at.tzinfo is None else row.created_at)>=now-timedelta(days=1))
+    active=sum(1 for row in rows if row.id in retained or (row.created_at.replace(tzinfo=timezone.utc) if row.created_at.tzinfo is None else row.created_at)>=now-timedelta(days=1))
     count=session.scalar(select(func.count()).select_from(PoiPlacePhoto).where(PoiPlacePhoto.uploader_id==actor['id'],PoiPlacePhoto.created_at>now-timedelta(days=1)))
     if active>=3 or count>=20:raise HTTPException(429,detail='تعداد بارگذاری‌ها بیش از حد مجاز است؛ عکس‌های استفاده‌نشده را حذف کنید.')
     encoded=encode(data,filename,crop);identity=uuid4();path=PREFIX+identity.hex+'.webp';PHOTO_DIR.mkdir(parents=True,exist_ok=True)
@@ -95,14 +100,17 @@ def claim(session,identity,actor,place_id):
         return photo
     if photo.uploader_id!=actor['id']:raise HTTPException(403,detail='عکس متعلق به شما نیست.')
     created=photo.created_at.replace(tzinfo=timezone.utc) if photo.created_at.tzinfo is None else photo.created_at
-    if created<datetime.now(timezone.utc)-timedelta(days=1):raise HTTPException(409,detail='مهلت عکس موقت تمام شده است؛ دوباره بارگذاری کنید.')
+    retained=session.scalar(select(PoiRegistrationDraft.id).where(PoiRegistrationDraft.user_id==actor['id'],
+        PoiRegistrationDraft.photo_id==identity,PoiRegistrationDraft.status.in_(('draft','pending','rejected'))).limit(1))
+    if created<datetime.now(timezone.utc)-timedelta(days=1) and not retained:raise HTTPException(409,detail='مهلت عکس موقت تمام شده است؛ دوباره بارگذاری کنید.')
     return photo
 
 def cleanup_staged():
     from backend import database
     with database.db_session() as session:
         rows=session.scalars(select(PoiPlacePhoto).where(PoiPlacePhoto.revision_id.is_(None),
-            PoiPlacePhoto.created_at<datetime.now(timezone.utc)-timedelta(days=1)).with_for_update(skip_locked=True).limit(100)).all()
+            PoiPlacePhoto.created_at<datetime.now(timezone.utc)-timedelta(days=1),
+            PoiPlacePhoto.id.not_in(retained_photo_ids())).with_for_update(skip_locked=True).limit(100)).all()
         for row in rows:
             file=managed_file(row.path)
             if file:file.unlink(missing_ok=True)

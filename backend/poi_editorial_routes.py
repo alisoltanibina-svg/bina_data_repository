@@ -12,13 +12,13 @@ from sqlalchemy import select,func,or_,and_
 from sqlalchemy.dialects.postgresql import insert
 from backend import database,poi_editorial as edit
 from backend import poi_venue_schema as venue_schema
-from backend import place_photos,place_notifications
+from backend import place_photos,place_notifications,place_drafts
 from backend import poi_place_matching as matching
 from backend import poi_canonical as canonical
 from backend.models import User
-from backend.poi_models import PoiPlace,PoiPlaceCategory,PoiPlaceLink,PoiRetiredPlace
+from backend.poi_models import PoiPlace,PoiPlaceCategory,PoiPlaceLink,PoiRetiredPlace,PoiExploreCategory
 from backend.poi_editorial_models import (PoiEditorial,PoiEditRevision,
-    PoiEditorGrant,PoiFieldDefinition,PoiContributionAward,PoiSourceRevision,PoiPlacePhoto)
+    PoiEditorGrant,PoiFieldDefinition,PoiContributionAward,PoiSourceRevision,PoiPlacePhoto,PoiRegistrationDraft)
 from backend.poi_manual import assign_province
 from backend.poi_geo import normalize
 from backend.poi_explore import response,published_category,within_search_radius
@@ -34,6 +34,13 @@ class Submission(InputBody):
     reason: str = Field(min_length=3,max_length=1000)
     photo_id: UUID | None = None
     remove_photo: bool = False
+    draft_id: UUID | None = None
+    draft_version: int | None = Field(default=None,ge=0,strict=True)
+
+
+class DraftStart(InputBody):
+    place_id:UUID|None=None
+    start_new:bool=False
 
 
 class Restore(InputBody):
@@ -241,6 +248,11 @@ def build_router(require_admin,require_user):
             session.scalar(select(User.id).where(User.id==actor['id']).with_for_update())
             photo=session.scalar(select(PoiPlacePhoto).where(PoiPlacePhoto.id==identity).with_for_update())
             if not photo or photo.uploader_id!=actor['id'] or photo.revision_id:raise HTTPException(404,detail='عکس یافت نشد.')
+            # Keep the last saved photo until its replacement has been saved.
+            # A failed replacement upload must not damage the durable draft.
+            retained=session.scalar(select(PoiRegistrationDraft.id).where(PoiRegistrationDraft.photo_id==identity,
+                PoiRegistrationDraft.status.in_(place_drafts.ACTIVE)).limit(1))
+            if retained:return response(dict(deleted=False))
             path=photo.path;session.delete(photo)
         place_photos.managed_file(path).unlink(missing_ok=True)
         return response(dict(deleted=True))
@@ -267,9 +279,80 @@ def build_router(require_admin,require_user):
         actor=require_user(request)
         with database.db_session() as session:
             permission=edit.permissions(session,actor)
+            categories=session.scalars(select(PoiExploreCategory).where(PoiExploreCategory.is_published.is_(True))
+                .order_by(PoiExploreCategory.sort_order,PoiExploreCategory.title)).all()
             return response(dict(permissions=permission,coverage=edit.eligibility(session),
+                categories=[dict(category=r.category,title=r.title,icon_url=r.icon_url) for r in categories],
                 editable_categories=sorted(venue_schema.editable_categories(session)),administrative_areas=venue_schema.administrative_areas() if permission['can_edit'] else {},
                 fields=[edit.field_dict(r) for r in edit.definitions(session) if r.active and (permission['can_view_private'] or r.public)]))
+
+    def current_draft(session,actor,place_id=None):
+        query=select(PoiRegistrationDraft).where(PoiRegistrationDraft.user_id==actor['id'],PoiRegistrationDraft.status.in_(place_drafts.ACTIVE))
+        if place_id:
+            members=canonical.member_ids(session,place_id)
+            query=query.where(PoiRegistrationDraft.place_id.in_(members))
+        else:query=query.where(PoiRegistrationDraft.scope=='new')
+        return session.scalar(query.order_by(PoiRegistrationDraft.status=='pending',PoiRegistrationDraft.updated_at.desc(),PoiRegistrationDraft.id.desc()).limit(1))
+
+    @router.get('/api/poi-explore/registration-drafts/current')
+    def resume_draft(request:Request,place_id:UUID|None=None):
+        actor=require_user(request)
+        with database.db_session() as session:
+            row=current_draft(session,actor,place_id)
+            return response(dict(draft=place_drafts.describe(row) if row else None))
+
+    @router.post('/api/poi-explore/registration-drafts')
+    def create_draft(body:DraftStart,request:Request):
+        actor=require_user(request)
+        with database.db_session() as session:
+            session.scalar(select(User.id).where(User.id==actor['id']).with_for_update())
+            if not edit.permissions(session,actor)['can_edit']:raise HTTPException(403,detail='دسترسی ثبت مکان ندارید.')
+            target=canonical_row(session,body.place_id) if body.place_id else None
+            if body.place_id and not target:raise HTTPException(404,detail='مکان یافت نشد.')
+            previous=current_draft(session,actor,target.id if target else None)
+            if previous and not (body.start_new and not target and previous.status=='pending'):
+                return response(place_drafts.describe(previous))
+            if session.scalar(select(func.count()).select_from(PoiRegistrationDraft).where(PoiRegistrationDraft.user_id==actor['id'],PoiRegistrationDraft.status.in_(place_drafts.ACTIVE)))>=50:
+                raise HTTPException(429,detail='تعداد پیش‌نویس‌های فعال بیش از حد مجاز است.')
+            data=place_drafts.DraftData(submission_id=uuid4()).model_dump(mode='json');step=1;photo_id=None
+            if target:
+                information=detail(session,target,actor,allow_pending=True)
+                if not information['can_edit']:raise HTTPException(403,detail=information.get('locked_reason') or 'ویرایش مکان در دسترس نیست.')
+                values=information['values'];photo_url=information['photo_url']
+                photo_id=UUID(photo_url.rsplit('/',1)[-1]) if photo_url else None
+                data.update(category=values['category'],province=information['attributes'].get('province') or information['province'],
+                    latitude=values['latitude'],longitude=values['longitude'],values={k:values.get(k) or '' for k in ('name','address','phoneNumber','website')},
+                    attributes=information['attributes'],base_version=information['version'],source_version=information['source_version'],photo_id=str(photo_id) if photo_id else None)
+                step=4
+            row=PoiRegistrationDraft(id=uuid4(),user_id=actor['id'],scope=str(target.id) if target else 'new',place_id=target.id if target else None,
+                status='draft',step=step,version=0,data=data,photo_id=photo_id)
+            session.add(row);session.flush();return response(place_drafts.describe(row),201)
+
+    @router.get('/api/poi-explore/registration-drafts/{identity}')
+    def get_draft(identity:UUID,request:Request):
+        with database.db_session() as session:return response(place_drafts.describe(place_drafts.owned(session,identity,require_user(request))))
+
+    @router.put('/api/poi-explore/registration-drafts/{identity}')
+    def save_draft(identity:UUID,body:place_drafts.DraftSave,request:Request):
+        actor=require_user(request)
+        with database.db_session() as session:
+            state=session.scalar(select(PoiRegistrationDraft.status).where(PoiRegistrationDraft.id==identity,PoiRegistrationDraft.user_id==actor['id']))
+            if state=='pending':canonical.identity_lock(session)
+            session.scalar(select(User.id).where(User.id==actor['id']).with_for_update())
+            row=place_drafts.owned(session,identity,actor,body.version)
+            place_drafts.save(session,row,body,actor);return response(place_drafts.describe(row))
+
+    @router.delete('/api/poi-explore/registration-drafts/{identity}')
+    def cancel_draft(identity:UUID,body:place_drafts.DraftVersion,request:Request):
+        actor=require_user(request)
+        with database.db_session() as session:
+            canonical.identity_lock(session)
+            session.scalar(select(User.id).where(User.id==actor['id']).with_for_update())
+            row=place_drafts.owned(session,identity,actor,body.version)
+            if row.status=='approved':raise HTTPException(409,detail='این درخواست تأیید شده است و امکان لغو ندارد.')
+            place_drafts.withdraw(session,row,'درخواست توسط ثبت‌کننده لغو شد.')
+            row.status='cancelled';row.data={};row.photo_id=None;row.version+=1;row.updated_at=datetime.now(timezone.utc)
+            return response(place_drafts.describe(row))
 
     @router.get('/api/poi-explore/venue-match/{identity}')
     def legacy_match(identity:str,request:Request):
@@ -378,7 +461,19 @@ def build_router(require_admin,require_user):
             previous=session.scalar(select(PoiEditRevision).where(PoiEditRevision.submission_id==body.submission_id))
             if previous:
                 if previous.actor_id!=actor['id'] or (place_id and canonical.canonical_id(session,previous.place_id)!=place_id):raise HTTPException(409,detail='شناسه ارسال تکراری است.')
-                return dict(id=str(previous.place_id),revision_id=str(previous.id),version=previous.version,status=previous.status)
+                result=dict(id=str(previous.place_id),revision_id=str(previous.id),version=previous.version,status=previous.status)
+                if body.draft_id:
+                    draft=place_drafts.owned(session,body.draft_id,actor)
+                    if draft.revision_id!=previous.id:raise HTTPException(409,detail='این ارسال مربوط به نسخهٔ فعلی پیش‌نویس نیست.')
+                    result['draft']=place_drafts.describe(draft)
+                return result
+            draft=None
+            if body.draft_id:
+                if body.draft_version is None:raise HTTPException(422,detail='نسخهٔ پیش‌نویس الزامی است.')
+                draft=place_drafts.owned(session,body.draft_id,actor,body.draft_version)
+                if draft.status not in ('draft','rejected'):raise HTTPException(409,detail='برای ارسال دوباره، ابتدا پیش‌نویس را ویرایش کنید.')
+                if (canonical.canonical_id(session,draft.place_id) if draft.place_id else None)!=place_id:
+                    raise HTTPException(409,detail='پیش‌نویس متعلق به این مکان نیست.')
             permission=edit.permissions(session,actor);coverage=edit.eligibility(session)
             venue_schema.require_editable_category(session,body.values.category)
             assignment=assign_province(body.values.latitude,body.values.longitude)
@@ -445,7 +540,10 @@ def build_router(require_admin,require_user):
             session.flush()
             if attached_photo and not attached_photo.revision_id:attached_photo.place_id=row.id;attached_photo.revision_id=revision.id
             place_notifications.enqueue(session,revision,'submitted')
-            return dict(id=str(row.id),revision_id=str(revision.id),version=editorial.version,status='pending')
+            result=dict(id=str(row.id),revision_id=str(revision.id),version=editorial.version,status='pending')
+            if draft:
+                place_drafts.attach(draft,revision,edit.fingerprint(baseline));result['draft']=place_drafts.describe(draft)
+            return result
 
     @router.post('/api/poi-explore/manual-places')
     def create(body:Submission,request:Request,background_tasks:BackgroundTasks):
@@ -562,6 +660,7 @@ def build_router(require_admin,require_user):
                     session.execute(insert(PoiContributionAward).values(id=uuid4(),user_id=revision.actor_id,place_id=row.id,revision_id=revision.id,
                         action=revision.action,points=10 if revision.action=='added' else 3,revoked=False).on_conflict_do_nothing(constraint='uq_poi_contribution_once'))
             revision.status='approved' if body.approve else 'rejected';revision.reviewer_id=actor['id'];revision.reviewer_name=actor_name(actor);revision.review_note=body.note;revision.reviewed_at=datetime.now(timezone.utc)
+            place_drafts.reviewed(session,revision)
             if body.approve:place_notifications.enqueue(session,revision,'approved')
             result=dict(status=revision.status)
         background_tasks.add_task(place_notifications.dispatch_pending)

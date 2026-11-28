@@ -4,13 +4,13 @@
 .profile-contribution-stats>div { display:flex; flex-direction:column; justify-content:space-between; min-height:130px; padding:10px 22px 16px; border-radius:22px; background:var(--account-cream); box-shadow:var(--account-shadow); }
 .profile-contribution-stats span { color:#877f60; font-size:.95rem; }
 .profile-contribution-stats strong { font-size:2rem; line-height:1.4; font-weight:700; font-variant-numeric:tabular-nums; }
-.contributions-history { position:relative; min-height:210px; padding:12px 12px 14px; border-radius:22px; background:var(--account-cream); box-shadow:var(--account-shadow); }
+.contributions-history { position:relative; min-height:360px; padding:12px 12px 14px; border-radius:22px; background:var(--account-cream); box-shadow:var(--account-shadow); }
 .contributions-history-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; min-height:44px; padding-inline:10px 0; margin-bottom:10px; }
 .contributions-history h2 { margin:0; color:#877f60; font-size:1rem; font-weight:500; }
 .contributions-history .account-page-refresh { background:var(--account-cream); border-color:#ece5d2; margin-top:-4px; }
 #profile-contribution-status { color:#877f60; font-size:.85rem; margin:0 22px 12px; }
 #profile-contribution-status:empty { display:none; }
-#profile-contribution-list { display:grid; align-content:start; gap:16px; max-height:124px; overflow:auto; padding:2px 24px 6px; scrollbar-width:thin; scrollbar-color:#fff transparent; scroll-padding-block:8px; }
+#profile-contribution-list { display:grid; align-content:start; gap:16px; max-height:320px; overflow:auto; padding:2px 24px 6px; scrollbar-width:thin; scrollbar-color:#fff transparent; scroll-padding-block:8px; }
 #profile-contribution-list:empty { display:none; }
 #profile-contribution-list::-webkit-scrollbar { width:8px; }
 #profile-contribution-list::-webkit-scrollbar-thumb { background:#fff; border-radius:999px; }

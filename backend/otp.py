@@ -196,7 +196,15 @@ def _send_kavenegar_sms(phone: str, text: str) -> None:
 def deliver_plain_sms(phone: str, text: str) -> bool:
     """Synchronous delivery for transactional outboxes; failures remain retryable."""
     phone=normalize_phone(phone)
-    if not is_mobile_phone(phone) or not text or not _kavenegar_configured():return False
+    if not is_mobile_phone(phone):
+        log.warning("kavenegar sms unavailable reason=invalid_recipient phone=%s", _mask_phone(phone))
+        return False
+    if not text:
+        log.warning("kavenegar sms unavailable reason=empty_message phone=%s", _mask_phone(phone))
+        return False
+    if not _kavenegar_configured():
+        log.warning("kavenegar sms unavailable reason=provider_not_configured")
+        return False
     _send_kavenegar_sms(phone,text)
     return True
 

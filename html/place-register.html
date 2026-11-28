@@ -6,34 +6,67 @@
     <link rel="icon" href="../assets/images/Logo_tab.webp" type="image/webp">
     <link rel="stylesheet" href="../assets/fonts/peyda.css"><link rel="stylesheet" href="../css/global.css">
     <link rel="stylesheet" href="../css/treat-v1.css"><link rel="stylesheet" href="../css/place-workspace.css">
+    <link rel="stylesheet" href="https://static.neshan.org/sdk/leaflet/v1.9.4/neshan-sdk/v1.0.8/index.css">
+    <script src="https://static.neshan.org/sdk/leaflet/v1.9.4/neshan-sdk/v1.0.8/index.js" defer></script>
     <script src="../js/config.js"></script><script src="../js/shared.js"></script>
-    <script src="../js/place-ui.js" defer></script><script src="../js/place-photo.js" defer></script><script src="../js/place-register.js" defer></script><script src="../js/auth.js" defer></script>
+    <script src="../js/place-ui.js" defer></script><script src="../js/place-photo.js" defer></script>
+    <script src="../js/place-registration-map.js" defer></script><script src="../js/place-register.js" defer></script><script src="../js/auth.js" defer></script>
 </head>
 <body class="place-page-body">
     <div id="top-banner" data-page="explorer"></div><script src="../js/banner.js"></script>
-    <main class="place-page">
+    <main class="place-page place-wizard-page">
         <a class="place-back" href="locations.html">بازگشت به نقشه ←</a>
-        <header class="place-page-heading"><p>اطلاعات مکانی</p><h1 id="place-form-title">ثبت مسجد</h1><p id="place-context"></p></header>
-        <ol id="place-form-steps" class="place-steps" aria-label="مراحل ثبت"><li>نوع مکان</li><li>استان</li><li>موقعیت</li><li aria-current="step">اطلاعات مکان</li></ol>
-        <p id="place-form-status" role="status" aria-live="polite">در حال آماده‌سازی فرم…</p>
-        <form id="place-registration-form" class="place-form" hidden>
-            <div class="place-form-section"><h2>اطلاعات اصلی</h2><div class="place-form-grid">
-                <label>نام مسجد<input id="place-name" required maxlength="250" autocomplete="off"></label>
-                <label>شماره تماس<input id="place-phone" maxlength="150" dir="ltr" type="tel"></label>
-                <label class="place-field-wide">نشانی<textarea id="place-address" maxlength="2000" rows="3"></textarea></label>
-                <label class="place-field-wide">وبسایت یا صفحهٔ اجتماعی<input id="place-website" maxlength="800" dir="ltr" placeholder="example.com"></label>
-            </div></div>
-            <div class="place-form-section"><h2>عکس مکان</h2>
-                <p class="place-photo-help">یک عکس PNG، JPEG یا WebP، حداکثر ۵ مگابایت</p>
-                <label class="place-photo-select">انتخاب عکس<input id="place-photo-file" type="file" accept="image/png,image/jpeg,image/webp"></label>
-                <img id="place-photo-preview" class="place-photo-preview" alt="پیش‌نمایش عکس مکان" hidden>
-                <button type="button" id="place-photo-remove" class="place-review-reject" hidden>حذف عکس</button>
-                <p id="place-photo-status" class="place-review-error" role="status"></p>
-            </div>
-            <div class="place-form-section"><h2>فعالیت و امکانات</h2><div id="place-attribute-fields" class="place-form-grid"></div></div>
-            <div class="place-form-footer"><p>اطلاعات شما پس از تأیید مدیر منتشر می‌شود.</p><div><button type="submit" id="place-submit" class="place-primary">ارسال برای بررسی</button><a id="place-change-position" href="locations.html">تغییر موقعیت روی نقشه</a></div></div>
-        </form>
-        <section id="place-success" class="place-success" hidden aria-labelledby="place-success-title"><h2 id="place-success-title" tabindex="-1">پیشنهاد شما ثبت شد</h2><p>پس از بررسی مدیر، نتیجه در مشارکت‌های شما نمایش داده می‌شود.</p><a class="place-primary" href="contributions.html">مشارکت‌های من</a><a class="place-back" href="locations.html">بازگشت به نقشه</a></section>
+        <header class="place-page-heading"><p>اطلاعات مکانی</p><h1 id="place-form-title">افزودن مکان</h1><p id="place-context"></p></header>
+        <p id="place-form-status" role="status" aria-live="polite">در حال آماده‌سازی…</p>
+        <section id="place-wizard" hidden>
+            <nav aria-label="مراحل ثبت مکان"><ol id="place-form-steps" class="place-steps place-wizard-steps">
+                <li><button type="button" data-step="1"><span>۱</span>نوع مکان</button></li>
+                <li><button type="button" data-step="2"><span>۲</span>استان</button></li>
+                <li><button type="button" data-step="3"><span>۳</span>موقعیت</button></li>
+                <li><button type="button" data-step="4"><span>۴</span>اطلاعات مکان</button></li>
+            </ol></nav>
+            <div class="place-wizard-state"><span id="place-draft-status" role="status" aria-live="polite"></span><button id="place-save-retry" type="button" hidden>تلاش دوباره</button></div>
+            <aside id="place-request-status" class="place-request-status" role="status" hidden><p id="place-request-message"></p><a id="place-new-request" href="place-register.html?new=1">افزودن مکان دیگر</a></aside>
+            <section id="place-stage-1" class="place-form place-wizard-stage" aria-labelledby="place-type-title" hidden>
+                <h2 id="place-type-title" tabindex="-1">نوع مکان را انتخاب کنید</h2>
+                <div id="place-types" class="place-wizard-types"></div>
+            </section>
+            <section id="place-stage-2" class="place-form place-wizard-stage" aria-labelledby="place-province-title" hidden>
+                <h2 id="place-province-title" tabindex="-1">استان را انتخاب کنید</h2>
+                <label for="place-province">استان</label><select id="place-province"><option value="">استان را انتخاب کنید</option></select>
+                <p id="place-province-hint" class="place-photo-help"></p>
+            </section>
+            <section id="place-stage-3" class="place-form place-wizard-stage" aria-labelledby="place-point-title" hidden>
+                <div class="place-review-head"><h2 id="place-point-title" tabindex="-1">موقعیت را روی نقشه انتخاب کنید</h2><button id="place-map-reset" type="button" class="place-back">نمای استان</button></div>
+                <p class="place-photo-help">برای انتخاب موقعیت، روی نقشه بزنید یا نشانگر را جابه‌جا کنید. نمادهای دیگر، مکان‌های پایگاه دادهٔ سامانه هستند.</p>
+                <div id="place-registration-map" aria-label="نقشهٔ انتخاب موقعیت"></div>
+                <p id="place-point-status" role="status" aria-live="polite"></p>
+                <p id="place-map-status" class="place-photo-help" role="status"></p><button id="place-map-retry" type="button" class="place-back" hidden>تلاش دوباره برای نقشه</button>
+            </section>
+            <form id="place-registration-form" class="place-form place-wizard-stage" hidden>
+                <h2 id="place-details-title" tabindex="-1">اطلاعات مکان</h2>
+                <button type="button" id="place-change-position" class="place-back">تغییر موقعیت روی نقشه</button>
+                <div class="place-form-section"><h2>اطلاعات اصلی</h2><div class="place-form-grid">
+                    <label>نام مسجد<input id="place-name" required maxlength="250" autocomplete="off"></label>
+                    <label>شماره تماس<input id="place-phone" maxlength="150" dir="ltr" type="tel"></label>
+                    <label class="place-field-wide">نشانی<textarea id="place-address" maxlength="2000" rows="3"></textarea></label>
+                    <label class="place-field-wide">وبسایت یا صفحهٔ اجتماعی<input id="place-website" maxlength="800" dir="ltr" placeholder="example.com"></label>
+                </div></div>
+                <div class="place-form-section"><h2>عکس مکان</h2>
+                    <p class="place-photo-help">یک عکس PNG، JPEG یا WebP، حداکثر ۵ مگابایت</p>
+                    <label class="place-photo-select">انتخاب عکس<input id="place-photo-file" type="file" accept="image/png,image/jpeg,image/webp"></label>
+                    <img id="place-photo-preview" class="place-photo-preview" alt="پیش‌نمایش عکس مکان" hidden>
+                    <button type="button" id="place-photo-remove" class="place-review-reject" hidden>حذف عکس</button>
+                    <p id="place-photo-status" class="place-review-error" role="status"></p>
+                </div>
+                <div class="place-form-section"><h2>فعالیت و امکانات</h2><div id="place-attribute-fields" class="place-form-grid"></div></div>
+            </form>
+            <footer class="place-wizard-footer">
+                <button type="button" id="place-previous" class="place-secondary">مرحلهٔ قبل</button>
+                <div><button type="button" id="place-next" class="place-primary">مرحلهٔ بعد</button><button type="submit" form="place-registration-form" id="place-submit" class="place-primary" hidden>ارسال برای بررسی</button><button type="button" id="place-cancel-request" class="place-review-reject">لغو درخواست</button></div>
+            </footer>
+        </section>
+        <section id="place-success" class="place-success" hidden aria-labelledby="place-success-title"><h2 id="place-success-title" tabindex="-1"></h2><p id="place-success-message"></p><a class="place-primary" href="locations.html">بازگشت به نقشه</a><a class="place-back" href="contributions.html">مشارکت‌های من</a></section>
     </main>
     <dialog id="place-photo-crop" class="place-crop-dialog" aria-labelledby="place-photo-crop-title">
         <h2 id="place-photo-crop-title">برش عکس مکان</h2><p>عکس را جابه‌جا کنید؛ این کادر همان نسبت عکس در پروفایل مکان است.</p>

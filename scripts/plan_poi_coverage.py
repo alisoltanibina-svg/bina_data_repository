@@ -6,7 +6,7 @@ requires an explicitly started existing worker and an explicit result-limit mode
 import argparse,csv,json,math,sys,gzip
 from pathlib import Path
 from uuid import UUID
-from backend.poi_coverage import METRIC_CRS,project,ALGORITHM
+from backend.poi_coverage import METRIC_CRS,project
 from backend.poi_coverage_sources import compile_sources
 
 

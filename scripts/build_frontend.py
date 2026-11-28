@@ -21,6 +21,9 @@ else:
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 TOP_LEVEL_FILES = ("index.html", "maintenance.html", "webmanifest.json")
 PUBLIC_DIRS = ("html", "css", "js", "assets")
+PUBLIC_DATA_FILES = ("data/iran.geojson",)
+DEVELOPMENT_DIRS = {"tests", "__tests__", "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache"}
+DEVELOPMENT_SUFFIXES = (".test.js", ".spec.js", ".test.cjs", ".spec.cjs", ".pyc", ".pyo", ".log", ".tmp")
 VERSIONABLE_SUFFIXES = {
     ".css", ".js", ".json", ".webp", ".png", ".jpg", ".jpeg",
     ".gif", ".svg", ".ico", ".woff", ".woff2", ".ttf", ".geojson",
@@ -38,7 +41,7 @@ CSS_URL_RE = re.compile(
 VERSION_PLACEHOLDER = "__ASSET_VERSION__"
 # Bump this when the generated public artifact format changes without a source
 # asset changing, so immutable release URLs remain content-accurate.
-BUILD_FORMAT_VERSION = b"asset-minify-v3-maintenance-inline"
+BUILD_FORMAT_VERSION = b"asset-minify-v4-public-inputs"
 
 
 def minify_css(text: str) -> str:
@@ -270,6 +273,11 @@ def _is_mutable_upload(relative: Path) -> bool:
     return relative.as_posix().startswith(("assets/images/avatars/","assets/images/places/"))
 
 
+def _is_development_file(relative: Path) -> bool:
+    return (any(part.lower() in DEVELOPMENT_DIRS for part in relative.parts)
+            or relative.name.startswith(".") or relative.name.lower().endswith(DEVELOPMENT_SUFFIXES))
+
+
 def public_files(source_root: Path) -> list[Path]:
     files: list[Path] = []
     for name in TOP_LEVEL_FILES:
@@ -282,12 +290,11 @@ def public_files(source_root: Path) -> list[Path]:
         if not root.is_dir():
             continue
         for path in root.rglob("*"):
-            if path.is_file() and not _is_mutable_upload(path.relative_to(source_root)):
+            relative = path.relative_to(source_root)
+            if path.is_file() and not _is_mutable_upload(relative) and not _is_development_file(relative):
                 files.append(path)
 
-    data_root = source_root / "data"
-    if data_root.is_dir():
-        files.extend(path for path in data_root.rglob("*.geojson") if path.is_file())
+    files.extend(source_root / name for name in PUBLIC_DATA_FILES if (source_root / name).is_file())
     return sorted(set(files), key=lambda path: path.relative_to(source_root).as_posix())
 
 
@@ -436,13 +443,33 @@ def build(source_root: Path, output: Path, requested_version: str | None = None)
     return version
 
 
+def remove_deployed_tests(source_root: Path) -> bool:
+    """Explicit deployment cleanup; never run during a normal developer build."""
+    source_root = source_root.resolve(strict=True)
+    target = source_root / "tests"
+    if target.is_symlink() or target.is_junction():
+        raise ValueError("Refusing to remove a linked tests directory")
+    if not target.exists():
+        return False
+    if not target.is_dir() or target.resolve().parent != source_root:
+        raise ValueError("Tests cleanup must stay inside the selected project")
+    if not (source_root / "backend" / "main.py").is_file():
+        raise ValueError("Tests cleanup requires a dashboard deployment root")
+    shutil.rmtree(target)
+    return True
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=PROJECT_ROOT / "dist")
     parser.add_argument("--version", help="Optional release label; it is normalized to a 12-character hash")
+    parser.add_argument("--remove-deployed-tests", action="store_true",
+                        help="After a successful build, delete this deployment's tests directory; do not use on a development checkout")
     args = parser.parse_args()
     version = build(PROJECT_ROOT, args.output, args.version)
     print(f"Built {args.output.resolve()} with asset version {version}")
+    if args.remove_deployed_tests and remove_deployed_tests(PROJECT_ROOT):
+        print(f"Removed deployed tests from {PROJECT_ROOT / 'tests'}")
 
 
 if __name__ == "__main__":

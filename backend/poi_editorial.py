@@ -4,7 +4,6 @@ from datetime import date
 import hashlib
 import json
 import math
-import re
 
 from fastapi import HTTPException
 from pydantic import Field, FiniteFloat, field_validator
