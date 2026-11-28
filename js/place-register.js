@@ -165,9 +165,11 @@ onReady(async()=>{
         finally{busy=false;controls();}
     }
     function finish(status){
-        closed=true;clearTimeout(timer);map.hide();address.clear();el('place-wizard').hidden=true;el('place-success').hidden=false;message('');
-        el('place-success-title').textContent=status==='approved'?'اطلاعات مکان تأیید شد':'درخواست لغو شد';
-        el('place-success-message').textContent=status==='approved'?'اطلاعات تأییدشده روی نقشه نمایش داده می‌شود.':'این پیش‌نویس بسته شد و برای بررسی ارسال نخواهد شد.';
+        closed=true;clearTimeout(timer);map.hide();address.clear();el('place-wizard').hidden=true;message('');
+        if(status==='cancelled'){window.location.replace(PlaceUI.page('locations.html'));return;}
+        el('place-success').hidden=false;
+        el('place-success-title').textContent='اطلاعات مکان تأیید شد';
+        el('place-success-message').textContent='اطلاعات تأییدشده روی نقشه نمایش داده می‌شود.';
         el('place-success-title').focus();
     }
     async function poll(){
