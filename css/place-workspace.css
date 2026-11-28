@@ -1,3 +1,6 @@
+/* Reserve the page scrollbar even when a shorter registration stage fits on screen. */
+.place-registration-document { scrollbar-gutter:stable; }
+@supports not (scrollbar-gutter:stable) { .place-registration-document { overflow-y:scroll; } }
 .place-page-body { margin:0; min-height:100dvh; height:auto; overflow:auto; color:#515811; background:#f8f5ef; font-family:PeydaFaNumWeb,Tahoma,sans-serif; line-height:1.9; }
 .place-page-body * { box-sizing:border-box; }
 .place-page-body [hidden] { display:none !important; }
@@ -101,19 +104,19 @@
 .place-photo-caption .place-review-error:empty { display:none; }
 .place-details-fields { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px 14px; }
 .place-details-fields #place-attribute-fields { display:contents; }
-.place-registration-page .place-details-fields select { appearance:none; border-color:#c5bb9c; padding-inline-end:42px; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23515811' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:left 16px center; cursor:pointer; }
-.place-registration-page .place-details-fields option { background:#fffdf7; color:#515811; font:inherit; }
+.place-registration-page .place-select { appearance:none; border-color:#c5bb9c; padding-inline-end:42px; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23515811' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:left 16px center; cursor:pointer; }
+.place-registration-page .place-select option { background:#fffdf7; color:#515811; font:inherit; }
 /* Native customizable selects preserve keyboard, validation and form behavior. */
 @supports (appearance:base-select) {
-    .place-registration-page .place-details-fields select { appearance:base-select; align-items:center; padding-inline-end:12px; background-image:none; }
-    .place-registration-page .place-details-fields select:open { border-color:#515811; box-shadow:0 0 0 2px #51581133; }
-    .place-registration-page .place-details-fields select::picker(select) { appearance:base-select; position-anchor:var(--place-picker-anchor); inset:auto; top:anchor(bottom); left:anchor(left); position-area:none; position-try-fallbacks:none; margin:8px 0 0; width:anchor-size(width); padding:6px; border:1px solid #968761; border-radius:12px; background:#fffdf7; color:#515811; box-shadow:0 6px 18px #51581133; font:inherit; max-block-size:var(--place-picker-height,280px); overflow:auto; scrollbar-width:thin; scrollbar-color:#968761 #fffdf7; }
-    .place-registration-page .place-details-fields select::picker-icon { content:""; flex:none; width:24px; height:24px; border-radius:50%; background:#e6dfcc url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23515811' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center/14px no-repeat; }
-    .place-registration-page .place-details-fields select:open::picker-icon { transform:rotate(180deg); }
-    .place-registration-page .place-details-fields option { padding:8px 14px; margin:2px 0; border-radius:8px; line-height:1.8; cursor:pointer; }
-    .place-registration-page .place-details-fields option::checkmark { display:none; }
-    .place-registration-page .place-details-fields option:hover,.place-registration-page .place-details-fields option:focus { outline:none; background:#e8dfc7; }
-    .place-registration-page .place-details-fields option:checked { background:#515811; color:#fff; }
+    .place-registration-page .place-select { appearance:base-select; align-items:center; padding-inline-end:12px; background-image:none; }
+    .place-registration-page .place-select:open { border-color:#515811; box-shadow:0 0 0 2px #51581133; }
+    .place-registration-page .place-select::picker(select) { appearance:base-select; position-anchor:var(--place-picker-anchor); inset:auto; top:anchor(bottom); left:anchor(left); position-area:none; position-try-fallbacks:none; margin:8px 0 0; width:anchor-size(width); padding:6px; border:1px solid #968761; border-radius:12px; background:#fffdf7; color:#515811; box-shadow:0 6px 18px #51581133; font:inherit; max-block-size:var(--place-picker-height,280px); overflow:auto; scrollbar-width:thin; scrollbar-color:#968761 #fffdf7; }
+    .place-registration-page .place-select::picker-icon { content:""; flex:none; width:24px; height:24px; border-radius:50%; background:#e6dfcc url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23515811' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center/14px no-repeat; }
+    .place-registration-page .place-select:open::picker-icon { transform:rotate(180deg); }
+    .place-registration-page .place-select option { padding:8px 14px; margin:2px 0; border-radius:8px; line-height:1.8; cursor:pointer; }
+    .place-registration-page .place-select option::checkmark { display:none; }
+    .place-registration-page .place-select option:hover,.place-registration-page .place-select option:focus { outline:none; background:#e8dfc7; }
+    .place-registration-page .place-select option:checked { background:#515811; color:#fff; }
 }
 @media(max-width:900px) {
     .place-details-fields { grid-template-columns:repeat(2,minmax(0,1fr)); }

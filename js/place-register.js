@@ -13,6 +13,20 @@ onReady(async()=>{
     const address=PlaceAddressLookup({onEdit(value){data.values.address=value;touch();}});
     const map=PlaceRegistrationMap({onPoint(point){Object.assign(data,point);address.selected({category:data.category,...point});pointValid=false;touch();controls();},
         onValidity(value){pointValid=value;address.validity(value);controls();},onZoom(zoom){if(data&&data.zoom!==zoom){data.zoom=zoom;touch(false);}}});
+    setupSelect(el('place-province'),'province');
+    function setupSelect(input,key){
+        input.classList.add('place-select');
+        if(!window.CSS?.supports('appearance','base-select'))return;
+        const anchor='--place-field-'+key;
+        input.style.setProperty('anchor-name',anchor);input.style.setProperty('--place-picker-anchor',anchor);
+        const preparePicker=event=>{
+            if(input.matches(':open')||event.type==='keydown'&&!['ArrowDown','ArrowUp',' ','Enter'].includes(event.key))return;
+            const limit=Math.min(280,window.innerHeight*.45),room=()=>window.innerHeight-input.getBoundingClientRect().bottom-20;
+            if(room()<Math.min(limit,160))window.scrollBy({top:Math.min(limit,160)-room(),behavior:'instant'});
+            input.style.setProperty('--place-picker-height',Math.max(72,Math.min(limit,room()))+'px');
+        };
+        input.addEventListener('pointerdown',preparePicker);input.addEventListener('keydown',preparePicker);
+    }
     function pointExists(){return Number.isFinite(data?.latitude)&&Number.isFinite(data?.longitude);}
     function typeAllowed(){return !!data?.category&&config.editable_categories.includes(data.category)&&config.categories.some(row=>row.category===data.category);}
     function provinceReady(){return typeAllowed()&&provinceAllowed(config,data.province,data.category);}
@@ -48,17 +62,7 @@ onReady(async()=>{
             const label=node('label'),title=node('span',field.label);title.id='place-label-'+field.key;label.append(title);let input;
             if(field.kind==='boolean'||field.kind==='choice'){
                 input=node('select');const blank=node('option','نامشخص');blank.value='';input.append(blank);
-                if(window.CSS?.supports('appearance','base-select')){
-                    const anchor='--place-field-'+field.key;
-                    input.style.setProperty('anchor-name',anchor);input.style.setProperty('--place-picker-anchor',anchor);
-                    const preparePicker=event=>{
-                        if(input.matches(':open')||event.type==='keydown'&&!['ArrowDown','ArrowUp',' ','Enter'].includes(event.key))return;
-                        const limit=Math.min(280,window.innerHeight*.45),room=()=>window.innerHeight-input.getBoundingClientRect().bottom-20;
-                        if(room()<Math.min(limit,160))window.scrollBy({top:Math.min(limit,160)-room(),behavior:'instant'});
-                        input.style.setProperty('--place-picker-height',Math.max(72,Math.min(limit,room()))+'px');
-                    };
-                    input.addEventListener('pointerdown',preparePicker);input.addEventListener('keydown',preparePicker);
-                }
+                setupSelect(input,field.key);
                 for(const [value,title] of field.kind==='boolean'?[['true','بله'],['false','خیر']]:field.choices.map(v=>[v,v])){
                     const option=node('option',title);option.value=value;input.append(option);
                 }
