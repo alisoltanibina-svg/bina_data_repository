@@ -1,6 +1,9 @@
 // Live viewing and corrected local overlays; registration has its own wizard.
 function LocationEditor({map,categories,canEdit,getScene,onOverlayChange,onSelectCategory}) {
-    const {api,page,fact}=PlaceUI,el=id=>document.getElementById(id);
+    const {api,page,node}=PlaceUI,el=id=>document.getElementById(id);
+    function fact(root,label,value,link=false){
+        const item=node('div',null,'place-fact');PlaceUI.fact(item,label,value,link);root.append(item);
+    }
     let config,selected=null,timer,controller,generation=0,lastKey='',published=[],suppressed=new Set();
     let profileMarker=null,profileRequest=0,focusBeforeProfile=null;
     let profileLocalId=null,profileLiveKey=null,profileData=null;

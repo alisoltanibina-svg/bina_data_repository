@@ -46,7 +46,7 @@ onReady(async()=>{
         const pending=draft?.status==='pending',rejected=draft?.status==='rejected',notice=el('place-request-status');
         notice.hidden=!pending&&!rejected;
         el('place-new-request').hidden=!pending;
-        el('place-request-message').textContent=pending?'درخواست شما در انتظار بررسی است. با تغییر اطلاعات، درخواست قبلی از بررسی خارج می‌شود؛ پس از تکمیل، دوباره ارسال کنید.':
+        el('place-request-message').textContent=pending?'درخواست شما در انتظار بررسی است.':
             rejected?'درخواست تأیید نشده است. اطلاعات را اصلاح و دوباره ارسال کنید.':'';
     }
     function touch(content=true){

@@ -55,21 +55,36 @@ body.locations-body { margin: 0; height: 100dvh; overflow: hidden; background: v
 .place-dialog-close { position:absolute; inset-inline-end:16px; top:14px; display:grid; place-items:center; width:34px; height:34px; padding:0; border:0; border-radius:50%; background:#f8f5ef; color:#515811; font:24px/1 Tahoma,sans-serif; cursor:pointer; }
 .place-dialog h2 { font-size:1.2rem; margin:10px 0 20px; }
 .place-dialog p { font-size:.82rem; line-height:1.9; color:#85784f; }
-.place-profile { margin:125px auto auto; }
-.place-profile-pin { text-align:center; padding:0 28px 18px; border-bottom:1px solid #eee8dc; }
+.place-profile { --place-profile-top:clamp(110px,16dvh,140px); width:min(568px,calc(100% - 32px)); margin:var(--place-profile-top) auto 24px; max-height:calc(100dvh - var(--place-profile-top) - 24px); padding:28px; border:0; border-radius:22px; overflow:hidden; }
+.place-profile[open] { display:flex; flex-direction:column; }
+.place-profile-pin { flex:none; text-align:center; padding:0 24px 20px; border-bottom:1px solid #8d9469; }
 .place-profile-pin img { display:block; width:56px; height:56px; margin:0 auto 12px; object-fit:contain; }
 .place-profile-pin img.is-place-photo { width:min(100%,360px); height:auto; aspect-ratio:4/3; object-fit:cover; border-radius:18px; }
-.place-profile-pin h2 { margin:0; }
-.place-profile-pin p { margin:6px 0 0; }
-.place-facts { display:grid; grid-template-columns:1fr 2fr; gap:12px 24px; margin:22px 0; font-size:.85rem; }
-.place-facts dt { color:#8b805e; }
-.place-facts dd { margin:0; white-space:pre-line; overflow-wrap:anywhere; }
-.place-facts a { color:#515811; }
+.place-profile-pin h2 { margin:0; font-size:1.2rem; font-weight:800; overflow-wrap:anywhere; }
+.place-profile-pin p { margin:8px 0 0; color:#8c825f; }
+.place-facts { display:grid; flex:1 1 auto; min-height:0; align-content:start; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px 20px; margin:24px -5px 0; padding:0 5px 6px; overflow:auto; overscroll-behavior:contain; scrollbar-width:thin; scrollbar-color:#b5ac8c transparent; font-size:.85rem; }
+.place-fact { min-width:0; min-height:56px; padding:10px 16px; border-radius:20px; background:#f3ecdc; box-shadow:0 3px 5px #5158111a; }
+.place-fact:last-child:nth-child(odd) { grid-column:1/-1; justify-self:center; width:calc(50% - 10px); }
+.place-facts dt { margin:0 0 3px; color:#8b805e; font-size:.72rem; }
+.place-facts dd { margin:0; white-space:pre-line; overflow-wrap:anywhere; color:#515811; line-height:1.8; }
+.place-facts a { color:#515811; text-decoration:underline; text-underline-offset:3px; }
+.place-profile-actions { display:flex; flex:none; justify-content:center; margin-top:24px; }
+.place-profile-actions .place-primary { min-width:134px; min-height:46px; box-shadow:0 3px 5px #51581126; }
+.place-facts:empty,.place-profile-actions:has(>[hidden]),#locations-detail-status:empty,#locations-detail-lock:empty { display:none; }
+#locations-detail-loading,#locations-detail-lock { flex:none; text-align:center; overflow-wrap:anywhere; }
 .locations-live-icon { transition:opacity .18s ease; }
 @media(prefers-reduced-motion:reduce) { .locations-live-icon { transition:none; } }
 .locations-body button:focus-visible, .locations-body a:focus-visible, .locations-body input:focus-visible { outline: 2px solid var(--location-gold); outline-offset: 2px; }
 @media (max-width: 767px) {
-    .place-profile { margin-top:90px; }.place-dialog { max-height:calc(100dvh - 110px); padding:24px 18px; }.place-facts { grid-template-columns:1fr; gap:3px; }.place-facts dd { margin-bottom:12px; }
+    .place-dialog { max-height:calc(100dvh - 110px); padding:24px 18px; }
+    .place-profile { --place-profile-top:90px; width:calc(100% - 24px); max-height:calc(100dvh - var(--place-profile-top) - 16px); margin-bottom:16px; padding:24px 18px; }
+    .place-profile-pin { padding-inline:20px; }
+    .place-facts { gap:14px 12px; }
+    .place-fact { padding:10px 12px; border-radius:16px; }
+    .place-fact:last-child:nth-child(odd) { width:calc(50% - 6px); }
+    .locations-body #top-banner { max-width:calc(100% - 16px); }
+    .locations-body #top-banner .top-nav { display:none; }
+    .locations-body #top-banner .project-texts { flex:1 1 auto; min-width:0; }
     .locations-workspace { flex-direction: column; margin: 86px 8px 8px; gap: 8px; height: calc(100dvh - 94px); }
     .locations-sidebar { width: 100%; padding: 12px 14px; flex-shrink: 0; max-height: 230px; border-radius: 20px; }
     .locations-eyebrow, .locations-intro, .locations-search-label { display: none; }
