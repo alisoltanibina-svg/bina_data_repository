@@ -1,16 +1,15 @@
-// Suggestions stay in page memory until the user accepts or saves the address.
+// Point lookups fill the editable address; automatic values stay in memory until saved.
 function PlaceAddressLookup({onEdit}) {
     const el=id=>document.getElementById(id),field=el('place-address'),cache=new Map();
-    let point=null,eligible=false,wanted=false,generation=0,timer,controller,job,settle,run,lastAutomatic=null,offered=null;
+    let point=null,eligible=false,wanted=false,generation=0,timer,controller,job,settle,run,lastAutomatic=null;
     function status(text){el('place-address-status').textContent=text;}
-    function clearOffer(){offered=null;el('place-address-suggestion').hidden=true;}
     function cancel(){
         ++generation;clearTimeout(timer);timer=null;run=null;controller?.abort();controller=null;
         settle?.();settle=null;job=null;field.removeAttribute('aria-busy');status('');
     }
     function lookup(){
         if(!point||!eligible)return;
-        cancel();clearOffer();const request=generation,candidate={...point},key=JSON.stringify(candidate);
+        cancel();const request=generation,candidate={...point},key=JSON.stringify(candidate);
         status('در حال دریافت نشانی…');el('place-address-retry').hidden=true;field.setAttribute('aria-busy','true');
         job=new Promise(resolve=>{
             settle=resolve;
@@ -23,11 +22,7 @@ function PlaceAddressLookup({onEdit}) {
                     if(request!==generation)return;
                     if(typeof result.address!=='string'||!result.address.trim()||result.address.length>2000)throw new Error('نشانی معتبری دریافت نشد؛ می‌توانید آن را دستی وارد کنید.');
                     cache.set(key,result.address);if(cache.size>20)cache.delete(cache.keys().next().value);
-                    if(!field.value.trim()||field.value===lastAutomatic){field.value=result.address;lastAutomatic=result.address;status('نشانی را بررسی و در صورت نیاز ویرایش کنید.');}
-                    else if(field.value.trim()!==result.address.trim()){
-                        offered=result.address;el('place-address-suggestion-text').textContent=offered;el('place-address-suggestion').hidden=false;
-                        status('نشانی فعلی حفظ شد. در صورت نیاز از نشانی پیشنهادی استفاده کنید.');
-                    }else status('نشانی با موقعیت انتخاب‌شده مطابقت دارد.');
+                    field.value=result.address;lastAutomatic=result.address;status('نشانی را بررسی و در صورت نیاز ویرایش کنید.');
                 }catch(error){
                     if(request===generation){status(error.name==='AbortError'?'دریافت نشانی طول کشید؛ می‌توانید آن را دستی وارد کنید.':error.message);el('place-address-retry').hidden=false;}
                 }finally{
@@ -39,16 +34,13 @@ function PlaceAddressLookup({onEdit}) {
             timer=setTimeout(run,250);
         });
     }
-    field.addEventListener('input',()=>{wanted=false;cancel();lastAutomatic=null;clearOffer();status('');el('place-address-retry').hidden=true;onEdit(field.value);});
-    el('place-address-use').addEventListener('click',()=>{
-        if(!offered)return;field.value=offered;lastAutomatic=offered;clearOffer();status('نشانی پیشنهادی انتخاب شد.');onEdit(field.value);
-    });
+    field.addEventListener('input',()=>{wanted=false;cancel();lastAutomatic=null;status('');el('place-address-retry').hidden=true;onEdit(field.value);});
     el('place-address-retry').addEventListener('click',lookup);
-    function clear(){cancel();point=null;eligible=wanted=false;clearOffer();status('');el('place-address-retry').hidden=true;}
+    function clear(){cancel();point=null;eligible=wanted=false;status('');el('place-address-retry').hidden=true;}
     window.addEventListener('pagehide',clear);
     return {
         selected(candidate){
-            cancel();clearOffer();point={...candidate};wanted=true;eligible=false;status('');el('place-address-retry').hidden=true;
+            cancel();point={...candidate};wanted=true;eligible=false;status('');el('place-address-retry').hidden=true;
             if(field.value===lastAutomatic){field.value='';lastAutomatic=null;}
         },
         validity(value){eligible=value;if(!value)cancel();else if(wanted){wanted=false;lookup();}},

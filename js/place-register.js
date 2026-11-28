@@ -32,8 +32,11 @@ onReady(async()=>{
     function provinceReady(){return typeAllowed()&&provinceAllowed(config,data.province,data.category);}
     function controls(){
         if(!data)return;
+        const completed=[typeAllowed(),provinceReady()&&pointValid,draft?.status==='pending'];
         for(const button of document.querySelectorAll('[data-step]')){
             const target=Number(button.dataset.step);button.disabled=busy||(target>1&&!typeAllowed())||(target===3&&(!provinceReady()||!pointExists()));
+            button.classList.toggle('is-complete',!!completed[target-1]);
+            button.setAttribute('aria-description',completed[target-1]?'تکمیل‌شده':'تکمیل‌نشده');
             if(target===step)button.setAttribute('aria-current','step');else button.removeAttribute('aria-current');
         }
         el('place-previous').disabled=busy||step===1;el('place-next').hidden=step===3;el('place-submit').hidden=step!==3;
